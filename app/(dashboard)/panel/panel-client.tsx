@@ -3,242 +3,462 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 
 interface StatCard {
   title: string;
   value: string;
   icon: string;
-  color: string;
+  tone: "blue" | "green" | "purple" | "orange" | "zinc";
   href?: string;
 }
 
-export default function DashboardPage() {
+type Toast = {
+  id: string;
+  type: "success" | "error" | "info";
+  title: string;
+  message?: string;
+};
 
+function uid() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function toneClasses(tone: StatCard["tone"]) {
+  switch (tone) {
+    case "blue":
+      return "bg-blue-600 text-white";
+    case "green":
+      return "bg-emerald-600 text-white";
+    case "purple":
+      return "bg-purple-600 text-white";
+    case "orange":
+      return "bg-orange-600 text-white";
+    default:
+      return "bg-zinc-900 text-white";
+  }
+}
+
+export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
   const [stats, setStats] = useState<StatCard[]>([]);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // toasts
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const pushToast = (t: Omit<Toast, "id">) => {
+    const id = uid();
+    const toast: Toast = { id, ...t };
+    setToasts((prev) => [toast, ...prev]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((x) => x.id !== id));
+    }, 3500);
+  };
+  const removeToast = (id: string) =>
+    setToasts((prev) => prev.filter((x) => x.id !== id));
+
+  const isAdmin = useMemo(
+    () => !!session?.user?.roles?.includes("ADMIN"),
+    [session],
+  );
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    }
+    if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
 
   // Fetch dashboard data
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        
-        // You can fetch actual stats from your API here
-        // For now, we'll set up placeholder stats that you can customize
-        const defaultStats: StatCard[] = [
-          {
-            title: "Active Sessions",
-            value: "1",
-            icon: "🔐",
-            color: "bg-green-500",
-          },
-          {
-            title: "Roles",
-            value: session?.user?.roles?.length?.toString() || "0",
-            icon: "🎭",
-            color: "bg-purple-500",
-            href: "#", // You can link to a roles page if you have one
-          },
-          {
-            title: "Permissions",
-            value: session?.user?.permissions?.length?.toString() || "0",
-            icon: "🔑",
-            color: "bg-orange-500",
-          },
-        ];
+    const run = async () => {
+      if (!session?.user) return;
+      setLoading(true);
 
-        setStats(defaultStats);
+      const base: StatCard[] = [
+        {
+          title: "Roles",
+          value: (session.user.roles?.length ?? 0).toString(),
+          icon: "🎭",
+          tone: "purple",
+          href: isAdmin ? "/admin/roles" : undefined,
+        },
+        {
+          title: "Permissions",
+          value: (session.user.permissions?.length ?? 0).toString(),
+          icon: "🔑",
+          tone: "orange",
+          href: isAdmin ? "/admin/permissions" : undefined,
+        },
+        {
+          title: "Session",
+          value: "Active",
+          icon: "🔐",
+          tone: "green",
+        },
+      ];
 
-        // Fetch actual user count if you have an API endpoint
+      // Admin-only: show users count if endpoint exists
+      if (isAdmin) {
+        base.unshift({
+          title: "Users",
+          value: "—",
+          icon: "👥",
+          tone: "blue",
+          href: "/admin/users",
+        });
+
         try {
-          const userRes = await fetch("/api/v1/users");
+          const userRes = await fetch("/api/v1/users", { cache: "no-store" });
           if (userRes.ok) {
             const userData = await userRes.json();
-            const userCount = Array.isArray(userData.data)
+            const count = Array.isArray(userData?.data)
               ? userData.data.length
-              : userData.count || "Loading...";
-            defaultStats[0].value = userCount.toString();
-            setStats([...defaultStats]);
+              : userData?.count;
+            base[0].value = (count ?? "—").toString();
           }
-        } catch (err) {
-          // Silently fail - stats will show placeholder
+        } catch {
+          // ignore
         }
-
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-        setLoading(false);
       }
+
+      setStats(base);
+      setLoading(false);
     };
 
-    if (session?.user) {
-      fetchDashboardData();
-    }
-  }, [session]);
+    run().catch((err) => {
+      console.error("Error fetching dashboard data:", err);
+      pushToast({
+        type: "error",
+        title: "Dashboard failed to load",
+        message: "Please refresh the page.",
+      });
+      setLoading(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, isAdmin]);
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+      <div className="flex-1 overflow-auto bg-zinc-50">
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="h-11 w-11 animate-pulse rounded-2xl bg-zinc-100" />
+              <div className="flex-1">
+                <div className="h-5 w-72 animate-pulse rounded bg-zinc-100" />
+                <div className="mt-2 h-4 w-56 animate-pulse rounded bg-zinc-100" />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-2xl border bg-white p-6 shadow-sm"
+              >
+                <div className="h-4 w-28 animate-pulse rounded bg-zinc-100" />
+                <div className="mt-3 h-8 w-20 animate-pulse rounded bg-zinc-100" />
+                <div className="mt-4 h-9 w-24 animate-pulse rounded bg-zinc-100" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!session?.user) {
-    return null;
-  }
+  if (!session?.user) return null;
 
-  const isAdmin = session.user.roles?.includes("ADMIN") || false;
+  const displayName = session.user.name || session.user.email || "User";
 
   return (
-    <div className="flex-1 overflow-auto">
-      {/* Header Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-8 py-12">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-4xl font-bold mb-2">
-            Welcome, {session.user.name || session.user.email}! 👋
-          </h1>
-          <p className="text-blue-100 text-lg">
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
+    <div className="flex-1 overflow-auto bg-zinc-50">
+      {/* Toasts */}
+      <div className="pointer-events-none fixed right-4 top-4 z-[60] flex w-[92vw] max-w-sm flex-col gap-3">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto rounded-2xl border bg-white p-4 shadow-lg ${
+              t.type === "success"
+                ? "border-emerald-100"
+                : t.type === "error"
+                  ? "border-red-100"
+                  : "border-zinc-200"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-zinc-900">{t.title}</p>
+                {t.message && (
+                  <p className="mt-1 text-sm text-zinc-600">{t.message}</p>
+                )}
+              </div>
+              <button
+                onClick={() => removeToast(t.id)}
+                className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Header */}
+      <div className="border-b bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-900 text-white shadow-sm">
+                  <span className="text-sm font-semibold">
+                    {(displayName?.[0] || "U").toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
+                    Welcome, {displayName}
+                  </h1>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    {new Date().toLocaleDateString("en-US", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {isAdmin ? (
+              <Link
+                href="/admin"
+                className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+              >
+                Open admin →
+              </Link>
+            ) : (
+              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">
+                Dashboard
+              </span>
+            )}
+          </div>
+
+          {/* Account strip */}
+          <div className="mt-6 rounded-2xl border bg-zinc-50 p-5">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-xl border bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Email
+                </p>
+                <p className="mt-1 truncate text-sm font-medium text-zinc-900">
+                  {session.user.email}
+                </p>
+              </div>
+
+              <div className="rounded-xl border bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Roles
+                </p>
+                <p className="mt-1 text-sm font-medium text-zinc-900">
+                  {session.user.roles?.join(", ") || "No roles assigned"}
+                </p>
+              </div>
+
+              <div className="rounded-xl border bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Permissions
+                </p>
+                <p className="mt-1 text-sm font-medium text-zinc-900">
+                  {(session.user.permissions?.length ?? 0).toString()}
+                </p>
+              </div>
+            </div>
+
+            {session.user.permissions &&
+              session.user.permissions.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Your permissions
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {session.user.permissions.map((perm) => (
+                      <span
+                        key={perm}
+                        className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100"
+                      >
+                        {perm}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+          </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* User Info Card */}
-        <div className="bg-white rounded-lg shadow mb-8 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Account Information
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Email</p>
-              <p className="text-gray-900 font-semibold">{session.user.email}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Roles</p>
-              <p className="text-gray-900 font-semibold">
-                {session.user.roles?.join(", ") || "No roles assigned"}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 font-medium">Permissions</p>
-              <p className="text-gray-900 font-semibold">
-                {session.user.permissions?.length || 0} permissions
-              </p>
-            </div>
+      {/* Content */}
+      <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+        {/* Stats */}
+        <section>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-zinc-900">
+              Statistics
+            </h2>
+            <span className="text-sm text-zinc-500">Quick snapshot</span>
           </div>
-          {session.user.permissions && session.user.permissions.length > 0 && (
-            <div className="mt-4">
-              <p className="text-sm text-gray-500 font-medium mb-2">
-                Your Permissions
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {session.user.permissions.map((perm) => (
-                  <span
-                    key={perm}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
-                  >
-                    {perm}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* Stats Grid */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Statistics</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat) => (
-              <Link href={stat.href || "#"} key={stat.title}>
-                <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 cursor-pointer group">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-gray-600 font-medium text-sm">
-                      {stat.title}
-                    </h3>
-                    <span className="text-3xl">{stat.icon}</span>
+          <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((s) => {
+              const card = (
+                <div className="rounded-2xl border bg-white p-6 shadow-sm transition hover:shadow-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      {s.title}
+                    </p>
+                    <span className="text-2xl">{s.icon}</span>
                   </div>
-                  <p className={`text-3xl font-bold text-white rounded p-2 ${stat.color} inline-block`}>
-                    {stat.value}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
 
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Link href={`/users/${session?.user?.id}/profile`}>
-              <button className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-4 px-6 rounded-lg transition-colors text-left">
-                ⚙️ Account Settings
-              </button>
+                  <div className="mt-3">
+                    <span
+                      className={`inline-flex items-center rounded-xl px-3 py-2 text-sm font-semibold ${toneClasses(
+                        s.tone,
+                      )}`}
+                    >
+                      {s.value}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 text-sm text-zinc-600">
+                    {s.href ? "View details →" : "—"}
+                  </div>
+                </div>
+              );
+
+              return s.href ? (
+                <Link key={s.title} href={s.href} className="block">
+                  {card}
+                </Link>
+              ) : (
+                <div key={s.title}>{card}</div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Quick actions */}
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-900">
+                Quick actions
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Jump to common tasks.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <Link
+              href={`/users/${session.user.id}`}
+              className="rounded-2xl border bg-white p-5 shadow-sm transition hover:bg-zinc-50"
+            >
+              <p className="text-sm font-semibold text-zinc-900">
+                Account settings
+              </p>
+              <p className="mt-1 text-sm text-zinc-600">
+                Update your profile information.
+              </p>
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">
+                Open →
+              </div>
             </Link>
-            
+
             {isAdmin && (
               <>
-                <Link href="/admin/roles">
-                  <button className="w-full bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold py-4 px-6 rounded-lg transition-colors text-left">
-                    🎭 Manage Roles
-                  </button>
+                <Link
+                  href="/admin/roles"
+                  className="rounded-2xl border bg-white p-5 shadow-sm transition hover:bg-zinc-50"
+                >
+                  <p className="text-sm font-semibold text-zinc-900">
+                    Manage roles
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Create roles and organize access.
+                  </p>
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700 ring-1 ring-purple-100">
+                    Open →
+                  </div>
                 </Link>
-                <Link href="/admin/users">
-                  <button className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold py-4 px-6 rounded-lg transition-colors text-left">
-                    🔑 Admin Panel
-                  </button>
+
+                <Link
+                  href="/admin/users"
+                  className="rounded-2xl border bg-white p-5 shadow-sm transition hover:bg-zinc-50"
+                >
+                  <p className="text-sm font-semibold text-zinc-900">
+                    Admin users
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Assign roles and audit access.
+                  </p>
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700 ring-1 ring-orange-100">
+                    Open →
+                  </div>
                 </Link>
               </>
             )}
           </div>
-        </div>
+        </section>
 
-        {/* Help Section */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Need Help?</h2>
-          <p className="text-gray-600 mb-4">
-            Check out our documentation or contact support for assistance.
-          </p>
-          <div className="flex gap-4">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
-              📖 Documentation
-            </button>
-            <button className="bg-white border border-blue-300 text-blue-600 hover:bg-blue-50 font-semibold py-2 px-6 rounded-lg transition-colors">
-              💬 Contact Support
-            </button>
+        {/* Help */}
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-900">
+                Need help?
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Check documentation or contact support if something is blocked.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() =>
+                  pushToast({
+                    type: "info",
+                    title: "Documentation",
+                    message: "Hook this button to your docs route.",
+                  })
+                }
+                className="inline-flex items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
+              >
+                Documentation
+              </button>
+              <button
+                onClick={() =>
+                  pushToast({
+                    type: "info",
+                    title: "Support",
+                    message: "Hook this button to your support flow.",
+                  })
+                }
+                className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+              >
+                Contact support
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
 
         {/* Footer */}
-        <div className="mt-12 pt-8 border-t border-gray-200">
-          <p className="text-center text-gray-500 text-sm">
-            Last login: {new Date().toLocaleTimeString()}
-          </p>
+        <div className="pt-2 text-center text-xs text-zinc-500">
+          Last login: {new Date().toLocaleTimeString()}
         </div>
       </div>
     </div>
