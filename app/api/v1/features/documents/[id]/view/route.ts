@@ -1,0 +1,74 @@
+import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { NextRequest } from "next/server";
+import { readFile } from "fs/promises";
+import path from "path";
+
+function diskPathFromFileUrl(fileUrl: string) {
+  // normaliza "/public/uploads/.." -> "/uploads/.."
+  let rel = fileUrl.trim();
+  if (!rel.startsWith("/")) rel = `/${rel}`;
+  rel = rel.replace(/^\/public\//, "/"); // por si existe data vieja
+
+  // debe ser dentro de /uploads
+  if (!rel.startsWith("/uploads/")) throw new Error("INVALID_PATH");
+
+  const publicRoot = path.join(process.cwd(), "public");
+  const disk = path.join(publicRoot, rel); // /public + /uploads/...
+  if (!disk.startsWith(publicRoot)) throw new Error("INVALID_PATH");
+
+  return disk;
+}
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  const { id } = await params;
+
+  if (!session?.user?.id) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const doc = await prisma.document.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      fileName: true,
+      fileType: true,
+      fileUrl: true,
+    },
+  });
+
+  if (!doc) return Response.json({ error: "Document not found" }, { status: 404 });
+
+  const isAdmin = session.user.roles?.includes("ADMIN");
+  const isOwner = doc.userId === session.user.id;
+  if (!isAdmin && !isOwner) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  try {
+    const diskPath = diskPathFromFileUrl(doc.fileUrl);
+    const buf = await readFile(diskPath);
+
+    const safeName = (doc.fileName || doc.name || "document")
+      .replace(/"/g, "")
+      .trim();
+
+    return new Response(buf, {
+      status: 200,
+      headers: {
+        "Content-Type": doc.fileType || "application/octet-stream",
+        "Content-Disposition": `inline; filename="${safeName}"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  } catch (e) {
+    console.error("VIEW read error:", e);
+    return Response.json({ error: "File unavailable" }, { status: 404 });
+  }
+}

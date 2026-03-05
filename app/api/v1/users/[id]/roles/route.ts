@@ -4,15 +4,15 @@ import { NextRequest } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.roles?.includes("ADMIN")) {
     return Response.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-    try {
-    const { id } = params;
+  try {
+    const { id } = await params;
     if (!id) {
       return Response.json({ error: "Missing user id" }, { status: 400 });
     }
@@ -34,9 +34,8 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params:  Promise<{id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
-    
   const session = await auth();
   if (!session?.user?.roles?.includes("ADMIN")) {
     return Response.json({ error: "Unauthorized" }, { status: 403 });
@@ -44,8 +43,8 @@ export async function PUT(
 
   try {
     const { id } = await params;
-      console.log("Fetching user roles for user id:", id);
-      
+    console.log("Fetching user roles for user id:", id);
+
     if (!id) {
       return Response.json({ error: "Missing user id" }, { status: 400 });
     }
@@ -53,7 +52,10 @@ export async function PUT(
     const { roleIds } = await request.json();
 
     if (!Array.isArray(roleIds)) {
-      return Response.json({ error: "Invalid roleIds format" }, { status: 400 });
+      return Response.json(
+        { error: "Invalid roleIds format" },
+        { status: 400 },
+      );
     }
 
     // ensure user exists
@@ -85,7 +87,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.roles?.includes("ADMIN")) {
@@ -93,7 +95,7 @@ export async function DELETE(
   }
 
   try {
-    const { id } = params;
+    const { id } = await params;
     if (!id) {
       return Response.json({ error: "Missing user id" }, { status: 400 });
     }

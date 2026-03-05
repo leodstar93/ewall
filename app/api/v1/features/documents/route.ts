@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { NextRequest } from "next/server";
+import { join } from "path";
+import { mkdir, writeFile } from "fs/promises";
 
 // POST - Upload a new document
 export async function POST(request: NextRequest) {
@@ -23,11 +25,27 @@ export async function POST(request: NextRequest) {
     if (!name || name.trim().length === 0) {
       return Response.json(
         { error: "Document name is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // In a real app, you would upload the file to cloud storage (S3, Cloudinary, etc.)
+    // Generate unique filename
+    const timestamp = Date.now();
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const uniqueFileName = `${timestamp}-${sanitizedFileName}`;
+
+    // LOCAL STORAGE IMPLEMENTATION
+    // Save file to /public/uploads directory
+    const uploadsDir = join(process.cwd(), "public", "uploads");
+
+    // Ensure uploads directory exists
+    await mkdir(uploadsDir, { recursive: true });
+
+    // Write file to disk
+    const fileBuffer = await file.arrayBuffer();
+    const filePath = join(uploadsDir, uniqueFileName);
+    await writeFile(filePath, Buffer.from(fileBuffer));
     // For now, we'll just store the file information in the database
     // You'll need to implement actual file storage based on your requirements
 
@@ -37,7 +55,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         description: description || null,
         fileName: file.name,
-        fileUrl: `/uploads/${Date.now()}-${file.name}`, // Placeholder URL
+        fileUrl: `/uploads/${uniqueFileName}`, // Placeholder URL
         fileSize: file.size,
         fileType: file.type,
         userId: session.user.id,
@@ -49,7 +67,7 @@ export async function POST(request: NextRequest) {
     console.error("Error uploading document:", error);
     return Response.json(
       { error: "Failed to upload document" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

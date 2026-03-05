@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -14,68 +14,194 @@ interface Document {
   createdAt: string;
 }
 
+type SortKey = "newest" | "oldest" | "name-asc" | "size-desc" | "size-asc";
+
+type Toast = {
+  id: string;
+  type: "success" | "error" | "info";
+  title: string;
+  message?: string;
+};
+
+function uid() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const value = Math.round((bytes / Math.pow(k, i)) * 100) / 100;
+  return `${value} ${sizes[i]}`;
+}
+
+function formatDate(dateString: string) {
+  return new Date(dateString).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function DocumentsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // Upload form state
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Docs state
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
 
-  // Redirect if not authenticated
-  if (status === "unauthenticated") {
-    router.push("/login");
-    return null;
-  }
+  // UI state
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("newest");
+
+  // Modal state
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletingDoc, setDeletingDoc] = useState<Document | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Toasts
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const pushToast = (t: Omit<Toast, "id">) => {
+    const id = uid();
+    const toast: Toast = { id, ...t };
+    setToasts((prev) => [toast, ...prev]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((x) => x.id !== id));
+    }, 3500);
+  };
+  const removeToast = (id: string) =>
+    setToasts((prev) => prev.filter((x) => x.id !== id));
+
+  // Redirect if not authenticated (in effect, not during render)
+  useEffect(() => {
+    if (status === "unauthenticated") router.replace("/login");
+  }, [status, router]);
 
   const fetchDocuments = async () => {
     try {
-      const response = await fetch("/api/v1/features/documents");
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data.documents || []);
+      setLoadingDocs(true);
+      const response = await fetch("/api/v1/features/documents", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        pushToast({
+          type: "error",
+          title: "Failed to load documents",
+          message: "Please refresh the page.",
+        });
+        return;
       }
+
+      const data = await response.json();
+      setDocuments(data.documents || []);
     } catch (error) {
       console.error("Error fetching documents:", error);
+      pushToast({
+        type: "error",
+        title: "Network error",
+        message: "Could not fetch documents.",
+      });
     } finally {
       setLoadingDocs(false);
     }
   };
 
+  useEffect(() => {
+    if (session?.user) fetchDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
+  const filteredSortedDocs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    const filtered = q
+      ? documents.filter((d) => {
+          const n = d.name?.toLowerCase() ?? "";
+          const desc = d.description?.toLowerCase() ?? "";
+          const fn = d.fileName?.toLowerCase() ?? "";
+          const ft = d.fileType?.toLowerCase() ?? "";
+          return (
+            n.includes(q) ||
+            desc.includes(q) ||
+            fn.includes(q) ||
+            ft.includes(q)
+          );
+        })
+      : documents;
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sort === "newest")
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      if (sort === "oldest")
+        return (
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      if (sort === "name-asc") return a.name.localeCompare(b.name);
+      if (sort === "size-desc") return b.fileSize - a.fileSize;
+      if (sort === "size-asc") return a.fileSize - b.fileSize;
+      return 0;
+    });
+
+    return sorted;
+  }, [documents, query, sort]);
+
+  const totals = useMemo(() => {
+    const total = documents.length;
+    const bytes = documents.reduce((acc, d) => acc + (d.fileSize || 0), 0);
+    return { total, bytes };
+  }, [documents]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFile(e.target.files[0]);
-    }
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
   };
 
-  // Fetch documents on mount
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
+  const clearForm = () => {
+    setFile(null);
+    setName("");
+    setDescription("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage("");
 
     if (!file) {
-      setMessage("Please select a file");
+      pushToast({
+        type: "error",
+        title: "Missing file",
+        message: "Please select a file.",
+      });
       return;
     }
 
     if (!name.trim()) {
-      setMessage("Please enter a document name");
+      pushToast({
+        type: "error",
+        title: "Missing name",
+        message: "Please enter a document name.",
+      });
       return;
     }
 
-    setIsLoading(true);
+    setIsUploading(true);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("name", name);
+      formData.append("name", name.trim());
       formData.append("description", description);
 
       const response = await fetch("/api/v1/features/documents", {
@@ -84,276 +210,503 @@ export default function DocumentsPage() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         throw new Error(error.error || "Failed to upload document");
       }
 
       const newDoc = await response.json();
-      setDocuments([newDoc, ...documents]);
-      setFile(null);
-      setName("");
-      setDescription("");
-      setMessage("Document uploaded successfully!");
+      setDocuments((prev) => [newDoc, ...prev]);
+      clearForm();
 
-      // Clear success message after 3 seconds
-      setTimeout(() => setMessage(""), 3000);
+      pushToast({
+        type: "success",
+        title: "Uploaded",
+        message: "Document uploaded successfully.",
+      });
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to upload document. Please try again.",
-      );
+      pushToast({
+        type: "error",
+        title: "Upload failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to upload. Please try again.",
+      });
     } finally {
-      setIsLoading(false);
+      setIsUploading(false);
     }
   };
 
-  const handleDelete = async (docId: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) {
-      return;
-    }
+  const openDelete = (doc: Document) => {
+    setDeletingDoc(doc);
+    setShowDelete(true);
+  };
 
+  const handleDelete = async () => {
+    if (!deletingDoc) return;
+
+    setIsDeleting(true);
     try {
-      const response = await fetch(`/api/v1/features/documents/${docId}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `/api/v1/features/documents/${deletingDoc.id}`,
+        { method: "DELETE" },
+      );
 
       if (!response.ok) {
         throw new Error("Failed to delete document");
       }
 
-      setDocuments(documents.filter((doc) => doc.id !== docId));
+      setDocuments((prev) => prev.filter((d) => d.id !== deletingDoc.id));
+      pushToast({
+        type: "success",
+        title: "Deleted",
+        message: `${deletingDoc.name} removed.`,
+      });
+
+      setShowDelete(false);
+      setDeletingDoc(null);
     } catch (error) {
       console.error("Error deleting document:", error);
-      alert("Failed to delete document");
+      pushToast({
+        type: "error",
+        title: "Delete failed",
+        message: "Could not delete document.",
+      });
+    } finally {
+      setIsDeleting(false);
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   if (status === "loading") {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex-1 overflow-auto bg-zinc-50">
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="h-5 w-56 animate-pulse rounded bg-zinc-100" />
+            <div className="mt-2 h-4 w-72 animate-pulse rounded bg-zinc-100" />
+          </div>
+          <div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="h-4 w-40 animate-pulse rounded bg-zinc-100" />
+            <div className="mt-4 h-10 w-full animate-pulse rounded bg-zinc-100" />
+          </div>
+        </div>
       </div>
     );
   }
 
+  if (!session?.user) return null;
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h1 className="text-3xl font-bold text-gray-900">Documents</h1>
-        <p className="text-gray-600 mt-1">
-          Upload and manage your documents securely
-        </p>
+    <div className="flex-1 overflow-auto bg-zinc-50">
+      {/* Toasts */}
+      <div className="pointer-events-none fixed right-4 top-4 z-[60] flex w-[92vw] max-w-sm flex-col gap-3">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto rounded-2xl border bg-white p-4 shadow-lg ${
+              t.type === "success"
+                ? "border-emerald-100"
+                : t.type === "error"
+                  ? "border-red-100"
+                  : "border-zinc-200"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-zinc-900">{t.title}</p>
+                {t.message && (
+                  <p className="mt-1 text-sm text-zinc-600">{t.message}</p>
+                )}
+              </div>
+              <button
+                onClick={() => removeToast(t.id)}
+                className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Upload Form */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">
-          Upload New Document
-        </h2>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Document Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Document Name *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter document name"
-              required
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter document description (optional)"
-              rows={4}
-            />
-          </div>
-
-          {/* File Upload */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select File *
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors">
-              <input
-                type="file"
-                onChange={handleFileChange}
-                className="w-full"
-                required
-              />
-              {file && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-900">
-                    <strong>Selected:</strong> {file.name}
-                  </p>
-                  <p className="text-sm text-blue-700">
-                    Size: {formatFileSize(file.size)}
+      {/* Header */}
+      <div className="border-b bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-900 text-white shadow-sm">
+                  <span className="text-sm font-semibold">D</span>
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
+                    Documents
+                  </h1>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Upload and manage your documents securely.
                   </p>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
 
-          {/* Message */}
-          {message && (
-            <div
-              className={`p-4 rounded-lg ${
-                message.includes("successfully")
-                  ? "bg-green-50 text-green-800 border border-green-200"
-                  : "bg-red-50 text-red-800 border border-red-200"
-              }`}
-            >
-              {message}
-            </div>
-          )}
-
-          {/* Submit Button */}
-          <div className="flex justify-end gap-4">
             <button
-              type="button"
-              onClick={() => {
-                setFile(null);
-                setName("");
-                setDescription("");
-                setMessage("");
-              }}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              disabled={isLoading}
+              onClick={fetchDocuments}
+              className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+              disabled={loadingDocs}
             >
-              Clear
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              disabled={isLoading}
-            >
-              {isLoading ? "Uploading..." : "Upload Document"}
+              {loadingDocs ? "Refreshing..." : "Refresh"}
             </button>
           </div>
-        </form>
+
+          {/* Summary */}
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Total documents
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {totals.total}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Storage used
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {formatFileSize(totals.bytes)}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Access
+              </p>
+              <p className="mt-1 text-sm font-medium text-zinc-900">
+                Signed in as {session.user.email}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Documents List */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">
-          Your Documents
-        </h2>
+      {/* Content */}
+      <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+        {/* Upload */}
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-900">
+                Upload new document
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Add a name and optional description to help you find it later.
+              </p>
+            </div>
+            {file ? (
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100">
+                Selected: {file.name}
+              </span>
+            ) : (
+              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">
+                No file selected
+              </span>
+            )}
+          </div>
 
-        {loadingDocs ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : documents.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-600 mb-2">📄</p>
-            <p className="text-gray-600">No documents uploaded yet</p>
-            <p className="text-sm text-gray-500">
-              Upload your first document using the form above
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    Name
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    Description
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    File
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    Size
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    Uploaded
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.map((doc) => (
-                  <tr
-                    key={doc.id}
-                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+          <form onSubmit={handleSubmit} className="mt-6 grid gap-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-zinc-800">
+                  Document name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Insurance form, ID scan..."
+                  className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-800">
+                  File <span className="text-red-500">*</span>
+                </label>
+                <div className="mt-2 rounded-2xl border-2 border-dashed border-zinc-300 p-5 hover:border-blue-400 transition-colors">
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    className="w-full"
+                  />
+                  {file && (
+                    <div className="mt-3 rounded-xl border bg-zinc-50 p-3 text-sm text-zinc-700">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{file.name}</span>
+                        <span className="text-zinc-500">•</span>
+                        <span>{formatFileSize(file.size)}</span>
+                        <span className="text-zinc-500">•</span>
+                        <span className="font-mono text-xs">
+                          {file.type || "file"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-800">
+                Description (optional)
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Optional notes…"
+                rows={3}
+                className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              />
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={clearForm}
+                disabled={isUploading}
+                className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Clear
+              </button>
+              <button
+                type="submit"
+                disabled={isUploading}
+                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
+              >
+                {isUploading ? "Uploading..." : "Upload"}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        {/* List */}
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-900">
+                Your documents
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Search and sort to find files quickly.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative w-full sm:w-72">
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by name, file, type..."
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 pr-10 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                />
+                {query && (
+                  <button
+                    onClick={() => setQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
+                    aria-label="Clear search"
                   >
-                    <td className="py-3 px-4">
-                      <span className="font-medium text-gray-900">
-                        {doc.name}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm text-gray-600">
-                        {doc.description || "-"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm text-gray-600">
-                        {doc.fileName}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm text-gray-600">
-                        {formatFileSize(doc.fileSize)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm text-gray-600">
-                        {formatDate(doc.createdAt)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <button
-                        onClick={() => handleDelete(doc.id)}
-                        className="text-red-600 hover:text-red-800 font-medium text-sm"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="name-asc">Name (A → Z)</option>
+                <option value="size-desc">Size (largest)</option>
+                <option value="size-asc">Size (smallest)</option>
+              </select>
+            </div>
           </div>
-        )}
+
+          <div className="mt-6">
+            {loadingDocs ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
+              </div>
+            ) : filteredSortedDocs.length === 0 ? (
+              <div className="rounded-2xl border bg-zinc-50 p-10 text-center">
+                <div className="text-2xl">📄</div>
+                <p className="mt-2 text-sm font-semibold text-zinc-900">
+                  {query ? "No results" : "No documents yet"}
+                </p>
+                <p className="mt-1 text-sm text-zinc-600">
+                  {query
+                    ? "Try a different search."
+                    : "Upload your first document using the form above."}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-zinc-50 border-b">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                          Name
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                          File
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                          Size
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                          Uploaded
+                        </th>
+                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y">
+                      {filteredSortedDocs.map((doc) => (
+                        <tr key={doc.id} className="hover:bg-zinc-50">
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-zinc-900">
+                              {doc.name}
+                            </p>
+                            <p className="mt-1 text-sm text-zinc-600">
+                              {doc.description || "—"}
+                            </p>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm text-zinc-700">
+                                {doc.fileName}
+                              </span>
+                              <span className="inline-flex w-fit items-center rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-medium text-zinc-700">
+                                {doc.fileType || "file"}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="px-6 py-4 text-sm text-zinc-700">
+                            {formatFileSize(doc.fileSize)}
+                          </td>
+
+                          <td className="px-6 py-4 text-sm text-zinc-700">
+                            {formatDate(doc.createdAt)}
+                          </td>
+
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() =>
+                                  window.open(
+                                    `/api/v1/features/documents/${doc.id}/view`,
+                                    "_blank",
+                                  )
+                                }
+                                className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+                              >
+                                View
+                              </button>
+
+                              <a
+                                href={`/api/v1/features/documents/${doc.id}/download`}
+                                className="rounded-xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
+                              >
+                                Download
+                              </a>
+
+                              <button
+                                onClick={() => openDelete(doc)}
+                                className="rounded-xl bg-red-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
+
+      {/* Delete modal */}
+      {showDelete && deletingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-zinc-900">
+                  Delete document
+                </h3>
+                <p className="mt-1 text-sm text-zinc-600">
+                  This action cannot be undone.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (isDeleting) return;
+                  setShowDelete(false);
+                  setDeletingDoc(null);
+                }}
+                className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border bg-zinc-50 p-4">
+              <p className="text-sm text-zinc-700">
+                You’re about to delete{" "}
+                <span className="font-semibold text-zinc-900">
+                  {deletingDoc.name}
+                </span>
+                .
+              </p>
+              <p className="mt-2 text-xs text-zinc-500">
+                File: <span className="font-mono">{deletingDoc.fileName}</span>
+              </p>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => {
+                  if (isDeleting) return;
+                  setShowDelete(false);
+                  setDeletingDoc(null);
+                }}
+                className="flex-1 rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50 disabled:opacity-60"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
