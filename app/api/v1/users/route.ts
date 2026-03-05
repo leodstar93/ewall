@@ -1,0 +1,96 @@
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcrypt";
+
+export async function GET() {
+  const users = await prisma.user.findMany({
+    include: {
+      roles: {
+        include: {
+          role: {
+            select: { id: true, name: true },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return Response.json(users);
+}
+
+export async function POST(request: Request) {
+  try {
+    const { email, name, password, roleIds } = await request.json();
+
+    if (!email || !password) {
+      return Response.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return Response.json(
+        { error: "User with this email already exists" },
+        { status: 400 }
+      );
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        email,
+        name: name || null,
+        passwordHash,
+      },
+      include: {
+        roles: {
+          include: {
+            role: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Assign roles if provided
+    if (roleIds && roleIds.length > 0) {
+      await prisma.userRole.createMany({
+        data: roleIds.map((roleId: string) => ({
+          userId: user.id,
+          roleId,
+        })),
+      });
+
+      // Fetch updated user with roles
+      const userWithRoles = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          roles: {
+            include: {
+              role: {
+                select: { id: true, name: true },
+              },
+            },
+          },
+        },
+      });
+
+      return Response.json(userWithRoles, { status: 201 });
+    }
+
+    return Response.json(user, { status: 201 });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    return Response.json({ error: "Failed to create user" }, { status: 500 });
+  }
+}
