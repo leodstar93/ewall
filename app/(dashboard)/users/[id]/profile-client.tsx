@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 interface LinkedAccount {
@@ -9,34 +9,100 @@ interface LinkedAccount {
   providerAccountId: string;
 }
 
+function cx(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function Badge({
+  children,
+  tone = "zinc",
+}: {
+  children: React.ReactNode;
+  tone?: "zinc" | "blue" | "green" | "red";
+}) {
+  const styles =
+    tone === "blue"
+      ? "bg-blue-50 text-blue-700 border-blue-100"
+      : tone === "green"
+        ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+        : tone === "red"
+          ? "bg-rose-50 text-rose-700 border-rose-100"
+          : "bg-zinc-50 text-zinc-700 border-zinc-100";
+
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
+        styles,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Alert({
+  tone,
+  children,
+}: {
+  tone: "success" | "error";
+  children: React.ReactNode;
+}) {
+  const styles =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : "border-rose-200 bg-rose-50 text-rose-800";
+
+  return (
+    <div className={cx("mt-4 rounded-2xl border px-4 py-3 text-sm", styles)}>
+      {children}
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { data: session, status, update } = useSession();
-  console.log("Session data:", session);
   const router = useRouter();
+
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+
   const [accountMessage, setAccountMessage] = useState("");
+  const [message, setMessage] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+
   const [formData, setFormData] = useState({
     name: session?.user?.name || "",
     email: session?.user?.email || "",
   });
+
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
-  const [message, setMessage] = useState("");
-  const [passwordMessage, setPasswordMessage] = useState("");
+
+  const initials = useMemo(() => {
+    const name = session?.user?.name?.trim();
+    if (!name) return "U";
+    const parts = name.split(/\s+/).slice(0, 2);
+    return parts.map((p) => p[0]?.toUpperCase()).join("");
+  }, [session?.user?.name]);
+
+  const googleLinked = useMemo(
+    () => linkedAccounts.some((acc) => acc.provider === "google"),
+    [linkedAccounts],
+  );
 
   // Redirect if not authenticated
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
-
-  if (status === "unauthenticated") return null;
 
   // Fetch linked accounts
   useEffect(() => {
@@ -56,11 +122,10 @@ export default function ProfilePage() {
       }
     };
 
-    if (session?.user?.id) {
-      fetchLinkedAccounts();
-    }
+    if (session?.user?.id) fetchLinkedAccounts();
   }, [session?.user?.id]);
 
+  // Sync form with session
   useEffect(() => {
     if (session?.user) {
       setFormData({
@@ -70,30 +135,34 @@ export default function ProfilePage() {
     }
   }, [session?.user?.name, session?.user?.email]);
 
+  if (status === "unauthenticated") return null;
+
   if (status === "loading") {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="h-6 w-40 rounded bg-zinc-100 animate-pulse" />
+          <div className="mt-6 space-y-3">
+            <div className="h-3 w-full rounded bg-zinc-100 animate-pulse" />
+            <div className="h-3 w-5/6 rounded bg-zinc-100 animate-pulse" />
+            <div className="h-3 w-2/3 rounded bg-zinc-100 animate-pulse" />
+          </div>
+          <div className="mt-6 h-10 w-full rounded-xl bg-zinc-100 animate-pulse" />
+        </div>
       </div>
     );
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handlePasswordInputChange = (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const { name, value } = e.target;
-    setPasswordData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setPasswordData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async () => {
@@ -114,11 +183,7 @@ export default function ProfilePage() {
 
       const updatedUser = await res.json();
 
-      // 1) ya se guardó en DB
-      // 2) refresca token/session desde callbacks
-      await update({ user: { name: updatedUser.name } }); // ✅ una sola vez
-      const s = await fetch("/api/auth/session").then((r) => r.json());
-      console.log("session after update:", s);
+      await update({ user: { name: updatedUser.name } });
 
       setMessage("Profile updated successfully!");
       setIsEditing(false);
@@ -137,7 +202,6 @@ export default function ProfilePage() {
   const handlePasswordChange = async () => {
     setPasswordMessage("");
 
-    // Validation
     if (
       !passwordData.currentPassword ||
       !passwordData.newPassword ||
@@ -146,12 +210,10 @@ export default function ProfilePage() {
       setPasswordMessage("All fields are required");
       return;
     }
-
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       setPasswordMessage("New passwords do not match");
       return;
     }
-
     if (passwordData.newPassword.length < 8) {
       setPasswordMessage("New password must be at least 8 characters long");
       return;
@@ -164,9 +226,7 @@ export default function ProfilePage() {
         `/api/v1/users/${session?.user?.id}/password`,
         {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             currentPassword: passwordData.currentPassword,
             newPassword: passwordData.newPassword,
@@ -175,7 +235,7 @@ export default function ProfilePage() {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to change password");
       }
 
@@ -185,10 +245,11 @@ export default function ProfilePage() {
         newPassword: "",
         confirmPassword: "",
       });
+
       setTimeout(() => {
         setShowPasswordModal(false);
         setPasswordMessage("");
-      }, 2000);
+      }, 1200);
     } catch (error) {
       console.error("Error changing password:", error);
       setPasswordMessage(
@@ -212,7 +273,6 @@ export default function ProfilePage() {
 
   const handleLinkGoogle = () => {
     setAccountMessage("");
-    // Redirect to the account linking page
     const currentPath = `/users/${session?.user?.id}`;
     router.push(
       `/auth/link-account?provider=google&callbackUrl=${encodeURIComponent(currentPath)}`,
@@ -236,19 +296,17 @@ export default function ProfilePage() {
         `/api/v1/users/${session?.user?.id}/accounts/google`,
         {
           method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         },
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to unlink Google account");
       }
 
       setAccountMessage("Google account unlinked successfully!");
-      // Refresh linked accounts
+
       const accountsResponse = await fetch(
         `/api/v1/users/${session?.user?.id}/accounts`,
       );
@@ -268,62 +326,76 @@ export default function ProfilePage() {
     }
   };
 
+  const memberSince = session?.user?.createdAt
+    ? new Date(session.user.createdAt).toLocaleDateString()
+    : "Unknown";
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Profile Settings
+      <div className="rounded-2xl border bg-white shadow-sm">
+        <div className="p-6 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-xs text-zinc-500">Account</div>
+            <h1 className="text-xl font-semibold text-zinc-900">
+              Profile settings
             </h1>
-            <p className="text-gray-600 mt-1">
-              Manage your account information and preferences
+            <p className="mt-1 text-sm text-zinc-600">
+              Manage your personal information, linked accounts, and security.
             </p>
           </div>
-          {!isEditing && (
+
+          {!isEditing ? (
             <button
               onClick={() => setIsEditing(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition disabled:opacity-50"
+              disabled={isLoading}
             >
-              Edit Profile
+              Edit profile
             </button>
+          ) : (
+            <Badge tone="zinc">Editing</Badge>
           )}
         </div>
       </div>
 
-      {/* Profile Information */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">
-          Personal Information
-        </h2>
-
-        <div className="space-y-6">
-          {/* Profile Picture */}
-          <div className="flex items-center space-x-6">
-            <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-2xl font-bold">
-                {session?.user?.name?.charAt(0).toUpperCase() || "U"}
-              </span>
-            </div>
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                {session?.user?.name}
-              </h3>
-              <p className="text-gray-600">{session?.user?.email}</p>
-              {isEditing && (
-                <button className="mt-2 text-blue-600 hover:text-blue-800 text-sm">
-                  Change profile picture
-                </button>
-              )}
+      {/* Personal info */}
+      <div className="rounded-2xl border bg-white shadow-sm">
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-zinc-900">
+              Personal information
+            </h2>
+            <div className="flex gap-2">
+              {(session?.user?.roles ?? []).slice(0, 3).map((r: any) => (
+                <Badge key={String(r)} tone="blue">
+                  {String(r)}
+                </Badge>
+              ))}
             </div>
           </div>
 
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="mt-6 flex items-center gap-5">
+            <div className="h-14 w-14 rounded-2xl bg-zinc-900 text-white flex items-center justify-center font-semibold">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-zinc-900 truncate">
+                {session?.user?.name || "User"}
+              </div>
+              <div className="text-sm text-zinc-600 truncate">
+                {session?.user?.email}
+              </div>
+              <div className="mt-2">
+                <Badge tone="green">Active</Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
+              <label className="block text-xs font-medium text-zinc-600 mb-2">
+                Full name
               </label>
               {isEditing ? (
                 <input
@@ -331,268 +403,303 @@ export default function ProfilePage() {
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
                   placeholder="Enter your full name"
                 />
               ) : (
-                <p className="text-gray-900 py-2">
+                <div className="rounded-2xl border bg-zinc-50 px-3 py-2 text-sm text-zinc-900">
                   {session?.user?.name || "Not provided"}
-                </p>
+                </div>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+              <label className="block text-xs font-medium text-zinc-600 mb-2">
+                Email address
               </label>
-              <p className="text-gray-900 py-2">{session?.user?.email}</p>
-              <p className="text-sm text-gray-500">Email cannot be changed</p>
-            </div>
-          </div>
-
-          {/* Roles */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Roles
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {session?.user?.roles?.map((role: string) => (
-                <span
-                  key={role}
-                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
-                >
-                  {role}
-                </span>
-              )) || <span className="text-gray-500">No roles assigned</span>}
+              <div className="rounded-2xl border bg-zinc-50 px-3 py-2 text-sm text-zinc-900">
+                {session?.user?.email || "Unknown"}
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">
+                Email cannot be changed
+              </p>
             </div>
           </div>
 
           {/* Permissions */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Permissions
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {session?.user?.permissions?.map((permission: string) => (
-                <span
-                  key={permission}
-                  className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm"
-                >
-                  {permission}
+          <div className="mt-8">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium text-zinc-600">
+                Permissions
+              </label>
+              <span className="text-xs text-zinc-500">
+                {(session?.user?.permissions?.length ?? 0).toString()} total
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(session?.user?.permissions ?? []).length ? (
+                (session?.user?.permissions ?? []).map((p: any) => (
+                  <Badge key={String(p)} tone="green">
+                    {String(p)}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-zinc-500">
+                  No permissions assigned
                 </span>
-              )) || (
-                <span className="text-gray-500">No permissions assigned</span>
               )}
             </div>
           </div>
-        </div>
 
-        {/* Action Buttons */}
-        {isEditing && (
-          <div className="flex justify-end space-x-4 mt-6 pt-6 border-t">
-            <button
-              onClick={handleCancel}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              disabled={isLoading}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              disabled={isLoading}
-            >
-              {isLoading ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
-        )}
-
-        {/* Message */}
-        {message && (
-          <div
-            className={`mt-4 p-4 rounded-lg ${
-              message.includes("successfully")
-                ? "bg-green-50 text-green-800 border border-green-200"
-                : "bg-red-50 text-red-800 border border-red-200"
-            }`}
-          >
-            {message}
-          </div>
-        )}
-      </div>
-
-      {/* Account Information */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">
-          Account Information
-        </h2>
-
-        <div className="space-y-4">
-          <div className="flex justify-between items-center py-3 border-b border-gray-200">
-            <span className="text-gray-600">Account Status</span>
-            <span className="text-green-600 font-medium">Active</span>
-          </div>
-
-          <div className="flex justify-between items-center py-3 border-b border-gray-200">
-            <span className="text-gray-600">Member Since</span>
-            <span className="text-gray-900">
-              {session?.user?.createdAt
-                ? new Date(session.user.createdAt).toLocaleDateString()
-                : "Unknown"}
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center py-3 border-b border-gray-200">
-            <span className="text-gray-600">Last Login</span>
-            <span className="text-gray-900">
-              {new Date().toLocaleDateString()}{" "}
-              {/* This would come from session data */}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Security Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-6">Security</h2>
-
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-gray-900 font-medium">Password</h3>
-              <p className="text-gray-600 text-sm">Last changed 30 days ago</p>
-            </div>
-            <button
-              onClick={() => setShowPasswordModal(true)}
-              className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-            >
-              Change Password
-            </button>
-          </div>
-
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-gray-900 font-medium">
-                Two-Factor Authentication
-              </h3>
-              <p className="text-gray-600 text-sm">
-                Add an extra layer of security
-              </p>
-            </div>
-            <button className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              Enable 2FA
-            </button>
-          </div>
-
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-gray-900 font-medium">Google Account</h3>
-              <p className="text-gray-600 text-sm">
-                {linkedAccounts.some((acc) => acc.provider === "google")
-                  ? "Your Google account is linked"
-                  : "Link your Google account for easier login"}
-              </p>
-            </div>
-            {linkedAccounts.some((acc) => acc.provider === "google") ? (
+          {isEditing && (
+            <div className="mt-8 flex items-center justify-end gap-3 border-t pt-6">
               <button
-                onClick={handleUnlinkGoogle}
+                onClick={handleCancel}
+                className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition disabled:opacity-50"
                 disabled={isLoading}
-                className="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
               >
-                Unlink Google
+                Cancel
               </button>
-            ) : (
               <button
-                onClick={handleLinkGoogle}
+                onClick={handleSave}
+                className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition disabled:opacity-50"
                 disabled={isLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                {isLoading ? "Linking..." : "Link Google"}
+                {isLoading ? "Saving..." : "Save changes"}
               </button>
-            )}
-          </div>
-
-          {accountMessage && (
-            <div
-              className={`p-4 rounded-lg ${
-                accountMessage.includes("successfully")
-                  ? "bg-green-50 text-green-800 border border-green-200"
-                  : "bg-red-50 text-red-800 border border-red-200"
-              }`}
-            >
-              {accountMessage}
             </div>
+          )}
+
+          {message && (
+            <Alert
+              tone={
+                message.toLowerCase().includes("success") ? "success" : "error"
+              }
+            >
+              {message}
+            </Alert>
           )}
         </div>
       </div>
 
-      {/* Password Change Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Change Password
-              </h3>
+      {/* Account info */}
+      <div className="rounded-2xl border bg-white shadow-sm">
+        <div className="p-6">
+          <h2 className="text-base font-semibold text-zinc-900">
+            Account information
+          </h2>
 
-              <div className="space-y-4">
+          <div className="mt-6 divide-y rounded-2xl border bg-white">
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-zinc-600">Account status</span>
+              <Badge tone="green">Active</Badge>
+            </div>
+
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-zinc-600">Member since</span>
+              <span className="text-sm text-zinc-900">{memberSince}</span>
+            </div>
+
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-zinc-600">Last login</span>
+              <span className="text-sm text-zinc-900">
+                {new Date().toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Security */}
+      <div className="rounded-2xl border bg-white shadow-sm">
+        <div className="p-6">
+          <h2 className="text-base font-semibold text-zinc-900">Security</h2>
+
+          <div className="mt-6 space-y-4">
+            <div className="rounded-2xl border bg-white p-4 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium text-zinc-900">
+                  Password
+                </div>
+                <div className="text-sm text-zinc-600">
+                  Update your password regularly.
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPasswordModal(true)}
+                className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition"
+              >
+                Change password
+              </button>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-4 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium text-zinc-900">
+                  Two-factor authentication
+                </div>
+                <div className="text-sm text-zinc-600">
+                  Add an extra layer of security.
+                </div>
+              </div>
+              <button
+                className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition"
+                disabled
+                title="Coming soon"
+              >
+                Enable 2FA
+              </button>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-4 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium text-zinc-900">
+                  Google account
+                </div>
+                <div className="text-sm text-zinc-600">
+                  {loadingAccounts
+                    ? "Checking linked accounts…"
+                    : googleLinked
+                      ? "Your Google account is linked."
+                      : "Link your Google account for easier login."}
+                </div>
+              </div>
+
+              {googleLinked ? (
+                <button
+                  onClick={handleUnlinkGoogle}
+                  disabled={isLoading}
+                  className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 transition disabled:opacity-50"
+                >
+                  Unlink Google
+                </button>
+              ) : (
+                <button
+                  onClick={handleLinkGoogle}
+                  disabled={isLoading || loadingAccounts}
+                  className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition disabled:opacity-50"
+                >
+                  {isLoading ? "Linking..." : "Link Google"}
+                </button>
+              )}
+            </div>
+
+            {accountMessage && (
+              <Alert
+                tone={
+                  accountMessage.toLowerCase().includes("success")
+                    ? "success"
+                    : "error"
+                }
+              >
+                {accountMessage}
+              </Alert>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Password modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => {
+              setShowPasswordModal(false);
+              setPasswordData({
+                currentPassword: "",
+                newPassword: "",
+                confirmPassword: "",
+              });
+              setPasswordMessage("");
+            }}
+          />
+          <div className="relative w-full max-w-md mx-4 rounded-2xl border bg-white shadow-xl">
+            <div className="p-6">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Current Password
+                  <h3 className="text-base font-semibold text-zinc-900">
+                    Change password
+                  </h3>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Choose a strong password you don’t use elsewhere.
+                  </p>
+                </div>
+                <button
+                  className="rounded-xl p-2 hover:bg-zinc-100 text-zinc-600"
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPasswordData({
+                      currentPassword: "",
+                      newPassword: "",
+                      confirmPassword: "",
+                    });
+                    setPasswordMessage("");
+                  }}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 mb-2">
+                    Current password
                   </label>
                   <input
                     type="password"
                     name="currentPassword"
                     value={passwordData.currentPassword}
                     onChange={handlePasswordInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
                     placeholder="Enter current password"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    New Password
+                  <label className="block text-xs font-medium text-zinc-600 mb-2">
+                    New password
                   </label>
                   <input
                     type="password"
                     name="newPassword"
                     value={passwordData.newPassword}
                     onChange={handlePasswordInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
                     placeholder="Enter new password"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirm New Password
+                  <label className="block text-xs font-medium text-zinc-600 mb-2">
+                    Confirm new password
                   </label>
                   <input
                     type="password"
                     name="confirmPassword"
                     value={passwordData.confirmPassword}
                     onChange={handlePasswordInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
                     placeholder="Confirm new password"
                   />
                 </div>
               </div>
 
-              {/* Password Message */}
               {passwordMessage && (
-                <div
-                  className={`mt-4 p-3 rounded-lg text-sm ${
-                    passwordMessage.includes("successfully")
-                      ? "bg-green-50 text-green-800 border border-green-200"
-                      : "bg-red-50 text-red-800 border border-red-200"
-                  }`}
+                <Alert
+                  tone={
+                    passwordMessage.toLowerCase().includes("success")
+                      ? "success"
+                      : "error"
+                  }
                 >
                   {passwordMessage}
-                </div>
+                </Alert>
               )}
 
-              <div className="flex justify-end space-x-3 mt-6">
+              <div className="mt-6 flex items-center justify-end gap-3">
                 <button
                   onClick={() => {
                     setShowPasswordModal(false);
@@ -603,17 +710,17 @@ export default function ProfilePage() {
                     });
                     setPasswordMessage("");
                   }}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition disabled:opacity-50"
                   disabled={isLoading}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handlePasswordChange}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition disabled:opacity-50"
                   disabled={isLoading}
                 >
-                  {isLoading ? "Changing..." : "Change Password"}
+                  {isLoading ? "Changing..." : "Change password"}
                 </button>
               </div>
             </div>

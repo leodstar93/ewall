@@ -33,7 +33,7 @@ export default function DocumentsPage() {
 
   const fetchDocuments = async () => {
     try {
-      const response = await fetch("/api/v1/documents");
+      const response = await fetch("/api/v1/features/documents");
       if (response.ok) {
         const data = await response.json();
         setDocuments(data.documents || []);
@@ -50,13 +50,11 @@ export default function DocumentsPage() {
       setFile(e.target.files[0]);
     }
   };
-  
+
   // Fetch documents on mount
   useEffect(() => {
     fetchDocuments();
   }, []);
-
-  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +78,7 @@ export default function DocumentsPage() {
       formData.append("name", name);
       formData.append("description", description);
 
-      const response = await fetch("/api/v1/documents", {
+      const response = await fetch("/api/v1/features/documents", {
         method: "POST",
         body: formData,
       });
@@ -103,7 +101,7 @@ export default function DocumentsPage() {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Failed to upload document. Please try again."
+          : "Failed to upload document. Please try again.",
       );
     } finally {
       setIsLoading(false);
@@ -116,7 +114,7 @@ export default function DocumentsPage() {
     }
 
     try {
-      const response = await fetch(`/api/v1/documents/${docId}`, {
+      const response = await fetch(`/api/v1/features/documents/${docId}`, {
         method: "DELETE",
       });
 

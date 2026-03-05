@@ -1,0 +1,8 @@
+{
+  "label": "Documentos",
+  "section": "Operaciones",
+  "order": 10,
+  "icon": "FileText",
+  "href": "/documents",
+  "permission": ["dashboard:access", "documents:write", "documents:read"]
+}
