@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import Link from "next/link";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -10,8 +11,14 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">EWall App</h1>
-          <p className="text-gray-600">Welcome back! Please sign in to your account.</p>
+          <Link href="/">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2 hover:text-blue-600 transition-colors cursor-pointer">
+              EWall App
+            </h1>
+          </Link>
+          <p className="text-gray-600">
+            Welcome back! Please sign in to your account.
+          </p>
         </div>
 
         {/* Auth Form Container */}

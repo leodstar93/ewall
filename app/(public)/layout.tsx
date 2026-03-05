@@ -80,12 +80,6 @@ export default function PublicLayout({
                   >
                     Sign In
                   </Link>
-                  <Link
-                    href="/signup"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                  >
-                    Sign Up
-                  </Link>
                 </>
               )}
             </div>

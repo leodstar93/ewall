@@ -22,12 +22,16 @@ const PERMISSIONS = [
   { key: "roles:write", description: "Create/update roles" },
   { key: "permissions:read", description: "Read permissions" },
   { key: "permissions:write", description: "Create/update permissions" },
+  { key: "dashboard:access", description: "Access dashboard" },
 
   // Ejemplos de módulos (ajusta a tu app)
   { key: "cases:read", description: "Read cases" },
   { key: "cases:write", description: "Create/update cases" },
   { key: "profile:access", description: "Access profile" },
   { key: "profile:write", description: "Update profile" },
+
+  //admin
+  { key: "admin:access", description: "Access admin" },
 ] as const;
 
 // Mapa de permisos por rol (ajusta como quieras)
@@ -35,7 +39,7 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
   ADMIN: PERMISSIONS.map((p) => p.key), // todo
   DOCTOR: ["cases:read", "cases:write", "labslips:read", "labslips:write"],
   STAFF: ["cases:read", "labslips:read"],
-  USER: ["profile:access", "profile:write"],
+  USER: ["profile:access", "profile:write", "dashboard:access"],
 };
 
 async function upsertRoles() {

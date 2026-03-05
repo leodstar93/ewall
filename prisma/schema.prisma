@@ -22,6 +22,9 @@ model User {
 
   // RBAC
   roles         UserRole[]
+
+  // Documents
+  documents     Document[]
 }
 
 model Account {
@@ -91,4 +94,17 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  name      String
+  fileName  String
+  fileSize  Int
+  fileType  String
+  fileUrl   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
