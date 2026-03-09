@@ -19,6 +19,7 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/roles")) return "Roles";
   if (pathname.startsWith("/admin/permissions")) return "Permissions";
+  if (pathname.startsWith("/admin/documents")) return "Documents";
   const last = pathname.split("/").filter(Boolean).pop() ?? "Admin";
   return last.charAt(0).toUpperCase() + last.slice(1);
 }
@@ -171,6 +172,13 @@ export default function AdminLayout({ children }: DashboardLayoutProps) {
               </div>
 
               <div className="mt-2 space-y-1">
+                <Link
+                  href="/admin/documents"
+                  className={navItemClass("/admin/documents")}
+                >
+                  <span className="h-2 w-2 rounded-full bg-current opacity-40" />
+                  Documents
+                </Link>
                 <Link
                   href="/panel"
                   className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
