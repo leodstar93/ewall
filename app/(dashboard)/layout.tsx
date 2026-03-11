@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
+import styles from "../console-theme.module.css";
 
 type FeatureLink = {
   name: string;
@@ -12,9 +14,19 @@ type FeatureLink = {
   order?: number;
   icon?: string;
   href: string;
-  // compat: algunos items pueden venir con permission (string) o permissions (string[])
   permission?: string;
   permissions?: string[];
+};
+
+type FeatureApiItem = {
+  name?: unknown;
+  label?: unknown;
+  section?: unknown;
+  order?: unknown;
+  icon?: unknown;
+  href?: unknown;
+  permission?: unknown;
+  permissions?: unknown;
 };
 
 interface DashboardLayoutProps {
@@ -29,9 +41,30 @@ function titleFromPath(pathname: string | null) {
   if (!pathname) return "Panel";
   if (pathname === "/panel") return "Dashboard";
   if (pathname.startsWith("/panel/settings")) return "Settings";
-  if (pathname.startsWith("/users/")) return "Perfil";
+  if (pathname.startsWith("/users/")) return "Profile";
   const last = pathname.split("/").filter(Boolean).pop() ?? "Panel";
   return last.charAt(0).toUpperCase() + last.slice(1);
+}
+
+function normalizeFeature(item: FeatureApiItem): FeatureLink | null {
+  if (typeof item.name !== "string" || typeof item.href !== "string") {
+    return null;
+  }
+
+  return {
+    name: item.name,
+    href: item.href,
+    label: typeof item.label === "string" ? item.label : undefined,
+    section: typeof item.section === "string" ? item.section : undefined,
+    order: typeof item.order === "number" ? item.order : undefined,
+    icon: typeof item.icon === "string" ? item.icon : undefined,
+    permission: typeof item.permission === "string" ? item.permission : undefined,
+    permissions: Array.isArray(item.permissions)
+      ? item.permissions.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : undefined,
+  };
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -46,51 +79,59 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  const isAdmin = !!session?.user?.roles?.includes("ADMIN");
+  const isAdmin = Boolean(session?.user?.roles?.includes("ADMIN"));
+  const userPermissions = useMemo(
+    () =>
+      Array.isArray(session?.user?.permissions)
+        ? session.user.permissions
+        : [],
+    [session?.user?.permissions],
+  );
 
   const initials = useMemo(() => {
     const name = session?.user?.name?.trim();
     if (!name) return "U";
     const parts = name.split(/\s+/).slice(0, 2);
-    return parts.map((p) => p[0]?.toUpperCase()).join("");
-  }, [session]);
+    return parts.map((part) => part[0]?.toUpperCase()).join("");
+  }, [session?.user?.name]);
 
   const roleLabel = useMemo(() => {
-    const roles = (session?.user as any)?.roles ?? [];
-    if (!roles?.length) return "USER";
+    const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
+    if (roles.length === 0) return "USER";
     if (roles.includes("ADMIN")) return "ADMIN";
     return String(roles[0]);
-  }, [session]);
+  }, [session?.user?.roles]);
 
   const pageTitle = useMemo(() => titleFromPath(pathname), [pathname]);
 
-  // Group by section
   const grouped = useMemo(() => {
-    const map = new Map<string, FeatureLink[]>();
-    for (const f of featureLinks) {
-      const section = f.section ?? "Módulos";
-      if (!map.has(section)) map.set(section, []);
-      map.get(section)!.push(f);
+    const groupedMap = new Map<string, FeatureLink[]>();
+    for (const feature of featureLinks) {
+      const section = feature.section ?? "Modules";
+      if (!groupedMap.has(section)) groupedMap.set(section, []);
+      groupedMap.get(section)?.push(feature);
     }
-    return Array.from(map.entries());
+    return Array.from(groupedMap.entries());
   }, [featureLinks]);
 
-  // ✅ Redirects correctos
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
     if (status === "authenticated" && isAdmin) router.replace("/admin");
   }, [status, isAdmin, router]);
 
-  // ✅ Close dropdown on outside click / ESC
   useEffect(() => {
-    const onDown = (e: MouseEvent) => {
+    const onDown = (event: MouseEvent) => {
       if (!isDropdownOpen) return;
-      const el = dropdownRef.current;
-      if (el && !el.contains(e.target as Node)) setIsDropdownOpen(false);
+      const element = dropdownRef.current;
+      if (element && !element.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsDropdownOpen(false);
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsDropdownOpen(false);
     };
+
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
     return () => {
@@ -99,81 +140,88 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     };
   }, [isDropdownOpen]);
 
-  // ✅ Load features + RBAC robusto
   useEffect(() => {
     let active = true;
 
-    const run = async () => {
+    const loadFeatures = async () => {
       setFeaturesLoading(true);
       setFeaturesError(null);
+
       try {
-        const res = await fetch("/api/v1/features", { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as any[];
+        const response = await fetch("/api/v1/features", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        const perms =
-          (((session?.user as any)?.permissions ?? []) as string[]) ?? [];
+        const payload: unknown = await response.json();
+        const parsed = Array.isArray(payload)
+          ? payload
+              .map((item) => normalizeFeature(item as FeatureApiItem))
+              .filter((item): item is FeatureLink => item !== null)
+          : [];
 
-        const visible = (Array.isArray(data) ? data : []).filter((f: any) => {
-          const required: string[] = Array.isArray(f.permissions)
-            ? f.permissions
-            : typeof f.permission === "string"
-              ? [f.permission]
+        const visible = parsed.filter((feature) => {
+          const requiredPermissions = Array.isArray(feature.permissions)
+            ? feature.permissions
+            : feature.permission
+              ? [feature.permission]
               : [];
 
-          if (required.length === 0) return true;
+          if (requiredPermissions.length === 0) return true;
 
-          // OR (tiene alguno)
-          const hasAny = required.some((p) => perms.includes(p));
+          const hasRequiredPermission = requiredPermissions.some((permission) =>
+            userPermissions.includes(permission),
+          );
 
-          // bonus: si tienes "module:manage" cuenta como acceso al módulo
-          const hasManage = required.some((p) => {
-            const module = String(p).split(":")[0];
-            return perms.includes(`${module}:manage`);
+          const hasManagePermission = requiredPermissions.some((permission) => {
+            const scope = permission.split(":")[0];
+            return userPermissions.includes(`${scope}:manage`);
           });
 
-          return hasAny || hasManage;
+          return hasRequiredPermission || hasManagePermission;
         });
 
-        // ordenar por section + order + label
-        visible.sort((a: any, b: any) => {
-          const as = String(a.section ?? "Módulos");
-          const bs = String(b.section ?? "Módulos");
-          if (as !== bs) return as.localeCompare(bs);
+        visible.sort((left, right) => {
+          const leftSection = left.section ?? "Modules";
+          const rightSection = right.section ?? "Modules";
+          if (leftSection !== rightSection) {
+            return leftSection.localeCompare(rightSection);
+          }
 
-          const ao = typeof a.order === "number" ? a.order : 999;
-          const bo = typeof b.order === "number" ? b.order : 999;
-          if (ao !== bo) return ao - bo;
+          const leftOrder = typeof left.order === "number" ? left.order : 999;
+          const rightOrder = typeof right.order === "number" ? right.order : 999;
+          if (leftOrder !== rightOrder) return leftOrder - rightOrder;
 
-          const al = String(a.label ?? a.name ?? "");
-          const bl = String(b.label ?? b.name ?? "");
-          return al.localeCompare(bl);
+          const leftLabel = left.label ?? left.name;
+          const rightLabel = right.label ?? right.name;
+          return leftLabel.localeCompare(rightLabel);
         });
 
-        if (active) setFeatureLinks(visible as FeatureLink[]);
-      } catch (e) {
-        if (active) setFeaturesError("No se pudieron cargar los módulos.");
+        if (active) setFeatureLinks(visible);
+      } catch {
+        if (active) setFeaturesError("Could not load modules.");
       } finally {
         if (active) setFeaturesLoading(false);
       }
     };
 
-    if (status === "authenticated" && session && !isAdmin) run();
+    if (status === "authenticated" && session && !isAdmin) {
+      loadFeatures().catch(() => {
+        if (active) setFeaturesError("Could not load modules.");
+      });
+    }
 
     return () => {
       active = false;
     };
-  }, [status, session, isAdmin]);
+  }, [status, session, isAdmin, userPermissions]);
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/" });
   };
 
-  // Loading “pretty”
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
-        <div className="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-sm">
+      <div className={styles.consoleLoading}>
+        <div className={styles.loadingCard}>
           <div className="h-6 w-40 rounded bg-zinc-100 animate-pulse" />
           <div className="mt-6 space-y-3">
             <div className="h-3 w-full rounded bg-zinc-100 animate-pulse" />
@@ -186,80 +234,66 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  // Si está redirecting o no autenticado
   if (status !== "authenticated" || isAdmin) return null;
 
   const isActive = (href: string) => {
     if (!pathname) return false;
     if (pathname === href) return true;
-    // si el user está dentro de una subruta del módulo
     return href !== "/panel" && pathname.startsWith(href);
   };
 
   const navItemClass = (href: string) =>
-    cx(
-      "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
-      isActive(href)
-        ? "bg-zinc-900 text-white"
-        : "text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900",
-    );
+    cx(styles.navItem, isActive(href) && styles.navItemActive);
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <div className="flex">
-        {/* SIDEBAR */}
-        <aside className="w-72 border-r bg-white">
-          <div className="h-screen flex flex-col">
-            {/* Brand */}
-            <div className="h-16 px-5 flex items-center justify-between border-b">
-              <Link href="/panel" className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-xl bg-zinc-900 text-white flex items-center justify-center font-semibold">
-                  E
-                </div>
-                <div className="leading-tight">
-                  <div className="text-sm font-semibold text-zinc-900">
-                    EWall
-                  </div>
-                  <div className="text-xs text-zinc-500">User Panel</div>
+    <div className={styles.consoleShell}>
+      <div className={styles.shellGrid}>
+        <aside className={styles.sidebar}>
+          <div className={styles.sidebarInner}>
+            <div className={styles.sidebarBrand}>
+              <Link href="/panel" className={styles.brandLink}>
+                <Image
+                  src="/brand/truckers-unidos-logo.png"
+                  alt="Truckers Unidos logo"
+                  width={64}
+                  height={64}
+                  className={styles.brandLogo}
+                />
+                <div>
+                  <div className={styles.brandTitle}>Truckers Unidos</div>
+                  <div className={styles.brandSubtitle}>User Panel</div>
                 </div>
               </Link>
 
-              <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-zinc-100 text-zinc-700">
-                {roleLabel}
-              </span>
+              <span className={styles.roleBadge}>{roleLabel}</span>
             </div>
 
-            {/* Nav */}
-            <nav className="px-3 py-4 flex-1 overflow-y-auto">
-              <div className="px-2 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
-                General
-              </div>
-
-              <div className="mt-2 space-y-1">
+            <nav className={styles.sidebarScroll}>
+              <div className={styles.navHeading}>General</div>
+              <div className={styles.navSection}>
                 <Link href="/panel" className={navItemClass("/panel")}>
-                  <span className="h-2 w-2 rounded-full bg-current opacity-40" />
+                  <span className={styles.navDot} />
                   Dashboard
                 </Link>
-
                 <Link
                   href={`/users/${session?.user?.id}`}
                   className={navItemClass(`/users/${session?.user?.id}`)}
                 >
-                  <span className="h-2 w-2 rounded-full bg-current opacity-40" />
-                  Perfil
+                  <span className={styles.navDot} />
+                  Profile
                 </Link>
               </div>
 
-              <div className="mt-6 px-2 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
-                Módulos
+              <div className={`${styles.navHeading} ${styles.navGroup}`}>
+                Modules
               </div>
 
-              <div className="mt-2 space-y-4">
+              <div className={styles.navGroup}>
                 {featuresLoading && (
                   <div className="space-y-2">
-                    {Array.from({ length: 5 }).map((_, i) => (
+                    {Array.from({ length: 5 }).map((_, index) => (
                       <div
-                        key={i}
+                        key={index}
                         className="h-9 rounded-xl bg-zinc-100 animate-pulse"
                       />
                     ))}
@@ -267,13 +301,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 )}
 
                 {!featuresLoading && featuresError && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <div className={styles.warningBox}>
                     {featuresError}
                     <button
                       onClick={() => location.reload()}
-                      className="ml-2 underline underline-offset-2"
+                      className={styles.retryButton}
                     >
-                      Reintentar
+                      Retry
                     </button>
                   </div>
                 )}
@@ -281,20 +315,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 {!featuresLoading &&
                   !featuresError &&
                   grouped.map(([section, items]) => (
-                    <div key={section}>
-                      <div className="px-2 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
-                        {section}
-                      </div>
-                      <div className="mt-2 space-y-1">
-                        {items.map((f) => (
+                    <div key={section} className={styles.navGroup}>
+                      <div className={styles.navHeading}>{section}</div>
+                      <div className={styles.navSection}>
+                        {items.map((feature) => (
                           <Link
-                            key={f.href}
-                            href={f.href}
-                            className={navItemClass(f.href)}
+                            key={feature.href}
+                            href={feature.href}
+                            className={navItemClass(feature.href)}
                           >
-                            <span className="h-2 w-2 rounded-full bg-current opacity-40" />
+                            <span className={styles.navDot} />
                             <span className="truncate">
-                              {f.label ?? f.name}
+                              {feature.label ?? feature.name}
                             </span>
                           </Link>
                         ))}
@@ -304,22 +336,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
             </nav>
 
-            {/* Account */}
-            <div className="border-t p-3">
+            <div className={styles.sidebarFooter}>
               <div ref={dropdownRef} className="relative">
                 <button
-                  onClick={() => setIsDropdownOpen((v) => !v)}
-                  className="w-full rounded-2xl border bg-white p-3 hover:bg-zinc-50 transition"
+                  onClick={() => setIsDropdownOpen((current) => !current)}
+                  className={styles.accountButton}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-2xl bg-zinc-900 text-white flex items-center justify-center font-semibold">
-                      {initials}
-                    </div>
+                    <div className={styles.accountAvatar}>{initials}</div>
                     <div className="min-w-0 text-left flex-1">
-                      <div className="text-sm font-semibold text-zinc-900 truncate">
+                      <div className={`${styles.accountName} truncate`}>
                         {session?.user?.name || "User"}
                       </div>
-                      <div className="text-xs text-zinc-500 truncate">
+                      <div className={`${styles.accountEmail} truncate`}>
                         {session?.user?.email || "user@example.com"}
                       </div>
                     </div>
@@ -342,17 +371,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </button>
 
                 {isDropdownOpen && (
-                  <div className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border bg-white shadow-lg overflow-hidden">
+                  <div className={styles.dropdown}>
                     <Link
                       href="/panel/settings"
-                      className="block px-4 py-3 text-sm text-zinc-700 hover:bg-zinc-50"
+                      className={styles.dropdownLink}
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       Profile settings
                     </Link>
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-zinc-50 border-t"
+                      className={styles.dropdownButton}
                     >
                       Logout
                     </button>
@@ -360,53 +389,38 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 )}
               </div>
 
-              <div className="mt-3 text-[11px] text-zinc-500">
-                © {new Date().getFullYear()} EWall
+              <div className={styles.footerMeta}>
+                (c) {new Date().getFullYear()} Truckers Unidos
               </div>
             </div>
           </div>
         </aside>
 
-        {/* MAIN */}
-        <div className="flex-1 min-w-0">
-          {/* Topbar */}
-          <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b">
-            <div className="h-16 px-6 flex items-center justify-between gap-4">
+        <div className={styles.mainWrap}>
+          <header className={styles.topbar}>
+            <div className={styles.topbarInner}>
               <div className="min-w-0">
-                <div className="text-xs text-zinc-500">
+                <div className={styles.breadcrumb}>
                   Panel <span className="mx-1">/</span>{" "}
-                  <span className="text-zinc-700">{pageTitle}</span>
+                  <span className={styles.breadcrumbCurrent}>{pageTitle}</span>
                 </div>
-                <h1 className="text-lg font-semibold text-zinc-900 truncate">
-                  {pageTitle}
-                </h1>
+                <h1 className={styles.pageTitle}>{pageTitle}</h1>
               </div>
 
-              <div className="flex items-center gap-3">
-                {/* Search visual */}
-                <div className="hidden md:flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-500">
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
+              <div className={styles.topActions}>
+                <div className={styles.searchMock}>
+                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path
                       fillRule="evenodd"
                       d="M8.5 3.5a5 5 0 103.14 8.9l3.48 3.48a.75.75 0 101.06-1.06l-3.48-3.48A5 5 0 008.5 3.5zM5 8.5a3.5 3.5 0 117 0 3.5 3.5 0 01-7 0z"
                       clipRule="evenodd"
                     />
                   </svg>
-                  <span className="select-none">Buscar…</span>
-                  <span className="ml-2 rounded-lg bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-600">
-                    Ctrl K
-                  </span>
+                  <span className="select-none">Search...</span>
+                  <span className={styles.searchKey}>Ctrl K</span>
                 </div>
 
-                {/* Notifications */}
-                <button
-                  className="h-10 w-10 rounded-2xl border bg-white hover:bg-zinc-50 transition flex items-center justify-center text-zinc-600"
-                  aria-label="Notifications"
-                >
+                <button className={styles.iconButton} aria-label="Notifications">
                   <svg
                     className="h-5 w-5"
                     fill="none"
@@ -422,15 +436,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   </svg>
                 </button>
 
-                {/* Profile quick */}
                 <Link
                   href={`/users/${session?.user?.id}`}
-                  className="h-10 px-3 rounded-2xl border bg-white hover:bg-zinc-50 transition flex items-center gap-2"
+                  className={styles.quickProfile}
                 >
-                  <div className="h-7 w-7 rounded-xl bg-zinc-900 text-white flex items-center justify-center text-xs font-semibold">
-                    {initials}
-                  </div>
-                  <span className="hidden sm:block text-sm font-medium text-zinc-900">
+                  <div className={styles.quickAvatar}>{initials}</div>
+                  <span className={styles.quickName}>
                     {session?.user?.name?.split(" ")[0] || "User"}
                   </span>
                 </Link>
@@ -438,10 +449,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </header>
 
-          {/* Content */}
-          <main className="p-6">
-            <div className="rounded-2xl border bg-white shadow-sm">
-              <div className="p-6">{children}</div>
+          <main className={styles.contentWrap}>
+            <div className={styles.contentCard}>
+              <div className={styles.contentInner}>{children}</div>
             </div>
           </main>
         </div>

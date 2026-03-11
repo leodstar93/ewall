@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ContactForm } from "@/features/public/components/contact-form";
+import { ContactForm } from "@/components/contact-form";
 import styles from "../public.module.css";
 
 export const metadata: Metadata = {
