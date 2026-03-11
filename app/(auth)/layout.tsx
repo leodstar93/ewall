@@ -1,5 +1,7 @@
 import { ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import styles from "./auth.module.css";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -7,38 +9,40 @@ interface AuthLayoutProps {
 
 export default function AuthLayout({ children }: AuthLayoutProps) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <Link href="/">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2 hover:text-blue-600 transition-colors cursor-pointer">
-              EWall App
-            </h1>
+    <div className={styles.authShell}>
+      <div className={styles.authContainer}>
+        <div className={styles.authHeader}>
+          <Link href="/" className={styles.authBrand}>
+            <Image
+              src="/brand/truckers-unidos-logo.png"
+              alt="Truckers Unidos logo"
+              width={96}
+              height={96}
+              className={styles.authLogo}
+              priority
+            />
+            <div>
+              <p className={styles.brandName}>Truckers Unidos</p>
+              <p className={styles.brandTagline}>Proud to Drive America</p>
+            </div>
           </Link>
-          <p className="text-gray-600">
+          <p className={styles.authLead}>
             Welcome back! Please sign in to your account.
           </p>
         </div>
 
-        {/* Auth Form Container */}
-        <div className="bg-white py-8 px-6 shadow-lg rounded-lg">
-          {children}
-        </div>
+        <div className={styles.authCard}>{children}</div>
 
-        {/* Footer */}
-        <div className="text-center">
-          <p className="text-sm text-gray-600">
+        <p className={styles.authFooter}>
             By signing in, you agree to our{" "}
-            <a href="/terms" className="text-blue-600 hover:text-blue-500">
+            <a href="/terms" className={styles.authFooterLink}>
               Terms of Service
             </a>{" "}
             and{" "}
-            <a href="/privacy" className="text-blue-600 hover:text-blue-500">
+            <a href="/privacy" className={styles.authFooterLink}>
               Privacy Policy
             </a>
-          </p>
-        </div>
+        </p>
       </div>
     </div>
   );

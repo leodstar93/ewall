@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import styles from "../auth.module.css";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -40,7 +41,7 @@ export default function LoginPage() {
           router.push("/panel");
         }
       }
-    } catch (err) {
+    } catch {
       setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
@@ -53,88 +54,75 @@ export default function LoginPage() {
       // signIn with callbackUrl will handle the redirect automatically
       // No need to check result as NextAuth will redirect on success
       await signIn("google", { callbackUrl: "/panel" });
-    } catch (err) {
+    } catch {
       setError("Failed to sign in with Google");
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div>
       <div>
-        <h2 className="text-2xl font-bold text-center text-gray-900">Sign In</h2>
+        <h2 className={styles.sectionTitle}>Sign In</h2>
       </div>
 
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+      <form className={styles.form} onSubmit={handleSubmit}>
+        <div className={styles.field}>
+          <label htmlFor="email" className={styles.label}>
             Email address
           </label>
-          <div className="mt-1">
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              placeholder="Enter your email"
-            />
-          </div>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={styles.input}
+            placeholder="Enter your email"
+          />
         </div>
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+        <div className={styles.field}>
+          <label htmlFor="password" className={styles.label}>
             Password
           </label>
-          <div className="mt-1">
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              placeholder="Enter your password"
-            />
-          </div>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={styles.input}
+            placeholder="Enter your password"
+          />
         </div>
 
-        {error && (
-          <div className="text-red-600 text-sm text-center">
-            {error}
-          </div>
-        )}
+        {error && <p className={styles.error}>{error}</p>}
 
         <div>
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`${styles.button} ${styles.primaryButton}`}
           >
             {isLoading ? "Signing in..." : "Sign In"}
           </button>
         </div>
       </form>
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300" />
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-white text-gray-500">Or continue with</span>
-        </div>
+      <div className={styles.divider}>
+        <span>Or continue with</span>
       </div>
 
       <div>
         <button
           onClick={handleGoogleSignIn}
           disabled={isLoading}
-          className="w-full flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`${styles.button} ${styles.secondaryButton}`}
         >
           <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
             <path
@@ -158,10 +146,10 @@ export default function LoginPage() {
         </button>
       </div>
 
-      <div className="text-center">
-        <p className="text-sm text-gray-600">
-          Don't have an account?{" "}
-          <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+      <div>
+        <p className={styles.helperText}>
+          Do not have an account?{" "}
+          <Link href="/signup" className={styles.helperLink}>
             Sign up
           </Link>
         </p>
