@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 type Quarter = "Q1" | "Q2" | "Q3" | "Q4";
 type FuelType = "DI" | "GA";
 type ReportStatus = "DRAFT" | "FILED" | "AMENDED";
+type RecordTab = "reports" | "trips" | "fuel" | "trucks";
 
 type Report = {
   id: string;
@@ -34,6 +35,12 @@ type FuelPurchase = {
 };
 
 type Toast = { id: string; type: "success" | "error"; title: string; message?: string };
+type ViewState = {
+  id: string;
+  title: string;
+  subtitle: string;
+  rows: Array<{ label: string; value: string }>;
+};
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -64,8 +71,25 @@ function formatDate(value: string) {
   });
 }
 
+function fuelTypeLabel(value: FuelType) {
+  return value === "DI" ? "Diesel" : "Gasoline";
+}
+
+function quarterLabel(value: Quarter) {
+  if (value === "Q1") return "Q1 (Jan-Mar)";
+  if (value === "Q2") return "Q2 (Apr-Jun)";
+  if (value === "Q3") return "Q3 (Jul-Sep)";
+  return "Q4 (Oct-Dec)";
+}
+
+function statusBadgeClass(status: ReportStatus) {
+  if (status === "FILED") return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100";
+  if (status === "AMENDED") return "bg-amber-50 text-amber-700 ring-1 ring-amber-100";
+  return "bg-zinc-100 text-zinc-700 ring-1 ring-zinc-200";
+}
+
 function reportLabel(report: Pick<Report, "year" | "quarter" | "fuelType">) {
-  return `${report.year} ${report.quarter} ${report.fuelType}`;
+  return `${report.year} ${report.quarter} ${fuelTypeLabel(report.fuelType)}`;
 }
 
 export default function IftaClientPage() {
@@ -101,6 +125,13 @@ export default function IftaClientPage() {
   const [fuelPrice, setFuelPrice] = useState("");
 
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [activeTab, setActiveTab] = useState<RecordTab>("reports");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [yearFilter, setYearFilter] = useState<string>("ALL");
+  const [quarterFilter, setQuarterFilter] = useState<"ALL" | Quarter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | ReportStatus>("ALL");
+  const [viewState, setViewState] = useState<ViewState | null>(null);
+  const [actionBusyKey, setActionBusyKey] = useState<string | null>(null);
 
   const pushToast = (toast: Omit<Toast, "id">) => {
     const id = uid();
@@ -164,6 +195,82 @@ export default function IftaClientPage() {
     };
   }, [reports]);
 
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    reports.forEach((report) => years.add(String(report.year)));
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [reports]);
+
+  const search = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery]);
+
+  const filteredReports = useMemo(() => {
+    return reports.filter((report) => {
+      if (yearFilter !== "ALL" && String(report.year) !== yearFilter) return false;
+      if (quarterFilter !== "ALL" && report.quarter !== quarterFilter) return false;
+      if (statusFilter !== "ALL" && report.status !== statusFilter) return false;
+
+      if (!search) return true;
+      const haystack = [
+        String(report.year),
+        report.quarter,
+        fuelTypeLabel(report.fuelType),
+        report.status,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(search);
+    });
+  }, [reports, yearFilter, quarterFilter, statusFilter, search]);
+
+  const filteredTrips = useMemo(() => {
+    return trips.filter((trip) => {
+      if (yearFilter !== "ALL" && String(trip.report?.year ?? "") !== yearFilter) return false;
+      if (quarterFilter !== "ALL" && trip.report?.quarter !== quarterFilter) return false;
+
+      if (!search) return true;
+      const haystack = [
+        trip.report ? reportLabel(trip.report) : "No report",
+        trip.tripDate,
+        String(trip.totalMiles ?? ""),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(search);
+    });
+  }, [trips, yearFilter, quarterFilter, search]);
+
+  const filteredFuelPurchases = useMemo(() => {
+    return fuelPurchases.filter((item) => {
+      if (yearFilter !== "ALL" && String(item.report?.year ?? "") !== yearFilter) return false;
+      if (quarterFilter !== "ALL" && item.report?.quarter !== quarterFilter) return false;
+
+      if (!search) return true;
+      const haystack = [
+        item.report ? reportLabel(item.report) : "No report",
+        item.jurisdiction.code,
+        item.jurisdiction.name,
+        item.purchaseDate,
+        fuelTypeLabel(item.fuelType),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(search);
+    });
+  }, [fuelPurchases, yearFilter, quarterFilter, search]);
+
+  const filteredTrucks = useMemo(() => {
+    return trucks.filter((truck) => {
+      if (!search) return true;
+      const haystack = [truck.unitNumber, truck.plateNumber ?? "", truck.vin ?? ""]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(search);
+    });
+  }, [trucks, search]);
+
   const postJson = async (url: string, body: unknown) => {
     const res = await fetch(url, {
       method: "POST",
@@ -194,6 +301,87 @@ export default function IftaClientPage() {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || "Delete failed");
     }
+  };
+
+  const runAction = async (
+    key: string,
+    successTitle: string,
+    errorTitle: string,
+    action: () => Promise<void>,
+  ) => {
+    try {
+      setActionBusyKey(key);
+      await action();
+      await fetchAll();
+      pushToast({ type: "success", title: successTitle });
+    } catch (error) {
+      pushToast({
+        type: "error",
+        title: errorTitle,
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setActionBusyKey(null);
+    }
+  };
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setYearFilter("ALL");
+    setQuarterFilter("ALL");
+    setStatusFilter("ALL");
+  };
+
+  const openReportView = (report: Report) => {
+    setViewState({
+      id: report.id,
+      title: `${report.year} ${quarterLabel(report.quarter)}`,
+      subtitle: `${fuelTypeLabel(report.fuelType)} report`,
+      rows: [
+        { label: "Status", value: report.status },
+        { label: "Miles", value: `${formatNumber(report.totalMiles)} mi` },
+        { label: "Gallons", value: `${formatNumber(report.totalGallons)} gal` },
+        { label: "Tax Due", value: formatCurrency(report.totalTaxDue) },
+        { label: "Trips", value: String(report._count.trips) },
+        { label: "Fuel Purchases", value: String(report._count.fuelPurchases) },
+      ],
+    });
+  };
+
+  const openTripView = (trip: Trip) => {
+    setViewState({
+      id: trip.id,
+      title: `Trip - ${formatDate(trip.tripDate)}`,
+      subtitle: trip.report ? reportLabel(trip.report) : "No report assigned",
+      rows: [{ label: "Total Miles", value: `${formatNumber(trip.totalMiles || 0)} mi` }],
+    });
+  };
+
+  const openFuelView = (item: FuelPurchase) => {
+    setViewState({
+      id: item.id,
+      title: `Fuel Purchase - ${formatDate(item.purchaseDate)}`,
+      subtitle: item.report ? reportLabel(item.report) : "No report assigned",
+      rows: [
+        { label: "Fuel Type", value: fuelTypeLabel(item.fuelType) },
+        { label: "Jurisdiction", value: `${item.jurisdiction.code} - ${item.jurisdiction.name}` },
+        { label: "Gallons", value: `${formatNumber(item.gallons)} gal` },
+        { label: "Total Amount", value: item.totalAmount ? formatCurrency(item.totalAmount) : "N/A" },
+      ],
+    });
+  };
+
+  const openTruckView = (truck: Truck) => {
+    setViewState({
+      id: truck.id,
+      title: `Truck ${truck.unitNumber}`,
+      subtitle: truck.plateNumber ? `Plate ${truck.plateNumber}` : "No plate number",
+      rows: [
+        { label: "Unit Number", value: truck.unitNumber },
+        { label: "Plate Number", value: truck.plateNumber || "N/A" },
+        { label: "VIN", value: truck.vin || "N/A" },
+      ],
+    });
   };
 
   if (status === "loading" || loading) {
@@ -396,145 +584,395 @@ export default function IftaClientPage() {
       </section>
 
       <section className="rounded-2xl border bg-white p-6 shadow-sm">
-        <h3 className="text-base font-semibold text-zinc-900">Recent Records</h3>
-        <div className="mt-3 grid gap-4 lg:grid-cols-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-zinc-900">Trucks</p>
-            <ul className="mt-2 space-y-2 text-sm text-zinc-700">
-              {trucks.slice(0, 5).map((truck) => (
-                <li key={truck.id} className="rounded-xl border p-2">
-                  <p>{truck.unitNumber}</p>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await deleteById(`/api/v1/features/ifta/trucks/${truck.id}`);
-                        await fetchAll();
-                        pushToast({ type: "success", title: "Truck deleted" });
-                      } catch (error) {
-                        pushToast({
-                          type: "error",
-                          title: "Truck delete failed",
-                          message: error instanceof Error ? error.message : "Unknown error",
-                        });
-                      }
-                    }}
-                    className="mt-2 rounded-lg border px-2 py-1 text-xs"
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <h3 className="text-base font-semibold text-zinc-900">IFTA Records</h3>
+            <p className="mt-1 text-sm text-zinc-600">
+              Filter, inspect, and act on your records from one panel.
+            </p>
           </div>
-          <div>
-            <p className="text-sm font-medium text-zinc-900">Reports</p>
-            <ul className="mt-2 space-y-2 text-sm text-zinc-700">
-              {reports.slice(0, 5).map((report) => (
-                <li key={report.id} className="rounded-xl border p-2">
-                  <p>{reportLabel(report)} - Tax {formatCurrency(report.totalTaxDue)}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <select
-                      value={report.status}
-                      onChange={async (e) => {
-                        try {
-                          await updateReportStatus(report.id, e.target.value as ReportStatus);
-                          await fetchAll();
-                        } catch (error) {
-                          pushToast({
-                            type: "error",
-                            title: "Status update failed",
-                            message: error instanceof Error ? error.message : "Unknown error",
-                          });
-                        }
-                      }}
-                      className="rounded-lg border px-2 py-1 text-xs"
-                    >
-                      <option value="DRAFT">DRAFT</option>
-                      <option value="FILED">FILED</option>
-                      <option value="AMENDED">AMENDED</option>
-                    </select>
-                    <button
-                      onClick={async () => {
-                        try {
-                          await deleteById(`/api/v1/features/ifta/${report.id}`);
-                          await fetchAll();
-                          pushToast({ type: "success", title: "Report deleted" });
-                        } catch (error) {
-                          pushToast({
-                            type: "error",
-                            title: "Report delete failed",
-                            message: error instanceof Error ? error.message : "Unknown error",
-                          });
-                        }
-                      }}
-                      className="rounded-lg border px-2 py-1 text-xs"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-zinc-900">Trips</p>
-            <ul className="mt-2 space-y-2 text-sm text-zinc-700">
-              {trips.slice(0, 5).map((trip) => (
-                <li key={trip.id} className="rounded-xl border p-2">
-                  <p>
-                    {trip.report ? reportLabel(trip.report) : "No report"} - {formatDate(trip.tripDate)} - {formatNumber(trip.totalMiles || 0)} mi
-                  </p>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await deleteById(`/api/v1/features/ifta/trips/${trip.id}`);
-                        await fetchAll();
-                        pushToast({ type: "success", title: "Trip deleted" });
-                      } catch (error) {
-                        pushToast({
-                          type: "error",
-                          title: "Trip delete failed",
-                          message: error instanceof Error ? error.message : "Unknown error",
-                        });
-                      }
-                    }}
-                    className="mt-2 rounded-lg border px-2 py-1 text-xs"
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-zinc-900">Fuel</p>
-            <ul className="mt-2 space-y-2 text-sm text-zinc-700">
-              {fuelPurchases.slice(0, 5).map((item) => (
-                <li key={item.id} className="rounded-xl border p-2">
-                  <p>{item.jurisdiction.code} - {formatDate(item.purchaseDate)} - {formatNumber(item.gallons)} gal</p>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await deleteById(`/api/v1/features/ifta/fuel-purchases/${item.id}`);
-                        await fetchAll();
-                        pushToast({ type: "success", title: "Fuel purchase deleted" });
-                      } catch (error) {
-                        pushToast({
-                          type: "error",
-                          title: "Fuel delete failed",
-                          message: error instanceof Error ? error.message : "Unknown error",
-                        });
-                      }
-                    }}
-                    className="mt-2 rounded-lg border px-2 py-1 text-xs"
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveTab("reports")}
+              className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                activeTab === "reports" ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              Reports ({reports.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("trips")}
+              className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                activeTab === "trips" ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              Trips ({trips.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("fuel")}
+              className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                activeTab === "fuel" ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              Fuel ({fuelPurchases.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("trucks")}
+              className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                activeTab === "trucks" ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              Trucks ({trucks.length})
+            </button>
           </div>
         </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by period, date, jurisdiction..."
+            className="rounded-xl border px-3 py-2 text-sm xl:col-span-2"
+          />
+
+          {activeTab !== "trucks" && (
+            <>
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                className="rounded-xl border px-3 py-2 text-sm"
+              >
+                <option value="ALL">All years</option>
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={quarterFilter}
+                onChange={(e) => setQuarterFilter(e.target.value as "ALL" | Quarter)}
+                className="rounded-xl border px-3 py-2 text-sm"
+              >
+                <option value="ALL">All quarters</option>
+                <option value="Q1">Q1</option>
+                <option value="Q2">Q2</option>
+                <option value="Q3">Q3</option>
+                <option value="Q4">Q4</option>
+              </select>
+            </>
+          )}
+
+          {activeTab === "reports" && (
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "ALL" | ReportStatus)}
+              className="rounded-xl border px-3 py-2 text-sm"
+            >
+              <option value="ALL">All statuses</option>
+              <option value="DRAFT">DRAFT</option>
+              <option value="FILED">FILED</option>
+              <option value="AMENDED">AMENDED</option>
+            </select>
+          )}
+
+          <button
+            onClick={resetFilters}
+            className="rounded-xl border px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            Reset filters
+          </button>
+        </div>
+
+        <div className="mt-4 overflow-hidden rounded-2xl border">
+          <div className="overflow-x-auto">
+            {activeTab === "reports" && (
+              <table className="w-full text-sm">
+                <thead className="border-b bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  <tr>
+                    <th className="px-3 py-3">Period</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Totals</th>
+                    <th className="px-3 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredReports.map((report) => (
+                    <tr key={report.id} className="hover:bg-zinc-50">
+                      <td className="px-3 py-3">
+                        <p className="font-medium text-zinc-900">
+                          {report.year} {quarterLabel(report.quarter)}
+                        </p>
+                        <p className="text-zinc-600">{fuelTypeLabel(report.fuelType)}</p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(report.status)}`}
+                        >
+                          {report.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-zinc-700">
+                        <p>{formatNumber(report.totalMiles)} mi</p>
+                        <p>{formatNumber(report.totalGallons)} gal</p>
+                        <p>{formatCurrency(report.totalTaxDue)}</p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openReportView(report)}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium hover:bg-zinc-50"
+                          >
+                            View
+                          </button>
+                          <select
+                            value={report.status}
+                            onChange={(e) => {
+                              void runAction(
+                                `status:${report.id}`,
+                                "Status updated",
+                                "Status update failed",
+                                async () => {
+                                  await updateReportStatus(report.id, e.target.value as ReportStatus);
+                                },
+                              );
+                            }}
+                            disabled={actionBusyKey === `status:${report.id}`}
+                            className="rounded-lg border px-2 py-1 text-xs"
+                          >
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="FILED">FILED</option>
+                            <option value="AMENDED">AMENDED</option>
+                          </select>
+                          <button
+                            onClick={() => {
+                              void runAction(
+                                `delete:report:${report.id}`,
+                                "Report deleted",
+                                "Report delete failed",
+                                async () => {
+                                  await deleteById(`/api/v1/features/ifta/${report.id}`);
+                                },
+                              );
+                            }}
+                            disabled={actionBusyKey === `delete:report:${report.id}`}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredReports.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center text-sm text-zinc-500">
+                        No reports match your filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {activeTab === "trips" && (
+              <table className="w-full text-sm">
+                <thead className="border-b bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  <tr>
+                    <th className="px-3 py-3">Date</th>
+                    <th className="px-3 py-3">Report</th>
+                    <th className="px-3 py-3">Miles</th>
+                    <th className="px-3 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredTrips.map((trip) => (
+                    <tr key={trip.id} className="hover:bg-zinc-50">
+                      <td className="px-3 py-3 text-zinc-700">{formatDate(trip.tripDate)}</td>
+                      <td className="px-3 py-3 text-zinc-700">
+                        {trip.report ? reportLabel(trip.report) : "No report"}
+                      </td>
+                      <td className="px-3 py-3 text-zinc-700">{formatNumber(trip.totalMiles || 0)} mi</td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openTripView(trip)}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium hover:bg-zinc-50"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => {
+                              void runAction(
+                                `delete:trip:${trip.id}`,
+                                "Trip deleted",
+                                "Trip delete failed",
+                                async () => {
+                                  await deleteById(`/api/v1/features/ifta/trips/${trip.id}`);
+                                },
+                              );
+                            }}
+                            disabled={actionBusyKey === `delete:trip:${trip.id}`}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredTrips.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center text-sm text-zinc-500">
+                        No trips match your filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {activeTab === "fuel" && (
+              <table className="w-full text-sm">
+                <thead className="border-b bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  <tr>
+                    <th className="px-3 py-3">Date</th>
+                    <th className="px-3 py-3">Report</th>
+                    <th className="px-3 py-3">Jurisdiction</th>
+                    <th className="px-3 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredFuelPurchases.map((item) => (
+                    <tr key={item.id} className="hover:bg-zinc-50">
+                      <td className="px-3 py-3 text-zinc-700">{formatDate(item.purchaseDate)}</td>
+                      <td className="px-3 py-3 text-zinc-700">
+                        {item.report ? reportLabel(item.report) : "No report"}
+                      </td>
+                      <td className="px-3 py-3 text-zinc-700">
+                        {item.jurisdiction.code} - {item.jurisdiction.name}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openFuelView(item)}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium hover:bg-zinc-50"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => {
+                              void runAction(
+                                `delete:fuel:${item.id}`,
+                                "Fuel purchase deleted",
+                                "Fuel delete failed",
+                                async () => {
+                                  await deleteById(`/api/v1/features/ifta/fuel-purchases/${item.id}`);
+                                },
+                              );
+                            }}
+                            disabled={actionBusyKey === `delete:fuel:${item.id}`}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredFuelPurchases.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center text-sm text-zinc-500">
+                        No fuel purchases match your filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {activeTab === "trucks" && (
+              <table className="w-full text-sm">
+                <thead className="border-b bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  <tr>
+                    <th className="px-3 py-3">Unit</th>
+                    <th className="px-3 py-3">Plate</th>
+                    <th className="px-3 py-3">VIN</th>
+                    <th className="px-3 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredTrucks.map((truck) => (
+                    <tr key={truck.id} className="hover:bg-zinc-50">
+                      <td className="px-3 py-3 font-medium text-zinc-900">{truck.unitNumber}</td>
+                      <td className="px-3 py-3 text-zinc-700">{truck.plateNumber || "N/A"}</td>
+                      <td className="px-3 py-3 text-zinc-700">{truck.vin || "N/A"}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => openTruckView(truck)}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium hover:bg-zinc-50"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => {
+                              void runAction(
+                                `delete:truck:${truck.id}`,
+                                "Truck deleted",
+                                "Truck delete failed",
+                                async () => {
+                                  await deleteById(`/api/v1/features/ifta/trucks/${truck.id}`);
+                                },
+                              );
+                            }}
+                            disabled={actionBusyKey === `delete:truck:${truck.id}`}
+                            className="rounded-lg border px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredTrucks.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8 text-center text-sm text-zinc-500">
+                        No trucks match your search.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {viewState && (
+          <div className="mt-4 rounded-2xl border bg-zinc-50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">View</p>
+                <h4 className="text-base font-semibold text-zinc-900">{viewState.title}</h4>
+                <p className="text-sm text-zinc-600">{viewState.subtitle}</p>
+              </div>
+              <button
+                onClick={() => setViewState(null)}
+                className="rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-white"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {viewState.rows.map((row) => (
+                <div key={`${viewState.id}-${row.label}`} className="rounded-xl border bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{row.label}</p>
+                  <p className="mt-1 text-sm text-zinc-800">{row.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
