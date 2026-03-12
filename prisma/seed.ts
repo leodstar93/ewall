@@ -24,8 +24,6 @@ const PERMISSIONS = [
   { key: "dashboard:access", description: "Access dashboard" },
 
   // Ejemplos de módulos (ajusta a tu app)
-  { key: "cases:read", description: "Read cases" },
-  { key: "cases:write", description: "Create/update cases" },
   { key: "profile:access", description: "Access profile" },
   { key: "profile:write", description: "Update profile" },
   { key: "documents:read", description: "Read documents" },
@@ -42,7 +40,6 @@ const PERMISSIONS = [
   { key: "reports:download", description: "Download reports" },
 
   // Staff
-  { key: "labslips:read", description: "Read lab slips" },
 
   //admin
   { key: "admin:access", description: "Access admin" },
@@ -61,7 +58,12 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "reports:generate",
     "reports:download",
   ],
-  STAFF: ["cases:read", "labslips:read"],
+  STAFF: [
+    "reports:read",
+    "reports:write",
+    "reports:generate",
+    "reports:download",
+  ],
   USER: ["profile:access", "profile:write", "dashboard:access"],
 };
 
