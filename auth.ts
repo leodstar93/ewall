@@ -4,26 +4,43 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { generateTemporaryPassword } from "@/lib/password";
+import { sendGoogleCredentialsPasswordEmail } from "@/lib/email";
 
 const GOOGLE_DEFAULT_ROLE_NAMES = ["TRUCKER", "USER"] as const;
 
-async function ensureGoogleDefaultRoles(userId?: string, email?: string | null) {
+async function ensureGoogleDefaultRoles(
+  userId?: string,
+  email?: string | null,
+) {
   if (!userId && !email) return;
 
   const normalizedEmail = email ?? undefined;
   const dbUser = userId
     ? await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, roles: { select: { roleId: true } } },
+        select: {
+          id: true,
+          roles: { select: { roleId: true } },
+          accounts: { select: { provider: true } },
+        },
       })
     : normalizedEmail
       ? await prisma.user.findUnique({
           where: { email: normalizedEmail },
-          select: { id: true, roles: { select: { roleId: true } } },
+          select: {
+            id: true,
+            roles: { select: { roleId: true } },
+            accounts: { select: { provider: true } },
+          },
         })
       : null;
 
   if (!dbUser) return;
+  const hasGoogleAccount = dbUser.accounts.some(
+    (account) => account.provider === "google",
+  );
+  if (!hasGoogleAccount) return;
   if (dbUser.roles.length > 0) return;
 
   const defaultRoles = await prisma.role.findMany({
@@ -40,6 +57,70 @@ async function ensureGoogleDefaultRoles(userId?: string, email?: string | null) 
     })),
     skipDuplicates: true,
   });
+}
+
+async function ensureGoogleCredentialsPassword(
+  userId?: string,
+  email?: string | null,
+  name?: string | null,
+) {
+  if (!userId && !email) return;
+
+  const normalizedEmail = email ?? undefined;
+  const dbUser = userId
+    ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          passwordHash: true,
+          accounts: { select: { provider: true } },
+        },
+      })
+    : normalizedEmail
+      ? await prisma.user.findUnique({
+          where: { email: normalizedEmail },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            accounts: { select: { provider: true } },
+          },
+        })
+      : null;
+
+  if (!dbUser) return;
+
+  const hasGoogleAccount = dbUser.accounts.some(
+    (account) => account.provider === "google",
+  );
+  if (!hasGoogleAccount) return;
+  if (dbUser.passwordHash) return;
+  if (!dbUser.email) return;
+
+  const temporaryPassword = generateTemporaryPassword();
+  const temporaryPasswordHash = await bcrypt.hash(temporaryPassword, 10);
+
+  await prisma.user.update({
+    where: { id: dbUser.id },
+    data: { passwordHash: temporaryPasswordHash },
+  });
+
+  try {
+    await sendGoogleCredentialsPasswordEmail({
+      to: dbUser.email,
+      name: dbUser.name ?? name ?? null,
+      temporaryPassword,
+    });
+  } catch (error) {
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: { passwordHash: null },
+    });
+    throw error;
+  }
 }
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
@@ -69,10 +150,26 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  events: {
+    async linkAccount({ user, account }) {
+      if (account.provider === "google") {
+        await ensureGoogleDefaultRoles(user.id, user.email);
+        await ensureGoogleCredentialsPassword(user.id, user.email, user.name);
+      }
+    },
+  },
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
-        await ensureGoogleDefaultRoles(user.id as string | undefined, user.email);
+        await ensureGoogleDefaultRoles(
+          user.id as string | undefined,
+          user.email,
+        );
+        await ensureGoogleCredentialsPassword(
+          user.id as string | undefined,
+          user.email,
+          user.name,
+        );
       }
 
       // Handle account linking for existing users
@@ -121,10 +218,18 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       const userId = (user?.id as string) ?? (token.sub as string);
       if (!userId) return token;
 
+      const tokenRoles = ((token as any).roles ?? []) as string[];
+      const needsRoleHydration = tokenRoles.length === 0;
+
+      if (needsRoleHydration) {
+        await ensureGoogleDefaultRoles(userId);
+      }
+
       // Recarga desde DB cuando:
       // - primer login (user existe)
       // - o cuando llames session.update() (trigger === "update")
-      if (user || trigger === "update") {
+      // - o si el token todavía no trae roles (evita sesiones "vacías")
+      if (user || trigger === "update" || needsRoleHydration) {
         const dbUser = await prisma.user.findUnique({
           where: { id: userId },
           select: {
