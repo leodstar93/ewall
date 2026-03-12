@@ -48,12 +48,14 @@ export function ContactForm() {
   const [errors, setErrors] = useState<ContactFormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const hasErrors = useMemo(() => Object.keys(errors).length > 0, [errors]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitted(false);
+    setSubmitError("");
 
     const nextErrors = validateForm(values);
     setErrors(nextErrors);
@@ -64,11 +66,32 @@ export function ContactForm() {
 
     setSubmitting(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 650));
+    try {
+      const response = await fetch("/api/v1/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(values),
+      });
 
-    setSubmitting(false);
-    setSubmitted(true);
-    setValues(initialState);
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(payload?.error || "Failed to send message");
+      }
+
+      setSubmitted(true);
+      setValues(initialState);
+      setErrors({});
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : "Failed to send message",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -167,6 +190,12 @@ export function ContactForm() {
         {submitted ? (
           <p className={styles.formMessageSuccess} role="status">
             Thank you. Your message has been sent.
+          </p>
+        ) : null}
+
+        {submitError ? (
+          <p className={styles.formMessageError} role="alert">
+            {submitError}
           </p>
         ) : null}
 

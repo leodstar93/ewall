@@ -1,13 +1,18 @@
-import { requirePermission } from "@/lib/rbac-guard";
+import { getAuthz } from "@/lib/rbac";
 import { redirect } from "next/navigation";
-import AdminPageClient from "./admin-client";
+import AdminPageClient from "./admin-dashboard";
+import StaffDashboardClient from "./staff-dashboard";
 
 export default async function AdminPage() {
-  const res = await requirePermission("admin:access");
-  console.log("requirePermission result:", res);
+  const { session, roles } = await getAuthz();
+  if (!session) redirect("/login");
 
-  if (!res.ok) {
-    redirect(res.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
+  if (roles.includes("STAFF") && !roles.includes("ADMIN")) {
+    return <StaffDashboardClient />;
+  }
+
+  if (!roles.includes("ADMIN")) {
+    redirect("/forbidden");
   }
 
   return <AdminPageClient />;

@@ -6,6 +6,13 @@ type SendTemporaryPasswordEmailInput = {
   temporaryPassword: string;
 };
 
+type SendContactFormEmailInput = {
+  name: string;
+  email: string;
+  phone?: string | null;
+  message: string;
+};
+
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
   if (!value) {
@@ -97,6 +104,55 @@ export async function sendGoogleCredentialsPasswordEmail({
       to: [to],
       subject: "Your login password for email sign-in",
       text,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Failed to send email (${response.status}): ${errorText || "unknown error"}`,
+    );
+  }
+}
+
+export async function sendContactFormEmail({
+  name,
+  email,
+  phone,
+  message,
+}: SendContactFormEmailInput) {
+  const apiKey = requiredEnv("RESEND_API_KEY");
+  const from = requiredEnv("EMAIL_FROM");
+  const contactRecipient = requiredEnv("EMAIL_CONTACT");
+
+  const cleanName = name.trim();
+  const cleanEmail = email.trim();
+  const cleanPhone = phone?.trim() || "Not provided";
+  const cleanMessage = message.trim();
+
+  const text = [
+    "New contact form submission",
+    "",
+    `Name: ${cleanName}`,
+    `Email: ${cleanEmail}`,
+    `Phone: ${cleanPhone}`,
+    "",
+    "Message:",
+    cleanMessage,
+  ].join("\n");
+
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [contactRecipient],
+      subject: `Contact form - ${cleanName}`,
+      text,
+      reply_to: cleanEmail,
     }),
   });
 

@@ -35,7 +35,10 @@ export default function LoginPage() {
         console.log("Session after login:", session);
 
         // Redirigir basado en roles
-        if (session?.user?.roles?.includes("ADMIN")) {
+        if (
+          session?.user?.roles?.includes("ADMIN") ||
+          session?.user?.roles?.includes("STAFF")
+        ) {
           router.push("/admin");
         } else {
           router.push("/panel");

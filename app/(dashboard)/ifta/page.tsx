@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/rbac-guard";
-import IftaClientPage from "../../../features/ifta/client";
+import IftaClientPage from "../../../features/ifta/page-component";
 
 export default async function IftaPage() {
   const permission = await requirePermission("ifta:read");

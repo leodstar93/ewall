@@ -7,7 +7,22 @@ const RULES: Array<{
   match: (pathname: string) => boolean;
   requireAuth?: boolean;
   requirePerms?: string[];
+  requireRolesAny?: string[];
 }> = [
+  // Home de admin: ADMIN y STAFF
+  {
+    match: (p) => p === "/admin" || p === "/admin/",
+    requireAuth: true,
+    requireRolesAny: ["ADMIN", "STAFF"],
+  },
+
+  // Features admin-like: ADMIN y STAFF
+  {
+    match: (p) => p.startsWith("/admin/features"),
+    requireAuth: true,
+    requireRolesAny: ["ADMIN", "STAFF"],
+  },
+
   // Admin panel completo
   {
     match: (p) => p.startsWith("/admin"),
@@ -79,6 +94,15 @@ export default auth((req) => {
     return NextResponse.redirect(url);
   }
 
+  if (pathname.startsWith("/panel")) {
+    const roles = ((req.auth?.user as any)?.roles ?? []) as string[];
+    if (roles.includes("ADMIN") || roles.includes("STAFF")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/admin";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (rule.requirePerms?.length) {
     const perms = ((req.auth?.user as any)?.permissions ?? []) as string[];
     if (!hasAll(perms, rule.requirePerms)) {
@@ -89,6 +113,14 @@ export default auth((req) => {
       // const url = req.nextUrl.clone();
       // url.pathname = "/unauthorized";
       // return NextResponse.redirect(url);
+    }
+  }
+
+  if (rule.requireRolesAny?.length) {
+    const roles = ((req.auth?.user as any)?.roles ?? []) as string[];
+    const hasSomeRole = rule.requireRolesAny.some((role) => roles.includes(role));
+    if (!hasSomeRole) {
+      return new NextResponse("Forbidden", { status: 403 });
     }
   }
 

@@ -35,7 +35,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const isAdmin = Boolean(session?.user?.roles?.includes("ADMIN"));
+  const roles = session?.user?.roles ?? [];
+  const isAdmin = roles.includes("ADMIN");
+  const isStaff = roles.includes("STAFF");
+  const isAdminHomePath = pathname === "/admin";
+  const isFeaturePath = Boolean(pathname?.startsWith("/admin/features"));
+  const canAccessAdminShell =
+    isAdmin || (isStaff && (isFeaturePath || isAdminHomePath));
+  const roleBadge = isAdmin ? "ADMIN" : "STAFF";
+  const homeHref = "/admin";
+  const profileHref = isAdmin
+    ? `/admin/users/${session?.user?.id}`
+    : `/users/${session?.user?.id}`;
 
   const initials = useMemo(() => {
     const name = session?.user?.name?.trim();
@@ -48,8 +59,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
-    if (status === "authenticated" && !isAdmin) router.replace("/panel");
-  }, [status, isAdmin, router]);
+    if (status === "authenticated" && !canAccessAdminShell) router.replace("/panel");
+  }, [status, canAccessAdminShell, router]);
 
   useEffect(() => {
     const onDown = (event: MouseEvent) => {
@@ -98,7 +109,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     );
   }
 
-  if (status !== "authenticated" || !isAdmin) return null;
+  if (status !== "authenticated" || !canAccessAdminShell) return null;
 
   return (
     <div className={styles.consoleShell}>
@@ -106,7 +117,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner}>
             <div className={styles.sidebarBrand}>
-              <Link href="/admin" className={styles.brandLink}>
+              <Link href={homeHref} className={styles.brandLink}>
                 <Image
                   src="/brand/truckers-unidos-logo.png"
                   alt="Truckers Unidos logo"
@@ -116,42 +127,50 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 />
                 <div>
                   <div className={styles.brandTitle}>Truckers Unidos</div>
-                  <div className={styles.brandSubtitle}>Admin Console</div>
+                  <div className={styles.brandSubtitle}>
+                    {isAdmin ? "Admin Console" : "Features Console"}
+                  </div>
                 </div>
               </Link>
 
-              <span className={styles.roleBadge}>ADMIN</span>
+              <span className={styles.roleBadge}>{roleBadge}</span>
             </div>
 
             <nav className={styles.sidebarScroll}>
-              <div className={styles.navHeading}>Overview</div>
-              <div className={styles.navSection}>
-                <Link href="/admin" className={navItemClass("/admin")}>
-                  <span className={styles.navDot} />
-                  Dashboard
-                </Link>
-              </div>
+              <>
+                <div className={styles.navHeading}>Overview</div>
+                <div className={styles.navSection}>
+                  <Link href="/admin" className={navItemClass("/admin")}>
+                    <span className={styles.navDot} />
+                    Dashboard
+                  </Link>
+                </div>
 
-              <div className={`${styles.navHeading} ${styles.navGroup}`}>
-                Access Control
-              </div>
-              <div className={styles.navSection}>
-                <Link href="/admin/users" className={navItemClass("/admin/users")}>
-                  <span className={styles.navDot} />
-                  Users
-                </Link>
-                <Link href="/admin/roles" className={navItemClass("/admin/roles")}>
-                  <span className={styles.navDot} />
-                  Roles
-                </Link>
-                <Link
-                  href="/admin/permissions"
-                  className={navItemClass("/admin/permissions")}
-                >
-                  <span className={styles.navDot} />
-                  Permissions
-                </Link>
-              </div>
+                {isAdmin && (
+                  <>
+                    <div className={`${styles.navHeading} ${styles.navGroup}`}>
+                      Access Control
+                    </div>
+                    <div className={styles.navSection}>
+                      <Link href="/admin/users" className={navItemClass("/admin/users")}>
+                        <span className={styles.navDot} />
+                        Users
+                      </Link>
+                      <Link href="/admin/roles" className={navItemClass("/admin/roles")}>
+                        <span className={styles.navDot} />
+                        Roles
+                      </Link>
+                      <Link
+                        href="/admin/permissions"
+                        className={navItemClass("/admin/permissions")}
+                      >
+                        <span className={styles.navDot} />
+                        Permissions
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </>
 
               <div className={`${styles.navHeading} ${styles.navGroup}`}>
                 Workspace
@@ -188,7 +207,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     <div className={styles.accountAvatar}>{initials}</div>
                     <div className="min-w-0 text-left flex-1">
                       <div className={`${styles.accountName} truncate`}>
-                        {session?.user?.name || "Admin"}
+                        {session?.user?.name || roleBadge}
                       </div>
                       <div className={`${styles.accountEmail} truncate`}>
                         {session?.user?.email || "admin@example.com"}
@@ -215,7 +234,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 {userMenuOpen && (
                   <div className={styles.dropdown}>
                     <Link
-                      href={`/admin/users/${session?.user?.id}`}
+                      href={profileHref}
                       className={styles.dropdownLink}
                       onClick={() => setUserMenuOpen(false)}
                     >
@@ -281,7 +300,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <Link href={`/users/${session?.user?.id}`} className={styles.quickProfile}>
                   <div className={styles.quickAvatar}>{initials}</div>
                   <span className={styles.quickName}>
-                    {session?.user?.name?.split(" ")[0] || "Admin"}
+                    {session?.user?.name?.split(" ")[0] || roleBadge}
                   </span>
                 </Link>
               </div>

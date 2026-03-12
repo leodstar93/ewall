@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/rbac-guard";
+import { getAuthz } from "@/lib/rbac";
 
 type DocumentRow = {
   id: string;
@@ -61,10 +61,15 @@ function userSubLabel(user: DocumentRow["user"]) {
 }
 
 export default async function AdminDocumentsPage() {
-  const permission = await requirePermission("admin:access");
-  if (!permission.ok) {
-    redirect(permission.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
-  }
+  const { session, roles } = await getAuthz();
+  if (!session) redirect("/login");
+
+  const isAdmin = roles.includes("ADMIN");
+  const isStaff = roles.includes("STAFF");
+  if (!isAdmin && !isStaff) redirect("/forbidden");
+
+  const backHref = isAdmin ? "/admin" : "/panel";
+  const backLabel = isAdmin ? "Back to admin" : "Back to panel";
 
   const documents = (await prisma.document.findMany({
     orderBy: [{ createdAt: "desc" }],
@@ -127,10 +132,10 @@ export default async function AdminDocumentsPage() {
             </div>
 
             <Link
-              href="/admin"
+              href={backHref}
               className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
             >
-              Back to admin
+              {backLabel}
             </Link>
           </div>
 
@@ -191,12 +196,14 @@ export default async function AdminDocumentsPage() {
                   <span className="inline-flex items-center rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">
                     {formatFileSize(group.totalBytes)}
                   </span>
-                  <Link
-                    href={`/admin/users/${group.user.id}`}
-                    className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-                  >
-                    Open user
-                  </Link>
+                  {isAdmin && (
+                    <Link
+                      href={`/admin/users/${group.user.id}`}
+                      className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                    >
+                      Open user
+                    </Link>
+                  )}
                 </div>
               </div>
 

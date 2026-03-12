@@ -45,9 +45,9 @@ export async function GET(
 
   if (!doc) return Response.json({ error: "Document not found" }, { status: 404 });
 
-  const isAdmin = session.user.roles?.includes("ADMIN");
+  const canManageAllFeatureDocs = Boolean(session.user.roles?.includes("ADMIN") || session.user.roles?.includes("STAFF"));
   const isOwner = doc.userId === session.user.id;
-  if (!isAdmin && !isOwner) {
+  if (!canManageAllFeatureDocs && !isOwner) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 

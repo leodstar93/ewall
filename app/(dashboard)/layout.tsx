@@ -79,7 +79,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  const isAdmin = Boolean(session?.user?.roles?.includes("ADMIN"));
+  const hasAdminConsoleAccess = Boolean(
+    session?.user?.roles?.includes("ADMIN") ||
+      session?.user?.roles?.includes("STAFF"),
+  );
   const userPermissions = useMemo(
     () =>
       Array.isArray(session?.user?.permissions)
@@ -116,8 +119,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
-    if (status === "authenticated" && isAdmin) router.replace("/admin");
-  }, [status, isAdmin, router]);
+    if (status === "authenticated" && hasAdminConsoleAccess) {
+      router.replace("/admin");
+    }
+  }, [status, hasAdminConsoleAccess, router]);
 
   useEffect(() => {
     const onDown = (event: MouseEvent) => {
@@ -203,7 +208,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }
     };
 
-    if (status === "authenticated" && session && !isAdmin) {
+    if (status === "authenticated" && session && !hasAdminConsoleAccess) {
       loadFeatures().catch(() => {
         if (active) setFeaturesError("Could not load modules.");
       });
@@ -212,7 +217,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => {
       active = false;
     };
-  }, [status, session, isAdmin, userPermissions]);
+  }, [status, session, hasAdminConsoleAccess, userPermissions]);
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/" });
@@ -234,7 +239,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  if (status !== "authenticated" || isAdmin) return null;
+  if (status !== "authenticated" || hasAdminConsoleAccess) return null;
 
   const isActive = (href: string) => {
     if (!pathname) return false;

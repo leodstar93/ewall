@@ -27,9 +27,9 @@ export async function DELETE(
     }
 
     if (document.userId !== session.user.id) {
-      // Only admins can delete other users' documents
-      const isAdmin = session.user.roles?.includes("ADMIN");
-      if (!isAdmin) {
+      // ADMIN/STAFF can delete other users' documents in features scope
+      const canManageAllFeatureDocs = Boolean(session.user.roles?.includes("ADMIN") || session.user.roles?.includes("STAFF"));
+      if (!canManageAllFeatureDocs) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
       }
     }
