@@ -18,6 +18,8 @@ function cx(...parts: Array<string | false | null | undefined>) {
 function titleFromPath(pathname: string | null) {
   if (!pathname) return "Admin";
   if (pathname === "/admin") return "Dashboard";
+  if (pathname === "/admin/settings") return "Settings";
+  if (pathname.startsWith("/admin/settings/ifta-tax-rates")) return "IFTA Tax Rates";
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/roles")) return "Roles";
   if (pathname.startsWith("/admin/permissions")) return "Permissions";
@@ -152,6 +154,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                       Access Control
                     </div>
                     <div className={styles.navSection}>
+                      <Link href="/admin/settings" className={navItemClass("/admin/settings")}>
+                        <span className={styles.navDot} />
+                        Settings
+                      </Link>
                       <Link href="/admin/users" className={navItemClass("/admin/users")}>
                         <span className={styles.navDot} />
                         Users

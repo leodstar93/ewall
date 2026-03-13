@@ -1,6 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { prisma } from "../lib/prisma";
+import { US_JURISDICTIONS } from "../features/ifta/constants/us-jurisdictions";
 
 // Cambia estos valores si quieres
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@ewall.local";
@@ -38,6 +39,11 @@ const PERMISSIONS = [
   { key: "reports:write", description: "Create/update generated reports" },
   { key: "reports:generate", description: "Generate reports" },
   { key: "reports:download", description: "Download reports" },
+  { key: "settings:read", description: "Read admin settings" },
+  { key: "settings:update", description: "Update admin settings" },
+  { key: "iftaTaxRates:read", description: "Read IFTA tax rates" },
+  { key: "iftaTaxRates:write", description: "Create and edit IFTA tax rates" },
+  { key: "iftaTaxRates:import", description: "Import IFTA tax rates" },
 
   // Staff
 
@@ -66,19 +72,6 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
   ],
   USER: ["profile:access", "profile:write", "dashboard:access"],
 };
-
-const JURISDICTIONS = [
-  { code: "AZ", name: "Arizona" },
-  { code: "CA", name: "California" },
-  { code: "CO", name: "Colorado" },
-  { code: "ID", name: "Idaho" },
-  { code: "NM", name: "New Mexico" },
-  { code: "NV", name: "Nevada" },
-  { code: "OR", name: "Oregon" },
-  { code: "TX", name: "Texas" },
-  { code: "UT", name: "Utah" },
-  { code: "WA", name: "Washington" },
-] as const;
 
 async function upsertRoles() {
   for (const r of ROLES) {
@@ -132,13 +125,23 @@ async function syncRolePermissions() {
 }
 
 async function upsertJurisdictions() {
-  for (const jurisdiction of JURISDICTIONS) {
+  for (const jurisdiction of US_JURISDICTIONS) {
     await prisma.jurisdiction.upsert({
       where: { code: jurisdiction.code },
-      update: { name: jurisdiction.name },
+      update: {
+        name: jurisdiction.name,
+        countryCode: jurisdiction.countryCode,
+        isIftaMember: jurisdiction.isIftaMember,
+        isActive: jurisdiction.isActive,
+        sortOrder: jurisdiction.sortOrder,
+      },
       create: {
         code: jurisdiction.code,
         name: jurisdiction.name,
+        countryCode: jurisdiction.countryCode,
+        isIftaMember: jurisdiction.isIftaMember,
+        isActive: jurisdiction.isActive,
+        sortOrder: jurisdiction.sortOrder,
       },
     });
   }

@@ -161,6 +161,10 @@ model Jurisdiction {
   id          String   @id @default(cuid())
   code        String   @unique // NV, CA, AZ
   name        String   @unique // Nevada, California
+  countryCode String?
+  isIftaMember Boolean @default(true)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -182,11 +186,35 @@ model IftaTaxRate {
 
   effectiveFrom    DateTime?
   effectiveTo      DateTime?
+  source           String?
+  sourceQuarterKey String?
+  sourceFileUrl    String?
+  importedAt       DateTime?
+  importedById     String?
+  notes            String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   @@unique([jurisdictionId, year, quarter, fuelType])
   @@index([year, quarter])
+}
+
+model IftaTaxRateImportRun {
+  id            String   @id @default(cuid())
+  year          Int
+  quarter       Quarter
+  sourceType    String
+  sourceUrl     String?
+  totalRows     Int      @default(0)
+  insertedRows  Int      @default(0)
+  updatedRows   Int      @default(0)
+  skippedRows   Int      @default(0)
+  status        String
+  message       String?
+  executedAt    DateTime @default(now())
+  executedById  String?
+
+  @@index([year, quarter, executedAt])
 }
 
 model IftaReport {
