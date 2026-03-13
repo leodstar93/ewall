@@ -40,9 +40,7 @@ export async function validateTaxRates(params: ValidateTaxRatesParams) {
   ]);
 
   const validJurisdictionIds = new Set(
-    rates
-      .filter((rate) => Number(rate.taxRate) > 0)
-      .map((rate) => rate.jurisdictionId),
+    rates.map((rate) => rate.jurisdictionId),
   );
 
   const missing = jurisdictions

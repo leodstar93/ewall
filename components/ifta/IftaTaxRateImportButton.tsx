@@ -13,8 +13,8 @@ export default function IftaTaxRateImportButton(props: {
         <div>
           <h3 className="text-base font-semibold text-zinc-950">Import USA rates</h3>
           <p className="mt-1 text-sm text-zinc-600">
-            Loads the bundled baseline tax-rate set for the selected year, quarter, and fuel
-            type.
+            Downloads the official IFTA tax-matrix CSV for the selected year, quarter, and
+            fuel type.
           </p>
         </div>
         <button
@@ -41,6 +41,9 @@ export default function IftaTaxRateImportButton(props: {
             {props.lastResult.success ? "Success" : "Review required"}
           </div>
         </div>
+      )}
+      {props.lastResult?.sourceUrl && (
+        <p className="mt-3 text-xs text-zinc-500">Source: {props.lastResult.sourceUrl}</p>
       )}
     </div>
   );

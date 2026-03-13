@@ -122,8 +122,7 @@ export async function calculateIftaReport(
       netTaxableGallons,
       taxRate,
       taxDue,
-      missingTaxRate:
-        !rateByJurisdiction.has(line.jurisdictionId) || taxRate <= 0,
+      missingTaxRate: !rateByJurisdiction.has(line.jurisdictionId),
     };
   });
 

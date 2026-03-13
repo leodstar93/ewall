@@ -44,4 +44,6 @@ export type IftaTaxRateImportResult = {
   updatedRows: number;
   skippedRows: number;
   message?: string;
+  sourceUrl?: string;
+  sourceQuarterKey?: string;
 };

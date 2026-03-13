@@ -34,7 +34,7 @@ function assertTaxRate(value: string) {
 }
 
 function buildSourceQuarterKey(year: number, quarter: Quarter) {
-  return `${quarter}${year}`;
+  return `${quarter.slice(1)}Q${year}`;
 }
 
 export async function upsertTaxRate(params: UpsertTaxRateParams) {
