@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
+import IftaNewReportPage from "@/features/ifta/new-report-page";
 import { requirePermission } from "@/lib/rbac-guard";
-import IftaDashboardPage from "@/features/ifta/dashboard-page";
 
-export default async function IftaPage() {
-  const permission = await requirePermission("ifta:read");
+export default async function IftaNewReportRoute() {
+  const permission = await requirePermission("ifta:write");
 
   if (!permission.ok) {
     redirect(permission.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
   }
 
-  return <IftaDashboardPage />;
+  return <IftaNewReportPage />;
 }

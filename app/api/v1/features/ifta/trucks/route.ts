@@ -5,6 +5,7 @@ import { requireApiPermission } from "@/lib/rbac-api";
 
 type CreateTruckBody = {
   unitNumber?: unknown;
+  nickname?: unknown;
   plateNumber?: unknown;
   vin?: unknown;
 };
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as CreateTruckBody;
     const unitNumber = normalizeOptionalText(body.unitNumber);
+    const nickname = normalizeOptionalText(body.nickname);
     const plateNumber = normalizeOptionalText(body.plateNumber);
     const vin = normalizeOptionalText(body.vin);
 
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: guard.session.user.id,
         unitNumber,
+        nickname,
         plateNumber,
         vin,
       },

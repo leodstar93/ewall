@@ -126,6 +126,8 @@ enum FuelType {
 
 enum ReportStatus {
   DRAFT
+  PENDING_STAFF_REVIEW
+  PENDING_TRUCKER_FINALIZATION
   FILED
   AMENDED
 }
@@ -140,6 +142,7 @@ enum Quarter {
 model Truck {
   id           String   @id @default(cuid())
   unitNumber   String
+  nickname     String?
   plateNumber  String?
   vin          String?  @unique
   userId       String
@@ -205,7 +208,10 @@ model IftaReport {
   totalTaxDue       Decimal       @default(0) @db.Decimal(12, 2)
 
   filedAt           DateTime?
+  submittedForReviewAt DateTime?
+  staffReviewedAt   DateTime?
   notes             String?
+  reviewNotes       String?
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -229,19 +235,19 @@ model IftaReportLine {
   fuelType            FuelType      @default(DI)
   taxRate             Decimal       @db.Decimal(10, 4)
 
-  taxableMiles        Decimal       @default(0) @db.Decimal(12, 2)
-  taxableGallons      Decimal       @default(0) @db.Decimal(12, 2)
-  paidGallons         Decimal       @default(0) @db.Decimal(12, 2)
-  netTaxableGallons   Decimal       @default(0) @db.Decimal(12, 2)
-  taxDue              Decimal       @default(0) @db.Decimal(12, 2)
+  miles               Decimal       @default(0) @db.Decimal(12, 2)   // input manual
+  paidGallons         Decimal       @default(0) @db.Decimal(12, 2)   // input manual
+
+  taxableMiles        Decimal       @default(0) @db.Decimal(12, 2)   // calculado
+  taxableGallons      Decimal       @default(0) @db.Decimal(12, 2)   // calculado
+  netTaxableGallons   Decimal       @default(0) @db.Decimal(12, 2)   // calculado
+  taxDue              Decimal       @default(0) @db.Decimal(12, 2)   // calculado
 
   sortOrder           Int           @default(0)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
   @@unique([reportId, jurisdictionId, fuelType])
-  @@index([reportId])
-  @@index([jurisdictionId])
 }
 
 model Trip {

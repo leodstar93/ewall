@@ -1,8 +1,12 @@
 import { redirect } from "next/navigation";
+import IftaManualReportPage from "@/features/ifta/manual-report-page";
 import { getAuthz } from "@/lib/rbac";
-import AdminIftaQueuePage from "@/features/ifta/admin-queue-page";
 
-export default async function AdminIftaPage() {
+export default async function AdminIftaReportPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { session, roles } = await getAuthz();
   if (!session) redirect("/login");
 
@@ -10,5 +14,7 @@ export default async function AdminIftaPage() {
   const isStaff = roles.includes("STAFF");
   if (!isAdmin && !isStaff) redirect("/forbidden");
 
-  return <AdminIftaQueuePage />;
+  const { id } = await params;
+
+  return <IftaManualReportPage reportId={id} mode="staff" />;
 }
