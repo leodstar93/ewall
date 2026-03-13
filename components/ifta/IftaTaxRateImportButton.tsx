@@ -3,7 +3,8 @@
 import { IftaTaxRateImportResult } from "@/features/ifta/types/tax-rate";
 
 export default function IftaTaxRateImportButton(props: {
-  onImport: () => Promise<void>;
+  onImportSelected: () => Promise<void>;
+  onImportBoth: () => Promise<void>;
   busy?: boolean;
   lastResult: IftaTaxRateImportResult | null;
 }) {
@@ -13,17 +14,26 @@ export default function IftaTaxRateImportButton(props: {
         <div>
           <h3 className="text-base font-semibold text-zinc-950">Import USA rates</h3>
           <p className="mt-1 text-sm text-zinc-600">
-            Downloads the official IFTA tax-matrix CSV for the selected year, quarter, and
-            fuel type.
+            Downloads the official IFTA tax-matrix file for the selected quarter and imports
+            either the active fuel type or both supported fuel types.
           </p>
         </div>
-        <button
-          onClick={() => void props.onImport()}
-          disabled={props.busy}
-          className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-        >
-          {props.busy ? "Importing..." : "Import rates"}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => void props.onImportSelected()}
+            disabled={props.busy}
+            className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+          >
+            {props.busy ? "Importing..." : "Import selected fuel"}
+          </button>
+          <button
+            onClick={() => void props.onImportBoth()}
+            disabled={props.busy}
+            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
+          >
+            {props.busy ? "Importing..." : "Import both fuels"}
+          </button>
+        </div>
       </div>
 
       {props.lastResult && (
@@ -41,6 +51,14 @@ export default function IftaTaxRateImportButton(props: {
             {props.lastResult.success ? "Success" : "Review required"}
           </div>
         </div>
+      )}
+      {props.lastResult?.sourceQuarterKey && (
+        <p className="mt-3 text-xs text-zinc-500">
+          Imported period key: {props.lastResult.sourceQuarterKey}
+        </p>
+      )}
+      {props.lastResult?.sourceType && (
+        <p className="mt-1 text-xs text-zinc-500">Source type: {props.lastResult.sourceType}</p>
       )}
       {props.lastResult?.sourceUrl && (
         <p className="mt-3 text-xs text-zinc-500">Source: {props.lastResult.sourceUrl}</p>

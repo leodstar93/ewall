@@ -18,6 +18,10 @@ function buildOfficialCsvUrl(year: number, quarter: Quarter) {
   return `https://www.iftach.org/taxmatrix/charts/${getSourceQuarterKey(year, quarter)}.csv`;
 }
 
+function buildOfficialXmlUrl(year: number, quarter: Quarter) {
+  return `https://www.iftach.org/taxmatrix/charts/${getSourceQuarterKey(year, quarter)}.xml`;
+}
+
 function parseCsvLine(line: string) {
   const values: string[] = [];
   let current = "";
@@ -81,7 +85,7 @@ function isHeaderRow(columns: string[]) {
 }
 
 type ParsedOfficialRateRow = {
-  jurisdictionName: string;
+  jurisdictionKey: string;
   gasolineRate: number;
   dieselRate: number;
 };
@@ -100,7 +104,7 @@ function parseOfficialCsv(content: string) {
     if (!rawName.trim()) continue;
 
     parsedRows.push({
-      jurisdictionName: normalizeOfficialJurisdictionName(rawName),
+      jurisdictionKey: normalizeOfficialJurisdictionName(rawName),
       gasolineRate: parseTaxValue(columns[2]),
       dieselRate: parseTaxValue(columns[3]),
     });
@@ -109,11 +113,109 @@ function parseOfficialCsv(content: string) {
   return parsedRows;
 }
 
+function decodeXmlEntities(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function parseOfficialXml(content: string) {
+  const parsedRows: ParsedOfficialRateRow[] = [];
+  const recordMatches = content.match(/<RECORD>[\s\S]*?<\/RECORD>/g) ?? [];
+
+  for (const record of recordMatches) {
+    const countryMatch = record.match(/<COUNTRY>([\s\S]*?)<\/COUNTRY>/i);
+    const country = decodeXmlEntities(countryMatch?.[1]?.trim() ?? "");
+    if (country.toUpperCase() !== "U.S.") continue;
+
+    const codeMatch = record.match(/<JURISDICTION\b[^>]*>([\s\S]*?)<\/JURISDICTION>/i);
+    const jurisdictionCode = decodeXmlEntities(codeMatch?.[1]?.trim() ?? "");
+    if (!jurisdictionCode) continue;
+
+    let gasolineRate = 0;
+    let dieselRate = 0;
+
+    const fuelMatches = record.matchAll(
+      /<FUEL_TYPE>([\s\S]*?)<\/FUEL_TYPE>\s*<RATE COUNTRY="US"[^>]*>([\s\S]*?)<\/RATE>/gi,
+    );
+
+    for (const match of fuelMatches) {
+      const fuelName = decodeXmlEntities(match[1]?.trim() ?? "").toUpperCase();
+      const rateValue = parseTaxValue(match[2]);
+      if (fuelName === "GASOLINE") gasolineRate = rateValue;
+      if (fuelName === "SPECIAL DIESEL") dieselRate = rateValue;
+    }
+
+    parsedRows.push({
+      jurisdictionKey: jurisdictionCode.toUpperCase(),
+      gasolineRate,
+      dieselRate,
+    });
+  }
+
+  return parsedRows;
+}
+
+async function downloadOfficialMatrix(year: number, quarter: Quarter) {
+  const csvUrl = buildOfficialCsvUrl(year, quarter);
+  const xmlUrl = buildOfficialXmlUrl(year, quarter);
+  const headers = {
+    Accept: "text/csv,text/xml,application/xml,text/plain;q=0.9,*/*;q=0.8",
+    "User-Agent": "TruckersUnidos-IFTA-Importer/1.0",
+  };
+
+  try {
+    const csvResponse = await fetch(csvUrl, {
+      headers,
+      cache: "no-store",
+    });
+
+    if (csvResponse.ok) {
+      const csvContent = await csvResponse.text();
+      const csvRows = parseOfficialCsv(csvContent);
+      if (csvRows.length > 0) {
+        return {
+          rows: csvRows,
+          sourceUrl: csvUrl,
+          sourceType: "IFTA_OFFICIAL_CSV",
+          keyMode: "name" as const,
+        };
+      }
+    }
+  } catch {}
+
+  const xmlResponse = await fetch(xmlUrl, {
+    headers,
+    cache: "no-store",
+  });
+
+  if (!xmlResponse.ok) {
+    throw new Error(
+      `Official IFTA XML download failed with status ${xmlResponse.status}`,
+    );
+  }
+
+  const xmlContent = await xmlResponse.text();
+  const xmlRows = parseOfficialXml(xmlContent);
+  if (xmlRows.length === 0) {
+    throw new Error("Official IFTA XML download returned no usable records");
+  }
+
+  return {
+    rows: xmlRows,
+    sourceUrl: xmlUrl,
+    sourceType: "IFTA_OFFICIAL_XML",
+    keyMode: "code" as const,
+  };
+}
+
 export async function importOfficialTaxRates(params: ImportOfficialTaxRatesParams) {
   const fuelTypes = params.fuelTypes?.length
     ? params.fuelTypes
     : [FuelType.DI, FuelType.GA];
-  const sourceUrl = buildOfficialCsvUrl(params.year, params.quarter);
 
   const jurisdictions = await prisma.jurisdiction.findMany({
     where: {
@@ -128,28 +230,12 @@ export async function importOfficialTaxRates(params: ImportOfficialTaxRatesParam
       name: true,
     },
   });
-
-  const response = await fetch(sourceUrl, {
-    headers: {
-      Accept: "text/csv,text/plain;q=0.9,*/*;q=0.8",
-      "User-Agent": "TruckersUnidos-IFTA-Importer/1.0",
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Official IFTA CSV download failed with status ${response.status}`);
-  }
-
-  const content = await response.text();
-  if (!content.trim()) {
-    throw new Error("Official IFTA CSV download returned an empty file");
-  }
-
-  const officialRows = parseOfficialCsv(content);
-  const jurisdictionByName = new Map(
+  const source = await downloadOfficialMatrix(params.year, params.quarter);
+  const jurisdictionByKey = new Map(
     jurisdictions.map((jurisdiction) => [
-      normalizeOfficialJurisdictionName(jurisdiction.name),
+      source.keyMode === "code"
+        ? jurisdiction.code.toUpperCase()
+        : normalizeOfficialJurisdictionName(jurisdiction.name),
       jurisdiction,
     ]),
   );
@@ -159,8 +245,8 @@ export async function importOfficialTaxRates(params: ImportOfficialTaxRatesParam
     { jurisdictionId: string; fuelType: FuelType; taxRate: number }
   >();
 
-  for (const row of officialRows) {
-    const jurisdiction = jurisdictionByName.get(row.jurisdictionName);
+  for (const row of source.rows) {
+    const jurisdiction = jurisdictionByKey.get(row.jurisdictionKey);
     if (!jurisdiction) {
       continue;
     }
@@ -219,9 +305,9 @@ export async function importOfficialTaxRates(params: ImportOfficialTaxRatesParam
         quarter: params.quarter,
         fuelType,
         taxRate: aggregated.taxRate.toFixed(4),
-        notes: "Imported from official IFTA tax matrix CSV.",
+        notes: `Imported from official IFTA tax matrix ${source.sourceType === "IFTA_OFFICIAL_CSV" ? "CSV" : "XML"}.`,
         source: "IFTA_IMPORT",
-        sourceFileUrl: sourceUrl,
+        sourceFileUrl: source.sourceUrl,
         importedAt: new Date(),
         importedById: params.executedById ?? null,
       });
@@ -235,14 +321,14 @@ export async function importOfficialTaxRates(params: ImportOfficialTaxRatesParam
   }
 
   const success = insertedRows + updatedRows > 0 || skippedRows === totalRows;
-  const message = "Official IFTA tax matrix CSV imported successfully.";
+  const message = `Official IFTA tax matrix imported successfully via ${source.sourceType === "IFTA_OFFICIAL_CSV" ? "CSV" : "XML"} fallback.`;
 
   await prisma.iftaTaxRateImportRun.create({
     data: {
       year: params.year,
       quarter: params.quarter,
-      sourceType: "IFTA_OFFICIAL_CSV",
-      sourceUrl,
+      sourceType: source.sourceType,
+      sourceUrl: source.sourceUrl,
       totalRows,
       insertedRows,
       updatedRows,
@@ -259,7 +345,8 @@ export async function importOfficialTaxRates(params: ImportOfficialTaxRatesParam
     updatedRows,
     skippedRows,
     message,
-    sourceUrl,
+    sourceUrl: source.sourceUrl,
     sourceQuarterKey: getSourceQuarterKey(params.year, params.quarter),
+    sourceType: source.sourceType,
   };
 }

@@ -128,14 +128,14 @@ export default function IftaTaxRatesSettingsClient() {
     }
   };
 
-  const handleImport = async () => {
+  const handleImport = async (fuelTypes: Array<"DI" | "GA">) => {
     await runWithBusy(async () => {
       const response = await fetch("/api/v1/settings/ifta-tax-rates/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...filters,
-          fuelTypes: [filters.fuelType],
+          fuelTypes,
         }),
       });
 
@@ -256,7 +256,12 @@ export default function IftaTaxRatesSettingsClient() {
         </div>
       </section>
 
-      <IftaTaxRateImportButton onImport={handleImport} busy={busy} lastResult={lastImport} />
+      <IftaTaxRateImportButton
+        onImportSelected={() => handleImport([filters.fuelType])}
+        onImportBoth={() => handleImport(["DI", "GA"])}
+        busy={busy}
+        lastResult={lastImport}
+      />
 
       <IftaTaxRateValidationSummary
         result={validation}
