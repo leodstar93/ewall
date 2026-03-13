@@ -1,13 +1,13 @@
+import { FuelType, Prisma, Quarter, ReportStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
-import { FuelType, Prisma, Quarter } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireApiPermission } from "@/lib/rbac-api";
+import { requireIftaAccess } from "@/lib/ifta-api-access";
 
 type CreateReportBody = {
+  truckId?: unknown;
   year?: unknown;
   quarter?: unknown;
   fuelType?: unknown;
-  truckId?: unknown;
   notes?: unknown;
 };
 
@@ -15,8 +15,8 @@ function parseYear(value: unknown) {
   const year = Number(value);
   if (!Number.isInteger(year)) return null;
 
-  const currentYear = new Date().getFullYear() + 1;
-  if (year < 2000 || year > currentYear) return null;
+  const maxYear = new Date().getFullYear() + 1;
+  if (year < 2000 || year > maxYear) return null;
 
   return year;
 }
@@ -33,81 +33,77 @@ function parseFuelType(value: unknown) {
   return value as FuelType;
 }
 
-function normalizeNotes(value: unknown) {
+function parseStatus(value: string | null) {
+  if (!value) return null;
+  if (!Object.values(ReportStatus).includes(value as ReportStatus)) return null;
+  return value as ReportStatus;
+}
+
+function normalizeOptionalText(value: unknown) {
   if (typeof value !== "string") return null;
-  const notes = value.trim();
-  return notes.length ? notes : null;
+  const normalized = value.trim();
+  return normalized.length ? normalized : null;
 }
 
 export async function GET(request: NextRequest) {
-  const guard = await requireApiPermission("ifta:read");
+  const guard = await requireIftaAccess("ifta:read");
   if (!guard.ok) return guard.res;
 
   try {
-    const url = request.nextUrl;
-    const queryYear = url.searchParams.get("year");
-    const queryQuarter = url.searchParams.get("quarter");
-    const queryFuelType = url.searchParams.get("fuelType");
-
-    const where: Prisma.IftaReportWhereInput = {
-      userId: guard.session.user.id,
-    };
-
-    if (queryYear !== null) {
-      const year = parseYear(queryYear);
-      if (year === null) {
-        return Response.json({ error: "Invalid year" }, { status: 400 });
-      }
-      where.year = year;
+    const statusFilter = parseStatus(request.nextUrl.searchParams.get("status"));
+    if (request.nextUrl.searchParams.has("status") && statusFilter === null) {
+      return Response.json({ error: "Invalid status" }, { status: 400 });
     }
 
-    if (queryQuarter !== null) {
-      const quarter = parseQuarter(queryQuarter);
-      if (!quarter) {
-        return Response.json({ error: "Invalid quarter" }, { status: 400 });
-      }
-      where.quarter = quarter;
+    const where: Prisma.IftaReportWhereInput = {};
+    if (!guard.isAdmin && !guard.isStaff) {
+      where.userId = guard.session.user.id ?? "";
     }
-
-    if (queryFuelType !== null) {
-      const fuelType = parseFuelType(queryFuelType);
-      if (!fuelType) {
-        return Response.json({ error: "Invalid fuel type" }, { status: 400 });
-      }
-      where.fuelType = fuelType;
+    if (statusFilter) {
+      where.status = statusFilter;
     }
 
     const [reports, trucks, jurisdictions] = await Promise.all([
       prisma.iftaReport.findMany({
         where,
         include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
           truck: {
             select: {
               id: true,
               unitNumber: true,
+              nickname: true,
               plateNumber: true,
+              vin: true,
             },
           },
           _count: {
             select: {
               lines: true,
-              trips: true,
-              fuelPurchases: true,
             },
           },
         },
-        orderBy: [{ year: "desc" }, { quarter: "desc" }, { createdAt: "desc" }],
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
       }),
-      prisma.truck.findMany({
-        where: { userId: guard.session.user.id },
-        select: {
-          id: true,
-          unitNumber: true,
-          plateNumber: true,
-          vin: true,
-        },
-        orderBy: { unitNumber: "asc" },
-      }),
+      guard.isAdmin || guard.isStaff
+        ? Promise.resolve([])
+        : prisma.truck.findMany({
+            where: { userId: guard.session.user.id ?? "" },
+            select: {
+              id: true,
+              unitNumber: true,
+              nickname: true,
+              plateNumber: true,
+              vin: true,
+            },
+            orderBy: [{ nickname: "asc" }, { unitNumber: "asc" }],
+          }),
       prisma.jurisdiction.findMany({
         select: {
           id: true,
@@ -118,7 +114,30 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    return Response.json({ reports, trucks, jurisdictions });
+    const workflowCounts = reports.reduce(
+      (counts, report) => {
+        counts.total += 1;
+        counts[report.status] += 1;
+        return counts;
+      },
+      {
+        total: 0,
+        DRAFT: 0,
+        PENDING_STAFF_REVIEW: 0,
+        PENDING_TRUCKER_FINALIZATION: 0,
+        FILED: 0,
+        AMENDED: 0,
+      } satisfies Record<"total" | ReportStatus, number>,
+    );
+
+    return Response.json({
+      reports,
+      trucks,
+      jurisdictions,
+      workflowCounts,
+      currentUserId: guard.session.user.id ?? null,
+      canReviewAll: guard.isAdmin || guard.isStaff,
+    });
   } catch (error) {
     console.error("Error fetching IFTA reports:", error);
     return Response.json(
@@ -129,15 +148,20 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireApiPermission("ifta:write");
+  const guard = await requireIftaAccess("ifta:write");
   if (!guard.ok) return guard.res;
 
   try {
     const body = (await request.json()) as CreateReportBody;
-
     const year = parseYear(body.year);
     const quarter = parseQuarter(body.quarter);
-    const fuelType = body.fuelType ? parseFuelType(body.fuelType) : FuelType.DI;
+    const fuelType = parseFuelType(body.fuelType);
+    const notes = normalizeOptionalText(body.notes);
+    const actorUserId = guard.session.user.id;
+
+    if (!actorUserId) {
+      return Response.json({ error: "Invalid session" }, { status: 400 });
+    }
 
     if (year === null) {
       return Response.json({ error: "Invalid year" }, { status: 400 });
@@ -156,7 +180,7 @@ export async function POST(request: NextRequest) {
       const truck = await prisma.truck.findFirst({
         where: {
           id: body.truckId,
-          userId: guard.session.user.id,
+          userId: actorUserId,
         },
         select: { id: true },
       });
@@ -164,44 +188,40 @@ export async function POST(request: NextRequest) {
       if (!truck) {
         return Response.json({ error: "Truck not found" }, { status: 404 });
       }
+
       truckId = truck.id;
     }
 
     const report = await prisma.iftaReport.create({
       data: {
-        userId: guard.session.user.id,
+        userId: actorUserId,
+        truckId,
         year,
         quarter,
         fuelType,
-        truckId,
-        notes: normalizeNotes(body.notes),
+        status: ReportStatus.DRAFT,
+        notes,
       },
       include: {
         truck: {
           select: {
             id: true,
             unitNumber: true,
+            nickname: true,
             plateNumber: true,
-          },
-        },
-        _count: {
-          select: {
-            lines: true,
-            trips: true,
-            fuelPurchases: true,
           },
         },
       },
     });
 
-    return Response.json(report, { status: 201 });
+    return Response.json({ report }, { status: 201 });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
       return Response.json(
-        { error: "A report already exists for that period and truck" },
+        { error: "A report already exists for that truck, period, and fuel type." },
         { status: 409 },
       );
     }

@@ -36,7 +36,7 @@ export default function IftaNewReportPage() {
   });
 
   const loadTrucks = async () => {
-    const response = await fetch("/api/ifta/reports", { cache: "no-store" });
+    const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
     if (!response.ok) throw new Error("Could not load trucks.");
     const data = (await response.json()) as BootstrapPayload;
     const list = Array.isArray(data.trucks) ? data.trucks : [];
@@ -53,7 +53,7 @@ export default function IftaNewReportPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch("/api/ifta/reports", { cache: "no-store" });
+        const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
         if (!response.ok) throw new Error("Could not load trucks.");
 
         const data = (await response.json()) as BootstrapPayload;
@@ -120,7 +120,7 @@ export default function IftaNewReportPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/ifta/reports", {
+      const response = await fetch("/api/v1/features/ifta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

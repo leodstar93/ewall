@@ -63,7 +63,7 @@ export default function IftaManualReportPage(props: {
   const [message, setMessage] = useState<string | null>(null);
 
   const loadDetail = useCallback(async () => {
-    const response = await fetch(`/api/ifta/reports/${props.reportId}`, {
+    const response = await fetch(`/api/v1/features/ifta/${props.reportId}`, {
       cache: "no-store",
     });
     const data = (await response.json().catch(() => ({}))) as DetailPayload & {
@@ -179,7 +179,7 @@ export default function IftaManualReportPage(props: {
 
       for (const jurisdictionId of removals) {
         const response = await fetch(
-          `/api/ifta/reports/${props.reportId}/lines/${jurisdictionId}`,
+          `/api/v1/features/ifta/${props.reportId}/lines/${jurisdictionId}`,
           { method: "DELETE" },
         );
         if (!response.ok) {
@@ -190,7 +190,7 @@ export default function IftaManualReportPage(props: {
 
       for (const row of rows) {
         const response = await fetch(
-          `/api/ifta/reports/${props.reportId}/lines/${row.jurisdictionId}`,
+          `/api/v1/features/ifta/${props.reportId}/lines/${row.jurisdictionId}`,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -226,7 +226,7 @@ export default function IftaManualReportPage(props: {
     setError(null);
 
     try {
-      const response = await fetch(`/api/ifta/reports/${props.reportId}`, {
+      const response = await fetch(`/api/v1/features/ifta/${props.reportId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -347,7 +347,7 @@ export default function IftaManualReportPage(props: {
               <button
                 onClick={() =>
                   void runAction(
-                    `/api/ifta/reports/${props.reportId}/submit`,
+                    `/api/v1/features/ifta/${props.reportId}/submit`,
                     undefined,
                     "Report sent to staff.",
                   )
@@ -362,7 +362,7 @@ export default function IftaManualReportPage(props: {
               <button
                 onClick={() =>
                   void runAction(
-                    `/api/ifta/reports/${props.reportId}/finalize`,
+                    `/api/v1/features/ifta/${props.reportId}/finalize`,
                     undefined,
                     "Report finalized.",
                   )
@@ -722,7 +722,7 @@ export default function IftaManualReportPage(props: {
               <button
                 onClick={() =>
                   void runAction(
-                    `/api/ifta/reports/${props.reportId}/staff-review`,
+                    `/api/v1/features/ifta/${props.reportId}/staff-review`,
                     { reviewNotes },
                     "Report returned to trucker for finalization.",
                   )

@@ -31,7 +31,10 @@ export async function POST(
     }
 
     if (report.userId !== guard.session.user.id) {
-      return Response.json({ error: "Only the owning trucker can finalize this report." }, { status: 403 });
+      return Response.json(
+        { error: "Only the owning trucker can finalize this report." },
+        { status: 403 },
+      );
     }
 
     if (!canFinalizeReport(report.status)) {

@@ -45,7 +45,7 @@ export default function IftaDashboardPage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch("/api/ifta/reports", { cache: "no-store" });
+        const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
         if (!response.ok) throw new Error("Could not load IFTA reports.");
 
         const data = (await response.json()) as DashboardPayload;

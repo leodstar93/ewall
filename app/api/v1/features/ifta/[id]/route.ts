@@ -1,58 +1,26 @@
 import { NextRequest } from "next/server";
-import { FuelType, Prisma, Quarter, ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireApiPermission } from "@/lib/rbac-api";
-import { recomputeIftaReport } from "@/lib/ifta-report";
+import { canAccessUserScopedIfta, requireIftaAccess } from "@/lib/ifta-api-access";
+import {
+  canEditManualReport,
+  canFinalizeReport,
+  canStaffReviewReport,
+  canSubmitReportToStaff,
+} from "@/lib/ifta-workflow";
+import { calculateIftaReport } from "@/services/ifta/calculateReport";
+import { getIftaValidationIssues } from "@/services/ifta/validateReport";
 
 type UpdateReportBody = {
-  year?: unknown;
-  quarter?: unknown;
-  fuelType?: unknown;
-  truckId?: unknown;
-  status?: unknown;
-  filedAt?: unknown;
   notes?: unknown;
+  reviewNotes?: unknown;
 };
 
-function parseYear(value: unknown) {
-  if (typeof value === "undefined") return undefined;
-  const year = Number(value);
-  if (!Number.isInteger(year)) return null;
-
-  const maxYear = new Date().getFullYear() + 1;
-  if (year < 2000 || year > maxYear) return null;
-
-  return year;
-}
-
-function parseQuarter(value: unknown) {
-  if (typeof value === "undefined") return undefined;
-  if (typeof value !== "string") return null;
-  if (!Object.values(Quarter).includes(value as Quarter)) return null;
-  return value as Quarter;
-}
-
-function parseFuelType(value: unknown) {
-  if (typeof value === "undefined") return undefined;
-  if (typeof value !== "string") return null;
-  if (!Object.values(FuelType).includes(value as FuelType)) return null;
-  return value as FuelType;
-}
-
-function parseStatus(value: unknown) {
-  if (typeof value === "undefined") return undefined;
-  if (typeof value !== "string") return null;
-  if (!Object.values(ReportStatus).includes(value as ReportStatus)) return null;
-  return value as ReportStatus;
-}
-
-function parseNotes(value: unknown) {
+function normalizeOptionalText(value: unknown) {
   if (typeof value === "undefined") return undefined;
   if (value === null) return null;
-  if (typeof value !== "string") return null;
-
-  const notes = value.trim();
-  return notes.length ? notes : null;
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized.length ? normalized : null;
 }
 
 export async function GET(
@@ -60,87 +28,117 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   void request;
-  const guard = await requireApiPermission("ifta:read");
+  const guard = await requireIftaAccess("ifta:read");
   if (!guard.ok) return guard.res;
 
   const { id } = await params;
 
   try {
-    const report = await prisma.iftaReport.findUnique({
+    const baseReport = await prisma.iftaReport.findUnique({
       where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        truck: {
-          select: {
-            id: true,
-            unitNumber: true,
-            plateNumber: true,
-            vin: true,
-          },
-        },
-        lines: {
-          include: {
-            jurisdiction: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        },
-        trips: {
-          include: {
-            mileages: {
-              include: {
-                jurisdiction: {
-                  select: {
-                    id: true,
-                    code: true,
-                    name: true,
-                  },
-                },
-              },
-              orderBy: { createdAt: "asc" },
-            },
-          },
-          orderBy: { tripDate: "asc" },
-        },
-        fuelPurchases: {
-          include: {
-            jurisdiction: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: { purchaseDate: "asc" },
-        },
+      select: {
+        id: true,
+        userId: true,
       },
     });
+
+    if (!baseReport) {
+      return Response.json({ error: "Report not found" }, { status: 404 });
+    }
+
+    if (!canAccessUserScopedIfta(guard, baseReport.userId)) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const recalculated = await calculateIftaReport(id);
+
+    const [report, jurisdictions] = await Promise.all([
+      prisma.iftaReport.findUnique({
+        where: { id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          truck: {
+            select: {
+              id: true,
+              unitNumber: true,
+              nickname: true,
+              plateNumber: true,
+              vin: true,
+            },
+          },
+          lines: {
+            include: {
+              jurisdiction: {
+                select: {
+                  id: true,
+                  code: true,
+                  name: true,
+                },
+              },
+            },
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          },
+        },
+      }),
+      prisma.jurisdiction.findMany({
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+        orderBy: { code: "asc" },
+      }),
+    ]);
 
     if (!report) {
       return Response.json({ error: "Report not found" }, { status: 404 });
     }
 
-    if (!guard.isAdmin && report.userId !== guard.session.user.id) {
-      return Response.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const rateRows = await prisma.iftaTaxRate.findMany({
+      where: {
+        year: report.year,
+        quarter: report.quarter,
+        fuelType: report.fuelType,
+      },
+      select: {
+        jurisdictionId: true,
+        taxRate: true,
+      },
+    });
 
-    return Response.json(report);
+    const rateByJurisdiction = new Map(
+      rateRows.map((row) => [row.jurisdictionId, Number(row.taxRate)]),
+    );
+    const isOwner = report.userId === guard.session.user.id;
+
+    return Response.json({
+      report,
+      jurisdictions: jurisdictions.map((jurisdiction) => ({
+        ...jurisdiction,
+        taxRate: rateByJurisdiction.get(jurisdiction.id) ?? null,
+      })),
+      validationIssues: getIftaValidationIssues(recalculated),
+      permissions: {
+        isOwner,
+        isStaff: guard.isStaff,
+        isAdmin: guard.isAdmin,
+        canEditLines: isOwner && canEditManualReport(report.status),
+        canSubmitToStaff: isOwner && canSubmitReportToStaff(report.status),
+        canFinalize: isOwner && canFinalizeReport(report.status),
+        canStaffReview:
+          (guard.isStaff || guard.isAdmin) && canStaffReviewReport(report.status),
+      },
+    });
   } catch (error) {
-    console.error("Error fetching IFTA report detail:", error);
+    console.error("Error fetching IFTA report:", error);
     return Response.json(
-      { error: "Failed to fetch IFTA report detail" },
+      { error: "Failed to fetch IFTA report" },
       { status: 500 },
     );
   }
@@ -150,143 +148,62 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireApiPermission("ifta:write");
+  const guard = await requireIftaAccess("ifta:write");
   if (!guard.ok) return guard.res;
 
   const { id } = await params;
 
   try {
-    const existing = await prisma.iftaReport.findUnique({
+    const report = await prisma.iftaReport.findUnique({
       where: { id },
       select: {
         id: true,
         userId: true,
-        status: true,
       },
     });
 
-    if (!existing) {
+    if (!report) {
       return Response.json({ error: "Report not found" }, { status: 404 });
     }
 
-    if (!guard.isAdmin && existing.userId !== guard.session.user.id) {
+    if (!canAccessUserScopedIfta(guard, report.userId)) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = (await request.json()) as UpdateReportBody;
+    const notes = normalizeOptionalText(body.notes);
+    const reviewNotes = normalizeOptionalText(body.reviewNotes);
+    const data: {
+      notes?: string | null;
+      reviewNotes?: string | null;
+    } = {};
 
-    const year = parseYear(body.year);
-    const quarter = parseQuarter(body.quarter);
-    const fuelType = parseFuelType(body.fuelType);
-    const status = parseStatus(body.status);
-    const notes = parseNotes(body.notes);
-
-    if (year === null) return Response.json({ error: "Invalid year" }, { status: 400 });
-    if (quarter === null) {
-      return Response.json({ error: "Invalid quarter" }, { status: 400 });
-    }
-    if (fuelType === null) {
-      return Response.json({ error: "Invalid fuel type" }, { status: 400 });
-    }
-    if (status === null) {
-      return Response.json({ error: "Invalid status" }, { status: 400 });
-    }
-    let truckId: string | null | undefined = undefined;
-    if (typeof body.truckId !== "undefined") {
-      if (body.truckId === null || body.truckId === "") {
-        truckId = null;
-      } else if (typeof body.truckId === "string") {
-        const truck = await prisma.truck.findFirst({
-          where: {
-            id: body.truckId,
-            userId: existing.userId,
-          },
-          select: { id: true },
-        });
-
-        if (!truck) {
-          return Response.json({ error: "Truck not found" }, { status: 404 });
-        }
-        truckId = truck.id;
-      } else {
-        return Response.json({ error: "Invalid truckId" }, { status: 400 });
-      }
+    if (report.userId === guard.session.user.id && typeof notes !== "undefined") {
+      data.notes = notes;
     }
 
-    let filedAt: Date | null | undefined = undefined;
-    if (typeof body.filedAt !== "undefined") {
-      if (body.filedAt === null || body.filedAt === "") {
-        filedAt = null;
-      } else if (typeof body.filedAt === "string") {
-        const date = new Date(body.filedAt);
-        if (Number.isNaN(date.getTime())) {
-          return Response.json({ error: "Invalid filedAt" }, { status: 400 });
-        }
-        filedAt = date;
-      } else {
-        return Response.json({ error: "Invalid filedAt" }, { status: 400 });
-      }
+    if ((guard.isStaff || guard.isAdmin) && typeof reviewNotes !== "undefined") {
+      data.reviewNotes = reviewNotes;
     }
 
-    const nextStatus = status ?? existing.status;
-    if (typeof filedAt === "undefined" && nextStatus === ReportStatus.FILED) {
-      filedAt = new Date();
+    if (Object.keys(data).length === 0) {
+      return Response.json({ error: "No editable fields provided" }, { status: 400 });
     }
 
-    const data: Prisma.IftaReportUncheckedUpdateInput = {};
-
-    if (typeof year !== "undefined") data.year = year;
-    if (typeof quarter !== "undefined") data.quarter = quarter;
-    if (typeof fuelType !== "undefined") data.fuelType = fuelType;
-    if (typeof truckId !== "undefined") data.truckId = truckId;
-    if (typeof status !== "undefined") data.status = status;
-    if (typeof filedAt !== "undefined") data.filedAt = filedAt;
-    if (typeof notes !== "undefined") data.notes = notes;
-
-    await prisma.iftaReport.update({
+    const updated = await prisma.iftaReport.update({
       where: { id },
       data,
-    });
-
-    await recomputeIftaReport(id);
-
-    const updated = await prisma.iftaReport.findUnique({
-      where: { id },
-      include: {
-        truck: {
-          select: {
-            id: true,
-            unitNumber: true,
-            plateNumber: true,
-          },
-        },
-        _count: {
-          select: {
-            lines: true,
-            trips: true,
-            fuelPurchases: true,
-          },
-        },
+      select: {
+        id: true,
+        notes: true,
+        reviewNotes: true,
+        updatedAt: true,
       },
     });
 
-    if (!updated) {
-      return Response.json({ error: "Report not found" }, { status: 404 });
-    }
-
-    return Response.json(updated);
+    return Response.json({ report: updated });
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      return Response.json(
-        { error: "A report already exists for that period and truck" },
-        { status: 409 },
-      );
-    }
-
-    console.error("Error updating IFTA report:", error);
+    console.error("Error updating IFTA report notes:", error);
     return Response.json(
       { error: "Failed to update IFTA report" },
       { status: 500 },
@@ -299,13 +216,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   void request;
-  const guard = await requireApiPermission("ifta:write");
+  const guard = await requireIftaAccess("ifta:write");
   if (!guard.ok) return guard.res;
 
   const { id } = await params;
 
   try {
-    const existing = await prisma.iftaReport.findUnique({
+    const report = await prisma.iftaReport.findUnique({
       where: { id },
       select: {
         id: true,
@@ -313,11 +230,11 @@ export async function DELETE(
       },
     });
 
-    if (!existing) {
+    if (!report) {
       return Response.json({ error: "Report not found" }, { status: 404 });
     }
 
-    if (!guard.isAdmin && existing.userId !== guard.session.user.id) {
+    if (!canAccessUserScopedIfta(guard, report.userId)) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
