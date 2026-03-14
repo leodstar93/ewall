@@ -31,6 +31,7 @@ model User {
   iftaReports   IftaReport[]
   trips         Trip[]
   fuelPurchases FuelPurchase[]
+  ucrFilings    UCRFiling[]
 }
 
 model Account {
@@ -137,6 +138,34 @@ enum Quarter {
   Q2
   Q3
   Q4
+}
+
+enum UCRFilingStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  CORRECTION_REQUESTED
+  RESUBMITTED
+  PENDING_PROOF
+  APPROVED
+  COMPLIANT
+  REJECTED
+  CANCELLED
+}
+
+enum UCREntityType {
+  MOTOR_CARRIER
+  BROKER
+  FREIGHT_FORWARDER
+  LEASING_COMPANY
+}
+
+enum UCRDocumentType {
+  REGISTRATION_PROOF
+  PAYMENT_RECEIPT
+  SUPPORTING_DOCUMENT
+  CORRECTION_ATTACHMENT
+  OTHER
 }
 
 model Truck {
@@ -349,4 +378,72 @@ model FuelPurchase {
   @@index([userId, purchaseDate])
   @@index([reportId])
   @@index([jurisdictionId])
+}
+
+model UCRRateBracket {
+  id          String   @id @default(cuid())
+  year        Int
+  minVehicles Int
+  maxVehicles Int
+  feeAmount   Decimal  @db.Decimal(10, 2)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([year, active])
+  @@unique([year, minVehicles, maxVehicles])
+}
+
+model UCRFiling {
+  id                    String           @id @default(cuid())
+  userId                String
+  filingYear            Int
+  legalName             String
+  usdotNumber           String?
+  mcNumber              String?
+  fein                  String?
+  baseState             String?
+  entityType            UCREntityType
+  interstateOperation   Boolean          @default(true)
+  fleetSize             Int
+  bracketLabel          String?
+  feeAmount             Decimal          @db.Decimal(10, 2)
+  status                UCRFilingStatus  @default(DRAFT)
+  submittedAt           DateTime?
+  reviewStartedAt       DateTime?
+  correctionRequestedAt DateTime?
+  resubmittedAt         DateTime?
+  approvedAt            DateTime?
+  compliantAt           DateTime?
+  rejectedAt            DateTime?
+  cancelledAt           DateTime?
+  clientNotes           String?
+  staffNotes            String?
+  correctionNote        String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents UCRDocument[]
+
+  @@index([userId, filingYear])
+  @@index([status])
+  @@unique([userId, filingYear])
+}
+
+model UCRDocument {
+  id          String          @id @default(cuid())
+  ucrFilingId String
+  name        String
+  description String?
+  filePath    String
+  mimeType    String?
+  size        Int?
+  type        UCRDocumentType @default(OTHER)
+  uploadedBy  String?
+  createdAt   DateTime        @default(now())
+
+  filing UCRFiling @relation(fields: [ucrFilingId], references: [id], onDelete: Cascade)
+
+  @@index([ucrFilingId, type])
 }

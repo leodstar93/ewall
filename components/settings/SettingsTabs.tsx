@@ -10,6 +10,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 const tabs = [
   { href: "/admin/settings", label: "General" },
   { href: "/admin/settings/ifta-tax-rates", label: "IFTA Tax Rates" },
+  { href: "/admin/settings/ucr-rates", label: "UCR Rates" },
 ];
 
 export default function SettingsTabs() {

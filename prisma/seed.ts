@@ -1,6 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { prisma } from "../lib/prisma";
+import { Prisma } from "@prisma/client";
 import { US_JURISDICTIONS } from "../features/ifta/constants/us-jurisdictions";
 
 // Cambia estos valores si quieres
@@ -44,6 +45,15 @@ const PERMISSIONS = [
   { key: "iftaTaxRates:read", description: "Read IFTA tax rates" },
   { key: "iftaTaxRates:write", description: "Create and edit IFTA tax rates" },
   { key: "iftaTaxRates:import", description: "Import IFTA tax rates" },
+  { key: "ucr:read", description: "Read UCR filings" },
+  { key: "ucr:create", description: "Create UCR filings" },
+  { key: "ucr:update", description: "Update editable UCR filings" },
+  { key: "ucr:submit", description: "Submit UCR filings for review" },
+  { key: "ucr:review", description: "Review UCR filings" },
+  { key: "ucr:request_correction", description: "Request UCR filing corrections" },
+  { key: "ucr:approve", description: "Approve and mark UCR filings compliant" },
+  { key: "ucr:manage_rates", description: "Manage UCR annual rate brackets" },
+  { key: "ucr:upload_documents", description: "Upload UCR filing documents" },
 
   // Staff
 
@@ -63,15 +73,43 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "reports:write",
     "reports:generate",
     "reports:download",
+    "ucr:read",
+    "ucr:create",
+    "ucr:update",
+    "ucr:submit",
+    "ucr:upload_documents",
   ],
   STAFF: [
     "reports:read",
     "reports:write",
     "reports:generate",
     "reports:download",
+    "ucr:read",
+    "ucr:review",
+    "ucr:request_correction",
+    "ucr:approve",
+    "ucr:upload_documents",
   ],
-  USER: ["profile:access", "profile:write", "dashboard:access"],
+  USER: [
+    "profile:access",
+    "profile:write",
+    "dashboard:access",
+    "ucr:read",
+    "ucr:create",
+    "ucr:update",
+    "ucr:submit",
+    "ucr:upload_documents",
+  ],
 };
+
+const SAMPLE_UCR_BRACKETS = [
+  { minVehicles: 0, maxVehicles: 2, feeAmount: "46.00" },
+  { minVehicles: 3, maxVehicles: 5, feeAmount: "138.00" },
+  { minVehicles: 6, maxVehicles: 20, feeAmount: "276.00" },
+  { minVehicles: 21, maxVehicles: 100, feeAmount: "963.00" },
+  { minVehicles: 101, maxVehicles: 1000, feeAmount: "4592.00" },
+  { minVehicles: 1001, maxVehicles: 1000000, feeAmount: "44710.00" },
+] as const;
 
 async function upsertRoles() {
   for (const r of ROLES) {
@@ -176,6 +214,35 @@ async function upsertAdminUser() {
   return admin;
 }
 
+async function upsertSampleUcrBrackets() {
+  const years = [new Date().getFullYear(), new Date().getFullYear() + 1];
+
+  for (const year of years) {
+    for (const bracket of SAMPLE_UCR_BRACKETS) {
+      await prisma.uCRRateBracket.upsert({
+        where: {
+          year_minVehicles_maxVehicles: {
+            year,
+            minVehicles: bracket.minVehicles,
+            maxVehicles: bracket.maxVehicles,
+          },
+        },
+        update: {
+          feeAmount: new Prisma.Decimal(bracket.feeAmount),
+          active: true,
+        },
+        create: {
+          year,
+          minVehicles: bracket.minVehicles,
+          maxVehicles: bracket.maxVehicles,
+          feeAmount: new Prisma.Decimal(bracket.feeAmount),
+          active: true,
+        },
+      });
+    }
+  }
+}
+
 async function main() {
   console.log("🌱 Seeding RBAC...");
 
@@ -183,6 +250,7 @@ async function main() {
   await upsertPermissions();
   await syncRolePermissions();
   await upsertJurisdictions();
+  await upsertSampleUcrBrackets();
 
   const admin = await upsertAdminUser();
 

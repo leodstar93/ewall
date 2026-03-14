@@ -13,6 +13,14 @@ interface StatCard {
   href?: string;
 }
 
+type UcrStatusCard = {
+  filingYear: number;
+  filingId: string | null;
+  workflowLabel: string;
+  complianceStatus: "COMPLIANT" | "IN_PROGRESS" | "ACTION_REQUIRED" | "MISSING" | "EXPIRED";
+  nextAction: string;
+};
+
 type Toast = {
   id: string;
   type: "success" | "error" | "info";
@@ -44,6 +52,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const [stats, setStats] = useState<StatCard[]>([]);
+  const [ucrStatus, setUcrStatus] = useState<UcrStatusCard | null>(null);
   const [loading, setLoading] = useState(true);
 
   // toasts
@@ -122,6 +131,23 @@ export default function DashboardPage() {
         }
       }
 
+      if (session.user.permissions?.includes("ucr:read")) {
+        try {
+          const ucrRes = await fetch("/api/v1/features/ucr/compliance-status", {
+            cache: "no-store",
+          });
+          if (ucrRes.ok) {
+            setUcrStatus((await ucrRes.json()) as UcrStatusCard);
+          } else {
+            setUcrStatus(null);
+          }
+        } catch {
+          setUcrStatus(null);
+        }
+      } else {
+        setUcrStatus(null);
+      }
+
       setStats(base);
       setLoading(false);
     };
@@ -135,7 +161,6 @@ export default function DashboardPage() {
       });
       setLoading(false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, isAdmin]);
 
   if (status === "loading" || loading) {
@@ -349,6 +374,45 @@ export default function DashboardPage() {
             })}
           </div>
         </section>
+
+        {ucrStatus && (
+          <section className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  UCR compliance
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-zinc-900">
+                  UCR {ucrStatus.filingYear}: {ucrStatus.workflowLabel}
+                </h2>
+                <p className="mt-2 text-sm text-zinc-600">{ucrStatus.nextAction}</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                    ucrStatus.complianceStatus === "COMPLIANT"
+                      ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                      : ucrStatus.complianceStatus === "ACTION_REQUIRED"
+                        ? "bg-amber-50 text-amber-800 ring-amber-200"
+                        : ucrStatus.complianceStatus === "MISSING" ||
+                            ucrStatus.complianceStatus === "EXPIRED"
+                          ? "bg-red-50 text-red-800 ring-red-200"
+                          : "bg-sky-50 text-sky-800 ring-sky-200"
+                  }`}
+                >
+                  {ucrStatus.complianceStatus.replace("_", " ")}
+                </span>
+                <Link
+                  href={ucrStatus.filingId ? `/ucr/${ucrStatus.filingId}` : "/ucr/new"}
+                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+                >
+                  {ucrStatus.filingId ? "View filing" : "Create filing"}
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Quick actions */}
         <section className="rounded-2xl border bg-white p-6 shadow-sm">

@@ -24,6 +24,18 @@ type RecentIfta = {
   };
 };
 
+type RecentUcr = {
+  id: string;
+  filingYear: number;
+  legalName: string;
+  status: string;
+  updatedAt: Date;
+  user: {
+    name: string | null;
+    email: string | null;
+  };
+};
+
 function displayUser(user: { name: string | null; email: string | null }) {
   return user.name?.trim() || user.email?.trim() || "Unknown user";
 }
@@ -34,13 +46,16 @@ export default async function StaffDashboardClient() {
     totalReports,
     totalTrucks,
     totalFuelPurchases,
+    totalUcrFilings,
     recentDocuments,
     recentReports,
+    recentUcrFilings,
   ] = await Promise.all([
     prisma.document.count(),
     prisma.iftaReport.count(),
     prisma.truck.count(),
     prisma.fuelPurchase.count(),
+    prisma.uCRFiling.count(),
     prisma.document.findMany({
       take: 5,
       orderBy: { createdAt: "desc" },
@@ -64,6 +79,18 @@ export default async function StaffDashboardClient() {
         user: { select: { name: true, email: true } },
       },
     }) as Promise<RecentIfta[]>,
+    prisma.uCRFiling.findMany({
+      take: 5,
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        filingYear: true,
+        legalName: true,
+        status: true,
+        updatedAt: true,
+        user: { select: { name: true, email: true } },
+      },
+    }) as Promise<RecentUcr[]>,
   ]);
 
   const cards = [
@@ -91,6 +118,12 @@ export default async function StaffDashboardClient() {
       href: "/admin/features/ifta",
       hint: "Fuel records across reports",
     },
+    {
+      title: "UCR filings",
+      value: totalUcrFilings,
+      href: "/admin/features/ucr",
+      hint: "Annual compliance queue",
+    },
   ] as const;
 
   return (
@@ -103,7 +136,7 @@ export default async function StaffDashboardClient() {
                 Staff dashboard
               </h1>
               <p className="mt-1 text-sm text-zinc-600">
-                Operational overview for Documents and IFTA features.
+                Operational overview for Documents, IFTA, and UCR workflows.
               </p>
             </div>
 
@@ -133,7 +166,7 @@ export default async function StaffDashboardClient() {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-6xl gap-6 px-6 py-10 lg:grid-cols-2">
+      <div className="mx-auto grid max-w-6xl gap-6 px-6 py-10 lg:grid-cols-3">
         <section className="rounded-2xl border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-zinc-900">Latest documents</h2>
@@ -184,6 +217,36 @@ export default async function StaffDashboardClient() {
                   </p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {displayUser(report.user)} - {new Date(report.updatedAt).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-zinc-900">Latest UCR updates</h2>
+            <Link
+              href="/admin/features/ucr"
+              className="text-sm font-medium text-zinc-700 hover:text-zinc-900"
+            >
+              Open UCR
+            </Link>
+          </div>
+
+          {recentUcrFilings.length === 0 ? (
+            <p className="mt-4 text-sm text-zinc-600">No UCR activity yet.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {recentUcrFilings.map((filing) => (
+                <div key={filing.id} className="rounded-xl border p-3">
+                  <p className="text-sm font-semibold text-zinc-900">
+                    {filing.filingYear} - {filing.legalName}
+                  </p>
+                  <p className="text-xs text-zinc-600">{filing.status}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {displayUser(filing.user)} - {new Date(filing.updatedAt).toLocaleString()}
                   </p>
                 </div>
               ))}

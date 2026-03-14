@@ -20,11 +20,13 @@ function titleFromPath(pathname: string | null) {
   if (pathname === "/admin") return "Dashboard";
   if (pathname === "/admin/settings") return "Settings";
   if (pathname.startsWith("/admin/settings/ifta-tax-rates")) return "IFTA Tax Rates";
+  if (pathname.startsWith("/admin/settings/ucr-rates")) return "UCR Rates";
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/roles")) return "Roles";
   if (pathname.startsWith("/admin/permissions")) return "Permissions";
   if (pathname.startsWith("/admin/features/documents")) return "Documents";
   if (pathname.startsWith("/admin/features/ifta")) return "IFTA";
+  if (pathname.startsWith("/admin/features/ucr")) return "UCR";
   const last = pathname.split("/").filter(Boolean).pop() ?? "Admin";
   return last.charAt(0).toUpperCase() + last.slice(1);
 }
@@ -196,9 +198,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   <span className={styles.navDot} />
                   IFTA
                 </Link>
-                <Link href="/panel" className={styles.navItem}>
+                <Link
+                  href="/admin/features/ucr"
+                  className={navItemClass("/admin/features/ucr")}
+                >
                   <span className={styles.navDot} />
-                  Go to user panel
+                  UCR
                 </Link>
               </div>
             </nav>

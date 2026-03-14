@@ -1,0 +1,8 @@
+{
+  "label": "UCR",
+  "section": "Operaciones",
+  "order": 30,
+  "icon": "ShieldCheck",
+  "href": "/ucr",
+  "permission": ["ucr:read"]
+}

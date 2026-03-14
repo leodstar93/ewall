@@ -55,6 +55,25 @@ export default async function AdminSettingsPage() {
             Open IFTA Tax Rates
           </Link>
         </article>
+
+        <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            UCR Rates
+          </p>
+          <h3 className="mt-3 text-xl font-semibold text-zinc-950">
+            Annual UCR bracket management
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Maintain fleet-size brackets, activate or deactivate yearly rate tables, and
+            control the fee engine used by the UCR compliance workflow.
+          </p>
+          <Link
+            href="/admin/settings/ucr-rates"
+            className="mt-5 inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            Open UCR Rates
+          </Link>
+        </article>
       </section>
     </div>
   );

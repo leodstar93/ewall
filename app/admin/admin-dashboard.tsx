@@ -5,6 +5,7 @@ import Link from "next/link";
 
 export default async function AdminPageClient() {
   const session = await auth();
+  const currentYear = new Date().getFullYear();
 
   // Check if user is admin
   if (!session?.user || !session.user.roles?.includes("ADMIN")) {
@@ -12,12 +13,27 @@ export default async function AdminPageClient() {
   }
 
   // Fetch admin stats
-  const [totalUsers, totalRoles, totalPermissions, totalSessions] =
+  const [
+    totalUsers,
+    totalRoles,
+    totalPermissions,
+    totalSessions,
+    totalCurrentYearUcr,
+    compliantCurrentYearUcr,
+    correctionCurrentYearUcr,
+    pendingProofCurrentYearUcr,
+  ] =
     await Promise.all([
       prisma.user.count(),
       prisma.role.count(),
       prisma.permission.count(),
       prisma.session.count(),
+      prisma.uCRFiling.count({ where: { filingYear: currentYear } }),
+      prisma.uCRFiling.count({ where: { filingYear: currentYear, status: "COMPLIANT" } }),
+      prisma.uCRFiling.count({
+        where: { filingYear: currentYear, status: "CORRECTION_REQUESTED" },
+      }),
+      prisma.uCRFiling.count({ where: { filingYear: currentYear, status: "PENDING_PROOF" } }),
     ]);
 
   // Fetch recent users
@@ -106,6 +122,13 @@ export default async function AdminPageClient() {
     icon: "🚚",
     href: "/admin/features/ifta",
     tone: "green",
+  },
+  {
+    title: "Review UCR filings",
+    desc: "Track annual compliance and outstanding proof.",
+    icon: "ðŸ›¡ï¸",
+    href: "/admin/features/ucr",
+    tone: "blue",
   },
 ] as const;
 
@@ -240,6 +263,61 @@ export default async function AdminPageClient() {
 
       {/* Content */}
       <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-900">
+                UCR operations
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Current-year workflow visibility for annual compliance.
+              </p>
+            </div>
+
+            <Link
+              href="/admin/features/ucr"
+              className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+            >
+              Open UCR â†’
+            </Link>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                {currentYear} filings
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {totalCurrentYearUcr}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Compliant
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {compliantCurrentYearUcr}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Corrections
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {correctionCurrentYearUcr}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Pending proof
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {pendingProofCurrentYearUcr}
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Roles overview */}
         <section className="rounded-2xl border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">
