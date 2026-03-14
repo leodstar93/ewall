@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   ReportSummary,
   formatCurrency,
@@ -13,6 +14,7 @@ import {
   truckLabel,
   userLabel,
 } from "@/features/ifta/shared";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 type AdminPayload = {
   reports: ReportSummary[];
@@ -24,6 +26,9 @@ export default function AdminIftaQueuePage() {
   const [workflowCounts, setWorkflowCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   useEffect(() => {
     let active = true;
@@ -73,6 +78,12 @@ export default function AdminIftaQueuePage() {
       ),
     [reports],
   );
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, reports.length]);
+
+  const paginatedReports = paginateItems(reports, page, pageSize);
 
   if (loading) {
     return <div className="rounded-2xl border bg-white p-8">Loading IFTA queue...</div>;
@@ -193,7 +204,7 @@ export default function AdminIftaQueuePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 bg-white">
-                {reports.map((report) => (
+                {paginatedReports.items.map((report) => (
                   <tr key={report.id}>
                     <td className="px-4 py-3 text-sm text-zinc-700">
                       <p className="font-medium text-zinc-900">{userLabel(report.user)}</p>
@@ -243,6 +254,23 @@ export default function AdminIftaQueuePage() {
               </tbody>
             </table>
           </div>
+          <ClientPaginationControls
+            page={paginatedReports.currentPage}
+            totalPages={paginatedReports.totalPages}
+            pageSize={paginatedReports.pageSize}
+            totalItems={paginatedReports.totalItems}
+            itemLabel="reports"
+            onPageChange={setPage}
+            onPageSizeChange={(nextPageSize) =>
+              setPageSize(
+                DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                  nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                )
+                  ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                  : 10,
+              )
+            }
+          />
         </div>
       </section>
     </div>

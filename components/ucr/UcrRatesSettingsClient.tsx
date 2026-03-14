@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { formatCurrency } from "@/features/ucr/shared";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 type UCRRateBracket = {
   id: string;
@@ -45,6 +47,9 @@ export default function UcrRatesSettingsClient() {
   const [newMax, setNewMax] = useState(2);
   const [newFee, setNewFee] = useState("46.00");
   const [newActive, setNewActive] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(5);
 
   async function load() {
     try {
@@ -90,6 +95,13 @@ export default function UcrRatesSettingsClient() {
     }
     return Array.from(map.entries()).sort((left, right) => right[0] - left[0]);
   }
+
+  const yearGroups = groupByYear();
+  const paginatedYearGroups = paginateItems(yearGroups, page, pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [brackets.length, pageSize]);
 
   async function createBracket() {
     try {
@@ -257,7 +269,8 @@ export default function UcrRatesSettingsClient() {
           Loading UCR rate brackets...
         </div>
       ) : (
-        groupByYear().map(([year, rows]) => (
+        <div className="space-y-6">
+          {paginatedYearGroups.items.map(([year, rows]) => (
           <section key={year} className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -381,7 +394,27 @@ export default function UcrRatesSettingsClient() {
               </div>
             </div>
           </section>
-        ))
+          ))}
+          <section className="rounded-[28px] border border-zinc-200 bg-white shadow-sm">
+            <ClientPaginationControls
+              page={paginatedYearGroups.currentPage}
+              totalPages={paginatedYearGroups.totalPages}
+              pageSize={paginatedYearGroups.pageSize}
+              totalItems={paginatedYearGroups.totalItems}
+              itemLabel="years"
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) =>
+                setPageSize(
+                  DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                    nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                  )
+                    ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                    : 5,
+                )
+              }
+            />
+          </section>
+        </div>
       )}
     </div>
   );

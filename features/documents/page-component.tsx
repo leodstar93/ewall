@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 interface Document {
   id: string;
@@ -63,6 +65,9 @@ export default function DocumentsPage() {
   // UI state
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   // Modal state
   const [showDelete, setShowDelete] = useState(false);
@@ -157,6 +162,15 @@ export default function DocumentsPage() {
 
     return sorted;
   }, [documents, query, sort]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [documents.length, pageSize, query, sort]);
+
+  const paginatedDocs = useMemo(
+    () => paginateItems(filteredSortedDocs, page, pageSize),
+    [filteredSortedDocs, page, pageSize],
+  );
 
   const totals = useMemo(() => {
     const total = documents.length;
@@ -575,7 +589,7 @@ export default function DocumentsPage() {
                     </thead>
 
                     <tbody className="divide-y">
-                      {filteredSortedDocs.map((doc) => (
+                      {paginatedDocs.items.map((doc) => (
                         <tr key={doc.id} className="hover:bg-zinc-50">
                           <td className="px-6 py-4">
                             <p className="text-sm font-semibold text-zinc-900">
@@ -639,6 +653,23 @@ export default function DocumentsPage() {
                     </tbody>
                   </table>
                 </div>
+                <ClientPaginationControls
+                  page={paginatedDocs.currentPage}
+                  totalPages={paginatedDocs.totalPages}
+                  pageSize={paginatedDocs.pageSize}
+                  totalItems={paginatedDocs.totalItems}
+                  itemLabel="documents"
+                  onPageChange={setPage}
+                  onPageSizeChange={(nextPageSize) =>
+                    setPageSize(
+                      DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                        nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                      )
+                        ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                        : 10,
+                    )
+                  }
+                />
               </div>
             )}
           </div>

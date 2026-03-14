@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   UcrComplianceStatus,
   UcrFiling,
@@ -12,6 +13,7 @@ import {
   statusClasses,
   statusLabel,
 } from "@/features/ucr/shared";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 export default function UcrDashboardPage() {
   const [filings, setFilings] = useState<UcrFiling[]>([]);
@@ -19,6 +21,9 @@ export default function UcrDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   async function load() {
     try {
@@ -65,6 +70,10 @@ export default function UcrDashboardPage() {
     void load();
   }, []);
 
+  useEffect(() => {
+    setPage(1);
+  }, [filings.length, pageSize]);
+
   async function runTransition(
     filingId: string,
     endpoint: "submit" | "resubmit",
@@ -95,6 +104,7 @@ export default function UcrDashboardPage() {
 
   const ctaHref = compliance?.filingId ? `/ucr/${compliance.filingId}` : "/ucr/new";
   const ctaLabel = compliance?.filingId ? "Open filing" : "Create filing";
+  const paginatedFilings = paginateItems(filings, page, pageSize);
 
   return (
     <div className="space-y-6">
@@ -183,7 +193,7 @@ export default function UcrDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 bg-white">
-                {filings.map((filing) => (
+                {paginatedFilings.items.map((filing) => (
                   <tr key={filing.id}>
                     <td className="px-4 py-3 text-sm text-zinc-700">{filing.filingYear}</td>
                     <td className="px-4 py-3 text-sm text-zinc-700">
@@ -248,6 +258,23 @@ export default function UcrDashboardPage() {
               </tbody>
             </table>
           </div>
+          <ClientPaginationControls
+            page={paginatedFilings.currentPage}
+            totalPages={paginatedFilings.totalPages}
+            pageSize={paginatedFilings.pageSize}
+            totalItems={paginatedFilings.totalItems}
+            itemLabel="filings"
+            onPageChange={setPage}
+            onPageSizeChange={(nextPageSize) =>
+              setPageSize(
+                DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                  nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                )
+                  ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                  : 10,
+              )
+            }
+          />
         </div>
       </section>
     </div>

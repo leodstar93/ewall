@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthz } from "@/lib/rbac";
 
@@ -23,6 +24,8 @@ type UserDocumentsGroup = {
   documents: DocumentRow[];
   totalBytes: number;
 };
+
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50] as const;
 
 function formatFileSize(bytes: number) {
   if (!bytes) return "0 Bytes";
@@ -60,7 +63,35 @@ function userSubLabel(user: DocumentRow["user"]) {
   return `ID: ${user.id}`;
 }
 
-export default async function AdminDocumentsPage() {
+function getSingleParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+function parsePositiveInt(value: string, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function buildDocumentsHref(params: {
+  search?: string;
+  fileType?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.fileType?.trim()) query.set("fileType", params.fileType.trim());
+  if (params.page && params.page > 1) query.set("page", String(params.page));
+  if (params.pageSize && params.pageSize !== 10) query.set("pageSize", String(params.pageSize));
+  const suffix = query.toString();
+  return suffix ? `/admin/features/documents?${suffix}` : "/admin/features/documents";
+}
+
+export default async function AdminDocumentsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { session, roles } = await getAuthz();
   if (!session) redirect("/login");
 
@@ -70,19 +101,54 @@ export default async function AdminDocumentsPage() {
 
   const backHref = isAdmin ? "/admin" : "/panel";
   const backLabel = isAdmin ? "Back to admin" : "Back to panel";
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const searchValue = getSingleParam(resolvedSearchParams.search);
+  const fileTypeValue = getSingleParam(resolvedSearchParams.fileType);
+  const pageValue = getSingleParam(resolvedSearchParams.page);
+  const pageSizeValue = getSingleParam(resolvedSearchParams.pageSize);
+  const search = searchValue.trim();
+  const requestedPageSize = parsePositiveInt(pageSizeValue, 10);
+  const pageSize = PAGE_SIZE_OPTIONS.includes(requestedPageSize as (typeof PAGE_SIZE_OPTIONS)[number])
+    ? requestedPageSize
+    : 10;
 
-  const documents = (await prisma.document.findMany({
-    orderBy: [{ createdAt: "desc" }],
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
+  const where: Prisma.DocumentWhereInput = {};
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+      { fileName: { contains: search, mode: "insensitive" } },
+      { fileType: { contains: search, mode: "insensitive" } },
+      { user: { name: { contains: search, mode: "insensitive" } } },
+      { user: { email: { contains: search, mode: "insensitive" } } },
+    ];
+  }
+  if (fileTypeValue) {
+    where.fileType = fileTypeValue;
+  }
+
+  const [documents, fileTypes] = await Promise.all([
+    prisma.document.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }],
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
       },
-    },
-  })) as DocumentRow[];
+    }) as Promise<DocumentRow[]>,
+    prisma.document.findMany({
+      select: {
+        fileType: true,
+      },
+      distinct: ["fileType"],
+      orderBy: { fileType: "asc" },
+    }),
+  ]);
 
   const groupedMap = new Map<string, UserDocumentsGroup>();
 
@@ -108,7 +174,18 @@ export default async function AdminDocumentsPage() {
     return userLabel(a.user).localeCompare(userLabel(b.user));
   });
 
+  const totalGroups = grouped.length;
+  const totalPages = Math.max(1, Math.ceil(totalGroups / pageSize));
+  const requestedPage = parsePositiveInt(pageValue, 1);
+  const currentPage = Math.min(requestedPage, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const pagedGroups = grouped.slice(pageStart, pageEnd);
+
   const totalBytes = documents.reduce((acc, doc) => acc + (doc.fileSize || 0), 0);
+  const availableFileTypes = fileTypes
+    .map((row) => row.fileType)
+    .filter((value): value is string => Boolean(value));
 
   return (
     <div className="flex-1 overflow-auto bg-zinc-50">
@@ -153,9 +230,7 @@ export default async function AdminDocumentsPage() {
               <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                 Users with uploads
               </p>
-              <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                {grouped.length}
-              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">{totalGroups}</p>
             </div>
 
             <div className="rounded-2xl border bg-zinc-50 p-5">
@@ -171,15 +246,85 @@ export default async function AdminDocumentsPage() {
       </div>
 
       <div className="mx-auto max-w-6xl space-y-6 px-6 py-10">
-        {grouped.length === 0 ? (
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <form className="grid gap-4 md:grid-cols-[minmax(0,1fr),220px,140px,auto]">
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Search
+              </span>
+              <input
+                type="text"
+                name="search"
+                defaultValue={search}
+                placeholder="User, email, document, file name..."
+                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 outline-none focus:border-zinc-400"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                File type
+              </span>
+              <select
+                name="fileType"
+                defaultValue={fileTypeValue}
+                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 outline-none focus:border-zinc-400"
+              >
+                <option value="">All file types</option>
+                {availableFileTypes.map((fileType) => (
+                  <option key={fileType} value={fileType}>
+                    {fileType}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Page size
+              </span>
+              <select
+                name="pageSize"
+                defaultValue={String(pageSize)}
+                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 outline-none focus:border-zinc-400"
+              >
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option} groups
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex items-end gap-3">
+              <input type="hidden" name="page" value="1" />
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+              >
+                Apply filters
+              </button>
+              <Link
+                href="/admin/features/documents"
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-5 py-3 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+              >
+                Clear
+              </Link>
+            </div>
+          </form>
+        </section>
+
+        {totalGroups === 0 ? (
           <section className="rounded-2xl border bg-white p-10 text-center shadow-sm">
             <h2 className="text-lg font-semibold text-zinc-900">No documents yet</h2>
             <p className="mt-1 text-sm text-zinc-600">
-              Uploaded files will appear here once users start using the documents module.
+              {search || fileTypeValue
+                ? "No documents match the current filters."
+                : "Uploaded files will appear here once users start using the documents module."}
             </p>
           </section>
         ) : (
-          grouped.map((group) => (
+          pagedGroups.map((group) => (
             <section key={group.user.id} className="rounded-2xl border bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -276,6 +421,89 @@ export default async function AdminDocumentsPage() {
               </div>
             </section>
           ))
+        )}
+
+        {totalGroups > 0 && (
+          <section className="rounded-2xl border bg-white px-6 py-5 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-zinc-600">
+                Showing{" "}
+                <span className="font-semibold text-zinc-900">{pageStart + 1}</span>
+                {" "}-{" "}
+                <span className="font-semibold text-zinc-900">
+                  {Math.min(pageEnd, totalGroups)}
+                </span>
+                {" "}of <span className="font-semibold text-zinc-900">{totalGroups}</span> groups
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-zinc-600">
+                  Page <span className="font-semibold text-zinc-900">{currentPage}</span> of{" "}
+                  <span className="font-semibold text-zinc-900">{totalPages}</span>
+                </span>
+                <Link
+                  href={buildDocumentsHref({
+                    search,
+                    fileType: fileTypeValue,
+                    page: 1,
+                    pageSize,
+                  })}
+                  className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                    currentPage === 1
+                      ? "pointer-events-none border-zinc-100 bg-zinc-50 text-zinc-400"
+                      : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
+                  }`}
+                >
+                  First
+                </Link>
+                <Link
+                  href={buildDocumentsHref({
+                    search,
+                    fileType: fileTypeValue,
+                    page: Math.max(1, currentPage - 1),
+                    pageSize,
+                  })}
+                  className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                    currentPage === 1
+                      ? "pointer-events-none border-zinc-100 bg-zinc-50 text-zinc-400"
+                      : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
+                  }`}
+                >
+                  Previous
+                </Link>
+                <Link
+                  href={buildDocumentsHref({
+                    search,
+                    fileType: fileTypeValue,
+                    page: Math.min(totalPages, currentPage + 1),
+                    pageSize,
+                  })}
+                  className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                    currentPage === totalPages
+                      ? "pointer-events-none border-zinc-100 bg-zinc-50 text-zinc-400"
+                      : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
+                  }`}
+                >
+                  Next
+                </Link>
+                <Link
+                  href={buildDocumentsHref({
+                    search,
+                    fileType: fileTypeValue,
+                    page: totalPages,
+                    pageSize,
+                  })}
+                  className={`rounded-xl border px-3 py-2 text-sm font-medium ${
+                    currentPage === totalPages
+                      ? "pointer-events-none border-zinc-100 bg-zinc-50 text-zinc-400"
+                      : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
+                  }`}
+                >
+                  Last
+                </Link>
+              </div>
+            </div>
+          </section>
         )}
       </div>
     </div>

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 interface Role {
   id: string;
@@ -45,6 +47,9 @@ export default function AdminRolesPage() {
   // Search + sort
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("name-asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   // Toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -225,6 +230,15 @@ export default function AdminRolesPage() {
 
     return sorted;
   }, [roles, query, sort]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, query, sort]);
+
+  const paginatedRoles = useMemo(
+    () => paginateItems(filteredSortedRoles, page, pageSize),
+    [filteredSortedRoles, page, pageSize],
+  );
 
   const totalUsers = useMemo(
     () => roles.reduce((acc, r) => acc + (r._count?.users || 0), 0),
@@ -413,10 +427,11 @@ export default function AdminRolesPage() {
       {/* Content */}
       <div className="mx-auto max-w-6xl px-6 py-10">
         {filteredSortedRoles.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredSortedRoles.map((role) => {
-              const usersCount = role._count?.users || 0;
-              const permsCount = role._count?.permissions || 0;
+          <div className="space-y-4">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {paginatedRoles.items.map((role) => {
+                const usersCount = role._count?.users || 0;
+                const permsCount = role._count?.permissions || 0;
 
               const locked = role.name === "ADMIN" || usersCount > 0;
 
@@ -502,8 +517,28 @@ export default function AdminRolesPage() {
                     </p>
                   )}
                 </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            <div className="rounded-2xl border bg-white shadow-sm">
+              <ClientPaginationControls
+                page={paginatedRoles.currentPage}
+                totalPages={paginatedRoles.totalPages}
+                pageSize={paginatedRoles.pageSize}
+                totalItems={paginatedRoles.totalItems}
+                itemLabel="roles"
+                onPageChange={setPage}
+                onPageSizeChange={(nextPageSize) =>
+                  setPageSize(
+                    DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                      nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                    )
+                      ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                      : 10,
+                  )
+                }
+              />
+            </div>
           </div>
         ) : (
           <div className="rounded-2xl border bg-white p-10 text-center shadow-sm">

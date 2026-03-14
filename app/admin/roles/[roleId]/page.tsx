@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 interface Role {
   id: string;
@@ -51,6 +53,9 @@ export default function RoleDetailPage() {
   const [formData, setFormData] = useState({ description: "" });
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPageSize, setUsersPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   const pushToast = (t: Omit<Toast, "id">) => {
     const id = uid();
@@ -106,6 +111,10 @@ export default function RoleDetailPage() {
 
     if (isAdmin && roleId) fetchData();
   }, [roleId, isAdmin]);
+
+  useEffect(() => {
+    setUsersPage(1);
+  }, [usersPageSize, role?.users?.length]);
 
   const handleSaveDescription = async () => {
     try {
@@ -177,6 +186,12 @@ export default function RoleDetailPage() {
       });
     }
   };
+
+  const paginatedUsers = paginateItems(
+    role?.users ?? [],
+    usersPage,
+    usersPageSize,
+  );
 
   if (status === "loading" || loading) {
     return (
@@ -345,45 +360,64 @@ export default function RoleDetailPage() {
             <p className="text-gray-600">No users assigned to this role</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    Name
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    Email
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-700">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {role.users.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="py-3 px-4">
-                      <p className="font-medium text-gray-900">{user.name}</p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <p className="text-gray-600">{user.email}</p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <Link
-                        href={`/admin/users/${user.id}`}
-                        className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-                      >
-                        View User
-                      </Link>
-                    </td>
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-medium text-gray-700">
+                      Name
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-700">
+                      Email
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-700">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paginatedUsers.items.map((user) => (
+                    <tr
+                      key={user.id}
+                      className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-gray-900">{user.name}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="text-gray-600">{user.email}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Link
+                          href={`/admin/users/${user.id}`}
+                          className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                        >
+                          View User
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ClientPaginationControls
+              page={paginatedUsers.currentPage}
+              totalPages={paginatedUsers.totalPages}
+              pageSize={paginatedUsers.pageSize}
+              totalItems={paginatedUsers.totalItems}
+              itemLabel="users"
+              onPageChange={setUsersPage}
+              onPageSizeChange={(nextPageSize) =>
+                setUsersPageSize(
+                  DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                    nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                  )
+                    ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                    : 10,
+                )
+              }
+            />
           </div>
         )}
       </div>

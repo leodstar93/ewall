@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   JurisdictionOption,
   ReportDetail,
@@ -16,6 +17,7 @@ import {
   truckLabel,
   userLabel,
 } from "@/features/ifta/shared";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 type DetailPayload = {
   report: ReportDetail;
@@ -65,6 +67,12 @@ export default function IftaManualReportPage(props: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [rowsPage, setRowsPage] = useState(1);
+  const [rowsPageSize, setRowsPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
+  const [breakdownPage, setBreakdownPage] = useState(1);
+  const [breakdownPageSize, setBreakdownPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   const loadDetail = useCallback(async () => {
     const response = await fetch(`/api/v1/features/ifta/${props.reportId}`, {
@@ -139,6 +147,14 @@ export default function IftaManualReportPage(props: {
     const list = payload?.jurisdictions ?? [];
     return list.filter((jurisdiction) => !selectedJurisdictions.includes(jurisdiction.id));
   }, [payload?.jurisdictions, selectedJurisdictions]);
+
+  useEffect(() => {
+    setRowsPage(1);
+  }, [rows.length, rowsPageSize]);
+
+  useEffect(() => {
+    setBreakdownPage(1);
+  }, [payload?.report.lines.length, breakdownPageSize]);
 
   const syncMessage = (text: string) => {
     setMessage(text);
@@ -337,6 +353,12 @@ export default function IftaManualReportPage(props: {
 
   const { report, jurisdictions, permissions, validationIssues } = payload;
   const backHref = props.mode === "staff" ? "/admin/features/ifta" : "/ifta";
+  const paginatedRows = paginateItems(rows, rowsPage, rowsPageSize);
+  const paginatedBreakdown = paginateItems(
+    report.lines,
+    breakdownPage,
+    breakdownPageSize,
+  );
 
   return (
     <div className="space-y-6">
@@ -551,7 +573,10 @@ export default function IftaManualReportPage(props: {
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row, index) => {
+                  paginatedRows.items.map((row) => {
+                    const index = rows.findIndex(
+                      (item) => item.rowKey === row.rowKey,
+                    );
                     const currentJurisdiction = jurisdictions.find(
                       (jurisdiction) => jurisdiction.id === row.jurisdictionId,
                     );
@@ -666,6 +691,23 @@ export default function IftaManualReportPage(props: {
               </tbody>
             </table>
           </div>
+          <ClientPaginationControls
+            page={paginatedRows.currentPage}
+            totalPages={paginatedRows.totalPages}
+            pageSize={paginatedRows.pageSize}
+            totalItems={paginatedRows.totalItems}
+            itemLabel="manual rows"
+            onPageChange={setRowsPage}
+            onPageSizeChange={(nextPageSize) =>
+              setRowsPageSize(
+                DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                  nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                )
+                  ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                  : 10,
+              )
+            }
+          />
         </div>
       </section>
 
@@ -698,7 +740,7 @@ export default function IftaManualReportPage(props: {
                       </td>
                     </tr>
                   ) : (
-                    report.lines.map((line) => (
+                    paginatedBreakdown.items.map((line) => (
                       <tr key={line.id}>
                         <td className="px-4 py-3 text-sm font-medium text-zinc-900">
                           {line.jurisdiction.code}
@@ -727,6 +769,23 @@ export default function IftaManualReportPage(props: {
                 </tbody>
               </table>
             </div>
+            <ClientPaginationControls
+              page={paginatedBreakdown.currentPage}
+              totalPages={paginatedBreakdown.totalPages}
+              pageSize={paginatedBreakdown.pageSize}
+              totalItems={paginatedBreakdown.totalItems}
+              itemLabel="jurisdictions"
+              onPageChange={setBreakdownPage}
+              onPageSizeChange={(nextPageSize) =>
+                setBreakdownPageSize(
+                  DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                    nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                  )
+                    ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                    : 10,
+                )
+              }
+            />
           </div>
         </section>
 

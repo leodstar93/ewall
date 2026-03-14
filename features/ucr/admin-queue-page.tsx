@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   UcrFiling,
   formatCurrency,
@@ -9,6 +10,7 @@ import {
   statusClasses,
   statusLabel,
 } from "@/features/ucr/shared";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 type AdminPayload = {
   filings: UcrFiling[];
@@ -24,6 +26,9 @@ export default function UcrAdminQueuePage() {
   const [proof, setProof] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   const load = useCallback(async () => {
     try {
@@ -60,6 +65,12 @@ export default function UcrAdminQueuePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filings.length, pageSize]);
+
+  const paginatedFilings = paginateItems(filings, page, pageSize);
 
   return (
     <div className="space-y-6">
@@ -184,7 +195,7 @@ export default function UcrAdminQueuePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 bg-white">
-                  {filings.map((filing) => {
+                  {paginatedFilings.items.map((filing) => {
                     const hasProof = filing.documents.some(
                       (document) =>
                         document.type === "PAYMENT_RECEIPT" ||
@@ -241,6 +252,23 @@ export default function UcrAdminQueuePage() {
                 </tbody>
               </table>
             </div>
+            <ClientPaginationControls
+              page={paginatedFilings.currentPage}
+              totalPages={paginatedFilings.totalPages}
+              pageSize={paginatedFilings.pageSize}
+              totalItems={paginatedFilings.totalItems}
+              itemLabel="filings"
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) =>
+                setPageSize(
+                  DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                    nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                  )
+                    ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                    : 10,
+                )
+              }
+            />
           </div>
         )}
       </section>

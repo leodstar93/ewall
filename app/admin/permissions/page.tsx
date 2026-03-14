@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 interface Permission {
   id: string;
@@ -54,6 +56,9 @@ export default function AdminPermissionsPage() {
   // search + sort
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("key-asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   // toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -151,6 +156,15 @@ export default function AdminPermissionsPage() {
 
     return sorted;
   }, [permissions, query, sort]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, query, sort]);
+
+  const paginatedPermissions = useMemo(
+    () => paginateItems(filteredSortedPermissions, page, pageSize),
+    [filteredSortedPermissions, page, pageSize],
+  );
 
   const totals = useMemo(() => {
     const totalPerms = permissions.length;
@@ -554,7 +568,7 @@ export default function AdminPermissionsPage() {
                 </thead>
 
                 <tbody className="divide-y">
-                  {filteredSortedPermissions.map((permission) => {
+                  {paginatedPermissions.items.map((permission) => {
                     const roleCount =
                       permission._count?.roles ?? permission.roles?.length ?? 0;
 
@@ -623,6 +637,23 @@ export default function AdminPermissionsPage() {
                 </tbody>
               </table>
             </div>
+            <ClientPaginationControls
+              page={paginatedPermissions.currentPage}
+              totalPages={paginatedPermissions.totalPages}
+              pageSize={paginatedPermissions.pageSize}
+              totalItems={paginatedPermissions.totalItems}
+              itemLabel="permissions"
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) =>
+                setPageSize(
+                  DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                    nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                  )
+                    ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                    : 10,
+                )
+              }
+            />
           </div>
         ) : (
           <div className="rounded-2xl border bg-white p-10 text-center shadow-sm">

@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import AdminRolesOverviewTable from "@/components/admin/AdminRolesOverviewTable";
 
 export default async function AdminPageClient() {
   const session = await auth();
@@ -338,7 +339,8 @@ export default async function AdminPageClient() {
             </Link>
           </div>
 
-          {roles.length > 0 ? (
+          <AdminRolesOverviewTable roles={roles} />
+          {false && (
             <div className="mt-6 overflow-hidden rounded-2xl border">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -394,7 +396,8 @@ export default async function AdminPageClient() {
                 </table>
               </div>
             </div>
-          ) : (
+          )}
+          {false && (
             <div className="mt-6 rounded-2xl border bg-zinc-50 p-6 text-sm text-zinc-600">
               No roles found.
             </div>

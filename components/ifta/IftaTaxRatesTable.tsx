@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { IftaTaxRateTableRow } from "@/features/ifta/types/tax-rate";
 import { formatTaxRateLabel, sourceLabel } from "@/features/ifta/utils/tax-rate-mappers";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 function formatDate(value: string | null) {
   if (!value) return "Not imported";
@@ -19,6 +22,19 @@ export default function IftaTaxRatesTable(props: {
   onEdit: (row: IftaTaxRateTableRow) => void;
   busy?: boolean;
 }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, props.rows.length]);
+
+  const paginatedRows = useMemo(
+    () => paginateItems(props.rows, page, pageSize),
+    [props.rows, page, pageSize],
+  );
+
   return (
     <div className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -38,7 +54,7 @@ export default function IftaTaxRatesTable(props: {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 bg-white">
-            {props.rows.map((row) => (
+            {paginatedRows.items.map((row) => (
               <tr key={`${row.jurisdictionId}-${row.fuelType}-${row.year}-${row.quarter}`}>
                 <td className="px-4 py-3 text-sm font-semibold text-zinc-900">{row.code}</td>
                 <td className="px-4 py-3 text-sm text-zinc-700">{row.name}</td>
@@ -74,6 +90,23 @@ export default function IftaTaxRatesTable(props: {
           </tbody>
         </table>
       </div>
+      <ClientPaginationControls
+        page={paginatedRows.currentPage}
+        totalPages={paginatedRows.totalPages}
+        pageSize={paginatedRows.pageSize}
+        totalItems={paginatedRows.totalItems}
+        itemLabel="tax rates"
+        onPageChange={setPage}
+        onPageSizeChange={(nextPageSize) =>
+          setPageSize(
+            DEFAULT_PAGE_SIZE_OPTIONS.includes(
+              nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+            )
+              ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+              : 10,
+          )
+        }
+      />
     </div>
   );
 }

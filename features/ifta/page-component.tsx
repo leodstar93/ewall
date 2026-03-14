@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 type Quarter = "Q1" | "Q2" | "Q3" | "Q4";
 type FuelType = "DI" | "GA";
@@ -132,6 +134,9 @@ export default function IftaClientPage() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | ReportStatus>("ALL");
   const [viewState, setViewState] = useState<ViewState | null>(null);
   const [actionBusyKey, setActionBusyKey] = useState<string | null>(null);
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [recordsPageSize, setRecordsPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   const pushToast = (toast: Omit<Toast, "id">) => {
     const id = uid();
@@ -331,6 +336,47 @@ export default function IftaClientPage() {
     setQuarterFilter("ALL");
     setStatusFilter("ALL");
   };
+
+  useEffect(() => {
+    setRecordsPage(1);
+  }, [
+    activeTab,
+    recordsPageSize,
+    searchQuery,
+    yearFilter,
+    quarterFilter,
+    statusFilter,
+    reports.length,
+    trips.length,
+    fuelPurchases.length,
+    trucks.length,
+  ]);
+
+  const paginatedReports = useMemo(
+    () => paginateItems(filteredReports, recordsPage, recordsPageSize),
+    [filteredReports, recordsPage, recordsPageSize],
+  );
+  const paginatedTrips = useMemo(
+    () => paginateItems(filteredTrips, recordsPage, recordsPageSize),
+    [filteredTrips, recordsPage, recordsPageSize],
+  );
+  const paginatedFuelPurchases = useMemo(
+    () => paginateItems(filteredFuelPurchases, recordsPage, recordsPageSize),
+    [filteredFuelPurchases, recordsPage, recordsPageSize],
+  );
+  const paginatedTrucks = useMemo(
+    () => paginateItems(filteredTrucks, recordsPage, recordsPageSize),
+    [filteredTrucks, recordsPage, recordsPageSize],
+  );
+
+  const activePagination =
+    activeTab === "reports"
+      ? { ...paginatedReports, itemLabel: "reports" }
+      : activeTab === "trips"
+        ? { ...paginatedTrips, itemLabel: "trips" }
+        : activeTab === "fuel"
+          ? { ...paginatedFuelPurchases, itemLabel: "fuel purchases" }
+          : { ...paginatedTrucks, itemLabel: "trucks" };
 
   const openReportView = (report: Report) => {
     setViewState({
@@ -697,7 +743,7 @@ export default function IftaClientPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredReports.map((report) => (
+                  {paginatedReports.items.map((report) => (
                     <tr key={report.id} className="hover:bg-zinc-50">
                       <td className="px-3 py-3">
                         <p className="font-medium text-zinc-900">
@@ -786,7 +832,7 @@ export default function IftaClientPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredTrips.map((trip) => (
+                  {paginatedTrips.items.map((trip) => (
                     <tr key={trip.id} className="hover:bg-zinc-50">
                       <td className="px-3 py-3 text-zinc-700">{formatDate(trip.tripDate)}</td>
                       <td className="px-3 py-3 text-zinc-700">
@@ -843,7 +889,7 @@ export default function IftaClientPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredFuelPurchases.map((item) => (
+                  {paginatedFuelPurchases.items.map((item) => (
                     <tr key={item.id} className="hover:bg-zinc-50">
                       <td className="px-3 py-3 text-zinc-700">{formatDate(item.purchaseDate)}</td>
                       <td className="px-3 py-3 text-zinc-700">
@@ -902,7 +948,7 @@ export default function IftaClientPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredTrucks.map((truck) => (
+                  {paginatedTrucks.items.map((truck) => (
                     <tr key={truck.id} className="hover:bg-zinc-50">
                       <td className="px-3 py-3 font-medium text-zinc-900">{truck.unitNumber}</td>
                       <td className="px-3 py-3 text-zinc-700">{truck.plateNumber || "N/A"}</td>
@@ -946,6 +992,23 @@ export default function IftaClientPage() {
               </table>
             )}
           </div>
+          <ClientPaginationControls
+            page={activePagination.currentPage}
+            totalPages={activePagination.totalPages}
+            pageSize={activePagination.pageSize}
+            totalItems={activePagination.totalItems}
+            itemLabel={activePagination.itemLabel}
+            onPageChange={setRecordsPage}
+            onPageSizeChange={(nextPageSize) =>
+              setRecordsPageSize(
+                DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                  nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                )
+                  ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                  : 10,
+              )
+            }
+          />
         </div>
 
         {viewState && (
