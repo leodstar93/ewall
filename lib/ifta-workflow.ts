@@ -25,6 +25,10 @@ export function canSubmitReportToStaff(status: ReportStatus) {
   return status === ReportStatus.DRAFT;
 }
 
+export function canDeleteManualReport(status: ReportStatus) {
+  return status === ReportStatus.DRAFT;
+}
+
 export function canStaffReviewReport(status: ReportStatus) {
   return status === ReportStatus.PENDING_STAFF_REVIEW;
 }

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { canAccessUserScopedIfta, requireIftaAccess } from "@/lib/ifta-api-access";
 import {
+  canDeleteManualReport,
   canEditManualReport,
   canFinalizeReport,
   canStaffReviewReport,
@@ -128,6 +129,7 @@ export async function GET(
         isOwner,
         isStaff: guard.isStaff,
         isAdmin: guard.isAdmin,
+        canDelete: isOwner && canDeleteManualReport(report.status),
         canEditLines: isOwner && canEditManualReport(report.status),
         canSubmitToStaff: isOwner && canSubmitReportToStaff(report.status),
         canFinalize: isOwner && canFinalizeReport(report.status),
@@ -159,6 +161,7 @@ export async function PUT(
       select: {
         id: true,
         userId: true,
+        status: true,
       },
     });
 
@@ -227,6 +230,7 @@ export async function DELETE(
       select: {
         id: true,
         userId: true,
+        status: true,
       },
     });
 
@@ -236,6 +240,13 @@ export async function DELETE(
 
     if (!canAccessUserScopedIfta(guard, report.userId)) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (!canDeleteManualReport(report.status)) {
+      return Response.json(
+        { error: "Only draft reports can be deleted." },
+        { status: 409 },
+      );
     }
 
     await prisma.iftaReport.delete({

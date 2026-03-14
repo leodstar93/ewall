@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   JurisdictionOption,
@@ -24,6 +25,7 @@ type DetailPayload = {
     isOwner: boolean;
     isStaff: boolean;
     isAdmin: boolean;
+    canDelete: boolean;
     canEditLines: boolean;
     canSubmitToStaff: boolean;
     canFinalize: boolean;
@@ -53,6 +55,8 @@ export default function IftaManualReportPage(props: {
   reportId: string;
   mode: "driver" | "staff";
 }) {
+  const router = useRouter();
+  const [downloadFormat, setDownloadFormat] = useState<"pdf" | "excel">("pdf");
   const [payload, setPayload] = useState<DetailPayload | null>(null);
   const [rows, setRows] = useState<EditableLine[]>([]);
   const [driverNotes, setDriverNotes] = useState("");
@@ -286,6 +290,37 @@ export default function IftaManualReportPage(props: {
     }
   };
 
+  const deleteReport = async () => {
+    if (!payload?.permissions.canDelete) return;
+    if (!window.confirm("Delete this draft report? This action cannot be undone.")) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/v1/features/ifta/${props.reportId}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not delete the report.");
+      }
+
+      router.push(props.mode === "staff" ? "/admin/features/ifta" : "/ifta");
+      router.refresh();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Could not delete the report.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return <div className="rounded-[28px] border bg-white p-8">Loading manual editor...</div>;
   }
@@ -323,7 +358,7 @@ export default function IftaManualReportPage(props: {
             </div>
 
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-950">
-              {report.year} {quarterLabel(report.quarter)} · {fuelTypeLabel(report.fuelType)}
+              {report.year} {quarterLabel(report.quarter)} - {fuelTypeLabel(report.fuelType)}
             </h2>
             <div className="mt-3 grid gap-2 text-sm text-zinc-700 sm:grid-cols-2">
               <p>{truckLabel(report.truck)}</p>
@@ -334,6 +369,35 @@ export default function IftaManualReportPage(props: {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            {props.mode === "staff" && report.status === "FILED" && (
+              <>
+                <select
+                  value={downloadFormat}
+                  onChange={(event) =>
+                    setDownloadFormat(event.target.value === "excel" ? "excel" : "pdf")
+                  }
+                  className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-900 outline-none"
+                >
+                  <option value="pdf">PDF</option>
+                  <option value="excel">Excel (.csv)</option>
+                </select>
+                <a
+                  href={`/api/v1/features/ifta/${props.reportId}/download?format=${downloadFormat}`}
+                  className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
+                >
+                  Download filed report
+                </a>
+              </>
+            )}
+            {permissions.canDelete && (
+              <button
+                onClick={() => void deleteReport()}
+                disabled={busy}
+                className="rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+              >
+                Delete draft
+              </button>
+            )}
             {permissions.canEditLines && (
               <button
                 onClick={() => void saveRows()}
@@ -719,19 +783,34 @@ export default function IftaManualReportPage(props: {
             </div>
 
             {permissions.canStaffReview && (
-              <button
-                onClick={() =>
-                  void runAction(
-                    `/api/v1/features/ifta/${props.reportId}/staff-review`,
-                    { reviewNotes },
-                    "Report returned to trucker for finalization.",
-                  )
-                }
-                disabled={busy}
-                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
-              >
-                Approve for trucker finalization
-              </button>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <button
+                  onClick={() =>
+                    void runAction(
+                      `/api/v1/features/ifta/${props.reportId}/staff-decline`,
+                      { reviewNotes },
+                      "Report returned to draft for client changes.",
+                    )
+                  }
+                  disabled={busy}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                >
+                  Decline and return to draft
+                </button>
+                <button
+                  onClick={() =>
+                    void runAction(
+                      `/api/v1/features/ifta/${props.reportId}/staff-review`,
+                      { reviewNotes },
+                      "Report returned to trucker for finalization.",
+                    )
+                  }
+                  disabled={busy}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+                >
+                  Approve for trucker finalization
+                </button>
+              </div>
             )}
           </div>
         </section>

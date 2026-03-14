@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReportSummary,
   formatCurrency,
@@ -35,43 +35,75 @@ export default function IftaDashboardPage() {
   const [workflowCounts, setWorkflowCounts] = useState<Record<string, number>>({});
   const [truckCount, setTruckCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const loadDashboard = useCallback(async (active = true) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load IFTA reports.");
+
+      const data = (await response.json()) as DashboardPayload;
+      if (!active) return;
+
+      setReports(Array.isArray(data.reports) ? data.reports : []);
+      setWorkflowCounts(data.workflowCounts ?? {});
+      setTruckCount(Array.isArray(data.trucks) ? data.trucks.length : 0);
+    } catch (fetchError) {
+      if (!active) return;
+      setError(
+        fetchError instanceof Error ? fetchError.message : "Could not load IFTA reports.",
+      );
+    } finally {
+      if (active) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
 
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
-        if (!response.ok) throw new Error("Could not load IFTA reports.");
-
-        const data = (await response.json()) as DashboardPayload;
-        if (!active) return;
-
-        setReports(Array.isArray(data.reports) ? data.reports : []);
-        setWorkflowCounts(data.workflowCounts ?? {});
-        setTruckCount(Array.isArray(data.trucks) ? data.trucks.length : 0);
-      } catch (fetchError) {
-        if (!active) return;
-        setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : "Could not load IFTA reports.",
-        );
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    void load();
+    void loadDashboard(active);
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadDashboard]);
+
+  const deleteReport = useCallback(
+    async (report: ReportSummary) => {
+      if (report.status !== "DRAFT") return;
+      if (!window.confirm("Delete this draft report? This action cannot be undone.")) {
+        return;
+      }
+
+      try {
+        setDeletingId(report.id);
+        setError(null);
+
+        const response = await fetch(`/api/v1/features/ifta/${report.id}`, {
+          method: "DELETE",
+        });
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        if (!response.ok) {
+          throw new Error(data.error || "Could not delete the report.");
+        }
+
+        await loadDashboard();
+      } catch (deleteError) {
+        setError(
+          deleteError instanceof Error
+            ? deleteError.message
+            : "Could not delete the report.",
+        );
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [loadDashboard],
+  );
 
   const totals = useMemo(
     () => ({
@@ -240,6 +272,15 @@ export default function IftaDashboardPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-3">
+                    {report.status === "DRAFT" && (
+                      <button
+                        onClick={() => void deleteReport(report)}
+                        disabled={deletingId === report.id}
+                        className="inline-flex items-center justify-center rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        {deletingId === report.id ? "Deleting..." : "Delete draft"}
+                      </button>
+                    )}
                     <Link
                       href={`/ifta/reports/${report.id}/manual`}
                       className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"

@@ -127,10 +127,10 @@ export function quarterLabel(value: Quarter) {
 export function truckLabel(truck: TruckSummary | null) {
   if (!truck) return "No truck assigned";
   if (truck.nickname?.trim()) {
-    return `${truck.nickname} · Unit ${truck.unitNumber}`;
+    return `${truck.nickname} - Unit ${truck.unitNumber}`;
   }
   return truck.plateNumber
-    ? `Unit ${truck.unitNumber} · ${truck.plateNumber}`
+    ? `Unit ${truck.unitNumber} - ${truck.plateNumber}`
     : `Unit ${truck.unitNumber}`;
 }
 

@@ -1,9 +1,16 @@
 import { ReportStatus } from "@prisma/client";
+import { mkdir, writeFile } from "fs/promises";
 import { NextRequest } from "next/server";
+import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { requireIftaAccess } from "@/lib/ifta-api-access";
 import { canFinalizeReport } from "@/lib/ifta-workflow";
 import { calculateIftaReport } from "@/services/ifta/calculateReport";
+import {
+  getFiledIftaReportExport,
+  upsertFiledIftaReportDocument,
+} from "@/services/ifta/ensureFiledReportDocument";
+import { renderIftaPdf } from "@/services/ifta/renderIftaPdf";
 import { getIftaValidationIssues } from "@/services/ifta/validateReport";
 
 export async function POST(
@@ -64,6 +71,18 @@ export async function POST(
         status: true,
         filedAt: true,
       },
+    });
+
+    const exportReport = await getFiledIftaReportExport(id);
+    const pdf = await renderIftaPdf(exportReport);
+    const uploadsDir = join(process.cwd(), "public", "uploads");
+    await mkdir(uploadsDir, { recursive: true });
+    await writeFile(join(uploadsDir, pdf.fileName), pdf.buffer);
+    await upsertFiledIftaReportDocument({
+      report: exportReport,
+      fileBuffer: pdf.buffer,
+      fileExtension: "pdf",
+      contentType: pdf.contentType,
     });
 
     return Response.json({ report: updated });
