@@ -5,7 +5,7 @@ import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { IftaExportReport } from "@/services/ifta/ensureFiledReportDocument";
 
 type RenderedPdf = {
-  buffer: Buffer;
+  buffer: Uint8Array;
   fileName: string;
   contentType: "application/pdf";
 };
@@ -88,6 +88,7 @@ function drawText(
     typeof options.width === "number"
       ? fitText(text, options.font, options.size, options.width)
       : text;
+
   const textWidth = options.font.widthOfTextAtSize(content, options.size);
   const x =
     options.align === "right" && typeof options.width === "number"
@@ -206,14 +207,28 @@ function valueForColumn(
 export async function renderIftaPdf(
   report: IftaExportReport,
 ): Promise<RenderedPdf> {
-  const fontPath = path.join(process.cwd(), "public", "fonts", "Roboto-Regular.ttf");
-  const fontBytes = await readFile(fontPath);
+  const regularFontPath = path.join(
+    process.cwd(),
+    "public",
+    "fonts",
+    "Roboto-Regular.ttf",
+  );
+
+  const boldFontPath = path.join(
+    process.cwd(),
+    "public",
+    "fonts",
+    "Roboto-Bold.ttf",
+  );
+
+  const regularFontBytes = await readFile(regularFontPath);
+  const boldFontBytes = await readFile(boldFontPath);
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
 
-  const regularFont = await pdfDoc.embedFont(fontBytes);
-  const boldFont = await pdfDoc.embedFont(fontBytes);
+  const regularFont = await pdfDoc.embedFont(regularFontBytes);
+  const boldFont = await pdfDoc.embedFont(boldFontBytes);
 
   let page = createPage(pdfDoc);
   drawHeader(page, report, regularFont, boldFont);
@@ -258,24 +273,32 @@ export async function renderIftaPdf(
     font: boldFont,
     size: 12,
   });
+
   drawText(page, `Total Miles: ${formatNumber(report.totalMiles)}`, {
     x: PAGE_MARGIN,
     y: currentY - 28,
     font: regularFont,
     size: 10,
   });
-  drawText(page, `Total Taxable Miles: ${formatNumber(report.totalTaxableMiles)}`, {
-    x: PAGE_MARGIN,
-    y: currentY - 44,
-    font: regularFont,
-    size: 10,
-  });
+
+  drawText(
+    page,
+    `Total Taxable Miles: ${formatNumber(report.totalTaxableMiles)}`,
+    {
+      x: PAGE_MARGIN,
+      y: currentY - 44,
+      font: regularFont,
+      size: 10,
+    },
+  );
+
   drawText(page, `Total Gallons: ${formatNumber(report.totalGallons)}`, {
     x: PAGE_MARGIN,
     y: currentY - 60,
     font: regularFont,
     size: 10,
   });
+
   drawText(page, `${netLabel}: ${formatCurrency(report.totalTaxDue)}`, {
     x: PAGE_MARGIN,
     y: currentY - 82,
@@ -283,8 +306,10 @@ export async function renderIftaPdf(
     size: 11,
   });
 
+  const pdfBytes = await pdfDoc.save();
+
   return {
-    buffer: Buffer.from(await pdfDoc.save()),
+    buffer: pdfBytes,
     fileName: `ifta-report-${report.id}.pdf`,
     contentType: "application/pdf",
   };

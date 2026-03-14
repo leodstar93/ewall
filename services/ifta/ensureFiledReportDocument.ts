@@ -33,7 +33,7 @@ export type IftaExportReport = {
 
 type PersistDocumentInput = {
   report: IftaExportReport;
-  fileBuffer: Buffer;
+  fileBuffer: Uint8Array;
   fileExtension: "pdf" | "xlsx";
   contentType: string;
 };

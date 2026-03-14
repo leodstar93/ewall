@@ -8,6 +8,12 @@ import {
 import { renderIftaExcel } from "@/services/ifta/renderIftaExcel";
 import { renderIftaPdf } from "@/services/ifta/renderIftaPdf";
 
+type ExportedFile = {
+  buffer: Uint8Array;
+  contentType: string;
+  fileName: string;
+};
+
 function parseFormat(value: string | null): IftaDownloadFormat {
   return value === "excel" ? "excel" : "pdf";
 }
@@ -48,17 +54,16 @@ export async function GET(
     }
 
     const exportReport = await getFiledIftaReportExport(report.id);
-    const file =
+    const file: ExportedFile =
       format === "excel"
         ? renderIftaExcel(exportReport)
         : await renderIftaPdf(exportReport);
 
-    return new Response(file.buffer, {
+    return new Response(new Uint8Array(file.buffer), {
       status: 200,
       headers: {
         "Content-Type": file.contentType,
         "Content-Disposition": `attachment; filename="${file.fileName}"`,
-        "Cache-Control": "private, no-store",
       },
     });
   } catch (error) {
