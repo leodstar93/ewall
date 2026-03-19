@@ -2,17 +2,41 @@ import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
+import { is2290Eligible } from "@/lib/form2290-workflow";
+import { getForm2290Settings } from "@/services/form2290/shared";
 
 type UpdateTruckBody = {
   unitNumber?: unknown;
+  nickname?: unknown;
   plateNumber?: unknown;
   vin?: unknown;
+  make?: unknown;
+  model?: unknown;
+  year?: unknown;
+  grossWeight?: unknown;
 };
 
 function normalizeOptionalText(value: unknown) {
   if (typeof value !== "string") return null;
   const result = value.trim();
   return result.length ? result : null;
+}
+
+function parseOptionalYear(value: unknown) {
+  if (typeof value === "undefined") return undefined;
+  if (value === null || value === "") return null;
+  const parsed = Number(value);
+  const maxYear = new Date().getFullYear() + 1;
+  if (!Number.isInteger(parsed) || parsed < 1900 || parsed > maxYear) return "INVALID";
+  return parsed;
+}
+
+function parseOptionalNonNegativeInt(value: unknown) {
+  if (typeof value === "undefined") return undefined;
+  if (value === null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) return "INVALID";
+  return parsed;
 }
 
 export async function GET(
@@ -64,11 +88,13 @@ export async function PUT(
   const { id } = await params;
 
   try {
+    const settings = await getForm2290Settings();
     const existing = await prisma.truck.findUnique({
       where: { id },
       select: {
         id: true,
         userId: true,
+        grossWeight: true,
       },
     });
 
@@ -82,6 +108,15 @@ export async function PUT(
 
     const body = (await request.json()) as UpdateTruckBody;
     const data: Prisma.TruckUpdateInput = {};
+    const year = parseOptionalYear(body.year);
+    const grossWeight = parseOptionalNonNegativeInt(body.grossWeight);
+
+    if (year === "INVALID") {
+      return Response.json({ error: "Invalid year" }, { status: 400 });
+    }
+    if (grossWeight === "INVALID") {
+      return Response.json({ error: "Invalid grossWeight" }, { status: 400 });
+    }
 
     if (typeof body.unitNumber !== "undefined") {
       const unitNumber = normalizeOptionalText(body.unitNumber);
@@ -91,6 +126,10 @@ export async function PUT(
       data.unitNumber = unitNumber;
     }
 
+    if (typeof body.nickname !== "undefined") {
+      data.nickname = normalizeOptionalText(body.nickname);
+    }
+
     if (typeof body.plateNumber !== "undefined") {
       data.plateNumber = normalizeOptionalText(body.plateNumber);
     }
@@ -98,6 +137,33 @@ export async function PUT(
     if (typeof body.vin !== "undefined") {
       data.vin = normalizeOptionalText(body.vin);
     }
+
+    if (typeof body.make !== "undefined") {
+      data.make = normalizeOptionalText(body.make);
+    }
+
+    if (typeof body.model !== "undefined") {
+      data.model = normalizeOptionalText(body.model);
+    }
+
+    if (typeof body.year !== "undefined") {
+      data.year = year;
+    }
+
+    if (typeof body.grossWeight !== "undefined") {
+      data.grossWeight = grossWeight;
+    }
+
+    const nextGrossWeight =
+      typeof grossWeight === "number"
+        ? grossWeight
+        : grossWeight === null
+          ? null
+          : existing.grossWeight;
+    data.is2290Eligible =
+      typeof nextGrossWeight === "number"
+        ? is2290Eligible(nextGrossWeight, settings.minimumEligibleWeight)
+        : false;
 
     const truck = await prisma.truck.update({
       where: { id },
