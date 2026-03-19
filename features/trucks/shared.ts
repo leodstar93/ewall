@@ -12,6 +12,12 @@ export type TruckRecord = {
   is2290Eligible: boolean;
   createdAt: string;
   updatedAt: string;
+  _count?: {
+    trips: number;
+    fuelPurchases: number;
+    iftaReports: number;
+    form2290Filings: number;
+  };
 };
 
 export function formatDate(value: string) {

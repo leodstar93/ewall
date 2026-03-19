@@ -58,6 +58,20 @@ function toForm(truck: TruckRecord): TruckFormState {
   };
 }
 
+function getUsageSummary(truck: TruckRecord) {
+  const counts = truck._count;
+  if (!counts) return null;
+
+  const parts = [
+    counts.iftaReports ? `${counts.iftaReports} IFTA reports` : null,
+    counts.trips ? `${counts.trips} trips` : null,
+    counts.fuelPurchases ? `${counts.fuelPurchases} fuel purchases` : null,
+    counts.form2290Filings ? `${counts.form2290Filings} 2290 filings` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 export default function TrucksDashboardPage() {
   const [trucks, setTrucks] = useState<TruckRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -382,7 +396,10 @@ export default function TrucksDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 bg-white">
-                  {paginated.items.map((truck) => (
+                  {paginated.items.map((truck) => {
+                    const usageSummary = getUsageSummary(truck);
+
+                    return (
                     <tr key={truck.id}>
                       <td className="px-4 py-3 text-sm text-zinc-700">
                         <p className="font-medium text-zinc-900">{truck.unitNumber}</p>
@@ -407,6 +424,11 @@ export default function TrucksDashboardPage() {
                         >
                           {truck.is2290Eligible ? "Eligible" : "Not eligible"}
                         </span>
+                        {usageSummary && (
+                          <p className="mt-2 text-xs text-zinc-500">
+                            In use by {usageSummary}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-zinc-700">{formatDate(truck.updatedAt)}</td>
                       <td className="px-4 py-3 text-sm">
@@ -421,15 +443,17 @@ export default function TrucksDashboardPage() {
                           <button
                             type="button"
                             onClick={() => void deleteTruck(truck.id)}
-                            disabled={busy === `delete-${truck.id}`}
+                            disabled={busy === `delete-${truck.id}` || Boolean(usageSummary)}
                             className="inline-flex items-center justify-center rounded-2xl border border-red-200 px-3 py-2 font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                            title={usageSummary ? `Cannot delete: ${usageSummary}` : undefined}
                           >
                             {busy === `delete-${truck.id}` ? "Deleting..." : "Delete"}
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {filtered.length === 0 && (
                     <tr>
                       <td colSpan={7} className="px-4 py-8 text-center text-sm text-zinc-500">

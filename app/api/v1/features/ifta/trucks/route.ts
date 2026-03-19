@@ -46,6 +46,16 @@ export async function GET() {
   try {
     const trucks = await prisma.truck.findMany({
       where: { userId: guard.session.user.id },
+      include: {
+        _count: {
+          select: {
+            trips: true,
+            fuelPurchases: true,
+            iftaReports: true,
+            form2290Filings: true,
+          },
+        },
+      },
       orderBy: [{ unitNumber: "asc" }, { createdAt: "desc" }],
     });
 
