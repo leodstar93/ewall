@@ -3,6 +3,6 @@
   "section": "Operaciones",
   "order": 40,
   "icon": "ReceiptText",
-  "href": "/dashboard/compliance/2290",
+  "href": "/2290",
   "permission": ["compliance2290:view"]
 }

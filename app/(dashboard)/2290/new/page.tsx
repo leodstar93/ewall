@@ -23,7 +23,7 @@ export default async function NewForm2290Page() {
         </p>
       </section>
 
-      <Form2290FilingForm mode="create" detailHrefBase="/dashboard/compliance/2290" />
+      <Form2290FilingForm mode="create" detailHrefBase="/2290" />
     </div>
   );
 }

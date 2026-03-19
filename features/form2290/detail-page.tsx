@@ -66,9 +66,9 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   const [paidAt, setPaidAt] = useState("");
 
   const detailHrefBase =
-    props.mode === "staff" ? "/admin/features/2290" : "/dashboard/compliance/2290";
+    props.mode === "staff" ? "/admin/features/2290" : "/2290";
   const backHref =
-    props.mode === "staff" ? "/admin/features/2290" : "/dashboard/compliance/2290";
+    props.mode === "staff" ? "/admin/features/2290" : "/2290";
 
   const load = useCallback(async () => {
     try {

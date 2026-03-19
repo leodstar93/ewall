@@ -476,7 +476,7 @@ export default function DashboardPage() {
                   2290 overview
                 </span>
                 <Link
-                  href="/dashboard/compliance/2290"
+                  href="/2290"
                   className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
                 >
                   Open 2290
@@ -517,7 +517,7 @@ export default function DashboardPage() {
 
             {session.user.permissions?.includes("compliance2290:view") && (
               <Link
-                href="/dashboard/compliance/2290"
+                href="/2290"
                 className="rounded-2xl border bg-white p-5 shadow-sm transition hover:bg-zinc-50"
               >
                 <p className="text-sm font-semibold text-zinc-900">
