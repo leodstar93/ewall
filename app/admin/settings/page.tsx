@@ -74,6 +74,24 @@ export default async function AdminSettingsPage() {
             Open UCR Rates
           </Link>
         </article>
+
+        <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            Form 2290
+          </p>
+          <h3 className="mt-3 text-xl font-semibold text-zinc-950">
+            HVUT period and rule management
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Maintain annual 2290 tax periods, set the active filing window, and tune the base vehicle eligibility threshold.
+          </p>
+          <Link
+            href="/admin/settings/2290"
+            className="mt-5 inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            Open Form 2290 Settings
+          </Link>
+        </article>
       </section>
     </div>
   );

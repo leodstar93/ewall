@@ -36,6 +36,21 @@ type RecentUcr = {
   };
 };
 
+type RecentForm2290 = {
+  id: string;
+  status: string;
+  paymentStatus: string;
+  updatedAt: Date;
+  truck: {
+    unitNumber: string;
+    vin: string | null;
+  };
+  user: {
+    name: string | null;
+    email: string | null;
+  };
+};
+
 function displayUser(user: { name: string | null; email: string | null }) {
   return user.name?.trim() || user.email?.trim() || "Unknown user";
 }
@@ -47,15 +62,18 @@ export default async function StaffDashboardClient() {
     totalTrucks,
     totalFuelPurchases,
     totalUcrFilings,
+    totalForm2290Filings,
     recentDocuments,
     recentReports,
     recentUcrFilings,
+    recentForm2290Filings,
   ] = await Promise.all([
     prisma.document.count(),
     prisma.iftaReport.count(),
     prisma.truck.count(),
     prisma.fuelPurchase.count(),
     prisma.uCRFiling.count(),
+    prisma.form2290Filing.count(),
     prisma.document.findMany({
       take: 5,
       orderBy: { createdAt: "desc" },
@@ -91,6 +109,23 @@ export default async function StaffDashboardClient() {
         user: { select: { name: true, email: true } },
       },
     }) as Promise<RecentUcr[]>,
+    prisma.form2290Filing.findMany({
+      take: 5,
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        paymentStatus: true,
+        updatedAt: true,
+        truck: {
+          select: {
+            unitNumber: true,
+            vin: true,
+          },
+        },
+        user: { select: { name: true, email: true } },
+      },
+    }) as Promise<RecentForm2290[]>,
   ]);
 
   const cards = [
@@ -124,6 +159,12 @@ export default async function StaffDashboardClient() {
       href: "/admin/features/ucr",
       hint: "Annual compliance queue",
     },
+    {
+      title: "2290 filings",
+      value: totalForm2290Filings,
+      href: "/admin/features/2290",
+      hint: "HVUT review queue",
+    },
   ] as const;
 
   return (
@@ -136,7 +177,7 @@ export default async function StaffDashboardClient() {
                 Staff dashboard
               </h1>
               <p className="mt-1 text-sm text-zinc-600">
-                Operational overview for Documents, IFTA, and UCR workflows.
+                Operational overview for Documents, IFTA, UCR, and Form 2290 workflows.
               </p>
             </div>
 
@@ -245,6 +286,36 @@ export default async function StaffDashboardClient() {
                     {filing.filingYear} - {filing.legalName}
                   </p>
                   <p className="text-xs text-zinc-600">{filing.status}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {displayUser(filing.user)} - {new Date(filing.updatedAt).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-zinc-900">Latest 2290 updates</h2>
+            <Link
+              href="/admin/features/2290"
+              className="text-sm font-medium text-zinc-700 hover:text-zinc-900"
+            >
+              Open 2290
+            </Link>
+          </div>
+
+          {recentForm2290Filings.length === 0 ? (
+            <p className="mt-4 text-sm text-zinc-600">No 2290 activity yet.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {recentForm2290Filings.map((filing) => (
+                <div key={filing.id} className="rounded-xl border p-3">
+                  <p className="text-sm font-semibold text-zinc-900">
+                    Unit {filing.truck.unitNumber} - {filing.status}
+                  </p>
+                  <p className="text-xs text-zinc-600">{filing.paymentStatus}</p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {displayUser(filing.user)} - {new Date(filing.updatedAt).toLocaleString()}
                   </p>

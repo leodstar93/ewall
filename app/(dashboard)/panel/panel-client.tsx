@@ -21,6 +21,14 @@ type UcrStatusCard = {
   nextAction: string;
 };
 
+type Form2290StatusCard = {
+  total: number;
+  compliant: number;
+  pending: number;
+  correctionNeeded: number;
+  expired: number;
+};
+
 type Toast = {
   id: string;
   type: "success" | "error" | "info";
@@ -53,6 +61,7 @@ export default function DashboardPage() {
 
   const [stats, setStats] = useState<StatCard[]>([]);
   const [ucrStatus, setUcrStatus] = useState<UcrStatusCard | null>(null);
+  const [form2290Status, setForm2290Status] = useState<Form2290StatusCard | null>(null);
   const [loading, setLoading] = useState(true);
 
   // toasts
@@ -146,6 +155,23 @@ export default function DashboardPage() {
         }
       } else {
         setUcrStatus(null);
+      }
+
+      if (session.user.permissions?.includes("compliance2290:view")) {
+        try {
+          const form2290Res = await fetch("/api/v1/features/2290/compliance-status", {
+            cache: "no-store",
+          });
+          if (form2290Res.ok) {
+            setForm2290Status((await form2290Res.json()) as Form2290StatusCard);
+          } else {
+            setForm2290Status(null);
+          }
+        } catch {
+          setForm2290Status(null);
+        }
+      } else {
+        setForm2290Status(null);
       }
 
       setStats(base);
@@ -414,6 +440,52 @@ export default function DashboardPage() {
           </section>
         )}
 
+        {form2290Status && (
+          <section className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Form 2290 compliance
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-zinc-900">
+                  {form2290Status.compliant > 0 && form2290Status.pending === 0 && form2290Status.correctionNeeded === 0
+                    ? "Compliant"
+                    : form2290Status.correctionNeeded > 0
+                      ? "Correction needed"
+                      : form2290Status.expired > 0
+                        ? "Expired or missing"
+                        : "In progress"}
+                </h2>
+                <p className="mt-2 text-sm text-zinc-600">
+                  {form2290Status.compliant} compliant, {form2290Status.pending} pending, {form2290Status.correctionNeeded} needing correction, {form2290Status.expired} expired.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+                    form2290Status.correctionNeeded > 0
+                      ? "bg-amber-50 text-amber-800 ring-amber-200"
+                      : form2290Status.expired > 0
+                        ? "bg-red-50 text-red-800 ring-red-200"
+                        : form2290Status.compliant > 0 && form2290Status.pending === 0
+                          ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                          : "bg-sky-50 text-sky-800 ring-sky-200"
+                  }`}
+                >
+                  2290 overview
+                </span>
+                <Link
+                  href="/dashboard/compliance/2290"
+                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+                >
+                  Open 2290
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Quick actions */}
         <section className="rounded-2xl border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
@@ -442,6 +514,23 @@ export default function DashboardPage() {
                 Open →
               </div>
             </Link>
+
+            {session.user.permissions?.includes("compliance2290:view") && (
+              <Link
+                href="/dashboard/compliance/2290"
+                className="rounded-2xl border bg-white p-5 shadow-sm transition hover:bg-zinc-50"
+              >
+                <p className="text-sm font-semibold text-zinc-900">
+                  Form 2290
+                </p>
+                <p className="mt-1 text-sm text-zinc-600">
+                  Review HVUT compliance by vehicle and tax period.
+                </p>
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100">
+                  Open â†’
+                </div>
+              </Link>
+            )}
 
             {isAdmin && (
               <>

@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { getAuthz } from "./rbac";
 
-const STAFF_ADMIN_FEATURE_MODULES = new Set(["ifta", "truck", "reports", "documents", "ucr"]);
+const STAFF_ADMIN_FEATURE_MODULES = new Set([
+  "ifta",
+  "truck",
+  "reports",
+  "documents",
+  "ucr",
+  "compliance2290",
+]);
 
 export async function requireApiPermission(permission: string) {
   console.log("requireApiPermission called with permission:", permission);

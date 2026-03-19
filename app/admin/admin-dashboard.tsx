@@ -23,6 +23,10 @@ export default async function AdminPageClient() {
     compliantCurrentYearUcr,
     correctionCurrentYearUcr,
     pendingProofCurrentYearUcr,
+    totalForm2290Filings,
+    compliantForm2290Filings,
+    correctionForm2290Filings,
+    expiredForm2290Filings,
   ] =
     await Promise.all([
       prisma.user.count(),
@@ -35,6 +39,10 @@ export default async function AdminPageClient() {
         where: { filingYear: currentYear, status: "CORRECTION_REQUESTED" },
       }),
       prisma.uCRFiling.count({ where: { filingYear: currentYear, status: "PENDING_PROOF" } }),
+      prisma.form2290Filing.count(),
+      prisma.form2290Filing.count({ where: { status: "COMPLIANT" } }),
+      prisma.form2290Filing.count({ where: { status: "NEEDS_CORRECTION" } }),
+      prisma.form2290Filing.count({ where: { status: "EXPIRED" } }),
     ]);
 
   // Fetch recent users
@@ -130,6 +138,13 @@ export default async function AdminPageClient() {
     icon: "ðŸ›¡ï¸",
     href: "/admin/features/ucr",
     tone: "blue",
+  },
+  {
+    title: "Review 2290 filings",
+    desc: "Manage HVUT payment, review, and Schedule 1 completion.",
+    icon: "2290",
+    href: "/admin/features/2290",
+    tone: "green",
   },
 ] as const;
 
@@ -314,6 +329,61 @@ export default async function AdminPageClient() {
               </p>
               <p className="mt-1 text-2xl font-semibold text-zinc-900">
                 {pendingProofCurrentYearUcr}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-900">
+                Form 2290 operations
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                HVUT workflow visibility across every managed vehicle.
+              </p>
+            </div>
+
+            <Link
+              href="/admin/features/2290"
+              className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
+            >
+              Open 2290
+            </Link>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Total filings
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {totalForm2290Filings}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Compliant
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {compliantForm2290Filings}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Corrections
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {correctionForm2290Filings}
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-zinc-50 p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Expired
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-zinc-900">
+                {expiredForm2290Filings}
               </p>
             </div>
           </div>

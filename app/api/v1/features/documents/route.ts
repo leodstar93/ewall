@@ -4,6 +4,12 @@ import { NextRequest } from "next/server";
 import { join } from "path";
 import { mkdir, writeFile } from "fs/promises";
 
+function normalizeOptionalText(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized.length ? normalized : null;
+}
+
 // POST - Upload a new document
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -17,6 +23,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File;
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
+    const category = normalizeOptionalText(formData.get("category"));
 
     if (!file) {
       return Response.json({ error: "No file provided" }, { status: 400 });
@@ -54,6 +61,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         description: description || null,
+        category,
         fileName: file.name,
         fileUrl: `/uploads/${uniqueFileName}`, // Placeholder URL
         fileSize: file.size,
@@ -81,8 +89,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const category = normalizeOptionalText(request.nextUrl.searchParams.get("category"));
     const documents = await prisma.document.findMany({
-      where: { userId: session.user.id },
+      where: {
+        userId: session.user.id,
+        ...(category ? { category } : {}),
+      },
       orderBy: { createdAt: "desc" },
     });
 

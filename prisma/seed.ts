@@ -54,6 +54,14 @@ const PERMISSIONS = [
   { key: "ucr:approve", description: "Approve and mark UCR filings compliant" },
   { key: "ucr:manage_rates", description: "Manage UCR annual rate brackets" },
   { key: "ucr:upload_documents", description: "Upload UCR filing documents" },
+  { key: "compliance2290:view", description: "View Form 2290 filings" },
+  { key: "compliance2290:create", description: "Create Form 2290 filings" },
+  { key: "compliance2290:update", description: "Update editable Form 2290 filings" },
+  { key: "compliance2290:review", description: "Review Form 2290 filings" },
+  { key: "compliance2290:approve", description: "Approve or mark Form 2290 filings as submitted" },
+  { key: "compliance2290:request_correction", description: "Request Form 2290 corrections" },
+  { key: "compliance2290:upload_schedule1", description: "Upload or attach Form 2290 Schedule 1 documents" },
+  { key: "compliance2290:manage_settings", description: "Manage Form 2290 tax periods and rules" },
 
   // Staff
 
@@ -78,6 +86,10 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "ucr:update",
     "ucr:submit",
     "ucr:upload_documents",
+    "compliance2290:view",
+    "compliance2290:create",
+    "compliance2290:update",
+    "compliance2290:upload_schedule1",
   ],
   STAFF: [
     "reports:read",
@@ -89,6 +101,13 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "ucr:request_correction",
     "ucr:approve",
     "ucr:upload_documents",
+    "compliance2290:view",
+    "compliance2290:create",
+    "compliance2290:update",
+    "compliance2290:review",
+    "compliance2290:approve",
+    "compliance2290:request_correction",
+    "compliance2290:upload_schedule1",
   ],
   USER: [
     "profile:access",
@@ -99,6 +118,10 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "ucr:update",
     "ucr:submit",
     "ucr:upload_documents",
+    "compliance2290:view",
+    "compliance2290:create",
+    "compliance2290:update",
+    "compliance2290:upload_schedule1",
   ],
 };
 
@@ -243,6 +266,48 @@ async function upsertSampleUcrBrackets() {
   }
 }
 
+async function upsertForm2290Defaults() {
+  await prisma.form2290Setting.upsert({
+    where: { id: "default-form2290-settings" },
+    update: {
+      minimumEligibleWeight: 55000,
+      expirationWarningDays: 30,
+    },
+    create: {
+      id: "default-form2290-settings",
+      minimumEligibleWeight: 55000,
+      expirationWarningDays: 30,
+    },
+  });
+
+  await prisma.form2290TaxPeriod.updateMany({
+    where: {
+      NOT: { id: "form2290-tax-period-2025-2026" },
+      isActive: true,
+    },
+    data: { isActive: false },
+  });
+
+  await prisma.form2290TaxPeriod.upsert({
+    where: { id: "form2290-tax-period-2025-2026" },
+    update: {
+      name: "2025-2026",
+      startDate: new Date("2025-07-01T00:00:00.000Z"),
+      endDate: new Date("2026-06-30T23:59:59.999Z"),
+      filingDeadline: new Date("2025-08-31T23:59:59.999Z"),
+      isActive: true,
+    },
+    create: {
+      id: "form2290-tax-period-2025-2026",
+      name: "2025-2026",
+      startDate: new Date("2025-07-01T00:00:00.000Z"),
+      endDate: new Date("2026-06-30T23:59:59.999Z"),
+      filingDeadline: new Date("2025-08-31T23:59:59.999Z"),
+      isActive: true,
+    },
+  });
+}
+
 async function main() {
   console.log("🌱 Seeding RBAC...");
 
@@ -251,6 +316,7 @@ async function main() {
   await syncRolePermissions();
   await upsertJurisdictions();
   await upsertSampleUcrBrackets();
+  await upsertForm2290Defaults();
 
   const admin = await upsertAdminUser();
 

@@ -32,6 +32,7 @@ model User {
   trips         Trip[]
   fuelPurchases FuelPurchase[]
   ucrFilings    UCRFiling[]
+  form2290Filings Form2290Filing[]
 }
 
 model Account {
@@ -107,6 +108,7 @@ model Document {
   id          String   @id @default(cuid())
   name        String
   description String?
+  category    String?
   fileName    String
   fileUrl     String
   fileSize    Int      // in bytes
@@ -116,7 +118,11 @@ model Document {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  form2290Schedule1For Form2290Filing[]  @relation("Form2290Schedule1")
+  form2290Links        Form2290Document[]
+
   @@index([userId])
+  @@index([category])
 }
 
 //IFTA SERVICE
@@ -168,12 +174,40 @@ enum UCRDocumentType {
   OTHER
 }
 
+enum Form2290Status {
+  DRAFT
+  PENDING_REVIEW
+  NEEDS_CORRECTION
+  SUBMITTED
+  PAID
+  COMPLIANT
+  EXPIRED
+}
+
+enum Form2290PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  WAIVED
+}
+
+enum Form2290DocumentType {
+  SUPPORTING_DOC
+  SCHEDULE_1
+  PAYMENT_PROOF
+}
+
 model Truck {
   id           String   @id @default(cuid())
   unitNumber   String
   nickname     String?
   plateNumber  String?
   vin          String?  @unique
+  make         String?
+  model        String?
+  year         Int?
+  grossWeight  Int?
+  is2290Eligible Boolean @default(false)
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime @default(now())
@@ -182,8 +216,10 @@ model Truck {
   trips        Trip[]
   fuelPurchases FuelPurchase[]
   iftaReports  IftaReport[]
+  form2290Filings Form2290Filing[]
 
   @@index([userId])
+  @@index([vin])
 }
 
 model Jurisdiction {
@@ -446,4 +482,108 @@ model UCRDocument {
   filing UCRFiling @relation(fields: [ucrFilingId], references: [id], onDelete: Cascade)
 
   @@index([ucrFilingId, type])
+}
+
+model Form2290Setting {
+  id                    String   @id @default(cuid())
+  minimumEligibleWeight Int      @default(55000)
+  expirationWarningDays Int      @default(30)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model Form2290TaxPeriod {
+  id             String   @id @default(cuid())
+  name           String
+  startDate      DateTime
+  endDate        DateTime
+  filingDeadline DateTime?
+  isActive       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  filings        Form2290Filing[]
+
+  @@index([startDate, endDate])
+  @@index([isActive])
+}
+
+model Form2290Filing {
+  id                  String                  @id @default(cuid())
+  userId              String
+  truckId             String
+  taxPeriodId         String
+  status              Form2290Status         @default(DRAFT)
+  paymentStatus       Form2290PaymentStatus  @default(UNPAID)
+  vinSnapshot         String
+  unitNumberSnapshot  String?
+  grossWeightSnapshot Int?
+  firstUsedMonth      Int?
+  firstUsedYear       Int?
+  amountDue           Decimal?               @db.Decimal(10, 2)
+  filedAt             DateTime?
+  paidAt              DateTime?
+  compliantAt         DateTime?
+  expiresAt           DateTime?
+  schedule1DocumentId String?
+  notes               String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  truck             Truck              @relation(fields: [truckId], references: [id], onDelete: Restrict)
+  taxPeriod         Form2290TaxPeriod  @relation(fields: [taxPeriodId], references: [id], onDelete: Restrict)
+  schedule1Document Document?          @relation("Form2290Schedule1", fields: [schedule1DocumentId], references: [id])
+
+  corrections       Form2290Correction[]
+  documents         Form2290Document[]
+  activityLogs      Form2290ActivityLog[]
+
+  @@index([userId])
+  @@index([truckId])
+  @@index([taxPeriodId])
+  @@index([status, paymentStatus])
+  @@unique([truckId, taxPeriodId])
+}
+
+model Form2290Correction {
+  id            String   @id @default(cuid())
+  filingId      String
+  requestedById String
+  message       String
+  resolved      Boolean  @default(false)
+  resolvedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  filing        Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId, resolved])
+}
+
+model Form2290Document {
+  id         String               @id @default(cuid())
+  filingId   String
+  documentId String
+  type       Form2290DocumentType
+  createdAt  DateTime             @default(now())
+
+  filing     Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  document   Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([filingId])
+  @@index([documentId])
+  @@unique([filingId, documentId])
+}
+
+model Form2290ActivityLog {
+  id          String   @id @default(cuid())
+  filingId     String
+  actorUserId  String?
+  action       String
+  metaJson     Json?
+  createdAt    DateTime @default(now())
+
+  filing       Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId, createdAt])
 }

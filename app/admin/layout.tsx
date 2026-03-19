@@ -19,6 +19,7 @@ function titleFromPath(pathname: string | null) {
   if (!pathname) return "Admin";
   if (pathname === "/admin") return "Dashboard";
   if (pathname === "/admin/settings") return "Settings";
+  if (pathname.startsWith("/admin/settings/2290")) return "Form 2290 Settings";
   if (pathname.startsWith("/admin/settings/ifta-tax-rates")) return "IFTA Tax Rates";
   if (pathname.startsWith("/admin/settings/ucr-rates")) return "UCR Rates";
   if (pathname.startsWith("/admin/users")) return "Users";
@@ -27,6 +28,7 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/features/documents")) return "Documents";
   if (pathname.startsWith("/admin/features/ifta")) return "IFTA";
   if (pathname.startsWith("/admin/features/ucr")) return "UCR";
+  if (pathname.startsWith("/admin/features/2290")) return "Form 2290";
   const last = pathname.split("/").filter(Boolean).pop() ?? "Admin";
   return last.charAt(0).toUpperCase() + last.slice(1);
 }
@@ -204,6 +206,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 >
                   <span className={styles.navDot} />
                   UCR
+                </Link>
+                <Link
+                  href="/admin/features/2290"
+                  className={navItemClass("/admin/features/2290")}
+                >
+                  <span className={styles.navDot} />
+                  Form 2290
                 </Link>
               </div>
             </nav>
