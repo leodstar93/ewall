@@ -7,6 +7,13 @@ type TruckOption = {
   id: string;
   unitNumber: string;
   vin: string | null;
+  year?: number | null;
+  make?: string | null;
+  model?: string | null;
+  grossWeight?: number | null;
+  axleCount?: number | null;
+  vehicleType?: "TRACTOR" | "STRAIGHT_TRUCK" | "SEMI_TRUCK" | "OTHER" | null;
+  isInterstate?: boolean;
 };
 
 type JurisdictionOption = {
@@ -70,6 +77,31 @@ export default function DmvRegistrationForm({
 
     void load();
   }, []);
+
+  function applySelectedTruck(truckId: string) {
+    const selectedTruck = trucks.find((truck) => truck.id === truckId);
+
+    setForm((current) => ({
+      ...current,
+      truckId,
+      unitNumber: selectedTruck?.unitNumber ?? current.unitNumber,
+      vin: selectedTruck?.vin ?? "",
+      year:
+        typeof selectedTruck?.year === "number" ? String(selectedTruck.year) : "",
+      make: selectedTruck?.make ?? "",
+      model: selectedTruck?.model ?? "",
+      grossWeight:
+        typeof selectedTruck?.grossWeight === "number"
+          ? String(selectedTruck.grossWeight)
+          : "",
+      axleCount:
+        typeof selectedTruck?.axleCount === "number"
+          ? String(selectedTruck.axleCount)
+          : "",
+      vehicleType: selectedTruck?.vehicleType ?? current.vehicleType,
+      isInterstate: selectedTruck?.isInterstate ?? false,
+    }));
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -172,7 +204,7 @@ export default function DmvRegistrationForm({
               <select
                 value={form.truckId}
                 disabled={form.createTruckInline || loading}
-                onChange={(event) => setForm((current) => ({ ...current, truckId: event.target.value }))}
+                onChange={(event) => applySelectedTruck(event.target.value)}
                 className="w-full rounded-2xl border border-zinc-300 px-3 py-2"
               >
                 <option value="">Create new truck inline</option>
