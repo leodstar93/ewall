@@ -83,6 +83,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     session?.user?.roles?.includes("ADMIN") ||
       session?.user?.roles?.includes("STAFF"),
   );
+  const canUseDashboardShell = Boolean(
+    pathname?.startsWith("/users/"),
+  );
   const userPermissions = useMemo(
     () =>
       Array.isArray(session?.user?.permissions)
@@ -119,10 +122,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
-    if (status === "authenticated" && hasAdminConsoleAccess) {
+    if (
+      status === "authenticated" &&
+      hasAdminConsoleAccess &&
+      !canUseDashboardShell
+    ) {
       router.replace("/admin");
     }
-  }, [status, hasAdminConsoleAccess, router]);
+  }, [status, hasAdminConsoleAccess, canUseDashboardShell, router]);
 
   useEffect(() => {
     const onDown = (event: MouseEvent) => {
@@ -208,7 +215,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }
     };
 
-    if (status === "authenticated" && session && !hasAdminConsoleAccess) {
+    if (
+      status === "authenticated" &&
+      session &&
+      (!hasAdminConsoleAccess || canUseDashboardShell)
+    ) {
       loadFeatures().catch(() => {
         if (active) setFeaturesError("Could not load modules.");
       });
@@ -217,7 +228,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => {
       active = false;
     };
-  }, [status, session, hasAdminConsoleAccess, userPermissions]);
+  }, [status, session, hasAdminConsoleAccess, canUseDashboardShell, userPermissions]);
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/" });
@@ -239,7 +250,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  if (status !== "authenticated" || hasAdminConsoleAccess) return null;
+  if (
+    status !== "authenticated" ||
+    (hasAdminConsoleAccess && !canUseDashboardShell)
+  ) {
+    return null;
+  }
 
   const isActive = (href: string) => {
     if (!pathname) return false;

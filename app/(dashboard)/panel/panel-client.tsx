@@ -501,7 +501,12 @@ export default function DashboardPage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <Link
-              href={`/users/${session.user.id}`}
+              href={
+                session.user.roles?.includes("ADMIN") ||
+                session.user.roles?.includes("STAFF")
+                  ? "/admin/profile"
+                  : `/users/${session.user.id}`
+              }
               className="rounded-2xl border bg-white p-5 shadow-sm transition hover:bg-zinc-50"
             >
               <p className="text-sm font-semibold text-zinc-900">

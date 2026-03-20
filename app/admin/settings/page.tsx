@@ -92,6 +92,25 @@ export default async function AdminSettingsPage() {
             Open Form 2290 Settings
           </Link>
         </article>
+
+        <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            DMV Registration
+          </p>
+          <h3 className="mt-3 text-xl font-semibold text-zinc-950">
+            Nevada-only and IRP workspace rules
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Manage DMV requirement templates, internal fee rules, and jurisdiction selectors
+            that power truck registration and renewal compliance.
+          </p>
+          <Link
+            href="/admin/settings/dmv"
+            className="mt-5 inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            Open DMV Settings
+          </Link>
+        </article>
       </section>
     </div>
   );

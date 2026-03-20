@@ -12,6 +12,7 @@ const tabs = [
   { href: "/admin/settings/ifta-tax-rates", label: "IFTA Tax Rates" },
   { href: "/admin/settings/ucr-rates", label: "UCR Rates" },
   { href: "/admin/settings/2290", label: "Form 2290" },
+  { href: "/admin/settings/dmv", label: "DMV Registration" },
 ];
 
 export default function SettingsTabs() {

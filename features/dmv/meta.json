@@ -1,0 +1,8 @@
+{
+  "label": "DMV Registration",
+  "section": "Operaciones",
+  "order": 35,
+  "icon": "FileCheck2",
+  "href": "/dmv",
+  "permission": ["dmv:read"]
+}

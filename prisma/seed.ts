@@ -1,7 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { prisma } from "../lib/prisma";
-import { Prisma } from "@prisma/client";
+import { DmvRegistrationType, Prisma, TruckVehicleType } from "@prisma/client";
 import { US_JURISDICTIONS } from "../features/ifta/constants/us-jurisdictions";
 
 // Cambia estos valores si quieres
@@ -54,6 +54,12 @@ const PERMISSIONS = [
   { key: "ucr:approve", description: "Approve and mark UCR filings compliant" },
   { key: "ucr:manage_rates", description: "Manage UCR annual rate brackets" },
   { key: "ucr:upload_documents", description: "Upload UCR filing documents" },
+  { key: "dmv:read", description: "Read DMV registrations and renewals" },
+  { key: "dmv:create", description: "Create DMV trucks, registrations, and renewals" },
+  { key: "dmv:update", description: "Update DMV cases and requirements" },
+  { key: "dmv:review", description: "Review DMV cases and request corrections" },
+  { key: "dmv:approve", description: "Approve DMV cases and mark them active or completed" },
+  { key: "dmv:manage_settings", description: "Manage DMV requirement templates and fee rules" },
   { key: "compliance2290:view", description: "View Form 2290 filings" },
   { key: "compliance2290:create", description: "Create Form 2290 filings" },
   { key: "compliance2290:update", description: "Update editable Form 2290 filings" },
@@ -86,6 +92,9 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "ucr:update",
     "ucr:submit",
     "ucr:upload_documents",
+    "dmv:read",
+    "dmv:create",
+    "dmv:update",
     "compliance2290:view",
     "compliance2290:create",
     "compliance2290:update",
@@ -101,6 +110,12 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "ucr:request_correction",
     "ucr:approve",
     "ucr:upload_documents",
+    "dmv:read",
+    "dmv:create",
+    "dmv:update",
+    "dmv:review",
+    "dmv:approve",
+    "dmv:manage_settings",
     "compliance2290:view",
     "compliance2290:create",
     "compliance2290:update",
@@ -118,6 +133,9 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "ucr:update",
     "ucr:submit",
     "ucr:upload_documents",
+    "dmv:read",
+    "dmv:create",
+    "dmv:update",
     "compliance2290:view",
     "compliance2290:create",
     "compliance2290:update",
@@ -132,6 +150,84 @@ const SAMPLE_UCR_BRACKETS = [
   { minVehicles: 21, maxVehicles: 100, feeAmount: "963.00" },
   { minVehicles: 101, maxVehicles: 1000, feeAmount: "4592.00" },
   { minVehicles: 1001, maxVehicles: 1000000, feeAmount: "44710.00" },
+] as const;
+
+const DMV_REQUIREMENT_TEMPLATES: Array<{
+  code: string;
+  name: string;
+  appliesToType?: DmvRegistrationType;
+  isRequired?: boolean;
+}> = [
+  { code: "MC011_LICENSE_APPLICATION", name: "Licensing application" },
+  { code: "MC003_VEHICLE_APPLICATION", name: "Vehicle application" },
+  { code: "MC076_REGISTRANT_RESPONSIBILITIES", name: "Registrant / taxpayer responsibilities" },
+  { code: "FEIN_PROOF", name: "FEIN proof" },
+  { code: "TITLE_OR_OWNERSHIP", name: "Proof of ownership / title" },
+  { code: "INSURANCE_CARD_NV", name: "Nevada insurance card" },
+  { code: "VIN_INSPECTION_IF_APPLICABLE", name: "VIN inspection if applicable" },
+  { code: "SALES_TAX_PROOF_IF_APPLICABLE", name: "Sales tax proof if applicable", isRequired: false },
+  { code: "FORM_2290_IF_55000_PLUS", name: "Form 2290 for 55,000 lbs+ if applicable", isRequired: false },
+  { code: "PRINCIPAL_DRIVER_LICENSE", name: "Principal current driver license" },
+  {
+    code: "MC006_MILEAGE_WEIGHT_APPLICATION",
+    name: "Mileage / weight application",
+    appliesToType: DmvRegistrationType.IRP,
+  },
+  {
+    code: "MC004_APVD",
+    name: "Apportioned vehicle declaration",
+    appliesToType: DmvRegistrationType.IRP,
+  },
+  {
+    code: "MC040_IRP_REGISTRATION_CERTIFICATION",
+    name: "IRP registration certification",
+    appliesToType: DmvRegistrationType.IRP,
+  },
+  {
+    code: "DOT_PROOF",
+    name: "DOT proof",
+    appliesToType: DmvRegistrationType.IRP,
+  },
+  {
+    code: "LEASE_LETTER_IF_APPLICABLE",
+    name: "Lease letter if applicable",
+    appliesToType: DmvRegistrationType.IRP,
+    isRequired: false,
+  },
+  {
+    code: "3X_NV_RESIDENCY_PROOFS",
+    name: "Nevada residency / established place of business proofs",
+    appliesToType: DmvRegistrationType.IRP,
+  },
+  {
+    code: "PRIOR_JURISDICTION_MILEAGE_IF_RELOCATED",
+    name: "Prior jurisdiction mileage if relocated",
+    appliesToType: DmvRegistrationType.IRP,
+    isRequired: false,
+  },
+] as const;
+
+const DMV_SAMPLE_FEE_RULES: Array<{
+  registrationType?: DmvRegistrationType;
+  jurisdictionCode?: string;
+  vehicleType?: TruckVehicleType;
+  amount: string;
+}> = [
+  {
+    registrationType: DmvRegistrationType.NEVADA_ONLY,
+    vehicleType: TruckVehicleType.STRAIGHT_TRUCK,
+    amount: "175.00",
+  },
+  {
+    registrationType: DmvRegistrationType.NEVADA_ONLY,
+    vehicleType: TruckVehicleType.SEMI_TRUCK,
+    amount: "225.00",
+  },
+  {
+    registrationType: DmvRegistrationType.IRP,
+    jurisdictionCode: "NV",
+    amount: "350.00",
+  },
 ] as const;
 
 async function upsertRoles() {
@@ -308,6 +404,56 @@ async function upsertForm2290Defaults() {
   });
 }
 
+async function upsertDmvRequirementTemplates() {
+  for (const [index, template] of DMV_REQUIREMENT_TEMPLATES.entries()) {
+    await prisma.dmvRequirementTemplate.upsert({
+      where: { code: template.code },
+      update: {
+        name: template.name,
+        appliesToType: template.appliesToType ?? null,
+        appliesToInitial: true,
+        appliesToRenewal: true,
+        isRequired: template.isRequired ?? true,
+        active: true,
+        sortOrder: index,
+      },
+      create: {
+        code: template.code,
+        name: template.name,
+        appliesToType: template.appliesToType ?? null,
+        appliesToInitial: true,
+        appliesToRenewal: true,
+        isRequired: template.isRequired ?? true,
+        active: true,
+        sortOrder: index,
+      },
+    });
+  }
+}
+
+async function upsertDmvFeeRules() {
+  for (const [index, rule] of DMV_SAMPLE_FEE_RULES.entries()) {
+    await prisma.dmvFeeRule.upsert({
+      where: { id: `dmv-fee-rule-${index + 1}` },
+      update: {
+        registrationType: rule.registrationType ?? null,
+        jurisdictionCode: rule.jurisdictionCode ?? null,
+        vehicleType: rule.vehicleType ?? null,
+        amount: new Prisma.Decimal(rule.amount),
+        active: true,
+      },
+      create: {
+        id: `dmv-fee-rule-${index + 1}`,
+        registrationType: rule.registrationType ?? null,
+        jurisdictionCode: rule.jurisdictionCode ?? null,
+        vehicleType: rule.vehicleType ?? null,
+        amount: new Prisma.Decimal(rule.amount),
+        active: true,
+      },
+    });
+  }
+}
+
 async function main() {
   console.log("🌱 Seeding RBAC...");
 
@@ -317,6 +463,8 @@ async function main() {
   await upsertJurisdictions();
   await upsertSampleUcrBrackets();
   await upsertForm2290Defaults();
+  await upsertDmvRequirementTemplates();
+  await upsertDmvFeeRules();
 
   const admin = await upsertAdminUser();
 

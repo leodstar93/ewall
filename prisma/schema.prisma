@@ -12,27 +12,28 @@ model User {
   name          String?
   image         String?
   emailVerified DateTime?
-  passwordHash  String?   // para Credentials
+  passwordHash  String? // para Credentials
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   // NextAuth relations
-  accounts      Account[]
-  sessions      Session[]
+  accounts Account[]
+  sessions Session[]
 
   // RBAC
-  roles         UserRole[]
-  
+  roles UserRole[]
+
   // Documents
-  documents     Document[]
+  documents Document[]
 
   //IFTA
-  trucks        Truck[]
-  iftaReports   IftaReport[]
-  trips         Trip[]
-  fuelPurchases FuelPurchase[]
-  ucrFilings    UCRFiling[]
-  form2290Filings Form2290Filing[]
+  trucks           Truck[]
+  iftaReports      IftaReport[]
+  trips            Trip[]
+  fuelPurchases    FuelPurchase[]
+  ucrFilings       UCRFiling[]
+  form2290Filings  Form2290Filing[]
+  dmvRegistrations DmvRegistration[]
 }
 
 model Account {
@@ -72,16 +73,16 @@ model VerificationToken {
 }
 
 model Role {
-  id          String @id @default(cuid())
-  name        String @unique // "ADMIN", "DOCTOR", "STAFF"
+  id          String           @id @default(cuid())
+  name        String           @unique // "ADMIN", "DOCTOR", "STAFF"
   description String?
   users       UserRole[]
   permissions RolePermission[]
 }
 
 model Permission {
-  id          String @id @default(cuid())
-  key         String @unique // "cases:read"
+  id          String           @id @default(cuid())
+  key         String           @unique // "cases:read"
   description String?
   roles       RolePermission[]
 }
@@ -89,8 +90,8 @@ model Permission {
 model UserRole {
   userId String
   roleId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
 }
@@ -111,15 +112,17 @@ model Document {
   category    String?
   fileName    String
   fileUrl     String
-  fileSize    Int      // in bytes
-  fileType    String   // mime type
+  fileSize    Int // in bytes
+  fileType    String // mime type
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  form2290Schedule1For Form2290Filing[]  @relation("Form2290Schedule1")
+  form2290Schedule1For Form2290Filing[]          @relation("Form2290Schedule1")
   form2290Links        Form2290Document[]
+  dmvRegistrationLinks DmvRegistrationDocument[]
+  dmvRenewalLinks      DmvRenewalDocument[]
 
   @@index([userId])
   @@index([category])
@@ -197,57 +200,144 @@ enum Form2290DocumentType {
   PAYMENT_PROOF
 }
 
-model Truck {
-  id           String   @id @default(cuid())
-  unitNumber   String
-  nickname     String?
-  plateNumber  String?
-  vin          String?  @unique
-  make         String?
-  model        String?
-  year         Int?
-  grossWeight  Int?
-  is2290Eligible Boolean @default(false)
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+enum TruckVehicleType {
+  TRACTOR
+  STRAIGHT_TRUCK
+  SEMI_TRUCK
+  OTHER
+}
 
-  trips        Trip[]
-  fuelPurchases FuelPurchase[]
-  iftaReports  IftaReport[]
-  form2290Filings Form2290Filing[]
+enum TruckOperationType {
+  INTRASTATE
+  INTERSTATE
+}
+
+enum DmvRegistrationType {
+  NEVADA_ONLY
+  IRP
+}
+
+enum DmvFilingType {
+  INITIAL
+  RENEWAL
+}
+
+enum DmvRegistrationStatus {
+  DRAFT
+  WAITING_CLIENT_DOCS
+  UNDER_REVIEW
+  CORRECTION_REQUIRED
+  READY_FOR_FILING
+  SUBMITTED
+  APPROVED
+  ACTIVE
+  EXPIRED
+  REJECTED
+  CANCELLED
+}
+
+enum DmvRenewalStatus {
+  NOT_OPEN
+  OPEN
+  WAITING_CLIENT_DOCS
+  UNDER_REVIEW
+  CORRECTION_REQUIRED
+  READY_FOR_FILING
+  SUBMITTED
+  APPROVED
+  COMPLETED
+  REJECTED
+  OVERDUE
+}
+
+enum DmvRequirementStatus {
+  MISSING
+  UPLOADED
+  APPROVED
+  REJECTED
+  WAIVED
+}
+
+enum DmvDocumentReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DmvMileageSource {
+  MANUAL
+  IMPORT
+  ELD
+  PRIOR_JURISDICTION
+}
+
+enum DmvActorType {
+  SYSTEM
+  CLIENT
+  STAFF
+  ADMIN
+}
+
+model Truck {
+  id             String             @id @default(cuid())
+  unitNumber     String
+  nickname       String?
+  plateNumber    String?
+  statePlate     String?
+  vin            String?            @unique
+  make           String?
+  model          String?
+  year           Int?
+  grossWeight    Int?
+  axleCount      Int?
+  vehicleType    TruckVehicleType?
+  operationType  TruckOperationType @default(INTRASTATE)
+  isInterstate   Boolean            @default(false)
+  isActive       Boolean            @default(true)
+  notes          String?
+  is2290Eligible Boolean            @default(false)
+  userId         String
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  trips            Trip[]
+  fuelPurchases    FuelPurchase[]
+  iftaReports      IftaReport[]
+  form2290Filings  Form2290Filing[]
+  dmvRegistrations DmvRegistration[]
 
   @@index([userId])
   @@index([vin])
 }
 
 model Jurisdiction {
-  id          String   @id @default(cuid())
-  code        String   @unique // NV, CA, AZ
-  name        String   @unique // Nevada, California
-  countryCode String?
-  isIftaMember Boolean @default(true)
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  code         String   @unique // NV, CA, AZ
+  name         String   @unique // Nevada, California
+  countryCode  String?
+  isIftaMember Boolean  @default(true)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  taxRates    IftaTaxRate[]
-  tripMiles   TripMileage[]
-  fuelPurchases FuelPurchase[]
-  reportLines IftaReportLine[]
+  taxRates                     IftaTaxRate[]
+  tripMiles                    TripMileage[]
+  fuelPurchases                FuelPurchase[]
+  reportLines                  IftaReportLine[]
+  dmvRegistrationJurisdictions DmvRegistrationJurisdiction[]
 }
 
 model IftaTaxRate {
-  id               String       @id @default(cuid())
-  jurisdictionId   String
-  jurisdiction     Jurisdiction @relation(fields: [jurisdictionId], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
+  jurisdictionId String
+  jurisdiction   Jurisdiction @relation(fields: [jurisdictionId], references: [id], onDelete: Cascade)
 
-  year             Int
-  quarter          Quarter
-  fuelType         FuelType
-  taxRate          Decimal      @db.Decimal(10, 4) // ej 1.0230
+  year     Int
+  quarter  Quarter
+  fuelType FuelType
+  taxRate  Decimal  @db.Decimal(10, 4) // ej 1.0230
 
   effectiveFrom    DateTime?
   effectiveTo      DateTime?
@@ -257,159 +347,159 @@ model IftaTaxRate {
   importedAt       DateTime?
   importedById     String?
   notes            String?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([jurisdictionId, year, quarter, fuelType])
   @@index([year, quarter])
 }
 
 model IftaTaxRateImportRun {
-  id            String   @id @default(cuid())
-  year          Int
-  quarter       Quarter
-  sourceType    String
-  sourceUrl     String?
-  totalRows     Int      @default(0)
-  insertedRows  Int      @default(0)
-  updatedRows   Int      @default(0)
-  skippedRows   Int      @default(0)
-  status        String
-  message       String?
-  executedAt    DateTime @default(now())
-  executedById  String?
+  id           String   @id @default(cuid())
+  year         Int
+  quarter      Quarter
+  sourceType   String
+  sourceUrl    String?
+  totalRows    Int      @default(0)
+  insertedRows Int      @default(0)
+  updatedRows  Int      @default(0)
+  skippedRows  Int      @default(0)
+  status       String
+  message      String?
+  executedAt   DateTime @default(now())
+  executedById String?
 
   @@index([year, quarter, executedAt])
 }
 
 model IftaReport {
-  id                String        @id @default(cuid())
-  userId            String
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  truckId           String?
-  truck             Truck?        @relation(fields: [truckId], references: [id], onDelete: SetNull)
+  truckId String?
+  truck   Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
 
-  year              Int
-  quarter           Quarter
-  fuelType          FuelType      @default(DI)
-  status            ReportStatus  @default(DRAFT)
+  year     Int
+  quarter  Quarter
+  fuelType FuelType     @default(DI)
+  status   ReportStatus @default(DRAFT)
 
-  totalMiles        Decimal       @default(0) @db.Decimal(12, 2)
-  totalGallons      Decimal       @default(0) @db.Decimal(12, 2)
-  averageMpg        Decimal       @default(0) @db.Decimal(10, 2)
-  totalTaxDue       Decimal       @default(0) @db.Decimal(12, 2)
+  totalMiles   Decimal @default(0) @db.Decimal(12, 2)
+  totalGallons Decimal @default(0) @db.Decimal(12, 2)
+  averageMpg   Decimal @default(0) @db.Decimal(10, 2)
+  totalTaxDue  Decimal @default(0) @db.Decimal(12, 2)
 
-  filedAt           DateTime?
+  filedAt              DateTime?
   submittedForReviewAt DateTime?
-  staffReviewedAt   DateTime?
-  notes             String?
-  reviewNotes       String?
+  staffReviewedAt      DateTime?
+  notes                String?
+  reviewNotes          String?
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  lines             IftaReportLine[]
-  trips             Trip[]
-  fuelPurchases     FuelPurchase[]
+  lines         IftaReportLine[]
+  trips         Trip[]
+  fuelPurchases FuelPurchase[]
 
   @@unique([userId, truckId, year, quarter, fuelType])
   @@index([userId, year, quarter])
 }
 
 model IftaReportLine {
-  id                  String        @id @default(cuid())
-  reportId            String
-  report              IftaReport    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  id       String     @id @default(cuid())
+  reportId String
+  report   IftaReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
-  jurisdictionId      String
-  jurisdiction        Jurisdiction  @relation(fields: [jurisdictionId], references: [id], onDelete: Restrict)
+  jurisdictionId String
+  jurisdiction   Jurisdiction @relation(fields: [jurisdictionId], references: [id], onDelete: Restrict)
 
-  fuelType            FuelType      @default(DI)
-  taxRate             Decimal       @db.Decimal(10, 4)
+  fuelType FuelType @default(DI)
+  taxRate  Decimal  @db.Decimal(10, 4)
 
-  miles               Decimal       @default(0) @db.Decimal(12, 2)   // input manual
-  paidGallons         Decimal       @default(0) @db.Decimal(12, 2)   // input manual
+  miles       Decimal @default(0) @db.Decimal(12, 2) // input manual
+  paidGallons Decimal @default(0) @db.Decimal(12, 2) // input manual
 
-  taxableMiles        Decimal       @default(0) @db.Decimal(12, 2)   // calculado
-  taxableGallons      Decimal       @default(0) @db.Decimal(12, 2)   // calculado
-  netTaxableGallons   Decimal       @default(0) @db.Decimal(12, 2)   // calculado
-  taxDue              Decimal       @default(0) @db.Decimal(12, 2)   // calculado
+  taxableMiles      Decimal @default(0) @db.Decimal(12, 2) // calculado
+  taxableGallons    Decimal @default(0) @db.Decimal(12, 2) // calculado
+  netTaxableGallons Decimal @default(0) @db.Decimal(12, 2) // calculado
+  taxDue            Decimal @default(0) @db.Decimal(12, 2) // calculado
 
-  sortOrder           Int           @default(0)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([reportId, jurisdictionId, fuelType])
 }
 
 model Trip {
-  id             String         @id @default(cuid())
-  userId         String
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  truckId        String?
-  truck          Truck?         @relation(fields: [truckId], references: [id], onDelete: SetNull)
+  truckId String?
+  truck   Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
 
-  reportId       String?
-  report         IftaReport?    @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  reportId String?
+  report   IftaReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
 
-  tripDate       DateTime
-  origin         String?
-  destination    String?
-  totalMiles     Decimal?       @db.Decimal(12, 2)
-  notes          String?
+  tripDate    DateTime
+  origin      String?
+  destination String?
+  totalMiles  Decimal? @db.Decimal(12, 2)
+  notes       String?
 
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  mileages       TripMileage[]
+  mileages TripMileage[]
 
   @@index([userId, tripDate])
   @@index([reportId])
 }
 
 model TripMileage {
-  id               String        @id @default(cuid())
-  tripId           String
-  trip             Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
-  jurisdictionId   String
-  jurisdiction     Jurisdiction  @relation(fields: [jurisdictionId], references: [id], onDelete: Restrict)
+  jurisdictionId String
+  jurisdiction   Jurisdiction @relation(fields: [jurisdictionId], references: [id], onDelete: Restrict)
 
-  miles            Decimal       @default(0) @db.Decimal(12, 2)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  miles     Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([tripId, jurisdictionId])
   @@index([jurisdictionId])
 }
 
 model FuelPurchase {
-  id               String        @id @default(cuid())
-  userId           String
-  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  truckId          String?
-  truck            Truck?        @relation(fields: [truckId], references: [id], onDelete: SetNull)
+  truckId String?
+  truck   Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
 
-  reportId         String?
-  report           IftaReport?   @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  reportId String?
+  report   IftaReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
 
-  jurisdictionId   String
-  jurisdiction     Jurisdiction  @relation(fields: [jurisdictionId], references: [id], onDelete: Restrict)
+  jurisdictionId String
+  jurisdiction   Jurisdiction @relation(fields: [jurisdictionId], references: [id], onDelete: Restrict)
 
-  purchaseDate     DateTime
-  fuelType         FuelType      @default(DI)
-  gallons          Decimal       @db.Decimal(12, 2)
-  pricePerGallon   Decimal?      @db.Decimal(10, 4)
-  totalAmount      Decimal?      @db.Decimal(12, 2)
-  vendor           String?
-  receiptNumber    String?
-  receiptUrl       String?
+  purchaseDate   DateTime
+  fuelType       FuelType @default(DI)
+  gallons        Decimal  @db.Decimal(12, 2)
+  pricePerGallon Decimal? @db.Decimal(10, 4)
+  totalAmount    Decimal? @db.Decimal(12, 2)
+  vendor         String?
+  receiptNumber  String?
+  receiptUrl     String?
 
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, purchaseDate])
   @@index([reportId])
@@ -426,12 +516,12 @@ model UCRRateBracket {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([year, active])
   @@unique([year, minVehicles, maxVehicles])
+  @@index([year, active])
 }
 
 model UCRFiling {
-  id                    String           @id @default(cuid())
+  id                    String          @id @default(cuid())
   userId                String
   filingYear            Int
   legalName             String
@@ -440,11 +530,11 @@ model UCRFiling {
   fein                  String?
   baseState             String?
   entityType            UCREntityType
-  interstateOperation   Boolean          @default(true)
+  interstateOperation   Boolean         @default(true)
   fleetSize             Int
   bracketLabel          String?
-  feeAmount             Decimal          @db.Decimal(10, 2)
-  status                UCRFilingStatus  @default(DRAFT)
+  feeAmount             Decimal         @db.Decimal(10, 2)
+  status                UCRFilingStatus @default(DRAFT)
   submittedAt           DateTime?
   reviewStartedAt       DateTime?
   correctionRequestedAt DateTime?
@@ -456,15 +546,15 @@ model UCRFiling {
   clientNotes           String?
   staffNotes            String?
   correctionNote        String?
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents UCRDocument[]
 
+  @@unique([userId, filingYear])
   @@index([userId, filingYear])
   @@index([status])
-  @@unique([userId, filingYear])
 }
 
 model UCRDocument {
@@ -493,69 +583,69 @@ model Form2290Setting {
 }
 
 model Form2290TaxPeriod {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   name           String
   startDate      DateTime
   endDate        DateTime
   filingDeadline DateTime?
-  isActive       Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  filings        Form2290Filing[]
+  filings Form2290Filing[]
 
   @@index([startDate, endDate])
   @@index([isActive])
 }
 
 model Form2290Filing {
-  id                  String                  @id @default(cuid())
+  id                  String                @id @default(cuid())
   userId              String
   truckId             String
   taxPeriodId         String
-  status              Form2290Status         @default(DRAFT)
-  paymentStatus       Form2290PaymentStatus  @default(UNPAID)
+  status              Form2290Status        @default(DRAFT)
+  paymentStatus       Form2290PaymentStatus @default(UNPAID)
   vinSnapshot         String
   unitNumberSnapshot  String?
   grossWeightSnapshot Int?
   firstUsedMonth      Int?
   firstUsedYear       Int?
-  amountDue           Decimal?               @db.Decimal(10, 2)
+  amountDue           Decimal?              @db.Decimal(10, 2)
   filedAt             DateTime?
   paidAt              DateTime?
   compliantAt         DateTime?
   expiresAt           DateTime?
   schedule1DocumentId String?
   notes               String?
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  truck             Truck              @relation(fields: [truckId], references: [id], onDelete: Restrict)
-  taxPeriod         Form2290TaxPeriod  @relation(fields: [taxPeriodId], references: [id], onDelete: Restrict)
-  schedule1Document Document?          @relation("Form2290Schedule1", fields: [schedule1DocumentId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  truck             Truck             @relation(fields: [truckId], references: [id], onDelete: Restrict)
+  taxPeriod         Form2290TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Restrict)
+  schedule1Document Document?         @relation("Form2290Schedule1", fields: [schedule1DocumentId], references: [id])
 
-  corrections       Form2290Correction[]
-  documents         Form2290Document[]
-  activityLogs      Form2290ActivityLog[]
+  corrections  Form2290Correction[]
+  documents    Form2290Document[]
+  activityLogs Form2290ActivityLog[]
 
+  @@unique([truckId, taxPeriodId])
   @@index([userId])
   @@index([truckId])
   @@index([taxPeriodId])
   @@index([status, paymentStatus])
-  @@unique([truckId, taxPeriodId])
 }
 
 model Form2290Correction {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   filingId      String
   requestedById String
   message       String
-  resolved      Boolean  @default(false)
+  resolved      Boolean   @default(false)
   resolvedAt    DateTime?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
-  filing        Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  filing Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
 
   @@index([filingId, resolved])
 }
@@ -567,23 +657,231 @@ model Form2290Document {
   type       Form2290DocumentType
   createdAt  DateTime             @default(now())
 
-  filing     Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
-  document   Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  filing   Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  document Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
+  @@unique([filingId, documentId])
   @@index([filingId])
   @@index([documentId])
-  @@unique([filingId, documentId])
 }
 
 model Form2290ActivityLog {
   id          String   @id @default(cuid())
-  filingId     String
-  actorUserId  String?
-  action       String
-  metaJson     Json?
-  createdAt    DateTime @default(now())
+  filingId    String
+  actorUserId String?
+  action      String
+  metaJson    Json?
+  createdAt   DateTime @default(now())
 
-  filing       Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  filing Form2290Filing @relation(fields: [filingId], references: [id], onDelete: Cascade)
 
   @@index([filingId, createdAt])
+}
+
+model DmvRegistration {
+  id                    String                @id @default(cuid())
+  userId                String
+  truckId               String
+  registrationType      DmvRegistrationType
+  filingType            DmvFilingType         @default(INITIAL)
+  status                DmvRegistrationStatus @default(DRAFT)
+  dmvAccountNumber      String?
+  fleetNumber           String?
+  cabCardNumber         String?
+  plateNumber           String?
+  jurisdictionBase      String?               @default("NV")
+  effectiveDate         DateTime?
+  expirationDate        DateTime?
+  registrationMonth     Int?
+  declaredGrossWeight   Int?
+  apportioned           Boolean               @default(false)
+  establishedBusinessOk Boolean?
+  carrierRelocated      Boolean               @default(false)
+  dotNumber             String?
+  mcNumber              String?
+  fein                  String?
+  nevadaAddress         String?
+  lastSubmittedAt       DateTime?
+  lastApprovedAt        DateTime?
+  approvedByUserId      String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  user          User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  truck         Truck                         @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  renewals      DmvRenewal[]
+  jurisdictions DmvRegistrationJurisdiction[]
+  requirements  DmvRequirementSnapshot[]
+  activities    DmvActivity[]
+  documents     DmvRegistrationDocument[]
+
+  @@index([userId])
+  @@index([truckId])
+  @@index([status])
+  @@index([expirationDate])
+  @@index([registrationType])
+}
+
+model DmvRenewal {
+  id               String            @id @default(cuid())
+  registrationId   String
+  cycleYear        Int
+  status           DmvRenewalStatus  @default(NOT_OPEN)
+  dueDate          DateTime
+  openedAt         DateTime?
+  submittedAt      DateTime?
+  reviewedAt       DateTime?
+  approvedAt       DateTime?
+  completedAt      DateTime?
+  approvedByUserId String?
+  internalNotes    String?
+  clientNotes      String?
+  correctionReason String?
+  mileageSource    DmvMileageSource?
+  totalMiles       Int?
+  nvMiles          Int?
+  mileageDataJson  Json?
+  feeEstimateJson  Json?
+  resultJson       Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  registration DmvRegistration          @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  requirements DmvRequirementSnapshot[]
+  documents    DmvRenewalDocument[]
+  activities   DmvActivity[]
+
+  @@unique([registrationId, cycleYear])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model DmvRegistrationJurisdiction {
+  id               String  @id @default(cuid())
+  registrationId   String
+  jurisdictionId   String?
+  jurisdictionCode String
+  declaredWeight   Int?
+  estimatedMiles   Int?
+  actualMiles      Int?
+
+  registration DmvRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  jurisdiction Jurisdiction?   @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+
+  @@unique([registrationId, jurisdictionCode])
+  @@index([registrationId])
+  @@index([jurisdictionId])
+}
+
+model DmvRequirementTemplate {
+  id               String               @id @default(cuid())
+  code             String               @unique
+  name             String
+  appliesToType    DmvRegistrationType?
+  appliesToRenewal Boolean              @default(true)
+  appliesToInitial Boolean              @default(true)
+  isRequired       Boolean              @default(true)
+  sortOrder        Int                  @default(0)
+  active           Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([active, sortOrder])
+  @@index([appliesToType])
+}
+
+model DmvRequirementSnapshot {
+  id             String               @id @default(cuid())
+  registrationId String
+  renewalId      String?
+  code           String
+  name           String
+  isRequired     Boolean
+  status         DmvRequirementStatus @default(MISSING)
+  note           String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  registration DmvRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  renewal      DmvRenewal?     @relation(fields: [renewalId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, renewalId, code])
+  @@index([registrationId])
+  @@index([renewalId])
+  @@index([status])
+}
+
+model DmvRegistrationDocument {
+  id              String                  @id @default(cuid())
+  registrationId  String
+  requirementCode String?
+  documentId      String
+  status          DmvDocumentReviewStatus @default(PENDING)
+  rejectionNote   String?
+  createdAt       DateTime                @default(now())
+
+  registration DmvRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  document     Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, documentId])
+  @@index([registrationId])
+  @@index([documentId])
+  @@index([requirementCode])
+}
+
+model DmvRenewalDocument {
+  id              String                  @id @default(cuid())
+  renewalId       String
+  requirementCode String?
+  documentId      String
+  status          DmvDocumentReviewStatus @default(PENDING)
+  rejectionNote   String?
+  createdAt       DateTime                @default(now())
+
+  renewal  DmvRenewal @relation(fields: [renewalId], references: [id], onDelete: Cascade)
+  document Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([renewalId, documentId])
+  @@index([renewalId])
+  @@index([documentId])
+  @@index([requirementCode])
+}
+
+model DmvActivity {
+  id             String       @id @default(cuid())
+  registrationId String?
+  renewalId      String?
+  actorUserId    String?
+  actorType      DmvActorType
+  action         String
+  fromStatus     String?
+  toStatus       String?
+  message        String?
+  metadataJson   Json?
+  createdAt      DateTime     @default(now())
+
+  registration DmvRegistration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  renewal      DmvRenewal?      @relation(fields: [renewalId], references: [id], onDelete: Cascade)
+
+  @@index([registrationId])
+  @@index([renewalId])
+  @@index([createdAt])
+}
+
+model DmvFeeRule {
+  id               String               @id @default(cuid())
+  registrationType DmvRegistrationType?
+  jurisdictionCode String?
+  vehicleType      TruckVehicleType?
+  minWeight        Int?
+  maxWeight        Int?
+  amount           Decimal              @db.Decimal(10, 2)
+  active           Boolean              @default(true)
+  effectiveFrom    DateTime?
+  effectiveTo      DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([registrationType, active])
+  @@index([jurisdictionCode, active])
 }

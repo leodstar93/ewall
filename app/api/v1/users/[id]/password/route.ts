@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { NextRequest } from "next/server";
 import bcrypt from "bcrypt";
-import { requireApiPermission } from "@/lib/rbac-api";
 import { sendTemporaryPasswordEmail } from "@/lib/email";
 import { generateTemporaryPassword } from "@/lib/password";
 
@@ -10,9 +9,6 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { ok, res } = await requireApiPermission("profile:write");
-  if (!ok) return res;
-
   const session = await auth();
   const { id } = await params;
 

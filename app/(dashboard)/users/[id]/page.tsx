@@ -1,13 +1,30 @@
-import { requirePermission } from "@/lib/rbac-guard";
+import { auth } from "@/auth";
+import { getAuthz } from "@/lib/rbac";
 import { redirect } from "next/navigation";
 import ProfilePage from "./profile-client";
 
-export default async function AdminPage() {
-  const res = await requirePermission("profile:access");
-  console.log("requirePermission result:", res);
+export default async function AdminPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const authSession = await auth();
+  if (!authSession?.user?.id) {
+    redirect("/login");
+  }
 
-  if (!res.ok) {
-    redirect(res.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
+  const { roles } = await getAuthz();
+  const { id } = await params;
+
+  if (authSession.user.id !== id) {
+    redirect("/forbidden");
+  }
+
+  if (
+    authSession.user.id === id &&
+    (roles.includes("STAFF") || roles.includes("ADMIN"))
+  ) {
+    redirect("/admin/profile");
   }
 
   return <ProfilePage />;

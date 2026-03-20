@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 interface LinkedAccount {
   provider: string;
@@ -63,6 +63,7 @@ function Alert({
 export default function ProfilePage() {
   const { data: session, status, update } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -98,6 +99,10 @@ export default function ProfilePage() {
     () => linkedAccounts.some((acc) => acc.provider === "google"),
     [linkedAccounts],
   );
+  const userRoles = session?.user?.roles ?? [];
+  const userPermissions = session?.user?.permissions ?? [];
+  const userName = session?.user?.name ?? "";
+  const userEmail = session?.user?.email ?? "";
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -127,13 +132,13 @@ export default function ProfilePage() {
 
   // Sync form with session
   useEffect(() => {
-    if (session?.user) {
+    if (status === "authenticated") {
       setFormData({
-        name: session.user.name ?? "",
-        email: session.user.email ?? "",
+        name: userName,
+        email: userEmail,
       });
     }
-  }, [session?.user?.name, session?.user?.email]);
+  }, [status, userName, userEmail]);
 
   if (status === "unauthenticated") return null;
 
@@ -273,7 +278,7 @@ export default function ProfilePage() {
 
   const handleLinkGoogle = () => {
     setAccountMessage("");
-    const currentPath = `/users/${session?.user?.id}`;
+    const currentPath = pathname || `/users/${session?.user?.id}`;
     router.push(
       `/auth/link-account?provider=google&callbackUrl=${encodeURIComponent(currentPath)}`,
     );
@@ -367,9 +372,9 @@ export default function ProfilePage() {
               Personal information
             </h2>
             <div className="flex gap-2">
-              {(session?.user?.roles ?? []).slice(0, 3).map((r: any) => (
-                <Badge key={String(r)} tone="blue">
-                  {String(r)}
+              {userRoles.slice(0, 3).map((role) => (
+                <Badge key={String(role)} tone="blue">
+                  {String(role)}
                 </Badge>
               ))}
             </div>
@@ -438,10 +443,10 @@ export default function ProfilePage() {
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              {(session?.user?.permissions ?? []).length ? (
-                (session?.user?.permissions ?? []).map((p: any) => (
-                  <Badge key={String(p)} tone="green">
-                    {String(p)}
+              {userPermissions.length ? (
+                userPermissions.map((permission) => (
+                  <Badge key={String(permission)} tone="green">
+                    {String(permission)}
                   </Badge>
                 ))
               ) : (

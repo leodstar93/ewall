@@ -13,6 +13,13 @@ type SendContactFormEmailInput = {
   message: string;
 };
 
+type SendDmvNotificationEmailInput = {
+  to: string;
+  subject: string;
+  lines: string[];
+  replyTo?: string | null;
+};
+
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
   if (!value) {
@@ -27,6 +34,108 @@ function getLoginUrl() {
     process.env.AUTH_URL?.trim() ||
     "http://localhost:3000";
   return `${appUrl.replace(/\/+$/, "")}/login`;
+}
+
+function getAppBaseUrl() {
+  return (
+    process.env.NEXTAUTH_URL?.trim() ||
+    process.env.AUTH_URL?.trim() ||
+    "http://localhost:3000"
+  ).replace(/\/+$/, "");
+}
+
+function buildAppUrl(path: string) {
+  return `${getAppBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export async function sendDmvNotificationEmail({
+  to,
+  subject,
+  lines,
+  replyTo,
+}: SendDmvNotificationEmailInput) {
+  const apiKey = requiredEnv("RESEND_API_KEY");
+  const from = requiredEnv("EMAIL_FROM");
+  const text = lines.join("\n");
+
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      text,
+      ...(replyTo?.trim() ? { reply_to: replyTo.trim() } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Failed to send email (${response.status}): ${errorText || "unknown error"}`,
+    );
+  }
+}
+
+export async function sendDmvRenewalReminderEmail(input: {
+  to: string;
+  name?: string | null;
+  unitNumber: string;
+  dueDate: Date | string;
+  daysBeforeDue: number;
+  renewalId: string;
+}) {
+  const salutation = input.name?.trim() || "there";
+  const dueDate = new Date(input.dueDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const workspaceUrl = buildAppUrl(`/dmv/renewals/${input.renewalId}`);
+
+  await sendDmvNotificationEmail({
+    to: input.to,
+    subject: `DMV renewal reminder for unit ${input.unitNumber}`,
+    lines: [
+      `Hi ${salutation},`,
+      "",
+      `Your Nevada DMV renewal case for unit ${input.unitNumber} is due on ${dueDate}.`,
+      `${input.daysBeforeDue} day(s) remain before the due date.`,
+      "",
+      `Open your renewal workspace: ${workspaceUrl}`,
+      "Please review documents, mileage, and any pending compliance items as soon as possible.",
+    ],
+  });
+}
+
+export async function sendDmvCorrectionRequiredEmail(input: {
+  to: string;
+  name?: string | null;
+  unitNumber: string;
+  caseLabel: string;
+  reason?: string | null;
+  workspacePath: string;
+}) {
+  const salutation = input.name?.trim() || "there";
+  const workspaceUrl = buildAppUrl(input.workspacePath);
+
+  await sendDmvNotificationEmail({
+    to: input.to,
+    subject: `Correction required for ${input.caseLabel} - unit ${input.unitNumber}`,
+    lines: [
+      `Hi ${salutation},`,
+      "",
+      `A correction was requested for your ${input.caseLabel} for unit ${input.unitNumber}.`,
+      input.reason?.trim() ? `Reason: ${input.reason.trim()}` : "Please review the case notes and update the missing items.",
+      "",
+      `Open the workspace: ${workspaceUrl}`,
+      "After updating the requested items, resubmit the case for review.",
+    ],
+  });
 }
 
 export async function sendTemporaryPasswordEmail({

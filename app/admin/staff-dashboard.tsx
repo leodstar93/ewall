@@ -51,6 +51,20 @@ type RecentForm2290 = {
   };
 };
 
+type RecentDmvRegistration = {
+  id: string;
+  status: string;
+  registrationType: string;
+  updatedAt: Date;
+  truck: {
+    unitNumber: string;
+  };
+  user: {
+    name: string | null;
+    email: string | null;
+  };
+};
+
 function displayUser(user: { name: string | null; email: string | null }) {
   return user.name?.trim() || user.email?.trim() || "Unknown user";
 }
@@ -62,10 +76,12 @@ export default async function StaffDashboardClient() {
     totalTrucks,
     totalFuelPurchases,
     totalUcrFilings,
+    totalDmvRegistrations,
     totalForm2290Filings,
     recentDocuments,
     recentReports,
     recentUcrFilings,
+    recentDmvRegistrations,
     recentForm2290Filings,
   ] = await Promise.all([
     prisma.document.count(),
@@ -73,6 +89,7 @@ export default async function StaffDashboardClient() {
     prisma.truck.count(),
     prisma.fuelPurchase.count(),
     prisma.uCRFiling.count(),
+    prisma.dmvRegistration.count(),
     prisma.form2290Filing.count(),
     prisma.document.findMany({
       take: 5,
@@ -109,6 +126,22 @@ export default async function StaffDashboardClient() {
         user: { select: { name: true, email: true } },
       },
     }) as Promise<RecentUcr[]>,
+    prisma.dmvRegistration.findMany({
+      take: 5,
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        registrationType: true,
+        updatedAt: true,
+        truck: {
+          select: {
+            unitNumber: true,
+          },
+        },
+        user: { select: { name: true, email: true } },
+      },
+    }) as Promise<RecentDmvRegistration[]>,
     prisma.form2290Filing.findMany({
       take: 5,
       orderBy: { updatedAt: "desc" },
@@ -160,6 +193,12 @@ export default async function StaffDashboardClient() {
       hint: "Annual compliance queue",
     },
     {
+      title: "DMV registrations",
+      value: totalDmvRegistrations,
+      href: "/admin/features/dmv",
+      hint: "Nevada and IRP review queue",
+    },
+    {
       title: "2290 filings",
       value: totalForm2290Filings,
       href: "/admin/features/2290",
@@ -177,7 +216,7 @@ export default async function StaffDashboardClient() {
                 Staff dashboard
               </h1>
               <p className="mt-1 text-sm text-zinc-600">
-                Operational overview for Documents, IFTA, UCR, and Form 2290 workflows.
+                Operational overview for Documents, IFTA, UCR, DMV, and Form 2290 workflows.
               </p>
             </div>
 
@@ -288,6 +327,37 @@ export default async function StaffDashboardClient() {
                   <p className="text-xs text-zinc-600">{filing.status}</p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {displayUser(filing.user)} - {new Date(filing.updatedAt).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-zinc-900">Latest DMV updates</h2>
+            <Link
+              href="/admin/features/dmv"
+              className="text-sm font-medium text-zinc-700 hover:text-zinc-900"
+            >
+              Open DMV
+            </Link>
+          </div>
+
+          {recentDmvRegistrations.length === 0 ? (
+            <p className="mt-4 text-sm text-zinc-600">No DMV activity yet.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {recentDmvRegistrations.map((registration) => (
+                <div key={registration.id} className="rounded-xl border p-3">
+                  <p className="text-sm font-semibold text-zinc-900">
+                    Unit {registration.truck.unitNumber} - {registration.registrationType}
+                  </p>
+                  <p className="text-xs text-zinc-600">{registration.status}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {displayUser(registration.user)} -{" "}
+                    {new Date(registration.updatedAt).toLocaleString()}
                   </p>
                 </div>
               ))}

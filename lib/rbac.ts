@@ -7,10 +7,22 @@ function hasWildcard(perms: string[], permission: string) {
   return perms.includes(`${mod}:manage`);
 }
 
+export function hasPermission(
+  perms: string[],
+  roles: string[],
+  permission: PermissionKey,
+) {
+  if (roles.includes("ADMIN")) return true;
+  return perms.includes(permission) || hasWildcard(perms, permission);
+}
+
 export async function getAuthz() {
   const session = await auth();
-  const perms = ((session?.user as any)?.permissions ?? []) as string[];
-  const roles = ((session?.user as any)?.roles ?? []) as string[];
+  const user = session?.user as
+    | (typeof session extends null ? never : { permissions?: string[]; roles?: string[] })
+    | undefined;
+  const perms = user?.permissions ?? [];
+  const roles = user?.roles ?? [];
 
   // Regla global: ADMIN lo puede todo
   const isAdmin = roles.includes("ADMIN");

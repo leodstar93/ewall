@@ -18,6 +18,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 function titleFromPath(pathname: string | null) {
   if (!pathname) return "Admin";
   if (pathname === "/admin") return "Dashboard";
+  if (pathname.startsWith("/admin/profile")) return "Profile";
   if (pathname === "/admin/settings") return "Settings";
   if (pathname.startsWith("/admin/settings/2290")) return "Form 2290 Settings";
   if (pathname.startsWith("/admin/settings/ifta-tax-rates")) return "IFTA Tax Rates";
@@ -28,6 +29,7 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/features/documents")) return "Documents";
   if (pathname.startsWith("/admin/features/ifta")) return "IFTA";
   if (pathname.startsWith("/admin/features/ucr")) return "UCR";
+  if (pathname.startsWith("/admin/features/dmv")) return "DMV Registration";
   if (pathname.startsWith("/admin/features/2290")) return "Form 2290";
   const last = pathname.split("/").filter(Boolean).pop() ?? "Admin";
   return last.charAt(0).toUpperCase() + last.slice(1);
@@ -44,15 +46,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const roles = session?.user?.roles ?? [];
   const isAdmin = roles.includes("ADMIN");
   const isStaff = roles.includes("STAFF");
-  const isAdminHomePath = pathname === "/admin";
-  const isFeaturePath = Boolean(pathname?.startsWith("/admin/features"));
-  const canAccessAdminShell =
-    isAdmin || (isStaff && (isFeaturePath || isAdminHomePath));
-  const roleBadge = isAdmin ? "ADMIN" : "STAFF";
-  const homeHref = "/admin";
-  const profileHref = isAdmin
-    ? `/admin/users/${session?.user?.id}`
-    : `/users/${session?.user?.id}`;
+  const canAccessAdminShell = !pathname || isAdmin || isStaff;
+  const roleBadge = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "USER";
+  const homeHref = isAdmin || isStaff ? "/admin" : "/panel";
+  const profileHref = "/admin/profile";
 
   const initials = useMemo(() => {
     const name = session?.user?.name?.trim();
@@ -64,9 +61,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const pageTitle = useMemo(() => titleFromPath(pathname), [pathname]);
 
   useEffect(() => {
+    if (!pathname) return;
     if (status === "unauthenticated") router.replace("/login");
     if (status === "authenticated" && !canAccessAdminShell) router.replace("/panel");
-  }, [status, canAccessAdminShell, router]);
+  }, [status, canAccessAdminShell, pathname, router]);
 
   useEffect(() => {
     const onDown = (event: MouseEvent) => {
@@ -99,7 +97,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     await signOut({ callbackUrl: "/" });
   };
 
-  if (status === "loading") {
+  if (status === "loading" || !pathname) {
     return (
       <div className={styles.consoleLoading}>
         <div className={styles.loadingCard}>
@@ -206,6 +204,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 >
                   <span className={styles.navDot} />
                   UCR
+                </Link>
+                <Link
+                  href="/admin/features/dmv"
+                  className={navItemClass("/admin/features/dmv")}
+                >
+                  <span className={styles.navDot} />
+                  DMV Registration
                 </Link>
                 <Link
                   href="/admin/features/2290"
@@ -317,7 +322,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   </svg>
                 </button>
 
-                <Link href={`/users/${session?.user?.id}`} className={styles.quickProfile}>
+                <Link href={profileHref} className={styles.quickProfile}>
                   <div className={styles.quickAvatar}>{initials}</div>
                   <span className={styles.quickName}>
                     {session?.user?.name?.split(" ")[0] || roleBadge}
