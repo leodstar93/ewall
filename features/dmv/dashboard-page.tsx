@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   badgeClasses,
   DmvDashboardRecord,
@@ -12,12 +13,16 @@ import {
   registrationTypeLabel,
   renewalStatusLabel,
 } from "@/features/dmv/shared";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 export default function DmvDashboardPage() {
   const [summary, setSummary] = useState<DmvDashboardSummary | null>(null);
   const [records, setRecords] = useState<DmvDashboardRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [badgeFilter, setBadgeFilter] = useState("all");
@@ -61,6 +66,15 @@ export default function DmvDashboardPage() {
         return true;
       }),
     [badgeFilter, records, statusFilter, typeFilter],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [records.length, pageSize, typeFilter, statusFilter, badgeFilter]);
+
+  const paginatedRecords = useMemo(
+    () => paginateItems(filtered, page, pageSize),
+    [filtered, page, pageSize],
   );
 
   if (loading) {
@@ -165,54 +179,92 @@ export default function DmvDashboardPage() {
           </div>
         </div>
 
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full divide-y divide-zinc-200 text-sm">
-            <thead>
-              <tr className="text-left text-zinc-500">
-                <th className="pb-3 font-medium">Unit</th>
-                <th className="pb-3 font-medium">VIN</th>
-                <th className="pb-3 font-medium">Type</th>
-                <th className="pb-3 font-medium">Status</th>
-                <th className="pb-3 font-medium">Expiration</th>
-                <th className="pb-3 font-medium">Renewal</th>
-                <th className="pb-3 font-medium">Badge</th>
-                <th className="pb-3 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {filtered.map((record) => (
-                <tr key={record.truckId}>
-                  <td className="py-4 font-medium text-zinc-900">{record.unitNumber}</td>
-                  <td className="py-4 text-zinc-600">{record.vin || "No VIN"}</td>
-                  <td className="py-4 text-zinc-600">{registrationTypeLabel(record.registrationType)}</td>
-                  <td className="py-4">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${registrationStatusClasses(record.status)}`}>
-                      {registrationStatusLabel(record.status)}
-                    </span>
-                  </td>
-                  <td className="py-4 text-zinc-600">{formatDate(record.expirationDate)}</td>
-                  <td className="py-4 text-zinc-600">{renewalStatusLabel(record.renewalStatus)}</td>
-                  <td className="py-4">
-                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${badgeClasses(record.complianceBadge)}`}>
-                      {record.complianceBadge.replaceAll("_", " ")}
-                    </span>
-                  </td>
-                  <td className="py-4">
-                    <Link href={`/dmv/${record.truckId}`} className="font-semibold text-sky-700 hover:text-sky-900">
-                      View unit
-                    </Link>
-                  </td>
+        <div className="mt-6 overflow-hidden rounded-[24px] border border-zinc-200">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-zinc-200 text-sm">
+              <thead>
+                <tr className="text-left text-zinc-500">
+                  <th className="px-4 pb-3 pt-4 font-medium">Unit</th>
+                  <th className="px-4 pb-3 pt-4 font-medium">VIN</th>
+                  <th className="px-4 pb-3 pt-4 font-medium">Type</th>
+                  <th className="px-4 pb-3 pt-4 font-medium">Status</th>
+                  <th className="px-4 pb-3 pt-4 font-medium">Expiration</th>
+                  <th className="px-4 pb-3 pt-4 font-medium">Renewal</th>
+                  <th className="px-4 pb-3 pt-4 font-medium">Badge</th>
+                  <th className="px-4 pb-3 pt-4 font-medium">Action</th>
                 </tr>
-              ))}
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-zinc-500">
-                    No DMV records match the selected filters.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {paginatedRecords.items.map((record) => (
+                  <tr key={record.truckId}>
+                    <td className="px-4 py-4 font-medium text-zinc-900">{record.unitNumber}</td>
+                    <td className="px-4 py-4 text-zinc-600">{record.vin || "No VIN"}</td>
+                    <td className="px-4 py-4 text-zinc-600">{registrationTypeLabel(record.registrationType)}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${registrationStatusClasses(record.status)}`}>
+                        {registrationStatusLabel(record.status)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-zinc-600">{formatDate(record.expirationDate)}</td>
+                    <td className="px-4 py-4 text-zinc-600">{renewalStatusLabel(record.renewalStatus)}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${badgeClasses(record.complianceBadge)}`}>
+                        {record.complianceBadge.replaceAll("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <Link
+                        href={`/dmv/${record.truckId}`}
+                        aria-label={`View DMV unit ${record.unitNumber}`}
+                        title={`View unit ${record.unitNumber}`}
+                        className="inline-flex items-center justify-center rounded-xl border border-zinc-300 px-3 py-2 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-950"
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M1.667 10S4.697 4.167 10 4.167 18.333 10 18.333 10 15.303 15.833 10 15.833 1.667 10 1.667 10Z"
+                          />
+                          <circle cx="10" cy="10" r="2.5" />
+                        </svg>
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
+                      No DMV records match the selected filters.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          <ClientPaginationControls
+            page={paginatedRecords.currentPage}
+            totalPages={paginatedRecords.totalPages}
+            pageSize={paginatedRecords.pageSize}
+            totalItems={paginatedRecords.totalItems}
+            itemLabel="registrations"
+            onPageChange={setPage}
+            onPageSizeChange={(nextPageSize) =>
+              setPageSize(
+                DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                  nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                )
+                  ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                  : 10,
+              )
+            }
+          />
         </div>
       </section>
     </div>
