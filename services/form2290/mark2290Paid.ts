@@ -1,6 +1,7 @@
 import { Form2290PaymentStatus, Form2290Status, Prisma } from "@prisma/client";
 import { canAutoMark2290Compliant, canMark2290Paid } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
+import { notify2290PaymentRecorded } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
@@ -35,7 +36,7 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
     );
   }
 
-  return prisma.$transaction(async (tx) => {
+  const filing = await prisma.$transaction(async (tx) => {
     const paidAt = input.paidAt ?? new Date();
     const canMarkCompliant = canAutoMark2290Compliant({
       status: existing.status,
@@ -78,4 +79,7 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
 
     return filing;
   });
+
+  await notify2290PaymentRecorded(filing, { isCompliant: filing.status === Form2290Status.COMPLIANT });
+  return filing;
 }

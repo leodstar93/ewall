@@ -1,6 +1,7 @@
 import { Form2290DocumentType, Form2290Status, Prisma } from "@prisma/client";
 import { canAutoMark2290Compliant, canUpload2290Schedule1 } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
+import { notify2290Schedule1Uploaded } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
@@ -42,7 +43,7 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
     throw new Form2290ServiceError("Forbidden", 403, "FORBIDDEN");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const filing = await prisma.$transaction(async (tx) => {
     const existingLink = await tx.form2290Document.findFirst({
       where: {
         filingId: existing.id,
@@ -96,4 +97,9 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
 
     return filing;
   });
+
+  await notify2290Schedule1Uploaded(filing, {
+    isCompliant: filing.status === Form2290Status.COMPLIANT,
+  });
+  return filing;
 }

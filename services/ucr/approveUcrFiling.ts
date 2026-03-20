@@ -1,6 +1,7 @@
 import { Prisma, UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canApproveUcrFiling } from "@/lib/ucr-workflow";
+import { notifyUcrApproved } from "@/services/ucr/notifications";
 import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
 import {
   hasProofDocument,
@@ -58,7 +59,7 @@ export async function approveUcrFiling(input: ApproveUcrFilingInput) {
   };
 
   if (!hasProofDocument(filing.documents)) {
-    return prisma.uCRFiling.update({
+    const updated = await prisma.uCRFiling.update({
       where: { id: input.filingId },
       data: {
         ...commonData,
@@ -66,10 +67,12 @@ export async function approveUcrFiling(input: ApproveUcrFilingInput) {
       },
       include: ucrFilingInclude,
     });
+    await notifyUcrApproved(updated);
+    return updated;
   }
 
   const timestamp = new Date();
-  return prisma.uCRFiling.update({
+  const updated = await prisma.uCRFiling.update({
     where: { id: input.filingId },
     data: {
       ...commonData,
@@ -79,4 +82,6 @@ export async function approveUcrFiling(input: ApproveUcrFilingInput) {
     },
     include: ucrFilingInclude,
   });
+  await notifyUcrApproved(updated);
+  return updated;
 }

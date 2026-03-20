@@ -25,6 +25,7 @@ model User {
 
   // Documents
   documents Document[]
+  notifications Notification[]
 
   //IFTA
   trucks           Truck[]
@@ -276,6 +277,23 @@ enum DmvActorType {
   CLIENT
   STAFF
   ADMIN
+}
+
+enum NotificationCategory {
+  SYSTEM
+  DMV
+  IFTA
+  UCR
+  FORM2290
+  DOCUMENTS
+  ACCOUNT
+}
+
+enum NotificationLevel {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
 }
 
 model Truck {
@@ -866,6 +884,27 @@ model DmvActivity {
   @@index([registrationId])
   @@index([renewalId])
   @@index([createdAt])
+}
+
+model Notification {
+  id          String               @id @default(cuid())
+  userId      String
+  title       String
+  message     String
+  category    NotificationCategory @default(SYSTEM)
+  level       NotificationLevel    @default(INFO)
+  href        String?
+  actionLabel String?
+  readAt      DateTime?
+  metadataJson Json?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([category, createdAt])
 }
 
 model DmvFeeRule {

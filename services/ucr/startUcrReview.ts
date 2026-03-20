@@ -1,6 +1,7 @@
 import { UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canStartUcrReview } from "@/lib/ucr-workflow";
+import { notifyUcrUnderReview } from "@/services/ucr/notifications";
 import { UcrServiceError, ucrFilingInclude } from "@/services/ucr/shared";
 
 type StartUcrReviewInput = {
@@ -29,7 +30,7 @@ export async function startUcrReview(input: StartUcrReviewInput) {
     );
   }
 
-  return prisma.uCRFiling.update({
+  const updated = await prisma.uCRFiling.update({
     where: { id: input.filingId },
     data: {
       status: UCRFilingStatus.UNDER_REVIEW,
@@ -39,4 +40,7 @@ export async function startUcrReview(input: StartUcrReviewInput) {
     },
     include: ucrFilingInclude,
   });
+
+  await notifyUcrUnderReview(updated);
+  return updated;
 }

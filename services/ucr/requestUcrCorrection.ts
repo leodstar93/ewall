@@ -1,6 +1,7 @@
 import { UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canRequestUcrCorrection } from "@/lib/ucr-workflow";
+import { notifyUcrCorrectionRequested } from "@/services/ucr/notifications";
 import { UcrServiceError, ucrFilingInclude } from "@/services/ucr/shared";
 
 type RequestUcrCorrectionInput = {
@@ -39,7 +40,7 @@ export async function requestUcrCorrection(input: RequestUcrCorrectionInput) {
     );
   }
 
-  return prisma.uCRFiling.update({
+  const updated = await prisma.uCRFiling.update({
     where: { id: input.filingId },
     data: {
       status: UCRFilingStatus.CORRECTION_REQUESTED,
@@ -50,4 +51,7 @@ export async function requestUcrCorrection(input: RequestUcrCorrectionInput) {
     },
     include: ucrFilingInclude,
   });
+
+  await notifyUcrCorrectionRequested(updated);
+  return updated;
 }

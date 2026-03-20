@@ -1,6 +1,7 @@
 import { Form2290Status } from "@prisma/client";
 import { canRequest2290Correction } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
+import { notify2290CorrectionRequested } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
@@ -43,7 +44,7 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
     );
   }
 
-  return prisma.$transaction(async (tx) => {
+  const filing = await prisma.$transaction(async (tx) => {
     await tx.form2290Correction.create({
       data: {
         filingId: existing.id,
@@ -70,4 +71,7 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
 
     return filing;
   });
+
+  await notify2290CorrectionRequested(filing, message);
+  return filing;
 }

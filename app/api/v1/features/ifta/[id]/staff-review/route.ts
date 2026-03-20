@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireIftaAccess } from "@/lib/ifta-api-access";
 import { canStaffReviewReport } from "@/lib/ifta-workflow";
+import { notifyIftaReadyForFinalization } from "@/services/ifta/notifications";
 
 type StaffReviewBody = {
   reviewNotes?: unknown;
@@ -32,7 +33,11 @@ export async function POST(
       where: { id },
       select: {
         id: true,
+        userId: true,
         status: true,
+        year: true,
+        quarter: true,
+        fuelType: true,
       },
     });
 
@@ -57,11 +62,17 @@ export async function POST(
       },
       select: {
         id: true,
+        userId: true,
         status: true,
+        year: true,
+        quarter: true,
+        fuelType: true,
         staffReviewedAt: true,
         reviewNotes: true,
       },
     });
+
+    await notifyIftaReadyForFinalization(updated);
 
     return Response.json({ report: updated });
   } catch (error) {

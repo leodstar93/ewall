@@ -5,6 +5,7 @@ import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { requireIftaAccess } from "@/lib/ifta-api-access";
 import { canFinalizeReport } from "@/lib/ifta-workflow";
+import { notifyIftaFiled } from "@/services/ifta/notifications";
 import { calculateIftaReport } from "@/services/ifta/calculateReport";
 import {
   getFiledIftaReportExport,
@@ -30,6 +31,9 @@ export async function POST(
         id: true,
         userId: true,
         status: true,
+        year: true,
+        quarter: true,
+        fuelType: true,
       },
     });
 
@@ -68,7 +72,11 @@ export async function POST(
       },
       select: {
         id: true,
+        userId: true,
         status: true,
+        year: true,
+        quarter: true,
+        fuelType: true,
         filedAt: true,
       },
     });
@@ -84,6 +92,8 @@ export async function POST(
       fileExtension: "pdf",
       contentType: pdf.contentType,
     });
+
+    await notifyIftaFiled(updated);
 
     return Response.json({ report: updated });
   } catch (error) {

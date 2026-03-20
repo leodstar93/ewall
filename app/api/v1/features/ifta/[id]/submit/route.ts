@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireIftaAccess } from "@/lib/ifta-api-access";
 import { canSubmitReportToStaff } from "@/lib/ifta-workflow";
+import { notifyIftaSubmitted } from "@/services/ifta/notifications";
 import { calculateIftaReport } from "@/services/ifta/calculateReport";
 import { getIftaValidationIssues } from "@/services/ifta/validateReport";
 
@@ -23,6 +24,9 @@ export async function POST(
         id: true,
         userId: true,
         status: true,
+        year: true,
+        quarter: true,
+        fuelType: true,
       },
     });
 
@@ -58,10 +62,16 @@ export async function POST(
       },
       select: {
         id: true,
+        userId: true,
         status: true,
+        year: true,
+        quarter: true,
+        fuelType: true,
         submittedForReviewAt: true,
       },
     });
+
+    await notifyIftaSubmitted(updated);
 
     return Response.json({ report: updated });
   } catch (error) {

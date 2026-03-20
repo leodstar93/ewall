@@ -6,7 +6,11 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createRenewal } from "@/services/dmv/createRenewal";
-import { notifyDmvRenewalReminder } from "@/services/dmv/notifications";
+import {
+  notifyDmvRegistrationExpired,
+  notifyDmvRenewalOverdue,
+  notifyDmvRenewalReminder,
+} from "@/services/dmv/notifications";
 import {
   logDmvActivity,
   shouldMarkRegistrationExpired,
@@ -103,6 +107,14 @@ export async function runDmvDailyCron(now = new Date()): Promise<DmvDailyCronRes
         });
       });
 
+      await notifyDmvRegistrationExpired({
+        userId: registration.userId,
+        registrationId: registration.id,
+        truckId: registration.truckId,
+        unitNumber: registration.truck.unitNumber,
+        expirationDate: registration.expirationDate ?? now,
+      });
+
       result.registrationsExpired += 1;
     }
 
@@ -165,6 +177,14 @@ export async function runDmvDailyCron(now = new Date()): Promise<DmvDailyCronRes
               dueDate: currentRenewal.dueDate.toISOString(),
             } satisfies Prisma.InputJsonValue,
           });
+        });
+
+        await notifyDmvRenewalOverdue({
+          userId: registration.userId,
+          registrationId: registration.id,
+          renewalId: currentRenewal.id,
+          unitNumber: registration.truck.unitNumber,
+          dueDate: currentRenewal.dueDate,
         });
 
         result.renewalsOverdue += 1;
@@ -239,6 +259,7 @@ export async function runDmvDailyCron(now = new Date()): Promise<DmvDailyCronRes
       });
 
       await notifyDmvRenewalReminder({
+        userId: registration.userId,
         registrationId: registration.id,
         renewalId: workingRenewal.id,
         recipientEmail: registration.user.email,

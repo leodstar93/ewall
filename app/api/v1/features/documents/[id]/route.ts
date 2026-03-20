@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { NextRequest } from "next/server";
 import { isRemoteUrl, publicDiskPathFromUrl } from "@/lib/doc-files";
 import { unlink } from "fs/promises";
+import { notifyDocumentRemoved } from "@/services/document-notifications";
 
 // DELETE - Remove a document
 export async function DELETE(
@@ -26,9 +27,17 @@ export async function DELETE(
       return Response.json({ error: "Document not found" }, { status: 404 });
     }
 
+    const canManageAllFeatureDocs = Boolean(
+      session.user.roles?.includes("ADMIN") || session.user.roles?.includes("STAFF"),
+    );
+    const removedByRole = session.user.roles?.includes("ADMIN")
+      ? "ADMIN"
+      : session.user.roles?.includes("STAFF")
+        ? "STAFF"
+        : null;
+
     if (document.userId !== session.user.id) {
       // ADMIN/STAFF can delete other users' documents in features scope
-      const canManageAllFeatureDocs = Boolean(session.user.roles?.includes("ADMIN") || session.user.roles?.includes("STAFF"));
       if (!canManageAllFeatureDocs) {
         return Response.json({ error: "Forbidden" }, { status: 403 });
       }
@@ -46,6 +55,15 @@ export async function DELETE(
       } catch (e) {
         console.warn("Local file delete failed (ignored):", e);
       }
+    }
+
+    if (document.userId !== session.user.id && removedByRole) {
+      await notifyDocumentRemoved({
+        userId: document.userId,
+        documentId: document.id,
+        documentName: document.name,
+        removedByRole,
+      });
     }
 
     return Response.json({ success: true });

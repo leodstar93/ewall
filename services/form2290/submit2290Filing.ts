@@ -1,6 +1,7 @@
 import { Form2290Status } from "@prisma/client";
 import { canMark2290Submitted, canSubmit2290Filing } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
+import { notify2290Submitted } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   ensure2290Completeness,
@@ -59,7 +60,7 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     );
   }
 
-  return prisma.$transaction(async (tx) => {
+  const filing = await prisma.$transaction(async (tx) => {
     const timestamp = new Date();
     if (existing.status === Form2290Status.NEEDS_CORRECTION) {
       await tx.form2290Correction.updateMany({
@@ -91,4 +92,10 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
 
     return filing;
   });
+
+  await notify2290Submitted(filing, {
+    submittedDirectly: nextStatus === Form2290Status.SUBMITTED,
+  });
+
+  return filing;
 }

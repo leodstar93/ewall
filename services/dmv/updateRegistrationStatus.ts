@@ -181,6 +181,7 @@ export async function updateRegistrationStatus(
   }).then(async (updated) => {
     if (input.nextStatus === DmvRegistrationStatus.CORRECTION_REQUIRED) {
       await notifyDmvCorrectionRequired({
+        userId: updated.user.id,
         registrationId: updated.id,
         recipientEmail: updated.user.email,
         recipientName: updated.user.name,

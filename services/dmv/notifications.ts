@@ -1,8 +1,28 @@
+import { NotificationCategory, NotificationLevel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   sendDmvCorrectionRequiredEmail,
   sendDmvRenewalReminderEmail,
 } from "@/lib/email";
+import { createNotification } from "@/services/notifications";
+
+function formatShortDate(value: Date | string) {
+  return new Date(value).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+async function createInAppNotification(
+  input: Parameters<typeof createNotification>[0],
+) {
+  try {
+    await createNotification(input);
+  } catch (error) {
+    console.error("Failed to create in-app DMV notification", error);
+  }
+}
 
 async function logEmailNotificationActivity(input: {
   registrationId: string;
@@ -32,6 +52,7 @@ async function logEmailNotificationActivity(input: {
 }
 
 export async function notifyDmvRenewalReminder(input: {
+  userId: string;
   registrationId: string;
   renewalId: string;
   recipientEmail: string | null;
@@ -40,9 +61,31 @@ export async function notifyDmvRenewalReminder(input: {
   dueDate: Date | string;
   daysBeforeDue: number;
 }) {
-  if (!input.recipientEmail?.trim()) {
-    return;
-  }
+  const dueDateLabel = formatShortDate(input.dueDate);
+
+  await createInAppNotification({
+    userId: input.userId,
+    category: NotificationCategory.DMV,
+    level:
+      input.daysBeforeDue <= 7
+        ? NotificationLevel.WARNING
+        : NotificationLevel.INFO,
+    title: `DMV renewal due soon for unit ${input.unitNumber}`,
+    message: `Your renewal is due on ${dueDateLabel}. ${input.daysBeforeDue} day(s) remain before the deadline.`,
+    href: `/dmv/renewals/${input.renewalId}`,
+    actionLabel: "Open renewal",
+    metadataJson: {
+      registrationId: input.registrationId,
+      renewalId: input.renewalId,
+      daysBeforeDue: input.daysBeforeDue,
+      dueDate:
+        input.dueDate instanceof Date
+          ? input.dueDate.toISOString()
+          : input.dueDate,
+    },
+  });
+
+  if (!input.recipientEmail?.trim()) return;
 
   try {
     await sendDmvRenewalReminderEmail({
@@ -85,6 +128,7 @@ export async function notifyDmvRenewalReminder(input: {
 }
 
 export async function notifyDmvCorrectionRequired(input: {
+  userId: string;
   registrationId: string;
   renewalId?: string | null;
   recipientEmail: string | null;
@@ -94,9 +138,27 @@ export async function notifyDmvCorrectionRequired(input: {
   reason?: string | null;
   workspacePath: string;
 }) {
-  if (!input.recipientEmail?.trim()) {
-    return;
-  }
+  const cleanReason = input.reason?.trim();
+
+  await createInAppNotification({
+    userId: input.userId,
+    category: NotificationCategory.DMV,
+    level: NotificationLevel.ERROR,
+    title: `Correction required for unit ${input.unitNumber}`,
+    message:
+      cleanReason ||
+      `A correction was requested for your ${input.caseLabel}. Review the case notes and resubmit after updating the requested items.`,
+    href: input.workspacePath,
+    actionLabel: "Review case",
+    metadataJson: {
+      registrationId: input.registrationId,
+      renewalId: input.renewalId ?? null,
+      caseLabel: input.caseLabel,
+      reason: cleanReason ?? null,
+    },
+  });
+
+  if (!input.recipientEmail?.trim()) return;
 
   try {
     await sendDmvCorrectionRequiredEmail({
@@ -127,4 +189,56 @@ export async function notifyDmvCorrectionRequired(input: {
         error instanceof Error ? error.message.slice(0, 500) : "Unknown email error",
     });
   }
+}
+
+export async function notifyDmvRenewalOverdue(input: {
+  userId: string;
+  registrationId: string;
+  renewalId: string;
+  unitNumber: string;
+  dueDate: Date | string;
+}) {
+  await createInAppNotification({
+    userId: input.userId,
+    category: NotificationCategory.DMV,
+    level: NotificationLevel.ERROR,
+    title: `DMV renewal overdue for unit ${input.unitNumber}`,
+    message: `This renewal passed its due date on ${formatShortDate(input.dueDate)} and now needs immediate attention.`,
+    href: `/dmv/renewals/${input.renewalId}`,
+    actionLabel: "Resolve renewal",
+    metadataJson: {
+      registrationId: input.registrationId,
+      renewalId: input.renewalId,
+      dueDate:
+        input.dueDate instanceof Date
+          ? input.dueDate.toISOString()
+          : input.dueDate,
+    },
+  });
+}
+
+export async function notifyDmvRegistrationExpired(input: {
+  userId: string;
+  registrationId: string;
+  truckId: string;
+  unitNumber: string;
+  expirationDate: Date | string;
+}) {
+  await createInAppNotification({
+    userId: input.userId,
+    category: NotificationCategory.DMV,
+    level: NotificationLevel.ERROR,
+    title: `Registration expired for unit ${input.unitNumber}`,
+    message: `The registration expired on ${formatShortDate(input.expirationDate)}. Review the case and complete the next renewal steps.`,
+    href: `/dmv/${input.truckId}`,
+    actionLabel: "Open registration",
+    metadataJson: {
+      registrationId: input.registrationId,
+      truckId: input.truckId,
+      expirationDate:
+        input.expirationDate instanceof Date
+          ? input.expirationDate.toISOString()
+          : input.expirationDate,
+    },
+  });
 }

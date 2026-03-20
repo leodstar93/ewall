@@ -1,6 +1,7 @@
 import { Prisma, UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { canSubmitUcrFiling } from "@/lib/ucr-workflow";
+import { notifyUcrSubmitted } from "@/services/ucr/notifications";
 import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
 import {
   UcrServiceError,
@@ -53,7 +54,7 @@ export async function submitUcrFiling(input: SubmitUcrFilingInput) {
     );
   }
 
-  return prisma.uCRFiling.update({
+  const updated = await prisma.uCRFiling.update({
     where: { id: input.filingId },
     data: {
       status: UCRFilingStatus.SUBMITTED,
@@ -63,4 +64,7 @@ export async function submitUcrFiling(input: SubmitUcrFilingInput) {
     },
     include: ucrFilingInclude,
   });
+
+  await notifyUcrSubmitted(updated);
+  return updated;
 }
