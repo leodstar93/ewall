@@ -4,12 +4,14 @@ import {
   DmvRegistrationStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import { deriveRequirementStatusFromLinks } from "@/services/dmv/deriveRequirementStatusFromLinks";
 import {
   assertDmvRegistrationAccess,
   dmvRegistrationInclude,
   DmvServiceError,
   logDmvActivity,
+  resolveDmvDb,
 } from "@/services/dmv/shared";
 
 const EDITABLE_REGISTRATION_DOCUMENT_STATUSES = new Set<DmvRegistrationStatus>([
@@ -19,6 +21,7 @@ const EDITABLE_REGISTRATION_DOCUMENT_STATUSES = new Set<DmvRegistrationStatus>([
 ]);
 
 type AttachRegistrationDocumentInput = {
+  db?: DbClient;
   registrationId: string;
   actorUserId: string;
   canManageAll: boolean;
@@ -31,13 +34,15 @@ type AttachRegistrationDocumentInput = {
 export async function attachRegistrationDocument(
   input: AttachRegistrationDocumentInput,
 ) {
+  const db = resolveDmvDb(input.db);
   const registration = await assertDmvRegistrationAccess({
+    db,
     registrationId: input.registrationId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
   });
 
-  const document = await prisma.document.findUnique({
+  const document = await db.document.findUnique({
     where: { id: input.documentId },
   });
 
@@ -57,7 +62,7 @@ export async function attachRegistrationDocument(
     );
   }
 
-  return prisma.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const link = await tx.dmvRegistrationDocument.upsert({
       where: {
         registrationId_documentId: {

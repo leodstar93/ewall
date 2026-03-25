@@ -28,6 +28,11 @@ type DetailPageProps = {
   canReviewRegistration: boolean;
   canApproveRegistration: boolean;
   mode?: "driver" | "staff";
+  trucksApiBasePath?: string;
+  registrationsApiBasePath?: string;
+  documentsApiBasePath?: string;
+  newRegistrationHref?: string;
+  renewalHrefBase?: string | null;
 };
 
 type RenewalSummary = {
@@ -96,7 +101,18 @@ export default function DmvDetailPage({
   canReviewRegistration,
   canApproveRegistration: canApproveRegistrationPermission,
   mode = "driver",
+  trucksApiBasePath,
+  registrationsApiBasePath,
+  documentsApiBasePath,
+  newRegistrationHref,
+  renewalHrefBase,
 }: DetailPageProps) {
+  const resolvedTrucksApiBasePath = trucksApiBasePath ?? "/api/v1/features/dmv/trucks";
+  const resolvedRegistrationsApiBasePath =
+    registrationsApiBasePath ?? "/api/v1/features/dmv/registrations";
+  const resolvedDocumentsApiBasePath =
+    documentsApiBasePath ?? "/api/v1/features/documents";
+
   const [truck, setTruck] = useState<DmvTruckDetail | null>(null);
   const [availableDocuments, setAvailableDocuments] = useState<ChecklistAvailableDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,7 +143,7 @@ export default function DmvDetailPage({
       setLoading(true);
       setError(null);
       setActionMessage(null);
-      const response = await fetch(`/api/v1/features/dmv/trucks/${truckId}`, {
+      const response = await fetch(`${resolvedTrucksApiBasePath}/${truckId}`, {
         cache: "no-store",
       });
       const data = (await response.json().catch(() => ({}))) as {
@@ -147,7 +163,7 @@ export default function DmvDetailPage({
       }
 
       const requirementsResponse = await fetch(
-        `/api/v1/features/dmv/registrations/${registrationId}/requirements`,
+        `${resolvedRegistrationsApiBasePath}/${registrationId}/requirements`,
         {
           cache: "no-store",
         },
@@ -173,7 +189,7 @@ export default function DmvDetailPage({
     } finally {
       setLoading(false);
     }
-  }, [truckId]);
+  }, [resolvedRegistrationsApiBasePath, resolvedTrucksApiBasePath, truckId]);
 
   useEffect(() => {
     void load();
@@ -181,10 +197,15 @@ export default function DmvDetailPage({
 
   const currentRegistration = useMemo(() => truck?.dmvRegistrations?.[0] ?? null, [truck]);
   const currentRenewal = useMemo(() => currentRegistration?.renewals?.[0] ?? null, [currentRegistration]);
-  const renewalHrefBase =
-    mode === "staff" ? "/admin/features/dmv/renewals" : "/dmv/renewals";
-  const newRegistrationHref =
-    mode === "staff" ? "/admin/features/dmv/new" : "/dmv/new";
+  const resolvedRenewalHrefBase =
+    typeof renewalHrefBase === "undefined"
+      ? mode === "staff"
+        ? "/admin/features/dmv/renewals"
+        : "/dmv/renewals"
+      : renewalHrefBase;
+  const resolvedNewRegistrationHref =
+    newRegistrationHref ??
+    (mode === "staff" ? "/admin/features/dmv/new" : "/dmv/new");
 
   useEffect(() => {
     if (!currentRegistration) return;
@@ -229,7 +250,7 @@ export default function DmvDetailPage({
     );
     formData.append("category", "dmv-registration");
 
-    const uploadResponse = await fetch("/api/v1/features/documents", {
+    const uploadResponse = await fetch(resolvedDocumentsApiBasePath, {
       method: "POST",
       body: formData,
     });
@@ -243,7 +264,7 @@ export default function DmvDetailPage({
       throw new Error(uploadedDocument.error || "Could not upload document.");
     }
 
-    await attachExistingDocument(requirement, uploadedDocument.id);
+      await attachExistingDocument(requirement, uploadedDocument.id);
     setUploadMessage(`Uploaded document for ${requirement.name}.`);
   }
 
@@ -255,7 +276,7 @@ export default function DmvDetailPage({
     setActionMessage(null);
 
     const attachResponse = await fetch(
-      `/api/v1/features/dmv/registrations/${currentRegistration.id}/requirements`,
+      `${resolvedRegistrationsApiBasePath}/${currentRegistration.id}/requirements`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -288,7 +309,7 @@ export default function DmvDetailPage({
     setActionMessage(null);
 
     const response = await fetch(
-      `/api/v1/features/dmv/registrations/${currentRegistration.id}/requirements`,
+      `${resolvedRegistrationsApiBasePath}/${currentRegistration.id}/requirements`,
       {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -319,7 +340,7 @@ export default function DmvDetailPage({
     setActionMessage(null);
 
     const response = await fetch(
-      `/api/v1/features/dmv/registrations/${currentRegistration.id}/requirements`,
+      `${resolvedRegistrationsApiBasePath}/${currentRegistration.id}/requirements`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -374,7 +395,7 @@ export default function DmvDetailPage({
       setActionMessage(null);
 
       const response = await fetch(
-        `/api/v1/features/dmv/registrations/${currentRegistration.id}/${endpoint}`,
+        `${resolvedRegistrationsApiBasePath}/${currentRegistration.id}/${endpoint}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -410,7 +431,7 @@ export default function DmvDetailPage({
       setUploadMessage(null);
 
       const response = await fetch(
-        `/api/v1/features/dmv/registrations/${currentRegistration.id}`,
+        `${resolvedRegistrationsApiBasePath}/${currentRegistration.id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -481,16 +502,16 @@ export default function DmvDetailPage({
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            {currentRenewal ? (
+            {currentRenewal && resolvedRenewalHrefBase ? (
               <Link
-                href={`${renewalHrefBase}/${currentRenewal.id}`}
+                href={`${resolvedRenewalHrefBase}/${currentRenewal.id}`}
                 className="inline-flex items-center justify-center rounded-2xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
               >
                 Current renewal
               </Link>
             ) : null}
             <Link
-              href={newRegistrationHref}
+              href={resolvedNewRegistrationHref}
               className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
             >
               New registration
@@ -559,6 +580,7 @@ export default function DmvDetailPage({
             canReviewRequirements={
               canReviewRegistration || canApproveRegistrationPermission
             }
+            documentsApiBasePath={resolvedDocumentsApiBasePath}
             onUpload={uploadRequirementDocument}
             onAttachExisting={attachExistingDocument}
             onUnlinkDocument={unlinkRequirementDocument}
@@ -591,12 +613,14 @@ export default function DmvDetailPage({
                   {formatDate(currentRenewal.dueDate)}
                 </p>
               </div>
-              <Link
-                href={`${renewalHrefBase}/${currentRenewal.id}`}
-                className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
-              >
-                Open renewal workspace
-              </Link>
+              {resolvedRenewalHrefBase ? (
+                <Link
+                  href={`${resolvedRenewalHrefBase}/${currentRenewal.id}`}
+                  className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+                >
+                  Open renewal workspace
+                </Link>
+              ) : null}
             </div>
           ) : (
             <p className="mt-5 text-sm text-zinc-500">No renewal has been opened for this registration yet.</p>

@@ -46,6 +46,10 @@ type UploadResponse = {
 type DetailPageProps = {
   filingId: string;
   mode: "driver" | "staff";
+  apiBasePath?: string;
+  documentsApiBasePath?: string;
+  backHref?: string;
+  detailHrefBase?: string;
 };
 
 export default function Form2290DetailPage(props: DetailPageProps) {
@@ -66,15 +70,15 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   const [paidAt, setPaidAt] = useState("");
 
   const detailHrefBase =
-    props.mode === "staff" ? "/admin/features/2290" : "/2290";
+    props.detailHrefBase ?? (props.mode === "staff" ? "/admin/features/2290" : "/2290");
   const backHref =
-    props.mode === "staff" ? "/admin/features/2290" : "/2290";
+    props.backHref ?? (props.mode === "staff" ? "/admin/features/2290" : "/2290");
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`/api/v1/features/2290/${props.filingId}`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}`, {
         cache: "no-store",
       });
       const data = (await response.json().catch(() => ({}))) as DetailPayload & { error?: string };
@@ -91,7 +95,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [props.filingId]);
+  }, [props.apiBasePath, props.filingId]);
 
   useEffect(() => {
     void load();
@@ -108,7 +112,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     formData.append("name", name.trim());
     formData.append("category", "FORM_2290");
 
-    const response = await fetch("/api/v1/features/documents", {
+    const response = await fetch(props.documentsApiBasePath ?? "/api/v1/features/documents", {
       method: "POST",
       body: formData,
     });
@@ -135,7 +139,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       setBusyAction("document");
       setError(null);
       const documentId = await uploadBaseDocument(documentFile, documentName);
-      const response = await fetch(`/api/v1/features/2290/${props.filingId}/documents`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -173,7 +177,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       setBusyAction("schedule1");
       setError(null);
       const documentId = await uploadBaseDocument(schedule1File, schedule1Name);
-      const response = await fetch(`/api/v1/features/2290/${props.filingId}/upload-schedule1`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}/upload-schedule1`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentId }),
@@ -200,7 +204,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     try {
       setBusyAction(endpoint);
       setError(null);
-      const response = await fetch(`/api/v1/features/2290/${props.filingId}/${endpoint}`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body ?? {}),
@@ -321,6 +325,9 @@ export default function Form2290DetailPage(props: DetailPageProps) {
           mode="edit"
           filingId={filing.id}
           detailHrefBase={detailHrefBase}
+          apiBasePath={props.apiBasePath}
+          vehiclesApiPath={`${props.apiBasePath ?? "/api/v1/features/2290"}/vehicles`}
+          taxPeriodsApiPath={`${props.apiBasePath ?? "/api/v1/features/2290"}/tax-periods`}
           initialValues={{
             truckId: filing.truckId,
             taxPeriodId: filing.taxPeriodId,
@@ -528,7 +535,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <a
-                        href={`/api/v1/features/documents/${document.document.id}/view`}
+                        href={`${props.documentsApiBasePath ?? "/api/v1/features/documents"}/${document.document.id}/view`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-white"
@@ -536,7 +543,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                         View
                       </a>
                       <a
-                        href={`/api/v1/features/documents/${document.document.id}/download`}
+                        href={`${props.documentsApiBasePath ?? "/api/v1/features/documents"}/${document.document.id}/download`}
                         className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-white"
                       >
                         Download
@@ -592,7 +599,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                 <p className="mt-2 text-xs text-zinc-500">{formatDate(filing.schedule1Document.createdAt)}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <a
-                    href={`/api/v1/features/documents/${filing.schedule1Document.id}/view`}
+                    href={`${props.documentsApiBasePath ?? "/api/v1/features/documents"}/${filing.schedule1Document.id}/view`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-white"
@@ -600,7 +607,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                     View
                   </a>
                   <a
-                    href={`/api/v1/features/documents/${filing.schedule1Document.id}/download`}
+                    href={`${props.documentsApiBasePath ?? "/api/v1/features/documents"}/${filing.schedule1Document.id}/download`}
                     className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-white"
                   >
                     Download

@@ -1,15 +1,18 @@
 import { Form2290Status } from "@prisma/client";
 import { canRequest2290Correction } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import { notify2290CorrectionRequested } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
   form2290FilingInclude,
   logForm2290Activity,
+  resolveForm2290Db,
 } from "@/services/form2290/shared";
 
 type Request2290CorrectionInput = {
+  db?: DbClient;
   filingId: string;
   actorUserId: string;
   canManageAll: boolean;
@@ -17,7 +20,9 @@ type Request2290CorrectionInput = {
 };
 
 export async function request2290Correction(input: Request2290CorrectionInput) {
+  const db = resolveForm2290Db(input.db);
   const existing = await assert2290FilingAccess({
+    db,
     filingId: input.filingId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
@@ -44,7 +49,7 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
     );
   }
 
-  const filing = await prisma.$transaction(async (tx) => {
+  const filing = await db.$transaction(async (tx) => {
     await tx.form2290Correction.create({
       data: {
         filingId: existing.id,
@@ -72,6 +77,8 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
     return filing;
   });
 
-  await notify2290CorrectionRequested(filing, message);
+  if (db === prisma) {
+    await notify2290CorrectionRequested(filing, message);
+  }
   return filing;
 }

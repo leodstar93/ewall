@@ -15,7 +15,17 @@ import {
 } from "@/features/dmv/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
-export default function DmvDashboardPage() {
+type DmvDashboardPageProps = {
+  apiPath?: string;
+  detailHrefBase?: string;
+  newHref?: string;
+};
+
+export default function DmvDashboardPage(props: DmvDashboardPageProps) {
+  const apiPath = props.apiPath ?? "/api/v1/features/dmv/dashboard";
+  const detailHrefBase = props.detailHrefBase ?? "/dmv";
+  const newHref = props.newHref ?? "/dmv/new";
+
   const [summary, setSummary] = useState<DmvDashboardSummary | null>(null);
   const [records, setRecords] = useState<DmvDashboardRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +42,7 @@ export default function DmvDashboardPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch("/api/v1/features/dmv/dashboard", {
+        const response = await fetch(apiPath, {
           cache: "no-store",
         });
         const data = (await response.json().catch(() => ({}))) as {
@@ -55,7 +65,7 @@ export default function DmvDashboardPage() {
     }
 
     void load();
-  }, []);
+  }, [apiPath]);
 
   const filtered = useMemo(
     () =>
@@ -100,7 +110,7 @@ export default function DmvDashboardPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/dmv/new"
+              href={newHref}
               className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
             >
               New registration
@@ -214,7 +224,7 @@ export default function DmvDashboardPage() {
                     </td>
                     <td className="px-4 py-4">
                       <Link
-                        href={`/dmv/${record.truckId}`}
+                        href={`${detailHrefBase}/${record.truckId}`}
                         aria-label={`View DMV unit ${record.unitNumber}`}
                         title={`View unit ${record.unitNumber}`}
                         className="inline-flex items-center justify-center rounded-xl border border-zinc-300 px-3 py-2 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-950"

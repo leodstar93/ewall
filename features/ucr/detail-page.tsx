@@ -34,6 +34,9 @@ type DetailPayload = {
 type UcrDetailPageProps = {
   filingId: string;
   mode: "driver" | "staff";
+  apiBasePath?: string;
+  backHref?: string;
+  detailHrefBase?: string;
 };
 
 export default function UcrDetailPage(props: UcrDetailPageProps) {
@@ -53,7 +56,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`/api/v1/features/ucr/${props.filingId}`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/ucr"}/${props.filingId}`, {
         cache: "no-store",
       });
       const data = (await response.json().catch(() => ({}))) as DetailPayload & {
@@ -75,7 +78,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [props.filingId]);
+  }, [props.apiBasePath, props.filingId]);
 
   useEffect(() => {
     void load();
@@ -101,7 +104,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
       formData.append("description", documentDescription);
       formData.append("type", documentType);
 
-      const response = await fetch(`/api/v1/features/ucr/${props.filingId}/documents`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/ucr"}/${props.filingId}/documents`, {
         method: "POST",
         body: formData,
       });
@@ -136,7 +139,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
           ? { correctionNote, staffNotes }
           : { staffNotes };
 
-      const response = await fetch(`/api/v1/features/ucr/${props.filingId}/${action}`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/ucr"}/${props.filingId}/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -180,7 +183,8 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
   if (!payload) return null;
 
   const { filing, permissions } = payload;
-  const backHref = props.mode === "staff" ? "/admin/features/ucr" : "/ucr";
+  const backHref =
+    props.backHref ?? (props.mode === "staff" ? "/admin/features/ucr" : "/ucr");
 
   return (
     <div className="space-y-6">
@@ -237,7 +241,9 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
         <UcrFilingForm
           mode="edit"
           filingId={filing.id}
+          apiBasePath={props.apiBasePath}
           currentStatus={filing.status}
+          detailHrefBase={props.detailHrefBase}
           initialValues={filing}
           onSaved={() => {
             void load();
@@ -500,7 +506,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <a
-                    href={`/api/v1/features/ucr/documents/${document.id}/view`}
+                    href={`${props.apiBasePath ?? "/api/v1/features/ucr"}/documents/${document.id}/view`}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
@@ -508,7 +514,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
                     View
                   </a>
                   <a
-                    href={`/api/v1/features/ucr/documents/${document.id}/download`}
+                    href={`${props.apiBasePath ?? "/api/v1/features/ucr"}/documents/${document.id}/download`}
                     className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
                   >
                     Download

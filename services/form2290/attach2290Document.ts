@@ -1,13 +1,16 @@
 import { Form2290DocumentType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
   form2290FilingInclude,
   logForm2290Activity,
+  resolveForm2290Db,
 } from "@/services/form2290/shared";
 
 type Attach2290DocumentInput = {
+  db?: DbClient;
   filingId: string;
   actorUserId: string;
   canManageAll: boolean;
@@ -16,13 +19,15 @@ type Attach2290DocumentInput = {
 };
 
 export async function attach2290Document(input: Attach2290DocumentInput) {
+  const db = resolveForm2290Db(input.db);
   const existing = await assert2290FilingAccess({
+    db,
     filingId: input.filingId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
   });
 
-  const document = await prisma.document.findUnique({
+  const document = await db.document.findUnique({
     where: { id: input.documentId },
   });
 
@@ -34,7 +39,7 @@ export async function attach2290Document(input: Attach2290DocumentInput) {
     throw new Form2290ServiceError("Forbidden", 403, "FORBIDDEN");
   }
 
-  return prisma.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const link = await tx.form2290Document.upsert({
       where: {
         filingId_documentId: {

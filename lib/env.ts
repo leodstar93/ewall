@@ -8,6 +8,7 @@ const envSchema = z.object({
 
   // database connection string used by Prisma
   DATABASE_URL: z.string().url(),
+  SANDBOX_DATABASE_URL: z.string().url().optional(),
 
   // secret used by NextAuth (NextAuth v5 uses AUTH_SECRET)
   AUTH_SECRET: z.string().min(1),
@@ -16,6 +17,7 @@ const envSchema = z.object({
   PORT: z.string().default("3000"),
 
   // add additional environment variables here
+  SANDBOX_EMAIL_REDIRECT_TO: z.string().email().optional(),
 });
 
 type Env = z.infer<typeof envSchema>;

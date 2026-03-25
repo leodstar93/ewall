@@ -1,14 +1,17 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import {
   assert2290TruckAccess,
   Form2290ServiceError,
   form2290FilingInclude,
   logForm2290Activity,
+  resolveForm2290Db,
   resolve2290Eligibility,
 } from "@/services/form2290/shared";
 
 type Create2290FilingInput = {
+  db?: DbClient;
   actorUserId: string;
   canManageAll: boolean;
   truckId: string;
@@ -19,13 +22,15 @@ type Create2290FilingInput = {
 };
 
 export async function create2290Filing(input: Create2290FilingInput) {
+  const db = resolveForm2290Db(input.db);
   const [truck, taxPeriod] = await Promise.all([
     assert2290TruckAccess({
+      db,
       truckId: input.truckId,
       actorUserId: input.actorUserId,
       canManageAll: input.canManageAll,
     }),
-    prisma.form2290TaxPeriod.findUnique({
+    db.form2290TaxPeriod.findUnique({
       where: { id: input.taxPeriodId },
     }),
   ]);
@@ -44,10 +49,10 @@ export async function create2290Filing(input: Create2290FilingInput) {
     );
   }
 
-  const { isEligible } = await resolve2290Eligibility(truck.grossWeight);
+  const { isEligible } = await resolve2290Eligibility(truck.grossWeight, db);
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await db.$transaction(async (tx) => {
       await tx.truck.update({
         where: { id: truck.id },
         data: {

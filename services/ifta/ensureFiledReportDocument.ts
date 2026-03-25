@@ -1,5 +1,7 @@
 import { ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { AppEnvironment, DbClient } from "@/lib/db/types";
+import { getStoragePublicUrl } from "@/lib/storage/resolve-storage";
 
 export type IftaDownloadFormat = "pdf" | "excel";
 
@@ -31,11 +33,18 @@ export type IftaExportReport = {
   lines: IftaExportLine[];
 };
 
+type GetFiledIftaReportExportInput = {
+  reportId: string;
+  db?: DbClient;
+};
+
 type PersistDocumentInput = {
   report: IftaExportReport;
   fileBuffer: Uint8Array;
   fileExtension: "pdf" | "xlsx";
   contentType: string;
+  db?: DbClient;
+  environment?: AppEnvironment;
 };
 
 function resolveCarrierName(user: { name: string | null; email: string | null }) {
@@ -57,8 +66,16 @@ function resolveTruckLabel(truck: {
 }
 
 export async function getFiledIftaReportExport(reportId: string): Promise<IftaExportReport> {
-  const report = await prisma.iftaReport.findUnique({
-    where: { id: reportId },
+  return getFiledIftaReportExportFromInput({ reportId });
+}
+
+export async function getFiledIftaReportExportFromInput(
+  input: GetFiledIftaReportExportInput,
+): Promise<IftaExportReport> {
+  const db = input.db ?? prisma;
+
+  const report = await db.iftaReport.findUnique({
+    where: { id: input.reportId },
     include: {
       user: {
         select: {
@@ -129,9 +146,11 @@ export async function upsertFiledIftaReportDocument(
   input: PersistDocumentInput,
 ) {
   const { report, fileBuffer, fileExtension, contentType } = input;
+  const db = input.db ?? prisma;
+  const environment = input.environment ?? "production";
   const fileName = `ifta-report-${report.id}.${fileExtension}`;
-  const fileUrl = `/uploads/${fileName}`;
-  const existing = await prisma.document.findFirst({
+  const fileUrl = getStoragePublicUrl(environment, "ifta", fileName);
+  const existing = await db.document.findFirst({
     where: {
       userId: report.userId,
       fileName,
@@ -142,7 +161,7 @@ export async function upsertFiledIftaReportDocument(
   });
 
   if (existing) {
-    return prisma.document.update({
+    return db.document.update({
       where: { id: existing.id },
       data: {
         name: `IFTA ${report.year} ${report.quarter} Report`,
@@ -159,7 +178,7 @@ export async function upsertFiledIftaReportDocument(
     });
   }
 
-  return prisma.document.create({
+  return db.document.create({
     data: {
       name: `IFTA ${report.year} ${report.quarter} Report`,
       description: `Filed IFTA report export for ${report.truckLabel}`,

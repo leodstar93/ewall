@@ -1,5 +1,6 @@
 import { Prisma, UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 import { canSubmitUcrFiling } from "@/lib/ucr-workflow";
 import { notifyUcrSubmitted } from "@/services/ucr/notifications";
 import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
@@ -14,8 +15,27 @@ type SubmitUcrFilingInput = {
   actorUserId: string;
 };
 
-export async function submitUcrFiling(input: SubmitUcrFilingInput) {
-  const filing = await prisma.uCRFiling.findUnique({
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
+}
+
+export async function submitUcrFiling(
+  input: SubmitUcrFilingInput,
+): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.update>>>;
+export async function submitUcrFiling(
+  ctx: Pick<ServiceContext, "db">,
+  input: SubmitUcrFilingInput,
+): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.update>>>;
+export async function submitUcrFiling(
+  ctxOrInput: Pick<ServiceContext, "db"> | SubmitUcrFilingInput,
+  maybeInput?: SubmitUcrFilingInput,
+) {
+  const input = maybeInput ?? (ctxOrInput as SubmitUcrFilingInput);
+  const db = resolveDb(maybeInput ? (ctxOrInput as Pick<ServiceContext, "db">) : null);
+
+  const filing = await db.uCRFiling.findUnique({
     where: { id: input.filingId },
     include: ucrFilingInclude,
   });
@@ -36,7 +56,7 @@ export async function submitUcrFiling(input: SubmitUcrFilingInput) {
     );
   }
 
-  const rate = await getUcrRateForFleet({
+  const rate = await getUcrRateForFleet({ db }, {
     year: filing.filingYear,
     fleetSize: filing.fleetSize,
   });
@@ -54,7 +74,7 @@ export async function submitUcrFiling(input: SubmitUcrFilingInput) {
     );
   }
 
-  const updated = await prisma.uCRFiling.update({
+  const updated = await db.uCRFiling.update({
     where: { id: input.filingId },
     data: {
       status: UCRFilingStatus.SUBMITTED,
@@ -65,6 +85,8 @@ export async function submitUcrFiling(input: SubmitUcrFilingInput) {
     include: ucrFilingInclude,
   });
 
-  await notifyUcrSubmitted(updated);
+  if (db === prisma) {
+    await notifyUcrSubmitted(updated);
+  }
   return updated;
 }

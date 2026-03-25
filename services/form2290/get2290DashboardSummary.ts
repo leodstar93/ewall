@@ -1,25 +1,29 @@
 import { Form2290Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import { is2290Expired } from "@/lib/form2290-workflow";
+import { resolveForm2290Db } from "@/services/form2290/shared";
 
 type Get2290DashboardSummaryInput = {
+  db?: DbClient;
   userId: string;
   canManageAll: boolean;
 };
 
 export async function get2290DashboardSummary(input: Get2290DashboardSummaryInput) {
+  const db = resolveForm2290Db(input.db);
   const truckWhere = input.canManageAll ? {} : { userId: input.userId };
   const filingWhere = input.canManageAll ? {} : { userId: input.userId };
 
   const [trucks, filings] = await Promise.all([
-    prisma.truck.findMany({
+    db.truck.findMany({
       where: truckWhere,
       select: {
         id: true,
         is2290Eligible: true,
       },
     }),
-    prisma.form2290Filing.findMany({
+    db.form2290Filing.findMany({
       where: filingWhere,
       select: {
         id: true,

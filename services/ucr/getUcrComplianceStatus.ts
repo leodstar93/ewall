@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 import { getUcrStatusLabel } from "@/lib/ucr-workflow";
 import { currentYear, getComplianceSnapshot } from "@/services/ucr/shared";
 
@@ -7,12 +8,22 @@ type GetUcrComplianceStatusInput = {
   year?: number;
 };
 
-export async function getUcrComplianceStatus({
-  userId,
-  year = currentYear(),
-}: GetUcrComplianceStatusInput) {
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
+}
+
+export async function getUcrComplianceStatus(
+  ctxOrInput: Pick<ServiceContext, "db"> | GetUcrComplianceStatusInput,
+  maybeInput?: GetUcrComplianceStatusInput,
+) {
+  const { userId, year = currentYear() } =
+    maybeInput ?? (ctxOrInput as GetUcrComplianceStatusInput);
+  const db = resolveDb(maybeInput ? (ctxOrInput as Pick<ServiceContext, "db">) : null);
+
   const [currentFiling, previousFiling] = await Promise.all([
-    prisma.uCRFiling.findUnique({
+    db.uCRFiling.findUnique({
       where: {
         userId_filingYear: {
           userId,
@@ -28,7 +39,7 @@ export async function getUcrComplianceStatus({
         },
       },
     }),
-    prisma.uCRFiling.findFirst({
+    db.uCRFiling.findFirst({
       where: {
         userId,
         filingYear: { lt: year },

@@ -99,7 +99,23 @@ function actionLabel(action: string) {
   }
 }
 
-export default function DmvAdminQueuePage() {
+type DmvAdminQueuePageProps = {
+  registrationsApiPath?: string;
+  activityApiPath?: string;
+  cronApiPath?: string;
+  detailHrefBase?: string;
+  showAutomationPanel?: boolean;
+};
+
+export default function DmvAdminQueuePage(props: DmvAdminQueuePageProps) {
+  const registrationsApiPath =
+    props.registrationsApiPath ?? "/api/v1/features/dmv/registrations";
+  const activityApiPath =
+    props.activityApiPath ?? "/api/v1/features/dmv/activity?mode=system&limit=20";
+  const cronApiPath = props.cronApiPath ?? "/api/v1/features/dmv/cron";
+  const detailHrefBase = props.detailHrefBase ?? "/admin/features/dmv";
+  const showAutomationPanel = props.showAutomationPanel ?? true;
+
   const [registrations, setRegistrations] = useState<QueueRegistration[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [activitySummary, setActivitySummary] = useState<Record<string, number>>({});
@@ -114,10 +130,13 @@ export default function DmvAdminQueuePage() {
     try {
       setLoading(true);
       setError(null);
-      const [registrationsResponse, activityResponse] = await Promise.all([
-        fetch("/api/v1/features/dmv/registrations", { cache: "no-store" }),
-        fetch("/api/v1/features/dmv/activity?mode=system&limit=20", { cache: "no-store" }),
-      ]);
+      const requests = [
+        fetch(registrationsApiPath, { cache: "no-store" }),
+        showAutomationPanel
+          ? fetch(activityApiPath, { cache: "no-store" })
+          : Promise.resolve(new Response(JSON.stringify({ activities: [], summary: {} }))),
+      ] as const;
+      const [registrationsResponse, activityResponse] = await Promise.all(requests);
 
       const data = (await registrationsResponse.json().catch(() => ({}))) as {
         registrations?: QueueRegistration[];
@@ -143,7 +162,7 @@ export default function DmvAdminQueuePage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [activityApiPath, registrationsApiPath, showAutomationPanel]);
 
   const queue = useMemo(
     () =>
@@ -165,7 +184,7 @@ export default function DmvAdminQueuePage() {
   ) {
     try {
       setBusyId(id);
-      const response = await fetch(`/api/v1/features/dmv/registrations/${id}/${endpoint}`, {
+      const response = await fetch(`${registrationsApiPath}/${id}/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(options ?? {}),
@@ -188,7 +207,7 @@ export default function DmvAdminQueuePage() {
       setError(null);
       setCronMessage(null);
 
-      const response = await fetch("/api/v1/features/dmv/cron", {
+      const response = await fetch(cronApiPath, {
         method: "POST",
       });
       const data = (await response.json().catch(() => ({}))) as {
@@ -235,6 +254,7 @@ export default function DmvAdminQueuePage() {
         </div>
       ) : null}
 
+      {showAutomationPanel ? (
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {[
           { label: "Alerts in 7 days", value: activitySummary.RENEWAL_ALERT_DUE ?? 0 },
@@ -251,8 +271,10 @@ export default function DmvAdminQueuePage() {
           </article>
         ))}
       </section>
+      ) : null}
 
       <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+        {showAutomationPanel ? (
         <div className="mb-6 flex flex-col gap-4 rounded-[24px] border border-zinc-200 bg-zinc-50 p-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
@@ -274,14 +296,15 @@ export default function DmvAdminQueuePage() {
             {cronRunning ? "Running cron..." : "Run DMV cron now"}
           </button>
         </div>
+        ) : null}
 
-        {cronMessage ? (
+        {showAutomationPanel && cronMessage ? (
           <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {cronMessage}
           </div>
         ) : null}
 
-        {cronResult ? (
+        {showAutomationPanel && cronResult ? (
           <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[
               { label: "Renewals opened", value: cronResult.renewalsOpened },
@@ -318,7 +341,7 @@ export default function DmvAdminQueuePage() {
               {queue.map((registration) => (
                 <tr key={registration.id}>
                   <td className="py-4 font-medium text-zinc-900">
-                    <Link href={`/admin/features/dmv/${registration.truckId}`} className="hover:text-sky-700">
+                    <Link href={`${detailHrefBase}/${registration.truckId}`} className="hover:text-sky-700">
                       {registration.truck.unitNumber}
                     </Link>
                   </td>
@@ -356,7 +379,7 @@ export default function DmvAdminQueuePage() {
                           Reject
                         </button>
                       ) : null}
-                      <Link href={`/admin/features/dmv/${registration.truckId}`} className="rounded-xl border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50">
+                      <Link href={`${detailHrefBase}/${registration.truckId}`} className="rounded-xl border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50">
                         Open
                       </Link>
                     </div>
@@ -375,6 +398,7 @@ export default function DmvAdminQueuePage() {
         </div>
       </section>
 
+      {showAutomationPanel ? (
       <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -416,6 +440,7 @@ export default function DmvAdminQueuePage() {
           ) : null}
         </div>
       </section>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Form2290Status } from "@prisma/client";
 import { canMark2290Submitted, canSubmit2290Filing } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import { notify2290Submitted } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
@@ -8,9 +9,11 @@ import {
   Form2290ServiceError,
   form2290FilingInclude,
   logForm2290Activity,
+  resolveForm2290Db,
 } from "@/services/form2290/shared";
 
 type Submit2290FilingInput = {
+  db?: DbClient;
   filingId: string;
   actorUserId: string;
   canManageAll: boolean;
@@ -18,7 +21,9 @@ type Submit2290FilingInput = {
 };
 
 export async function submit2290Filing(input: Submit2290FilingInput) {
+  const db = resolveForm2290Db(input.db);
   const existing = await assert2290FilingAccess({
+    db,
     filingId: input.filingId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
@@ -60,7 +65,7 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     );
   }
 
-  const filing = await prisma.$transaction(async (tx) => {
+  const filing = await db.$transaction(async (tx) => {
     const timestamp = new Date();
     if (existing.status === Form2290Status.NEEDS_CORRECTION) {
       await tx.form2290Correction.updateMany({
@@ -93,9 +98,11 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     return filing;
   });
 
-  await notify2290Submitted(filing, {
-    submittedDirectly: nextStatus === Form2290Status.SUBMITTED,
-  });
+  if (db === prisma) {
+    await notify2290Submitted(filing, {
+      submittedDirectly: nextStatus === Form2290Status.SUBMITTED,
+    });
+  }
 
   return filing;
 }

@@ -73,6 +73,12 @@ const PERMISSIONS = [
 
   //admin
   { key: "admin:access", description: "Access admin" },
+  { key: "sandbox:access", description: "Access sandbox console" },
+  { key: "sandbox:manage", description: "Manage sandbox console" },
+  { key: "sandbox:reset", description: "Reset sandbox data" },
+  { key: "sandbox:seed", description: "Load sandbox demo scenarios" },
+  { key: "sandbox:impersonate", description: "Impersonate demo users in sandbox" },
+  { key: "sandbox:logs:read", description: "Read sandbox audit logs" },
 ] as const;
 
 // Mapa de permisos por rol (ajusta como quieras)
@@ -123,6 +129,11 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "compliance2290:approve",
     "compliance2290:request_correction",
     "compliance2290:upload_schedule1",
+    "sandbox:access",
+    "sandbox:reset",
+    "sandbox:seed",
+    "sandbox:impersonate",
+    "sandbox:logs:read",
   ],
   USER: [
     "profile:access",

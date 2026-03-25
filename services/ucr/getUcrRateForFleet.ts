@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 import { formatBracketLabel, UcrServiceError } from "@/services/ucr/shared";
 
 type GetUcrRateForFleetInput = {
@@ -6,10 +7,34 @@ type GetUcrRateForFleetInput = {
   fleetSize: number;
 };
 
-export async function getUcrRateForFleet({
-  year,
-  fleetSize,
-}: GetUcrRateForFleetInput) {
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
+}
+
+export async function getUcrRateForFleet(
+  input: GetUcrRateForFleetInput,
+): Promise<{
+  bracket: Awaited<ReturnType<typeof prisma.uCRRateBracket.findMany>>[number];
+  bracketLabel: string;
+  feeAmount: string;
+}>;
+export async function getUcrRateForFleet(
+  ctx: Pick<ServiceContext, "db">,
+  input: GetUcrRateForFleetInput,
+): Promise<{
+  bracket: Awaited<ReturnType<typeof prisma.uCRRateBracket.findMany>>[number];
+  bracketLabel: string;
+  feeAmount: string;
+}>;
+export async function getUcrRateForFleet(
+  ctxOrInput: Pick<ServiceContext, "db"> | GetUcrRateForFleetInput,
+  maybeInput?: GetUcrRateForFleetInput,
+) {
+  const { year, fleetSize } = maybeInput ?? (ctxOrInput as GetUcrRateForFleetInput);
+  const db = resolveDb(maybeInput ? (ctxOrInput as Pick<ServiceContext, "db">) : null);
+
   if (!Number.isInteger(year)) {
     throw new UcrServiceError("Invalid filing year", 400, "INVALID_YEAR");
   }
@@ -18,7 +43,7 @@ export async function getUcrRateForFleet({
     throw new UcrServiceError("Fleet size must be zero or greater", 400, "INVALID_FLEET_SIZE");
   }
 
-  const matches = await prisma.uCRRateBracket.findMany({
+  const matches = await db.uCRRateBracket.findMany({
     where: {
       year,
       active: true,

@@ -5,6 +5,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 
 export class DmvServiceError extends Error {
   status: number;
@@ -18,6 +19,14 @@ export class DmvServiceError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+export function resolveDmvDb(
+  ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null,
+) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
 }
 
 export const dmvRegistrationInclude = {
@@ -160,11 +169,13 @@ export function parseOptionalDate(value: unknown) {
 }
 
 export async function assertDmvTruckAccess(input: {
+  db?: DbClient;
   truckId: string;
   actorUserId: string;
   canManageAll: boolean;
 }) {
-  const truck = await prisma.truck.findUnique({
+  const db = resolveDmvDb(input.db);
+  const truck = await db.truck.findUnique({
     where: { id: input.truckId },
   });
 
@@ -180,11 +191,13 @@ export async function assertDmvTruckAccess(input: {
 }
 
 export async function assertDmvRegistrationAccess(input: {
+  db?: DbClient;
   registrationId: string;
   actorUserId: string;
   canManageAll: boolean;
 }) {
-  const registration = await prisma.dmvRegistration.findUnique({
+  const db = resolveDmvDb(input.db);
+  const registration = await db.dmvRegistration.findUnique({
     where: { id: input.registrationId },
     include: dmvRegistrationInclude,
   });
@@ -201,11 +214,13 @@ export async function assertDmvRegistrationAccess(input: {
 }
 
 export async function assertDmvRenewalAccess(input: {
+  db?: DbClient;
   renewalId: string;
   actorUserId: string;
   canManageAll: boolean;
 }) {
-  const renewal = await prisma.dmvRenewal.findUnique({
+  const db = resolveDmvDb(input.db);
+  const renewal = await db.dmvRenewal.findUnique({
     where: { id: input.renewalId },
     include: dmvRenewalInclude,
   });

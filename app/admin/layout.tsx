@@ -24,6 +24,7 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/settings/2290")) return "Form 2290 Settings";
   if (pathname.startsWith("/admin/settings/ifta-tax-rates")) return "IFTA Tax Rates";
   if (pathname.startsWith("/admin/settings/ucr-rates")) return "UCR Rates";
+  if (pathname.startsWith("/admin/sandbox")) return "Sandbox";
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/roles")) return "Roles";
   if (pathname.startsWith("/admin/permissions")) return "Permissions";
@@ -45,9 +46,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const roles = session?.user?.roles ?? [];
+  const permissions = session?.user?.permissions ?? [];
   const isAdmin = roles.includes("ADMIN");
   const isStaff = roles.includes("STAFF");
-  const canAccessAdminShell = !pathname || isAdmin || isStaff;
+  const isSandboxRoute = Boolean(pathname?.startsWith("/admin/sandbox"));
+  const canAccessSandboxRoute =
+    isSandboxRoute &&
+    (isAdmin ||
+      isStaff ||
+      permissions.includes("sandbox:access") ||
+      permissions.includes("sandbox:manage"));
+  const canAccessAdminShell = !pathname || isAdmin || isStaff || canAccessSandboxRoute;
   const roleBadge = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "USER";
   const homeHref = isAdmin || isStaff ? "/admin" : "/panel";
   const profileHref = "/admin/profile";
@@ -185,6 +194,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 Workspace
               </div>
               <div className={styles.navSection}>
+                <Link
+                  href="/admin/sandbox"
+                  className={navItemClass("/admin/sandbox")}
+                >
+                  <span className={styles.navDot} />
+                  Sandbox
+                </Link>
                 <Link
                   href="/admin/features/documents"
                   className={navItemClass("/admin/features/documents")}

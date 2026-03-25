@@ -22,7 +22,15 @@ type FilingsPayload = {
   error?: string;
 };
 
-export default function Form2290AdminQueuePage() {
+type Form2290AdminQueuePageProps = {
+  apiPath?: string;
+  detailHrefBase?: string;
+};
+
+export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProps) {
+  const apiPath = props.apiPath ?? "/api/v1/features/2290";
+  const detailHrefBase = props.detailHrefBase ?? "/admin/features/2290";
+
   const [filings, setFilings] = useState<Form2290Filing[]>([]);
   const [statusCounts, setStatusCounts] = useState<Form2290ComplianceStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,8 +53,8 @@ export default function Form2290AdminQueuePage() {
       if (statusFilter !== "all") query.set("status", statusFilter);
 
       const [filingsResponse, statusResponse] = await Promise.all([
-        fetch(`/api/v1/features/2290?${query.toString()}`, { cache: "no-store" }),
-        fetch("/api/v1/features/2290/compliance-status", { cache: "no-store" }),
+        fetch(`${apiPath}?${query.toString()}`, { cache: "no-store" }),
+        fetch(`${apiPath}/compliance-status`, { cache: "no-store" }),
       ]);
 
       const filingsData = (await filingsResponse.json().catch(() => ({}))) as FilingsPayload;
@@ -68,7 +76,7 @@ export default function Form2290AdminQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [apiPath, statusFilter]);
 
   useEffect(() => {
     void load();
@@ -191,7 +199,7 @@ export default function Form2290AdminQueuePage() {
                       <td className="px-4 py-3 text-sm text-zinc-700">{formatDate(filing.updatedAt)}</td>
                       <td className="px-4 py-3 text-sm">
                         <Link
-                          href={`/admin/features/2290/${filing.id}`}
+                          href={`${detailHrefBase}/${filing.id}`}
                           className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
                         >
                           Review

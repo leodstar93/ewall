@@ -1,7 +1,6 @@
 import { ReportStatus } from "@prisma/client";
 import { mkdir, writeFile } from "fs/promises";
 import { NextRequest } from "next/server";
-import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { requireIftaAccess } from "@/lib/ifta-api-access";
 import { canFinalizeReport } from "@/lib/ifta-workflow";
@@ -13,6 +12,7 @@ import {
 } from "@/services/ifta/ensureFiledReportDocument";
 import { renderIftaPdf } from "@/services/ifta/renderIftaPdf";
 import { getIftaValidationIssues } from "@/services/ifta/validateReport";
+import { getStorageDiskDirectory } from "@/lib/storage/resolve-storage";
 
 export async function POST(
   request: NextRequest,
@@ -82,15 +82,16 @@ export async function POST(
     });
 
     const exportReport = await getFiledIftaReportExport(id);
-    const pdf = await renderIftaPdf(exportReport);
-    const uploadsDir = join(process.cwd(), "public", "uploads");
+    const pdf = await renderIftaPdf(exportReport, "production");
+    const uploadsDir = getStorageDiskDirectory("production", "ifta");
     await mkdir(uploadsDir, { recursive: true });
-    await writeFile(join(uploadsDir, pdf.fileName), pdf.buffer);
+    await writeFile(getStorageDiskDirectory("production", "ifta", pdf.fileName), pdf.buffer);
     await upsertFiledIftaReportDocument({
       report: exportReport,
       fileBuffer: pdf.buffer,
       fileExtension: "pdf",
       contentType: pdf.contentType,
+      environment: "production",
     });
 
     await notifyIftaFiled(updated);

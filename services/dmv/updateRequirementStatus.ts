@@ -2,17 +2,19 @@ import {
   DmvActorType,
   DmvRequirementStatus,
 } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import {
   assertDmvRegistrationAccess,
   assertDmvRenewalAccess,
   DmvServiceError,
   logDmvActivity,
+  resolveDmvDb,
 } from "@/services/dmv/shared";
 
 type UpdateRequirementStatusInput =
   | {
       scope: "registration";
+      db?: DbClient;
       registrationId: string;
       code: string;
       status: DmvRequirementStatus;
@@ -22,6 +24,7 @@ type UpdateRequirementStatusInput =
     }
   | {
       scope: "renewal";
+      db?: DbClient;
       renewalId: string;
       code: string;
       status: DmvRequirementStatus;
@@ -33,8 +36,10 @@ type UpdateRequirementStatusInput =
 export async function updateRequirementStatus(
   input: UpdateRequirementStatusInput,
 ) {
+  const db = resolveDmvDb(input.db);
   if (input.scope === "registration") {
     const registration = await assertDmvRegistrationAccess({
+      db,
       registrationId: input.registrationId,
       actorUserId: input.actorUserId,
       canManageAll: input.canManageAll,
@@ -48,7 +53,7 @@ export async function updateRequirementStatus(
       throw new DmvServiceError("Requirement not found", 404, "REQUIREMENT_NOT_FOUND");
     }
 
-    return prisma.$transaction(async (tx) => {
+    return db.$transaction(async (tx) => {
       const snapshot = await tx.dmvRequirementSnapshot.update({
         where: { id: requirement.id },
         data: {
@@ -74,6 +79,7 @@ export async function updateRequirementStatus(
   }
 
   const renewal = await assertDmvRenewalAccess({
+    db,
     renewalId: input.renewalId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
@@ -84,7 +90,7 @@ export async function updateRequirementStatus(
     throw new DmvServiceError("Requirement not found", 404, "REQUIREMENT_NOT_FOUND");
   }
 
-  return prisma.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const snapshot = await tx.dmvRequirementSnapshot.update({
       where: { id: requirement.id },
       data: {

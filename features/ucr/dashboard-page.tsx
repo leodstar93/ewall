@@ -15,7 +15,17 @@ import {
 } from "@/features/ucr/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
-export default function UcrDashboardPage() {
+type UcrDashboardPageProps = {
+  apiBasePath?: string;
+  detailHrefBase?: string;
+  newHref?: string;
+};
+
+export default function UcrDashboardPage({
+  apiBasePath = "/api/v1/features/ucr",
+  detailHrefBase = "/ucr",
+  newHref = "/ucr/new",
+}: UcrDashboardPageProps) {
   const [filings, setFilings] = useState<UcrFiling[]>([]);
   const [compliance, setCompliance] = useState<UcrComplianceStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,8 +41,8 @@ export default function UcrDashboardPage() {
       setError(null);
 
       const [filingsResponse, complianceResponse] = await Promise.all([
-        fetch("/api/v1/features/ucr", { cache: "no-store" }),
-        fetch("/api/v1/features/ucr/compliance-status", { cache: "no-store" }),
+        fetch(apiBasePath, { cache: "no-store" }),
+        fetch(`${apiBasePath}/compliance-status`, { cache: "no-store" }),
       ]);
 
       const filingsData = (await filingsResponse.json().catch(() => ({}))) as {
@@ -68,7 +78,7 @@ export default function UcrDashboardPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [apiBasePath]);
 
   useEffect(() => {
     setPage(1);
@@ -81,7 +91,7 @@ export default function UcrDashboardPage() {
     try {
       setBusyId(filingId);
       setError(null);
-      const response = await fetch(`/api/v1/features/ucr/${filingId}/${endpoint}`, {
+      const response = await fetch(`${apiBasePath}/${filingId}/${endpoint}`, {
         method: "POST",
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -102,7 +112,7 @@ export default function UcrDashboardPage() {
     return <div className="rounded-[28px] border border-zinc-200 bg-white p-8 shadow-sm">Loading UCR filings...</div>;
   }
 
-  const ctaHref = compliance?.filingId ? `/ucr/${compliance.filingId}` : "/ucr/new";
+  const ctaHref = compliance?.filingId ? `${detailHrefBase}/${compliance.filingId}` : newHref;
   const ctaLabel = compliance?.filingId ? "Open filing" : "Create filing";
   const paginatedFilings = paginateItems(filings, page, pageSize);
 
@@ -123,7 +133,7 @@ export default function UcrDashboardPage() {
             </p>
           </div>
           <Link
-            href="/ucr/new"
+            href={newHref}
             className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
           >
             Create annual filing
@@ -219,7 +229,7 @@ export default function UcrDashboardPage() {
                     <td className="px-4 py-3 text-sm">
                       <div className="flex flex-wrap gap-2">
                         <Link
-                          href={`/ucr/${filing.id}`}
+                          href={`${detailHrefBase}/${filing.id}`}
                           className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
                         >
                           View

@@ -1,15 +1,18 @@
 import { Form2290PaymentStatus, Form2290Status, Prisma } from "@prisma/client";
 import { canAutoMark2290Compliant, canMark2290Paid } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import { notify2290PaymentRecorded } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
   form2290FilingInclude,
   logForm2290Activity,
+  resolveForm2290Db,
 } from "@/services/form2290/shared";
 
 type Mark2290PaidInput = {
+  db?: DbClient;
   filingId: string;
   actorUserId: string;
   canManageAll: boolean;
@@ -18,7 +21,9 @@ type Mark2290PaidInput = {
 };
 
 export async function mark2290Paid(input: Mark2290PaidInput) {
+  const db = resolveForm2290Db(input.db);
   const existing = await assert2290FilingAccess({
+    db,
     filingId: input.filingId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
@@ -36,7 +41,7 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
     );
   }
 
-  const filing = await prisma.$transaction(async (tx) => {
+  const filing = await db.$transaction(async (tx) => {
     const paidAt = input.paidAt ?? new Date();
     const canMarkCompliant = canAutoMark2290Compliant({
       status: existing.status,
@@ -80,6 +85,10 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
     return filing;
   });
 
-  await notify2290PaymentRecorded(filing, { isCompliant: filing.status === Form2290Status.COMPLIANT });
+  if (db === prisma) {
+    await notify2290PaymentRecorded(filing, {
+      isCompliant: filing.status === Form2290Status.COMPLIANT,
+    });
+  }
   return filing;
 }

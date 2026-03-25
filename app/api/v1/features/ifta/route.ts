@@ -2,6 +2,7 @@ import { FuelType, Prisma, Quarter, ReportStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireIftaAccess } from "@/lib/ifta-api-access";
+import { createIftaReport } from "@/services/ifta/createIftaReport";
 
 type CreateReportBody = {
   truckId?: unknown;
@@ -192,26 +193,13 @@ export async function POST(request: NextRequest) {
       truckId = truck.id;
     }
 
-    const report = await prisma.iftaReport.create({
-      data: {
-        userId: actorUserId,
-        truckId,
-        year,
-        quarter,
-        fuelType,
-        status: ReportStatus.DRAFT,
-        notes,
-      },
-      include: {
-        truck: {
-          select: {
-            id: true,
-            unitNumber: true,
-            nickname: true,
-            plateNumber: true,
-          },
-        },
-      },
+    const report = await createIftaReport({
+      userId: actorUserId,
+      truckId,
+      year,
+      quarter,
+      fuelType,
+      notes,
     });
 
     return Response.json({ report }, { status: 201 });

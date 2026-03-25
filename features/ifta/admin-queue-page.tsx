@@ -21,7 +21,15 @@ type AdminPayload = {
   workflowCounts: Record<string, number>;
 };
 
-export default function AdminIftaQueuePage() {
+type AdminIftaQueuePageProps = {
+  apiPath?: string;
+  detailHrefBase?: string;
+};
+
+export default function AdminIftaQueuePage({
+  apiPath = "/api/v1/features/ifta",
+  detailHrefBase = "/admin/features/ifta",
+}: AdminIftaQueuePageProps) {
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [workflowCounts, setWorkflowCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -38,7 +46,7 @@ export default function AdminIftaQueuePage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
+        const response = await fetch(apiPath, { cache: "no-store" });
         if (!response.ok) throw new Error("Could not load review queue.");
 
         const data = (await response.json()) as AdminPayload;
@@ -63,7 +71,7 @@ export default function AdminIftaQueuePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [apiPath]);
 
   const pendingStaff = useMemo(
     () =>
@@ -175,7 +183,7 @@ export default function AdminIftaQueuePage() {
                   </div>
 
                   <Link
-                    href={`/admin/features/ifta/${report.id}`}
+                    href={`${detailHrefBase}/${report.id}`}
                     className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
                   >
                     Review report
@@ -236,7 +244,7 @@ export default function AdminIftaQueuePage() {
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <Link
-                        href={`/admin/features/ifta/${report.id}`}
+                        href={`${detailHrefBase}/${report.id}`}
                         className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
                       >
                         Open

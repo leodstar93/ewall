@@ -1,7 +1,8 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import type { AppEnvironment } from "@/lib/db/types";
 import type { IftaExportReport } from "@/services/ifta/ensureFiledReportDocument";
 
 type RenderedPdf = {
@@ -206,6 +207,7 @@ function valueForColumn(
 
 export async function renderIftaPdf(
   report: IftaExportReport,
+  environment: AppEnvironment = "production",
 ): Promise<RenderedPdf> {
   const regularFontPath = path.join(
     process.cwd(),
@@ -305,6 +307,18 @@ export async function renderIftaPdf(
     font: boldFont,
     size: 11,
   });
+
+  if (environment === "sandbox") {
+    page.drawText("SANDBOX - NOT FOR OFFICIAL USE", {
+      x: 122,
+      y: 360,
+      font: boldFont,
+      size: 22,
+      color: rgb(0.78, 0.33, 0.09),
+      rotate: degrees(-28),
+      opacity: 0.18,
+    });
+  }
 
   const pdfBytes = await pdfDoc.save();
 

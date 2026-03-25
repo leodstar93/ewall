@@ -146,6 +146,13 @@ export default async function AdminPageClient() {
     href: "/admin/features/2290",
     tone: "green",
   },
+  {
+    title: "Open sandbox",
+    desc: "Load demo scenarios, reset data, and impersonate safely.",
+    icon: "SBX",
+    href: "/admin/sandbox",
+    tone: "orange",
+  },
 ] as const;
 
   return (

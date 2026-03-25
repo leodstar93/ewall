@@ -8,6 +8,9 @@ type Form2290FilingFormProps = {
   mode: "create" | "edit";
   filingId?: string;
   detailHrefBase: string;
+  apiBasePath?: string;
+  vehiclesApiPath?: string;
+  taxPeriodsApiPath?: string;
   initialValues?: {
     truckId?: string;
     taxPeriodId?: string;
@@ -57,8 +60,8 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
         setError(null);
 
         const [vehiclesResponse, periodsResponse] = await Promise.all([
-          fetch("/api/v1/features/2290/vehicles", { cache: "no-store" }),
-          fetch("/api/v1/features/2290/tax-periods", { cache: "no-store" }),
+          fetch(props.vehiclesApiPath ?? "/api/v1/features/2290/vehicles", { cache: "no-store" }),
+          fetch(props.taxPeriodsApiPath ?? "/api/v1/features/2290/tax-periods", { cache: "no-store" }),
         ]);
 
         const vehiclesData = (await vehiclesResponse.json().catch(() => ({}))) as VehiclesPayload;
@@ -98,7 +101,12 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
     return () => {
       active = false;
     };
-  }, [props.initialValues?.taxPeriodId, props.initialValues?.truckId]);
+  }, [
+    props.initialValues?.taxPeriodId,
+    props.initialValues?.truckId,
+    props.taxPeriodsApiPath,
+    props.vehiclesApiPath,
+  ]);
 
   const selectedVehicle = useMemo(
     () => vehicles.find((vehicle) => vehicle.id === truckId) ?? null,
@@ -121,8 +129,8 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
 
       const response = await fetch(
         props.mode === "create"
-          ? "/api/v1/features/2290"
-          : `/api/v1/features/2290/${props.filingId}`,
+          ? (props.apiBasePath ?? "/api/v1/features/2290")
+          : `${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}`,
         {
           method: props.mode === "create" ? "POST" : "PATCH",
           headers: {

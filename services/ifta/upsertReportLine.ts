@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 import { calculateIftaReport } from "@/services/ifta/calculateReport";
 
 function parseNonNegativeNumber(value: unknown, field: string) {
@@ -20,14 +21,40 @@ function parseSortOrder(value: unknown) {
   return parsed;
 }
 
-export async function upsertReportLine(params: {
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
+}
+
+type UpsertReportLineParams = {
   reportId: string;
   jurisdictionId: string;
   miles?: unknown;
   paidGallons?: unknown;
   sortOrder?: unknown;
-}) {
-  const report = await prisma.iftaReport.findUnique({
+};
+
+type DeleteReportLineParams = {
+  reportId: string;
+  jurisdictionId: string;
+};
+
+export async function upsertReportLine(
+  params: UpsertReportLineParams,
+): Promise<Awaited<ReturnType<typeof calculateIftaReport>>>;
+export async function upsertReportLine(
+  ctx: Pick<ServiceContext, "db">,
+  params: UpsertReportLineParams,
+): Promise<Awaited<ReturnType<typeof calculateIftaReport>>>;
+export async function upsertReportLine(
+  ctxOrParams: Pick<ServiceContext, "db"> | UpsertReportLineParams,
+  maybeParams?: UpsertReportLineParams,
+) {
+  const params = maybeParams ?? (ctxOrParams as UpsertReportLineParams);
+  const db = resolveDb(maybeParams ? (ctxOrParams as Pick<ServiceContext, "db">) : null);
+
+  const report = await db.iftaReport.findUnique({
     where: { id: params.reportId },
     select: {
       id: true,
@@ -39,7 +66,7 @@ export async function upsertReportLine(params: {
     throw new Error("Report not found");
   }
 
-  const jurisdiction = await prisma.jurisdiction.findUnique({
+  const jurisdiction = await db.jurisdiction.findUnique({
     where: { id: params.jurisdictionId },
     select: { id: true },
   });
@@ -55,7 +82,7 @@ export async function upsertReportLine(params: {
   );
   const sortOrder = parseSortOrder(params.sortOrder);
 
-  await prisma.iftaReportLine.upsert({
+  await db.iftaReportLine.upsert({
     where: {
       reportId_jurisdictionId_fuelType: {
         reportId: report.id,
@@ -83,14 +110,24 @@ export async function upsertReportLine(params: {
     },
   });
 
-  return calculateIftaReport(report.id);
+  return calculateIftaReport({ db, reportId: report.id });
 }
 
-export async function deleteReportLine(params: {
-  reportId: string;
-  jurisdictionId: string;
-}) {
-  const report = await prisma.iftaReport.findUnique({
+export async function deleteReportLine(
+  params: DeleteReportLineParams,
+): Promise<Awaited<ReturnType<typeof calculateIftaReport>>>;
+export async function deleteReportLine(
+  ctx: Pick<ServiceContext, "db">,
+  params: DeleteReportLineParams,
+): Promise<Awaited<ReturnType<typeof calculateIftaReport>>>;
+export async function deleteReportLine(
+  ctxOrParams: Pick<ServiceContext, "db"> | DeleteReportLineParams,
+  maybeParams?: DeleteReportLineParams,
+) {
+  const params = maybeParams ?? (ctxOrParams as DeleteReportLineParams);
+  const db = resolveDb(maybeParams ? (ctxOrParams as Pick<ServiceContext, "db">) : null);
+
+  const report = await db.iftaReport.findUnique({
     where: { id: params.reportId },
     select: {
       id: true,
@@ -102,7 +139,7 @@ export async function deleteReportLine(params: {
     throw new Error("Report not found");
   }
 
-  await prisma.iftaReportLine.delete({
+  await db.iftaReportLine.delete({
     where: {
       reportId_jurisdictionId_fuelType: {
         reportId: report.id,
@@ -112,5 +149,5 @@ export async function deleteReportLine(params: {
     },
   });
 
-  return calculateIftaReport(report.id);
+  return calculateIftaReport({ db, reportId: report.id });
 }

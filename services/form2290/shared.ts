@@ -5,6 +5,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 import { canAutoMark2290Compliant, is2290Eligible, is2290Expired } from "@/lib/form2290-workflow";
 
 export class Form2290ServiceError extends Error {
@@ -52,14 +53,26 @@ export const form2290FilingInclude = {
   schedule1Document: true,
 } satisfies Prisma.Form2290FilingInclude;
 
-export async function getForm2290Settings() {
-  const existing = await prisma.form2290Setting.findFirst({
+export function resolveForm2290Db(
+  ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null,
+) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
+}
+
+export async function getForm2290Settings(
+  ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null,
+) {
+  const db = resolveForm2290Db(ctxOrDb);
+
+  const existing = await db.form2290Setting.findFirst({
     orderBy: { createdAt: "asc" },
   });
 
   if (existing) return existing;
 
-  return prisma.form2290Setting.create({
+  return db.form2290Setting.create({
     data: {
       minimumEligibleWeight: 55000,
       expirationWarningDays: 30,
@@ -67,8 +80,11 @@ export async function getForm2290Settings() {
   });
 }
 
-export async function resolve2290Eligibility(grossWeight: number | null | undefined) {
-  const settings = await getForm2290Settings();
+export async function resolve2290Eligibility(
+  grossWeight: number | null | undefined,
+  ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null,
+) {
+  const settings = await getForm2290Settings(ctxOrDb);
   return {
     settings,
     isEligible: is2290Eligible(grossWeight, settings.minimumEligibleWeight),
@@ -76,11 +92,13 @@ export async function resolve2290Eligibility(grossWeight: number | null | undefi
 }
 
 export async function assert2290TruckAccess(input: {
+  db?: DbClient;
   truckId: string;
   actorUserId: string;
   canManageAll: boolean;
 }) {
-  const truck = await prisma.truck.findUnique({
+  const db = resolveForm2290Db(input.db);
+  const truck = await db.truck.findUnique({
     where: { id: input.truckId },
   });
 
@@ -96,11 +114,13 @@ export async function assert2290TruckAccess(input: {
 }
 
 export async function assert2290FilingAccess(input: {
+  db?: DbClient;
   filingId: string;
   actorUserId: string;
   canManageAll: boolean;
 }) {
-  const filing = await prisma.form2290Filing.findUnique({
+  const db = resolveForm2290Db(input.db);
+  const filing = await db.form2290Filing.findUnique({
     where: { id: input.filingId },
     include: form2290FilingInclude,
   });

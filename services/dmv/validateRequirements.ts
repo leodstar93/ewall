@@ -1,5 +1,6 @@
 import { DmvRequirementStatus } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
+import { resolveDmvDb } from "@/services/dmv/shared";
 
 export type RequirementValidationResult = {
   complete: boolean;
@@ -11,6 +12,7 @@ export type RequirementValidationResult = {
 
 type ValidateRequirementsInput =
   | {
+      db?: Pick<ServiceContext, "db"> | DbClient | null;
       registrationId: string;
       renewalId?: string | null;
     }
@@ -25,10 +27,11 @@ type ValidateRequirementsInput =
 export async function validateRequirements(
   input: ValidateRequirementsInput,
 ): Promise<RequirementValidationResult> {
+  const db = "registrationId" in input ? resolveDmvDb(input.db) : null;
   const requirements =
     "requirements" in input
       ? input.requirements
-      : await prisma.dmvRequirementSnapshot.findMany({
+      : await db!.dmvRequirementSnapshot.findMany({
           where: {
             registrationId: input.registrationId,
             renewalId:

@@ -18,7 +18,19 @@ type CreateTruckState = {
 const quarterOptions: Quarter[] = ["Q1", "Q2", "Q3", "Q4"];
 const fuelOptions: FuelType[] = ["DI", "GA"];
 
-export default function IftaNewReportPage() {
+type IftaNewReportPageProps = {
+  apiBasePath?: string;
+  trucksApiPath?: string;
+  backHref?: string;
+  detailHrefBase?: string;
+};
+
+export default function IftaNewReportPage({
+  apiBasePath = "/api/v1/features/ifta",
+  trucksApiPath = "/api/v1/features/ifta/trucks",
+  backHref = "/ifta",
+  detailHrefBase = "/ifta/reports",
+}: IftaNewReportPageProps) {
   const router = useRouter();
   const [trucks, setTrucks] = useState<TruckSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +48,7 @@ export default function IftaNewReportPage() {
   });
 
   const loadTrucks = async () => {
-    const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
+    const response = await fetch(apiBasePath, { cache: "no-store" });
     if (!response.ok) throw new Error("Could not load trucks.");
     const data = (await response.json()) as BootstrapPayload;
     const list = Array.isArray(data.trucks) ? data.trucks : [];
@@ -53,7 +65,7 @@ export default function IftaNewReportPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
+        const response = await fetch(apiBasePath, { cache: "no-store" });
         if (!response.ok) throw new Error("Could not load trucks.");
 
         const data = (await response.json()) as BootstrapPayload;
@@ -77,7 +89,7 @@ export default function IftaNewReportPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [apiBasePath]);
 
   const handleCreateTruck = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,7 +97,7 @@ export default function IftaNewReportPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/v1/features/ifta/trucks", {
+      const response = await fetch(trucksApiPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(truckDraft),
@@ -120,7 +132,7 @@ export default function IftaNewReportPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/v1/features/ifta", {
+      const response = await fetch(apiBasePath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -141,7 +153,7 @@ export default function IftaNewReportPage() {
         throw new Error(payload.error || "Could not create report.");
       }
 
-      router.push(`/ifta/reports/${payload.report.id}/manual`);
+      router.push(`${detailHrefBase}/${payload.report.id}/manual`);
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -188,7 +200,7 @@ export default function IftaNewReportPage() {
               </p>
             </div>
             <Link
-              href="/ifta"
+              href={backHref}
               className="rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
             >
               Back

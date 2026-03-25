@@ -18,6 +18,12 @@ type DashboardPayload = {
   trucks: Array<{ id: string }>;
 };
 
+type IftaDashboardPageProps = {
+  apiBasePath?: string;
+  detailHrefBase?: string;
+  newHref?: string;
+};
+
 function StatCard(props: { label: string; value: string | number; hint: string }) {
   return (
     <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
@@ -30,7 +36,11 @@ function StatCard(props: { label: string; value: string | number; hint: string }
   );
 }
 
-export default function IftaDashboardPage() {
+export default function IftaDashboardPage({
+  apiBasePath = "/api/v1/features/ifta",
+  detailHrefBase = "/ifta/reports",
+  newHref = "/ifta/reports/new",
+}: IftaDashboardPageProps) {
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [workflowCounts, setWorkflowCounts] = useState<Record<string, number>>({});
   const [truckCount, setTruckCount] = useState(0);
@@ -43,7 +53,7 @@ export default function IftaDashboardPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/v1/features/ifta", { cache: "no-store" });
+      const response = await fetch(apiBasePath, { cache: "no-store" });
       if (!response.ok) throw new Error("Could not load IFTA reports.");
 
       const data = (await response.json()) as DashboardPayload;
@@ -60,7 +70,7 @@ export default function IftaDashboardPage() {
     } finally {
       if (active) setLoading(false);
     }
-  }, []);
+  }, [apiBasePath]);
 
   useEffect(() => {
     let active = true;
@@ -83,7 +93,7 @@ export default function IftaDashboardPage() {
         setDeletingId(report.id);
         setError(null);
 
-        const response = await fetch(`/api/v1/features/ifta/${report.id}`, {
+        const response = await fetch(`${apiBasePath}/${report.id}`, {
           method: "DELETE",
         });
         const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -102,7 +112,7 @@ export default function IftaDashboardPage() {
         setDeletingId(null);
       }
     },
-    [loadDashboard],
+    [apiBasePath, loadDashboard],
   );
 
   const totals = useMemo(
@@ -148,7 +158,7 @@ export default function IftaDashboardPage() {
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/ifta/reports/new"
+              href={newHref}
               className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800"
             >
               New manual report
@@ -222,7 +232,7 @@ export default function IftaDashboardPage() {
             </p>
           </div>
           <Link
-            href="/ifta/reports/new"
+            href={newHref}
             className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
           >
             Create report
@@ -282,7 +292,7 @@ export default function IftaDashboardPage() {
                       </button>
                     )}
                     <Link
-                      href={`/ifta/reports/${report.id}/manual`}
+                      href={`${detailHrefBase}/${report.id}/manual`}
                       className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
                     >
                       Open report

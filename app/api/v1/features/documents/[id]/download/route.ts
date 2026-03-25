@@ -2,20 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { NextRequest } from "next/server";
 import { readFile } from "fs/promises";
-import path from "path";
-
-function diskPathFromFileUrl(fileUrl: string) {
-  let rel = fileUrl.trim();
-  if (!rel.startsWith("/")) rel = `/${rel}`;
-  rel = rel.replace(/^\/public\//, "/");
-  if (!rel.startsWith("/uploads/")) throw new Error("INVALID_PATH");
-
-  const publicRoot = path.join(process.cwd(), "public");
-  const disk = path.join(publicRoot, rel);
-  if (!disk.startsWith(publicRoot)) throw new Error("INVALID_PATH");
-
-  return disk;
-}
+import { resolveDiskPathFromPublicUrl } from "@/lib/storage/resolve-storage";
 
 export async function GET(
   _request: NextRequest,
@@ -49,7 +36,7 @@ export async function GET(
   }
 
   try {
-    const diskPath = diskPathFromFileUrl(doc.fileUrl);
+    const diskPath = resolveDiskPathFromPublicUrl(doc.fileUrl);
     const buf = await readFile(diskPath);
 
     const safeName = (doc.fileName || doc.name || "document")

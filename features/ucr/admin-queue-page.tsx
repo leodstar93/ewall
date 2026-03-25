@@ -17,7 +17,15 @@ type AdminPayload = {
   metrics: Record<string, number>;
 };
 
-export default function UcrAdminQueuePage() {
+type UcrAdminQueuePageProps = {
+  apiPath?: string;
+  detailHrefBase?: string;
+};
+
+export default function UcrAdminQueuePage({
+  apiPath = "/api/v1/features/ucr/admin",
+  detailHrefBase = "/admin/features/ucr",
+}: UcrAdminQueuePageProps) {
   const [filings, setFilings] = useState<UcrFiling[]>([]);
   const [metrics, setMetrics] = useState<Record<string, number>>({});
   const [year, setYear] = useState(String(new Date().getFullYear()));
@@ -40,7 +48,7 @@ export default function UcrAdminQueuePage() {
       if (search.trim()) params.set("search", search.trim());
       if (proof) params.set("proof", proof);
 
-      const response = await fetch(`/api/v1/features/ucr/admin?${params.toString()}`, {
+      const response = await fetch(`${apiPath}?${params.toString()}`, {
         cache: "no-store",
       });
       const data = (await response.json().catch(() => ({}))) as AdminPayload & {
@@ -60,7 +68,7 @@ export default function UcrAdminQueuePage() {
     } finally {
       setLoading(false);
     }
-  }, [proof, search, status, year]);
+  }, [apiPath, proof, search, status, year]);
 
   useEffect(() => {
     void load();
@@ -233,7 +241,7 @@ export default function UcrAdminQueuePage() {
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <Link
-                            href={`/admin/features/ucr/${filing.id}`}
+                            href={`${detailHrefBase}/${filing.id}`}
                             className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
                           >
                             Open

@@ -56,6 +56,8 @@ function parseNumericInput(value: string) {
 export default function IftaManualReportPage(props: {
   reportId: string;
   mode: "driver" | "staff";
+  apiBasePath?: string;
+  backHref?: string;
 }) {
   const router = useRouter();
   const [downloadFormat, setDownloadFormat] = useState<"pdf" | "excel">("pdf");
@@ -75,7 +77,7 @@ export default function IftaManualReportPage(props: {
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   const loadDetail = useCallback(async () => {
-    const response = await fetch(`/api/v1/features/ifta/${props.reportId}`, {
+    const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}`, {
       cache: "no-store",
     });
     const data = (await response.json().catch(() => ({}))) as DetailPayload & {
@@ -98,7 +100,7 @@ export default function IftaManualReportPage(props: {
     );
     setDriverNotes(data.report.notes ?? "");
     setReviewNotes(data.report.reviewNotes ?? "");
-  }, [props.reportId]);
+  }, [props.apiBasePath, props.reportId]);
 
   useEffect(() => {
     let active = true;
@@ -199,7 +201,7 @@ export default function IftaManualReportPage(props: {
 
       for (const jurisdictionId of removals) {
         const response = await fetch(
-          `/api/v1/features/ifta/${props.reportId}/lines/${jurisdictionId}`,
+          `${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}/lines/${jurisdictionId}`,
           { method: "DELETE" },
         );
         if (!response.ok) {
@@ -210,7 +212,7 @@ export default function IftaManualReportPage(props: {
 
       for (const row of rows) {
         const response = await fetch(
-          `/api/v1/features/ifta/${props.reportId}/lines/${row.jurisdictionId}`,
+          `${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}/lines/${row.jurisdictionId}`,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -246,7 +248,7 @@ export default function IftaManualReportPage(props: {
     setError(null);
 
     try {
-      const response = await fetch(`/api/v1/features/ifta/${props.reportId}`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -316,7 +318,7 @@ export default function IftaManualReportPage(props: {
     setError(null);
 
     try {
-      const response = await fetch(`/api/v1/features/ifta/${props.reportId}`, {
+      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}`, {
         method: "DELETE",
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -324,7 +326,7 @@ export default function IftaManualReportPage(props: {
         throw new Error(data.error || "Could not delete the report.");
       }
 
-      router.push(props.mode === "staff" ? "/admin/features/ifta" : "/ifta");
+      router.push(props.backHref ?? (props.mode === "staff" ? "/admin/features/ifta" : "/ifta"));
       router.refresh();
     } catch (deleteError) {
       setError(
@@ -352,7 +354,8 @@ export default function IftaManualReportPage(props: {
   if (!payload) return null;
 
   const { report, jurisdictions, permissions, validationIssues } = payload;
-  const backHref = props.mode === "staff" ? "/admin/features/ifta" : "/ifta";
+  const backHref =
+    props.backHref ?? (props.mode === "staff" ? "/admin/features/ifta" : "/ifta");
   const paginatedRows = paginateItems(rows, rowsPage, rowsPageSize);
   const paginatedBreakdown = paginateItems(
     report.lines,
@@ -404,7 +407,7 @@ export default function IftaManualReportPage(props: {
                   <option value="excel">Excel (.csv)</option>
                 </select>
                 <a
-                  href={`/api/v1/features/ifta/${props.reportId}/download?format=${downloadFormat}`}
+                  href={`${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}/download?format=${downloadFormat}`}
                   className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50"
                 >
                   Download filed report
@@ -433,7 +436,7 @@ export default function IftaManualReportPage(props: {
               <button
                 onClick={() =>
                   void runAction(
-                    `/api/v1/features/ifta/${props.reportId}/submit`,
+                      `${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}/submit`,
                     undefined,
                     "Report sent to staff.",
                   )
@@ -448,7 +451,7 @@ export default function IftaManualReportPage(props: {
               <button
                 onClick={() =>
                   void runAction(
-                    `/api/v1/features/ifta/${props.reportId}/finalize`,
+                      `${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}/finalize`,
                     undefined,
                     "Report finalized.",
                   )
@@ -846,7 +849,7 @@ export default function IftaManualReportPage(props: {
                 <button
                   onClick={() =>
                     void runAction(
-                      `/api/v1/features/ifta/${props.reportId}/staff-decline`,
+                      `${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}/staff-decline`,
                       { reviewNotes },
                       "Report returned to draft for client changes.",
                     )
@@ -859,7 +862,7 @@ export default function IftaManualReportPage(props: {
                 <button
                   onClick={() =>
                     void runAction(
-                      `/api/v1/features/ifta/${props.reportId}/staff-review`,
+                      `${props.apiBasePath ?? "/api/v1/features/ifta"}/${props.reportId}/staff-review`,
                       { reviewNotes },
                       "Report returned to trucker for finalization.",
                     )

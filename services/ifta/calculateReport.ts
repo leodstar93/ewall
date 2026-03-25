@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 
 function decimalToNumber(
   value: Prisma.Decimal | string | number | null | undefined,
@@ -17,6 +18,12 @@ function round(value: number, precision: number) {
 
 function toDecimalString(value: number, precision: number) {
   return round(value, precision).toFixed(precision);
+}
+
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
 }
 
 export type CalculatedLine = {
@@ -44,8 +51,33 @@ export type CalculatedReport = {
 
 export async function calculateIftaReport(
   reportId: string,
+): Promise<CalculatedReport | null>;
+export async function calculateIftaReport(
+  ctx: Pick<ServiceContext, "db">,
+  reportId: string,
+): Promise<CalculatedReport | null>;
+export async function calculateIftaReport(
+  input: { db: DbClient; reportId: string },
+): Promise<CalculatedReport | null>;
+export async function calculateIftaReport(
+  ctxOrReportId: string | Pick<ServiceContext, "db"> | { db: DbClient; reportId: string },
+  maybeReportId?: string,
 ): Promise<CalculatedReport | null> {
-  const report = await prisma.iftaReport.findUnique({
+  const reportId =
+    typeof ctxOrReportId === "string"
+      ? ctxOrReportId
+      : "reportId" in ctxOrReportId
+        ? ctxOrReportId.reportId
+        : maybeReportId ?? "";
+  const db = resolveDb(
+    typeof ctxOrReportId === "string"
+      ? null
+      : "reportId" in ctxOrReportId
+        ? ctxOrReportId.db
+        : ctxOrReportId,
+  );
+
+  const report = await db.iftaReport.findUnique({
     where: { id: reportId },
     select: {
       id: true,
@@ -71,7 +103,7 @@ export async function calculateIftaReport(
   );
 
   const rates = jurisdictionIds.length
-    ? await prisma.iftaTaxRate.findMany({
+    ? await db.iftaTaxRate.findMany({
         where: {
           jurisdictionId: { in: jurisdictionIds },
           year: report.year,
@@ -134,7 +166,7 @@ export async function calculateIftaReport(
     .filter((line) => line.missingTaxRate)
     .map((line) => line.jurisdictionId);
 
-  await prisma.$transaction(async (tx) => {
+  await db.$transaction(async (tx) => {
     await Promise.all(
       lines.map((line) =>
         tx.iftaReportLine.update({

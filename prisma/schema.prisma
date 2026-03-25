@@ -924,3 +924,46 @@ model DmvFeeRule {
   @@index([registrationType, active])
   @@index([jurisdictionCode, active])
 }
+
+model SandboxScenario {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  moduleKey   String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SandboxAuditLog {
+  id             String   @id @default(cuid())
+  environment    String
+  actorUserId    String
+  actingAsUserId String?
+  actingAsRole   String?
+  action         String
+  entityType     String?
+  entityId       String?
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model SandboxImpersonationSession {
+  id             String   @id @default(cuid())
+  actorUserId    String
+  actingAsUserId String?
+  actingAsRole   String?
+  startedAt      DateTime @default(now())
+  endedAt        DateTime?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([actorUserId, isActive])
+  @@index([actingAsUserId, isActive])
+}

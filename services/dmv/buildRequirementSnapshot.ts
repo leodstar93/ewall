@@ -3,7 +3,8 @@ import {
   DmvRegistrationType,
   DmvRequirementStatus,
 } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
+import { resolveDmvDb } from "@/services/dmv/shared";
 
 export type RequirementSnapshotSeed = {
   code: string;
@@ -14,6 +15,7 @@ export type RequirementSnapshotSeed = {
 };
 
 type BuildRequirementSnapshotInput = {
+  db?: Pick<ServiceContext, "db"> | DbClient | null;
   registrationType: DmvRegistrationType;
   filingType: DmvFilingType;
   declaredGrossWeight?: number | null;
@@ -26,6 +28,7 @@ type BuildRequirementSnapshotInput = {
 };
 
 export async function buildRequirementSnapshot(input: BuildRequirementSnapshotInput) {
+  const db = resolveDmvDb(input.db);
   const usePriorRequirements =
     Array.isArray(input.priorRequirements) && input.priorRequirements.length > 0;
 
@@ -35,7 +38,7 @@ export async function buildRequirementSnapshot(input: BuildRequirementSnapshotIn
         name: requirement.name,
         isRequired: requirement.isRequired,
       }))
-    : await prisma.dmvRequirementTemplate.findMany({
+    : await db.dmvRequirementTemplate.findMany({
         where: {
           active: true,
           OR: [

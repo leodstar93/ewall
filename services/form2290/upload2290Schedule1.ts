@@ -1,15 +1,18 @@
 import { Form2290DocumentType, Form2290Status, Prisma } from "@prisma/client";
 import { canAutoMark2290Compliant, canUpload2290Schedule1 } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import { notify2290Schedule1Uploaded } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
   form2290FilingInclude,
   logForm2290Activity,
+  resolveForm2290Db,
 } from "@/services/form2290/shared";
 
 type Upload2290Schedule1Input = {
+  db?: DbClient;
   filingId: string;
   actorUserId: string;
   canManageAll: boolean;
@@ -17,7 +20,9 @@ type Upload2290Schedule1Input = {
 };
 
 export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
+  const db = resolveForm2290Db(input.db);
   const existing = await assert2290FilingAccess({
+    db,
     filingId: input.filingId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
@@ -31,7 +36,7 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
     );
   }
 
-  const document = await prisma.document.findUnique({
+  const document = await db.document.findUnique({
     where: { id: input.documentId },
   });
 
@@ -43,7 +48,7 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
     throw new Form2290ServiceError("Forbidden", 403, "FORBIDDEN");
   }
 
-  const filing = await prisma.$transaction(async (tx) => {
+  const filing = await db.$transaction(async (tx) => {
     const existingLink = await tx.form2290Document.findFirst({
       where: {
         filingId: existing.id,
@@ -98,8 +103,10 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
     return filing;
   });
 
-  await notify2290Schedule1Uploaded(filing, {
-    isCompliant: filing.status === Form2290Status.COMPLIANT,
-  });
+  if (db === prisma) {
+    await notify2290Schedule1Uploaded(filing, {
+      isCompliant: filing.status === Form2290Status.COMPLIANT,
+    });
+  }
   return filing;
 }

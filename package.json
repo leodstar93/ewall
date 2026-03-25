@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate:sandbox": "prisma migrate deploy --config prisma.sandbox.config.ts",
+    "db:push:sandbox": "prisma db push --config prisma.sandbox.config.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

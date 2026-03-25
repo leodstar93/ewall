@@ -1,5 +1,6 @@
 import { Prisma, UCREntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
 import { canEditUcrFiling } from "@/lib/ucr-workflow";
 import { UcrServiceError, sanitizeStateCode, ucrFilingInclude } from "@/services/ucr/shared";
@@ -19,8 +20,27 @@ type UpdateUcrFilingInput = {
   clientNotes?: string | null;
 };
 
-export async function updateUcrFiling(input: UpdateUcrFilingInput) {
-  const existing = await prisma.uCRFiling.findUnique({
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
+}
+
+export async function updateUcrFiling(
+  input: UpdateUcrFilingInput,
+): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.update>>>;
+export async function updateUcrFiling(
+  ctx: Pick<ServiceContext, "db">,
+  input: UpdateUcrFilingInput,
+): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.update>>>;
+export async function updateUcrFiling(
+  ctxOrInput: Pick<ServiceContext, "db"> | UpdateUcrFilingInput,
+  maybeInput?: UpdateUcrFilingInput,
+) {
+  const input = maybeInput ?? (ctxOrInput as UpdateUcrFilingInput);
+  const db = resolveDb(maybeInput ? (ctxOrInput as Pick<ServiceContext, "db">) : null);
+
+  const existing = await db.uCRFiling.findUnique({
     where: { id: input.filingId },
     include: ucrFilingInclude,
   });
@@ -43,10 +63,10 @@ export async function updateUcrFiling(input: UpdateUcrFilingInput) {
 
   const filingYear = input.filingYear ?? existing.filingYear;
   const fleetSize = input.fleetSize ?? existing.fleetSize;
-  const rate = await getUcrRateForFleet({ year: filingYear, fleetSize });
+  const rate = await getUcrRateForFleet({ db }, { year: filingYear, fleetSize });
 
   try {
-    return await prisma.uCRFiling.update({
+    return await db.uCRFiling.update({
       where: { id: input.filingId },
       data: {
         filingYear,

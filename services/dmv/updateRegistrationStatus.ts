@@ -3,11 +3,13 @@ import {
   DmvRegistrationStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import {
   assertDmvRegistrationAccess,
   dmvRegistrationInclude,
   DmvServiceError,
   logDmvActivity,
+  resolveDmvDb,
 } from "@/services/dmv/shared";
 import { notifyDmvCorrectionRequired } from "@/services/dmv/notifications";
 import { validateRequirements } from "@/services/dmv/validateRequirements";
@@ -52,6 +54,7 @@ const REGISTRATION_TRANSITIONS: Record<
 };
 
 type UpdateRegistrationStatusInput = {
+  db?: DbClient;
   registrationId: string;
   nextStatus: DmvRegistrationStatus;
   actorUserId: string;
@@ -62,7 +65,9 @@ type UpdateRegistrationStatusInput = {
 export async function updateRegistrationStatus(
   input: UpdateRegistrationStatusInput,
 ) {
+  const db = resolveDmvDb(input.db);
   const registration = await assertDmvRegistrationAccess({
+    db,
     registrationId: input.registrationId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
@@ -83,6 +88,7 @@ export async function updateRegistrationStatus(
 
   if (input.nextStatus === DmvRegistrationStatus.READY_FOR_FILING) {
     const validation = await validateRequirements({
+      db,
       registrationId: registration.id,
     });
 
@@ -149,7 +155,7 @@ export async function updateRegistrationStatus(
     }
   }
 
-  return prisma.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const updated = await tx.dmvRegistration.update({
       where: { id: registration.id },
       data: {
@@ -179,7 +185,7 @@ export async function updateRegistrationStatus(
 
     return updated;
   }).then(async (updated) => {
-    if (input.nextStatus === DmvRegistrationStatus.CORRECTION_REQUIRED) {
+    if (db === prisma && input.nextStatus === DmvRegistrationStatus.CORRECTION_REQUIRED) {
       await notifyDmvCorrectionRequired({
         userId: updated.user.id,
         registrationId: updated.id,

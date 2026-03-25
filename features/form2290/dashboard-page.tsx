@@ -29,7 +29,17 @@ type TaxPeriodsPayload = {
   error?: string;
 };
 
-export default function Form2290DashboardPage() {
+type Form2290DashboardPageProps = {
+  apiBasePath?: string;
+  detailHrefBase?: string;
+  newHref?: string;
+};
+
+export default function Form2290DashboardPage({
+  apiBasePath = "/api/v1/features/2290",
+  detailHrefBase = "/2290",
+  newHref = "/2290/new",
+}: Form2290DashboardPageProps) {
   const [filings, setFilings] = useState<Form2290Filing[]>([]);
   const [summary, setSummary] = useState<Form2290DashboardSummary | null>(null);
   const [statusCounts, setStatusCounts] = useState<Form2290ComplianceStatus | null>(null);
@@ -58,10 +68,10 @@ export default function Form2290DashboardPage() {
       if (complianceFilter !== "all") query.set("compliance", complianceFilter);
 
       const [filingsResponse, summaryResponse, complianceResponse, periodsResponse] = await Promise.all([
-        fetch(`/api/v1/features/2290?${query.toString()}`, { cache: "no-store" }),
-        fetch("/api/v1/features/2290/dashboard-summary", { cache: "no-store" }),
-        fetch("/api/v1/features/2290/compliance-status", { cache: "no-store" }),
-        fetch("/api/v1/features/2290/tax-periods", { cache: "no-store" }),
+        fetch(`${apiBasePath}?${query.toString()}`, { cache: "no-store" }),
+        fetch(`${apiBasePath}/dashboard-summary`, { cache: "no-store" }),
+        fetch(`${apiBasePath}/compliance-status`, { cache: "no-store" }),
+        fetch(`${apiBasePath}/tax-periods`, { cache: "no-store" }),
       ]);
 
       const filingsData = (await filingsResponse.json().catch(() => ({}))) as FilingsPayload;
@@ -99,7 +109,7 @@ export default function Form2290DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [complianceFilter, statusFilter, taxPeriodFilter]);
+  }, [apiBasePath, complianceFilter, statusFilter, taxPeriodFilter]);
 
   useEffect(() => {
     void load();
@@ -130,7 +140,7 @@ export default function Form2290DashboardPage() {
             </p>
           </div>
           <Link
-            href="/2290/new"
+            href={newHref}
             className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
           >
             Create 2290 filing
@@ -286,21 +296,21 @@ export default function Form2290DashboardPage() {
                       <td className="px-4 py-3 text-sm">
                         <div className="flex flex-wrap gap-2">
                           <Link
-                            href={`/2290/${filing.id}`}
+                            href={`${detailHrefBase}/${filing.id}`}
                             className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
                           >
                             View
                           </Link>
                           {(filing.status === "DRAFT" || filing.status === "NEEDS_CORRECTION") && (
                             <Link
-                              href={`/2290/${filing.id}`}
+                              href={`${detailHrefBase}/${filing.id}`}
                               className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
                             >
                               Edit
                             </Link>
                           )}
                           <Link
-                            href={`/2290/${filing.id}`}
+                            href={`${detailHrefBase}/${filing.id}`}
                             className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
                           >
                             Upload docs

@@ -42,6 +42,7 @@ type RequirementChecklistProps = {
   isLocked?: boolean;
   lockedMessage?: string | null;
   canReviewRequirements?: boolean;
+  documentsApiBasePath?: string;
   onUpload: (requirement: ChecklistRequirement, file: File) => Promise<void>;
   onAttachExisting: (
     requirement: ChecklistRequirement,
@@ -67,6 +68,7 @@ export default function RequirementChecklist({
   isLocked = false,
   lockedMessage,
   canReviewRequirements = false,
+  documentsApiBasePath = "/api/v1/features/documents",
   onUpload,
   onAttachExisting,
   onUnlinkDocument,
@@ -316,7 +318,7 @@ export default function RequirementChecklist({
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <a
-                            href={`/api/v1/features/documents/${documentLink.document.id}/view`}
+                            href={`${documentsApiBasePath}/${documentLink.document.id}/view`}
                             target="_blank"
                             rel="noreferrer"
                             className="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-white"
@@ -324,7 +326,7 @@ export default function RequirementChecklist({
                             Preview
                           </a>
                           <a
-                            href={`/api/v1/features/documents/${documentLink.document.id}/download`}
+                            href={`${documentsApiBasePath}/${documentLink.document.id}/download`}
                             className="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-white"
                           >
                             Download

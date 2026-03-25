@@ -1,14 +1,18 @@
 import { Form2290Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import { is2290Expired } from "@/lib/form2290-workflow";
+import { resolveForm2290Db } from "@/services/form2290/shared";
 
 type Get2290ComplianceStatusInput = {
+  db?: DbClient;
   userId: string;
   canManageAll: boolean;
 };
 
 export async function get2290ComplianceStatus(input: Get2290ComplianceStatusInput) {
-  const filings = await prisma.form2290Filing.findMany({
+  const db = resolveForm2290Db(input.db);
+  const filings = await db.form2290Filing.findMany({
     where: input.canManageAll ? undefined : { userId: input.userId },
     select: {
       id: true,

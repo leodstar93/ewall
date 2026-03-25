@@ -48,7 +48,17 @@ function formatDate(dateString: string) {
   });
 }
 
-export default function DocumentsPage() {
+type DocumentsPageProps = {
+  apiBasePath?: string;
+  title?: string;
+  subtitle?: string;
+};
+
+export default function DocumentsPage({
+  apiBasePath = "/api/v1/features/documents",
+  title = "Documents",
+  subtitle = "Upload and manage your documents securely.",
+}: DocumentsPageProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -95,7 +105,7 @@ export default function DocumentsPage() {
   const fetchDocuments = async () => {
     try {
       setLoadingDocs(true);
-      const response = await fetch("/api/v1/features/documents", {
+      const response = await fetch(apiBasePath, {
         cache: "no-store",
       });
 
@@ -125,7 +135,7 @@ export default function DocumentsPage() {
   useEffect(() => {
     if (session?.user) fetchDocuments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id]);
+  }, [apiBasePath, session?.user?.id]);
 
   const filteredSortedDocs = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -218,7 +228,7 @@ export default function DocumentsPage() {
       formData.append("name", name.trim());
       formData.append("description", description);
 
-      const response = await fetch("/api/v1/features/documents", {
+      const response = await fetch(apiBasePath, {
         method: "POST",
         body: formData,
       });
@@ -262,7 +272,7 @@ export default function DocumentsPage() {
     setIsDeleting(true);
     try {
       const response = await fetch(
-        `/api/v1/features/documents/${deletingDoc.id}`,
+        `${apiBasePath}/${deletingDoc.id}`,
         { method: "DELETE" },
       );
 
@@ -355,10 +365,10 @@ export default function DocumentsPage() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-                    Documents
+                    {title}
                   </h1>
                   <p className="mt-1 text-sm text-zinc-600">
-                    Upload and manage your documents securely.
+                    {subtitle}
                   </p>
                 </div>
               </div>
@@ -624,7 +634,7 @@ export default function DocumentsPage() {
                               <button
                                 onClick={() =>
                                   window.open(
-                                    `/api/v1/features/documents/${doc.id}/view`,
+                                    `${apiBasePath}/${doc.id}/view`,
                                     "_blank",
                                   )
                                 }
@@ -634,7 +644,7 @@ export default function DocumentsPage() {
                               </button>
 
                               <a
-                                href={`/api/v1/features/documents/${doc.id}/download`}
+                                href={`${apiBasePath}/${doc.id}/download`}
                                 className="rounded-xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
                               >
                                 Download

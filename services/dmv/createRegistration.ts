@@ -5,6 +5,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient } from "@/lib/db/types";
 import { buildRequirementSnapshot } from "@/services/dmv/buildRequirementSnapshot";
 import { deriveRegistrationType } from "@/services/dmv/deriveRegistrationType";
 import {
@@ -12,9 +13,11 @@ import {
   dmvRegistrationInclude,
   DmvServiceError,
   logDmvActivity,
+  resolveDmvDb,
 } from "@/services/dmv/shared";
 
 type CreateRegistrationInput = {
+  db?: DbClient;
   truckId: string;
   actorUserId: string;
   canManageAll: boolean;
@@ -44,7 +47,9 @@ type CreateRegistrationInput = {
 };
 
 export async function createRegistration(input: CreateRegistrationInput) {
+  const db = resolveDmvDb(input.db);
   const truck = await assertDmvTruckAccess({
+    db,
     truckId: input.truckId,
     actorUserId: input.actorUserId,
     canManageAll: input.canManageAll,
@@ -69,6 +74,7 @@ export async function createRegistration(input: CreateRegistrationInput) {
     });
 
   const requirementSeeds = await buildRequirementSnapshot({
+    db,
     registrationType: derivedType,
     filingType: DmvFilingType.INITIAL,
     declaredGrossWeight: input.declaredGrossWeight ?? truck.grossWeight,
@@ -84,7 +90,7 @@ export async function createRegistration(input: CreateRegistrationInput) {
   }
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await db.$transaction(async (tx) => {
       const registration = await tx.dmvRegistration.create({
         data: {
           userId: truck.userId,

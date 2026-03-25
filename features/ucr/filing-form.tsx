@@ -12,7 +12,9 @@ import {
 type UcrFilingFormProps = {
   mode: "create" | "edit";
   filingId?: string;
+  apiBasePath?: string;
   currentStatus?: UCRFilingStatus | null;
+  detailHrefBase?: string;
   initialValues?: {
     filingYear?: number;
     legalName?: string;
@@ -71,7 +73,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       try {
         setPreviewError(null);
         const response = await fetch(
-          `/api/v1/features/ucr/rate-preview?year=${year}&fleetSize=${size}`,
+          `${props.apiBasePath ?? "/api/v1/features/ucr"}/rate-preview?year=${year}&fleetSize=${size}`,
           {
             cache: "no-store",
             signal: controller.signal,
@@ -105,7 +107,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [filingYear, fleetSize]);
+  }, [filingYear, fleetSize, props.apiBasePath]);
 
   async function persist(submitAfterSave: boolean) {
     try {
@@ -128,8 +130,8 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
 
       const saveResponse = await fetch(
         props.mode === "create"
-          ? "/api/v1/features/ucr"
-          : `/api/v1/features/ucr/${props.filingId}`,
+          ? (props.apiBasePath ?? "/api/v1/features/ucr")
+          : `${props.apiBasePath ?? "/api/v1/features/ucr"}/${props.filingId}`,
         {
           method: props.mode === "create" ? "POST" : "PUT",
           headers: { "Content-Type": "application/json" },
@@ -153,8 +155,8 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       const savedId = saveData.filing.id;
       const submitEndpoint =
         props.currentStatus === "CORRECTION_REQUESTED"
-          ? `/api/v1/features/ucr/${savedId}/resubmit`
-          : `/api/v1/features/ucr/${savedId}/submit`;
+          ? `${props.apiBasePath ?? "/api/v1/features/ucr"}/${savedId}/resubmit`
+          : `${props.apiBasePath ?? "/api/v1/features/ucr"}/${savedId}/submit`;
 
       if (submitAfterSave) {
         const submitResponse = await fetch(submitEndpoint, { method: "POST" });
@@ -181,7 +183,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       }
 
       props.onSaved?.();
-      router.push(`/ucr/${savedId}`);
+      router.push(`${props.detailHrefBase ?? "/ucr"}/${savedId}`);
       router.refresh();
     } catch (actionError) {
       setError(

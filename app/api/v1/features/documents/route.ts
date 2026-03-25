@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { NextRequest } from "next/server";
-import { join } from "path";
 import { mkdir, writeFile } from "fs/promises";
+import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
 
 function normalizeOptionalText(value: FormDataEntryValue | null) {
   if (typeof value !== "string") return null;
@@ -44,14 +44,14 @@ export async function POST(request: NextRequest) {
 
     // LOCAL STORAGE IMPLEMENTATION
     // Save file to /public/uploads directory
-    const uploadsDir = join(process.cwd(), "public", "uploads");
+    const uploadsDir = getStorageDiskDirectory("production");
 
     // Ensure uploads directory exists
     await mkdir(uploadsDir, { recursive: true });
 
     // Write file to disk
     const fileBuffer = await file.arrayBuffer();
-    const filePath = join(uploadsDir, uniqueFileName);
+    const filePath = getStorageDiskDirectory("production", uniqueFileName);
     await writeFile(filePath, Buffer.from(fileBuffer));
     // For now, we'll just store the file information in the database
     // You'll need to implement actual file storage based on your requirements
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         description: description || null,
         category,
         fileName: file.name,
-        fileUrl: `/uploads/${uniqueFileName}`, // Placeholder URL
+        fileUrl: getStoragePublicUrl("production", uniqueFileName),
         fileSize: file.size,
         fileType: file.type,
         userId: session.user.id,

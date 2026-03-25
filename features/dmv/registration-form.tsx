@@ -23,12 +23,28 @@ type JurisdictionOption = {
 
 type DmvRegistrationFormProps = {
   mode?: "driver" | "staff";
+  trucksApiPath?: string;
+  jurisdictionsApiPath?: string;
+  registrationsApiPath?: string;
+  detailHrefBase?: string;
 };
 
 export default function DmvRegistrationForm({
   mode = "driver",
+  trucksApiPath,
+  jurisdictionsApiPath,
+  registrationsApiPath,
+  detailHrefBase,
 }: DmvRegistrationFormProps) {
   const router = useRouter();
+  const resolvedTrucksApiPath = trucksApiPath ?? "/api/v1/features/dmv/trucks";
+  const resolvedJurisdictionsApiPath =
+    jurisdictionsApiPath ?? "/api/v1/features/dmv/settings/jurisdictions";
+  const resolvedRegistrationsApiPath =
+    registrationsApiPath ?? "/api/v1/features/dmv/registrations";
+  const resolvedDetailHrefBase =
+    detailHrefBase ?? (mode === "staff" ? "/admin/features/dmv" : "/dmv");
+
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [jurisdictions, setJurisdictions] = useState<JurisdictionOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,8 +79,8 @@ export default function DmvRegistrationForm({
       try {
         setLoading(true);
         const [trucksResponse, jurisdictionsResponse] = await Promise.all([
-          fetch("/api/v1/features/dmv/trucks", { cache: "no-store" }),
-          fetch("/api/v1/features/dmv/settings/jurisdictions", { cache: "no-store" }),
+          fetch(resolvedTrucksApiPath, { cache: "no-store" }),
+          fetch(resolvedJurisdictionsApiPath, { cache: "no-store" }),
         ]);
         const trucksData = (await trucksResponse.json().catch(() => ({}))) as { trucks?: TruckOption[] };
         const jurisdictionsData = (await jurisdictionsResponse.json().catch(() => ({}))) as { jurisdictions?: JurisdictionOption[] };
@@ -76,7 +92,7 @@ export default function DmvRegistrationForm({
     }
 
     void load();
-  }, []);
+  }, [resolvedJurisdictionsApiPath, resolvedTrucksApiPath]);
 
   function applySelectedTruck(truckId: string) {
     const selectedTruck = trucks.find((truck) => truck.id === truckId);
@@ -111,7 +127,7 @@ export default function DmvRegistrationForm({
 
       let truckId = form.truckId;
       if (form.createTruckInline || !truckId) {
-        const truckResponse = await fetch("/api/v1/features/dmv/trucks", {
+        const truckResponse = await fetch(resolvedTrucksApiPath, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -133,7 +149,7 @@ export default function DmvRegistrationForm({
         truckId = truckData.truck.id;
       }
 
-      const registrationResponse = await fetch("/api/v1/features/dmv/registrations", {
+      const registrationResponse = await fetch(resolvedRegistrationsApiPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -161,11 +177,7 @@ export default function DmvRegistrationForm({
         throw new Error(registrationData.error || "Could not create DMV registration.");
       }
 
-      router.push(
-        mode === "staff"
-          ? `/admin/features/dmv/${registrationData.registration.truckId}`
-          : `/dmv/${registrationData.registration.truckId}`,
-      );
+      router.push(`${resolvedDetailHrefBase}/${registrationData.registration.truckId}`);
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Could not create DMV registration.");

@@ -1,5 +1,6 @@
 import { Prisma, UCREntityType, UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { DbClient, ServiceContext } from "@/lib/db/types";
 import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
 import { UcrServiceError, sanitizeStateCode } from "@/services/ucr/shared";
 
@@ -17,19 +18,38 @@ type CreateUcrFilingInput = {
   clientNotes?: string | null;
 };
 
-export async function createUcrFiling(input: CreateUcrFilingInput) {
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+  if (!ctxOrDb) return prisma;
+  if ("db" in ctxOrDb) return ctxOrDb.db;
+  return ctxOrDb;
+}
+
+export async function createUcrFiling(
+  input: CreateUcrFilingInput,
+): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.create>>>;
+export async function createUcrFiling(
+  ctx: Pick<ServiceContext, "db">,
+  input: CreateUcrFilingInput,
+): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.create>>>;
+export async function createUcrFiling(
+  ctxOrInput: Pick<ServiceContext, "db"> | CreateUcrFilingInput,
+  maybeInput?: CreateUcrFilingInput,
+) {
+  const input = maybeInput ?? (ctxOrInput as CreateUcrFilingInput);
+  const db = resolveDb(maybeInput ? (ctxOrInput as Pick<ServiceContext, "db">) : null);
+
   const legalName = input.legalName.trim();
   if (!legalName) {
     throw new UcrServiceError("Legal name is required", 400, "LEGAL_NAME_REQUIRED");
   }
 
-  const rate = await getUcrRateForFleet({
+  const rate = await getUcrRateForFleet({ db }, {
     year: input.filingYear,
     fleetSize: input.fleetSize,
   });
 
   try {
-    return await prisma.uCRFiling.create({
+    return await db.uCRFiling.create({
       data: {
         userId: input.userId,
         filingYear: input.filingYear,
