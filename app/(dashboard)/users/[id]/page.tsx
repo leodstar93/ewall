@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { getAuthz } from "@/lib/rbac";
 import { redirect } from "next/navigation";
-import ProfilePage from "./profile-client";
 
 export default async function AdminPage({
   params,
@@ -27,5 +26,5 @@ export default async function AdminPage({
     redirect("/admin/profile");
   }
 
-  return <ProfilePage />;
+  redirect("/settings");
 }

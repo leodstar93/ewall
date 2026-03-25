@@ -34,6 +34,9 @@ const SANDBOX_PERMISSIONS = [
   { key: "sandbox:seed", description: "Load sandbox scenarios" },
   { key: "sandbox:impersonate", description: "Start or stop sandbox impersonation" },
   { key: "sandbox:logs:read", description: "Read sandbox audit logs" },
+  { key: "settings:read", description: "Read account settings" },
+  { key: "settings:update", description: "Update account settings" },
+  { key: "billing:manage", description: "Manage billing methods" },
   { key: "ucr:create", description: "Create UCR filings" },
   { key: "ucr:read", description: "Read UCR filings" },
   { key: "ifta:read", description: "Read IFTA reports" },
@@ -48,8 +51,9 @@ const SANDBOX_PERMISSIONS = [
 const SANDBOX_ROLE_PERMISSIONS: Record<string, string[]> = {
   ADMIN: SANDBOX_PERMISSIONS.map((permission) => permission.key),
   STAFF: [
-    "sandbox:access",
-    "sandbox:logs:read",
+    "settings:read",
+    "settings:update",
+    "billing:manage",
     "ucr:read",
     "ifta:read",
     "dmv:read",
@@ -57,8 +61,19 @@ const SANDBOX_ROLE_PERMISSIONS: Record<string, string[]> = {
     "dmv:review",
     "dmv:approve",
   ],
-  TRUCKER: ["ucr:create", "ucr:read", "ifta:read", "ifta:write", "dmv:read", "dmv:create", "dmv:update"],
-  USER: [],
+  TRUCKER: [
+    "settings:read",
+    "settings:update",
+    "billing:manage",
+    "ucr:create",
+    "ucr:read",
+    "ifta:read",
+    "ifta:write",
+    "dmv:read",
+    "dmv:create",
+    "dmv:update",
+  ],
+  USER: ["settings:read", "settings:update", "billing:manage"],
 };
 
 const SANDBOX_DEMO_USERS = [

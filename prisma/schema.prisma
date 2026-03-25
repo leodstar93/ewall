@@ -26,6 +26,9 @@ model User {
   // Documents
   documents Document[]
   notifications Notification[]
+  userProfile    UserProfile?
+  companyProfile CompanyProfile?
+  paymentMethods PaymentMethod[]
 
   //IFTA
   trucks           Truck[]
@@ -35,6 +38,59 @@ model User {
   ucrFilings       UCRFiling[]
   form2290Filings  Form2290Filing[]
   dmvRegistrations DmvRegistration[]
+}
+
+model UserProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  zip       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CompanyProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  legalName     String?
+  dbaName       String?
+  dotNumber     String?
+  mcNumber      String?
+  ein           String?
+  businessPhone String?
+  address       String?
+  state         String?
+  trucksCount   Int?
+  driversCount  Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PaymentMethod {
+  id                      String   @id @default(cuid())
+  userId                  String
+  provider                String // stripe | paypal
+  providerCustomerId      String?
+  providerPaymentMethodId String?
+  brand                   String?
+  last4                   String?
+  expMonth                Int?
+  expYear                 Int?
+  isDefault               Boolean  @default(false)
+  paypalEmail             String?
+  createdAt               DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, provider])
 }
 
 model Account {

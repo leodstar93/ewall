@@ -52,12 +52,14 @@ type DocumentsPageProps = {
   apiBasePath?: string;
   title?: string;
   subtitle?: string;
+  embedded?: boolean;
 };
 
 export default function DocumentsPage({
   apiBasePath = "/api/v1/features/documents",
   title = "Documents",
   subtitle = "Upload and manage your documents securely.",
+  embedded = false,
 }: DocumentsPageProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -303,8 +305,8 @@ export default function DocumentsPage({
 
   if (status === "loading") {
     return (
-      <div className="flex-1 overflow-auto bg-zinc-50">
-        <div className="mx-auto max-w-6xl px-6 py-10">
+      <div className={embedded ? "space-y-6" : "flex-1 overflow-auto bg-zinc-50"}>
+        <div className={embedded ? "space-y-6" : "mx-auto max-w-6xl px-6 py-10"}>
           <div className="rounded-2xl border bg-white p-6 shadow-sm">
             <div className="h-5 w-56 animate-pulse rounded bg-zinc-100" />
             <div className="mt-2 h-4 w-72 animate-pulse rounded bg-zinc-100" />
@@ -321,7 +323,7 @@ export default function DocumentsPage({
   if (!session?.user) return null;
 
   return (
-    <div className="flex-1 overflow-auto bg-zinc-50">
+    <div className={embedded ? "space-y-8" : "flex-1 overflow-auto bg-zinc-50"}>
       {/* Toasts */}
       <div className="pointer-events-none fixed right-4 top-4 z-60 flex w-[92vw] max-w-sm flex-col gap-3">
         {toasts.map((t) => (
@@ -355,8 +357,8 @@ export default function DocumentsPage({
       </div>
 
       {/* Header */}
-      <div className="border-b bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-10">
+      <div className={embedded ? "rounded-[28px] border bg-white p-6 shadow-sm" : "border-b bg-white"}>
+        <div className={embedded ? "" : "mx-auto max-w-6xl px-6 py-10"}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-3">
@@ -414,7 +416,7 @@ export default function DocumentsPage({
       </div>
 
       {/* Content */}
-      <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+      <div className={embedded ? "space-y-8" : "mx-auto max-w-6xl space-y-8 px-6 py-10"}>
         {/* Upload */}
         <section className="rounded-2xl border bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-4">

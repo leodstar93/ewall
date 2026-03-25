@@ -2,7 +2,6 @@ import { auth } from "@/auth";
 
 const SANDBOX_INTERNAL_ROLES = new Set([
   "ADMIN",
-  "STAFF",
   "SUPER_ADMIN",
   "INTERNAL_ADMIN",
   "QA",
@@ -17,6 +16,11 @@ export async function requireSandboxAccess() {
 
   const permissions = session.user.permissions ?? [];
   const roles = session.user.roles ?? [];
+  const isStaffOnly = roles.includes("STAFF") && !roles.includes("ADMIN");
+
+  if (isStaffOnly) {
+    throw new Error("FORBIDDEN");
+  }
 
   const allowed =
     permissions.includes("sandbox:access") ||

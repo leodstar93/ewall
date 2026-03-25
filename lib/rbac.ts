@@ -1,20 +1,6 @@
 import { auth } from "@/auth";
-
-export type PermissionKey = string;
-
-function hasWildcard(perms: string[], permission: string) {
-  const mod = permission.split(":")[0];
-  return perms.includes(`${mod}:manage`);
-}
-
-export function hasPermission(
-  perms: string[],
-  roles: string[],
-  permission: PermissionKey,
-) {
-  if (roles.includes("ADMIN")) return true;
-  return perms.includes(permission) || hasWildcard(perms, permission);
-}
+import { hasPermission, type PermissionKey } from "./rbac-core";
+export { hasPermission, type PermissionKey } from "./rbac-core";
 
 export async function getAuthz() {
   const session = await auth();
@@ -34,5 +20,5 @@ export async function can(permission: PermissionKey) {
   const { session, perms, isAdmin } = await getAuthz();
   if (!session) return false;
   if (isAdmin) return true;
-  return perms.includes(permission) || hasWildcard(perms, permission);
+  return hasPermission(perms, [], permission);
 }

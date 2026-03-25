@@ -1,0 +1,9 @@
+{
+  "label": "Settings",
+  "section": "Cuenta",
+  "order": 5,
+  "icon": "Settings",
+  "href": "/settings",
+  "permission": ["settings:read"],
+  "hidden": true
+}

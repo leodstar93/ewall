@@ -41,8 +41,8 @@ function cx(...parts: Array<string | false | null | undefined>) {
 function titleFromPath(pathname: string | null) {
   if (!pathname) return "Panel";
   if (pathname === "/panel") return "Dashboard";
-  if (pathname.startsWith("/panel/settings")) return "Settings";
-  if (pathname.startsWith("/users/")) return "Profile";
+  if (pathname.startsWith("/settings")) return "Settings";
+  if (pathname.startsWith("/users/")) return "Settings";
   const last = pathname.split("/").filter(Boolean).pop() ?? "Panel";
   return last.charAt(0).toUpperCase() + last.slice(1);
 }
@@ -85,7 +85,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       session?.user?.roles?.includes("STAFF"),
   );
   const canUseDashboardShell = Boolean(
-    pathname?.startsWith("/users/"),
+    pathname?.startsWith("/users/") || pathname?.startsWith("/settings"),
   );
   const userPermissions = useMemo(
     () =>
@@ -297,12 +297,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   <span className={styles.navDot} />
                   Dashboard
                 </Link>
-                <Link
-                  href={`/users/${session?.user?.id}`}
-                  className={navItemClass(`/users/${session?.user?.id}`)}
-                >
+                <Link href="/settings" className={navItemClass("/settings")}>
                   <span className={styles.navDot} />
-                  Profile
+                  Settings
                 </Link>
               </div>
 
@@ -395,11 +392,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 {isDropdownOpen && (
                   <div className={styles.dropdown}>
                     <Link
-                      href="/panel/settings"
+                      href="/settings"
                       className={styles.dropdownLink}
                       onClick={() => setIsDropdownOpen(false)}
                     >
-                      Profile settings
+                      Settings
                     </Link>
                     <button
                       onClick={handleLogout}
@@ -445,7 +442,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <NotificationBell />
 
                 <Link
-                  href={`/users/${session?.user?.id}`}
+                  href="/settings"
                   className={styles.quickProfile}
                 >
                   <div className={styles.quickAvatar}>{initials}</div>

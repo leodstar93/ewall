@@ -1,0 +1,39 @@
+import { getSessionUserId } from "@/lib/api/auth";
+import { requireApiPermission } from "@/lib/rbac-api";
+import { getSettingsErrorResponse } from "@/lib/services/settings-errors";
+import { getPersonalInfo, updatePersonalInfo } from "@/lib/services/user.service";
+
+export async function GET() {
+  const guard = await requireApiPermission("settings:read");
+  if (!guard.ok) return guard.res;
+
+  const userId = getSessionUserId(guard.session);
+  if (!userId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const personal = await getPersonalInfo(userId);
+    return Response.json(personal);
+  } catch (error) {
+    return getSettingsErrorResponse(error);
+  }
+}
+
+export async function PUT(request: Request) {
+  const guard = await requireApiPermission("settings:update");
+  if (!guard.ok) return guard.res;
+
+  const userId = getSessionUserId(guard.session);
+  if (!userId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const payload = await request.json().catch(() => ({}));
+    const personal = await updatePersonalInfo(userId, payload);
+    return Response.json(personal);
+  } catch (error) {
+    return getSettingsErrorResponse(error);
+  }
+}

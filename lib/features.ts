@@ -1,6 +1,16 @@
 import fs from "fs/promises";
 import path from "path";
 
+type FeatureMeta = {
+  label?: string;
+  section?: string;
+  order?: number;
+  icon?: string;
+  href?: string;
+  permission?: string[];
+  hidden?: boolean;
+};
+
 export type Feature = {
   name: string;
   label: string;
@@ -9,6 +19,7 @@ export type Feature = {
   icon?: string;
   href: string;
   permission?: string[];
+  hidden?: boolean;
 };
 
 export async function getFeatures(): Promise<Feature[]> {
@@ -26,11 +37,11 @@ export async function getFeatures(): Promise<Feature[]> {
 
           const metaPath = path.join(dir, name, "meta.json");
 
-          let meta: any = {};
+          let meta: FeatureMeta = {};
 
           try {
             const raw = await fs.readFile(metaPath, "utf8");
-            meta = JSON.parse(raw);
+            meta = JSON.parse(raw) as FeatureMeta;
           } catch {}
 
           return {
@@ -41,14 +52,17 @@ export async function getFeatures(): Promise<Feature[]> {
             icon: meta.icon,
             href: meta.href ?? `/panel/${name}`,
             permissions: meta.permission,
+            hidden: meta.hidden === true,
           };
         })
     );
 
-    return features.sort((a, b) => {
+    return features
+      .filter((feature) => !feature.hidden)
+      .sort((a, b) => {
       if (a.section !== b.section) return a.section.localeCompare(b.section);
       return a.order - b.order;
-    });
+      });
   } catch {
     return [];
   }

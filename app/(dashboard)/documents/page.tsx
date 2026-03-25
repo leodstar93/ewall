@@ -1,5 +1,4 @@
 import { requirePermission } from "@/lib/rbac-guard";
-import DocumentClient from "../../../features/documents/page-component";
 import { redirect } from "next/navigation";
 
 export default async function DocumentPage() {
@@ -9,5 +8,5 @@ export default async function DocumentPage() {
         redirect(res.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
     }
 
-  return <DocumentClient />;
+  redirect("/settings?tab=documents");
 }

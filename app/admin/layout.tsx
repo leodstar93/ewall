@@ -6,11 +6,25 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { STAFF_ADMIN_FEATURE_MODULES } from "@/lib/rbac-feature-modules";
+import { hasPermission } from "@/lib/rbac-core";
 import styles from "../console-theme.module.css";
 
 interface AdminLayoutProps {
   children: ReactNode;
 }
+
+type NavItem = {
+  href: string;
+  label: string;
+  permission?: string;
+  moduleKey?: string;
+};
+
+type NavGroup = {
+  heading: string;
+  items: NavItem[];
+};
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -45,21 +59,26 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const roles = session?.user?.roles ?? [];
-  const permissions = session?.user?.permissions ?? [];
+  const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
+  const permissions = Array.isArray(session?.user?.permissions)
+    ? session.user.permissions
+    : [];
   const isAdmin = roles.includes("ADMIN");
   const isStaff = roles.includes("STAFF");
+  const isStaffOnly = isStaff && !isAdmin;
   const isSandboxRoute = Boolean(pathname?.startsWith("/admin/sandbox"));
   const canAccessSandboxRoute =
     isSandboxRoute &&
-    (isAdmin ||
-      isStaff ||
+    (!isStaffOnly &&
+      (isAdmin ||
       permissions.includes("sandbox:access") ||
-      permissions.includes("sandbox:manage"));
+      permissions.includes("sandbox:manage")));
   const canAccessAdminShell = !pathname || isAdmin || isStaff || canAccessSandboxRoute;
   const roleBadge = isAdmin ? "ADMIN" : isStaff ? "STAFF" : "USER";
   const homeHref = isAdmin || isStaff ? "/admin" : "/panel";
   const profileHref = "/admin/profile";
+  const consoleLabel = isAdmin ? "Admin" : isStaff ? "Staff" : "Admin";
+  const consoleSubtitle = isAdmin ? "Admin Console" : "Staff Console";
 
   const initials = useMemo(() => {
     const name = session?.user?.name?.trim();
@@ -69,6 +88,94 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   }, [session?.user?.name]);
 
   const pageTitle = useMemo(() => titleFromPath(pathname), [pathname]);
+  const workspaceHeading = isAdmin ? "Workspace" : "Staff Workspace";
+
+  const navigationGroups = (() => {
+    const groups: NavGroup[] = [
+      {
+        heading: "Overview",
+        items: [{ href: "/admin", label: "Dashboard" }],
+      },
+    ];
+
+    if (isAdmin) {
+      groups.push({
+        heading: "Access Control",
+        items: [
+          { href: "/admin/settings", label: "Settings", permission: "settings:read" },
+          { href: "/admin/users", label: "Users", permission: "users:read" },
+          { href: "/admin/roles", label: "Roles", permission: "roles:read" },
+          { href: "/admin/permissions", label: "Permissions", permission: "permissions:read" },
+        ],
+      });
+    }
+
+  const workspaceItems: NavItem[] = [
+      {
+        href: "/admin/features/documents",
+        label: "Documents",
+        permission: "documents:read",
+        moduleKey: "documents",
+      },
+      {
+        href: "/admin/features/ifta",
+        label: "IFTA",
+        permission: "ifta:read",
+        moduleKey: "ifta",
+      },
+      {
+        href: "/admin/features/ucr",
+        label: "UCR",
+        permission: "ucr:read",
+        moduleKey: "ucr",
+      },
+      {
+        href: "/admin/features/dmv",
+        label: "DMV Registration",
+        permission: "dmv:read",
+        moduleKey: "dmv",
+      },
+      {
+        href: "/admin/features/2290",
+        label: "Form 2290",
+        permission: "compliance2290:view",
+        moduleKey: "compliance2290",
+      },
+    ].filter((item) => {
+      if (!item.permission) return true;
+
+      const hasExplicitAccess = hasPermission(permissions, roles, item.permission);
+      const hasStaffFeatureAccess =
+        isStaff && Boolean(item.moduleKey) && STAFF_ADMIN_FEATURE_MODULES.has(item.moduleKey);
+
+      return hasExplicitAccess || hasStaffFeatureAccess;
+    });
+
+    if (workspaceItems.length > 0) {
+      groups.push({
+        heading: workspaceHeading,
+        items: workspaceItems,
+      });
+    }
+
+    const sandboxItems: NavItem[] = [];
+    if (
+      isAdmin &&
+      (hasPermission(permissions, roles, "sandbox:access") ||
+        hasPermission(permissions, roles, "sandbox:manage"))
+    ) {
+      sandboxItems.push({ href: "/admin/sandbox", label: "Sandbox" });
+    }
+
+    if (sandboxItems.length > 0) {
+      groups.push({
+        heading: isAdmin ? "Sandbox" : "Tools",
+        items: sandboxItems,
+      });
+    }
+
+    return groups;
+  })();
 
   useEffect(() => {
     if (!pathname) return;
@@ -141,9 +248,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 />
                 <div>
                   <div className={styles.brandTitle}>Truckers Unidos</div>
-                  <div className={styles.brandSubtitle}>
-                    {isAdmin ? "Admin Console" : "Features Console"}
-                  </div>
+                  <div className={styles.brandSubtitle}>{consoleSubtitle}</div>
                 </div>
               </Link>
 
@@ -151,92 +256,33 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
 
             <nav className={styles.sidebarScroll}>
-              <>
-                <div className={styles.navHeading}>Overview</div>
-                <div className={styles.navSection}>
-                  <Link href="/admin" className={navItemClass("/admin")}>
-                    <span className={styles.navDot} />
-                    Dashboard
-                  </Link>
-                </div>
-
-                {isAdmin && (
-                  <>
-                    <div className={`${styles.navHeading} ${styles.navGroup}`}>
-                      Access Control
-                    </div>
-                    <div className={styles.navSection}>
-                      <Link href="/admin/settings" className={navItemClass("/admin/settings")}>
-                        <span className={styles.navDot} />
-                        Settings
-                      </Link>
-                      <Link href="/admin/users" className={navItemClass("/admin/users")}>
-                        <span className={styles.navDot} />
-                        Users
-                      </Link>
-                      <Link href="/admin/roles" className={navItemClass("/admin/roles")}>
-                        <span className={styles.navDot} />
-                        Roles
-                      </Link>
+              {navigationGroups.map((group, groupIndex) => (
+                <div
+                  key={group.heading}
+                  className={groupIndex === 0 ? undefined : styles.navGroup}
+                >
+                  <div
+                    className={cx(
+                      styles.navHeading,
+                      groupIndex > 0 && styles.navGroup,
+                    )}
+                  >
+                    {group.heading}
+                  </div>
+                  <div className={styles.navSection}>
+                    {group.items.map((item) => (
                       <Link
-                        href="/admin/permissions"
-                        className={navItemClass("/admin/permissions")}
+                        key={item.href}
+                        href={item.href}
+                        className={navItemClass(item.href)}
                       >
                         <span className={styles.navDot} />
-                        Permissions
+                        {item.label}
                       </Link>
-                    </div>
-                  </>
-                )}
-              </>
-
-              <div className={`${styles.navHeading} ${styles.navGroup}`}>
-                Workspace
-              </div>
-              <div className={styles.navSection}>
-                <Link
-                  href="/admin/sandbox"
-                  className={navItemClass("/admin/sandbox")}
-                >
-                  <span className={styles.navDot} />
-                  Sandbox
-                </Link>
-                <Link
-                  href="/admin/features/documents"
-                  className={navItemClass("/admin/features/documents")}
-                >
-                  <span className={styles.navDot} />
-                  Documents
-                </Link>
-                <Link
-                  href="/admin/features/ifta"
-                  className={navItemClass("/admin/features/ifta")}
-                >
-                  <span className={styles.navDot} />
-                  IFTA
-                </Link>
-                <Link
-                  href="/admin/features/ucr"
-                  className={navItemClass("/admin/features/ucr")}
-                >
-                  <span className={styles.navDot} />
-                  UCR
-                </Link>
-                <Link
-                  href="/admin/features/dmv"
-                  className={navItemClass("/admin/features/dmv")}
-                >
-                  <span className={styles.navDot} />
-                  DMV Registration
-                </Link>
-                <Link
-                  href="/admin/features/2290"
-                  className={navItemClass("/admin/features/2290")}
-                >
-                  <span className={styles.navDot} />
-                  Form 2290
-                </Link>
-              </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </nav>
 
             <div className={styles.sidebarFooter}>
@@ -304,7 +350,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <div className={styles.topbarInner}>
               <div className="min-w-0">
                 <div className={styles.breadcrumb}>
-                  Admin <span className="mx-1">/</span>{" "}
+                  {consoleLabel} <span className="mx-1">/</span>{" "}
                   <span className={styles.breadcrumbCurrent}>{pageTitle}</span>
                 </div>
                 <h1 className={styles.pageTitle}>{pageTitle}</h1>
