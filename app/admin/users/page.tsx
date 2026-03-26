@@ -78,6 +78,17 @@ function Alert({
 }
 
 type ModalType = "roles" | "delete" | "add" | "bulkRoles" | "bulkDelete";
+type UserSortBy = "name" | "email" | "created";
+type UserPageSize = 10 | 25 | 50;
+
+function parseSortBy(value: string): UserSortBy {
+  return value === "email" || value === "created" ? value : "name";
+}
+
+function parsePageSize(value: string): UserPageSize {
+  const parsed = Number(value);
+  return parsed === 25 || parsed === 50 ? parsed : 10;
+}
 
 export default function AdminUsersPage() {
   const { data: session, status } = useSession();
@@ -95,7 +106,7 @@ export default function AdminUsersPage() {
 
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<"name" | "email" | "created">("name");
+  const [sortBy, setSortBy] = useState<UserSortBy>("name");
 
   const [newUserForm, setNewUserForm] = useState({
     email: "",
@@ -116,7 +127,7 @@ export default function AdminUsersPage() {
   const selectedCount = selectedIds.size;
 
   // Pagination
-  const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
+  const [pageSize, setPageSize] = useState<UserPageSize>(10);
   const [page, setPage] = useState(1);
 
   // Delete confirmation
@@ -213,11 +224,6 @@ export default function AdminUsersPage() {
 
     return list;
   }, [users, searchTerm, sortBy]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, sortBy, pageSize]);
 
   // Pagination slice
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
@@ -565,7 +571,10 @@ export default function AdminUsersPage() {
                 <span className="text-zinc-400">⌕</span>
                 <input
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setPage(1);
+                  }}
                   placeholder="Search by name or email…"
                   className="w-full outline-none bg-transparent text-zinc-900 placeholder:text-zinc-400"
                 />
@@ -578,7 +587,10 @@ export default function AdminUsersPage() {
               </label>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
+                onChange={(e) => {
+                  setSortBy(parseSortBy(e.target.value));
+                  setPage(1);
+                }}
                 className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
               >
                 <option value="name">Name</option>
@@ -601,7 +613,10 @@ export default function AdminUsersPage() {
 
               <select
                 value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value) as any)}
+                onChange={(e) => {
+                  setPageSize(parsePageSize(e.target.value));
+                  setPage(1);
+                }}
                 className="rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
                 title="Rows per page"
               >

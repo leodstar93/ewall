@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { IftaTaxRateTableRow } from "@/features/ifta/types/tax-rate";
 import { formatTaxRateLabel, sourceLabel } from "@/features/ifta/utils/tax-rate-mappers";
@@ -25,10 +25,6 @@ export default function IftaTaxRatesTable(props: {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
-
-  useEffect(() => {
-    setPage(1);
-  }, [pageSize, props.rows.length]);
 
   const paginatedRows = useMemo(
     () => paginateItems(props.rows, page, pageSize),
@@ -97,15 +93,16 @@ export default function IftaTaxRatesTable(props: {
         totalItems={paginatedRows.totalItems}
         itemLabel="tax rates"
         onPageChange={setPage}
-        onPageSizeChange={(nextPageSize) =>
+        onPageSizeChange={(nextPageSize) => {
+          setPage(1);
           setPageSize(
             DEFAULT_PAGE_SIZE_OPTIONS.includes(
               nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
             )
               ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
               : 10,
-          )
-        }
+          );
+        }}
       />
     </div>
   );

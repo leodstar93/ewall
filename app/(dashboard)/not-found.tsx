@@ -25,8 +25,8 @@ export default function NotFoundPage() {
 
         {/* Description */}
         <p className="text-xl text-gray-600 mb-8">
-          Sorry, the page you're looking for doesn't exist. It might have been
-          removed or the URL might be incorrect.
+          Sorry, the page you&apos;re looking for doesn&apos;t exist. It might have
+          been removed or the URL might be incorrect.
         </p>
 
         {/* Illustrations with Icons */}

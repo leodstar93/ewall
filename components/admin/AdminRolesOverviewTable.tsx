@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
@@ -20,10 +20,6 @@ export default function AdminRolesOverviewTable(props: {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
-
-  useEffect(() => {
-    setPage(1);
-  }, [props.roles.length, pageSize]);
 
   const paginatedRoles = useMemo(
     () => paginateItems(props.roles, page, pageSize),
@@ -100,15 +96,16 @@ export default function AdminRolesOverviewTable(props: {
         totalItems={paginatedRoles.totalItems}
         itemLabel="roles"
         onPageChange={setPage}
-        onPageSizeChange={(nextPageSize) =>
+        onPageSizeChange={(nextPageSize) => {
+          setPage(1);
           setPageSize(
             DEFAULT_PAGE_SIZE_OPTIONS.includes(
               nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
             )
               ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
               : 10,
-          )
-        }
+          );
+        }}
       />
     </div>
   );

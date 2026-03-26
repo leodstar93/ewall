@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 
 export async function getPerms() {
   const session = await auth();
-  const perms = ((session?.user as any)?.permissions ?? []) as string[];
+  const perms = session?.user?.permissions ?? [];
   return { session, perms };
 }
 

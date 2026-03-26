@@ -2,16 +2,18 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Suspense } from "react";
 
 function LinkCallbackPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const provider = searchParams.get("provider") || "google";
   const callbackUrl = searchParams.get("callbackUrl") || "/panel/users/profile";
-  const [message, setMessage] = useState("Linking your account...");
+  const message =
+    status === "authenticated" && session?.user?.id
+      ? "Account linked successfully!"
+      : "Linking your account...";
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -20,12 +22,11 @@ function LinkCallbackPageContent() {
     }
 
     if (status === "authenticated" && session?.user?.id) {
-      // Check if the account was already linked (the OAuth provider will have linked it)
-      // Just redirect back to the profile
-      setMessage("Account linked successfully!");
-      setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
         router.push(callbackUrl);
       }, 1500);
+
+      return () => window.clearTimeout(timeoutId);
     }
   }, [status, session, callbackUrl, router]);
 

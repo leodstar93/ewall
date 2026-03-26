@@ -10,6 +10,20 @@ import { ensureUserOrganization } from "@/lib/services/organization.service";
 
 const GOOGLE_DEFAULT_ROLE_NAMES = ["TRUCKER", "USER"] as const;
 
+function readTokenString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function readTokenNullableString(value: unknown): string | null | undefined {
+  return value === null || typeof value === "string" ? value : undefined;
+}
+
+function readTokenStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 async function ensureGoogleDefaultRoles(
   userId?: string,
   email?: string | null,
@@ -223,10 +237,12 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
     async jwt({ token, user, trigger }) {
       // En signIn, NextAuth puede traer user.id
-      const userId = (user?.id as string) ?? (token.sub as string);
+      const userId =
+        (typeof user?.id === "string" ? user.id : undefined) ??
+        readTokenString(token.sub);
       if (!userId) return token;
 
-      const tokenRoles = ((token as any).roles ?? []) as string[];
+      const tokenRoles = readTokenStringArray(token.roles);
       const needsRoleHydration = tokenRoles.length === 0;
 
       if (needsRoleHydration) {
@@ -276,12 +292,23 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       // expone en session.user
-      (session.user as any).id = token.sub;
-      (session.user as any).name = token.name;
-      (session.user as any).email = token.email;
-      (session.user as any).roles = (token as any).roles ?? [];
-      (session.user as any).permissions = (token as any).permissions ?? [];
-      (session.user as any).createdAt = (token as any).createdAt ?? null;
+      const tokenSub = readTokenString(token.sub);
+      const tokenName = readTokenNullableString(token.name);
+      const tokenEmail = readTokenNullableString(token.email);
+      const tokenRoles = readTokenStringArray(token.roles);
+      const tokenPermissions = readTokenStringArray(token.permissions);
+      const tokenCreatedAt = readTokenNullableString(token.createdAt);
+
+      if (tokenSub) {
+        session.user.id = tokenSub;
+      }
+      session.user.name = tokenName;
+      if (tokenEmail) {
+        session.user.email = tokenEmail;
+      }
+      session.user.roles = tokenRoles;
+      session.user.permissions = tokenPermissions;
+      session.user.createdAt = tokenCreatedAt ?? null;
       return session;
     },
   },
