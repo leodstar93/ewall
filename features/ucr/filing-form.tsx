@@ -6,7 +6,6 @@ import {
   UCRFilingStatus,
   UCREntityType,
   formatCurrency,
-  ucrEntityTypeOptions,
 } from "@/features/ucr/shared";
 
 type UcrFilingFormProps = {
@@ -37,6 +36,16 @@ type PreviewState = {
 
 export default function UcrFilingForm(props: UcrFilingFormProps) {
   const router = useRouter();
+  const hasCompanyPrefill =
+    props.mode === "create" &&
+    Boolean(
+      props.initialValues?.legalName ||
+        props.initialValues?.usdotNumber ||
+        props.initialValues?.mcNumber ||
+        props.initialValues?.fein ||
+        props.initialValues?.baseState ||
+        typeof props.initialValues?.fleetSize === "number",
+    );
   const [filingYear, setFilingYear] = useState(
     props.initialValues?.filingYear ?? new Date().getFullYear(),
   );
@@ -45,9 +54,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
   const [mcNumber, setMcNumber] = useState(props.initialValues?.mcNumber ?? "");
   const [fein, setFein] = useState(props.initialValues?.fein ?? "");
   const [baseState, setBaseState] = useState(props.initialValues?.baseState ?? "");
-  const [entityType, setEntityType] = useState<UCREntityType>(
-    props.initialValues?.entityType ?? "MOTOR_CARRIER",
-  );
+  const [entityType] = useState<UCREntityType>("MOTOR_CARRIER");
   const [interstateOperation, setInterstateOperation] = useState(
     props.initialValues?.interstateOperation ?? true,
   );
@@ -224,6 +231,12 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
         </div>
       )}
 
+      {hasCompanyPrefill && (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          Company details were prefilled from your Company Profile in Settings, so you do not need to re-enter DOT, MC, EIN, and fleet baseline unless you want to override them for this filing.
+        </div>
+      )}
+
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {error}
@@ -304,20 +317,12 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
           />
         </label>
 
-        <label className="space-y-2 text-sm text-zinc-700">
+        <div className="space-y-2 text-sm text-zinc-700">
           <span className="font-medium text-zinc-900">Entity type</span>
-          <select
-            value={entityType}
-            onChange={(event) => setEntityType(event.target.value as UCREntityType)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            {ucrEntityTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-zinc-900">
+            Motor carrier
+          </div>
+        </div>
 
         <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-700">
           <input

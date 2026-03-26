@@ -6,6 +6,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { generateTemporaryPassword } from "@/lib/password";
 import { sendGoogleCredentialsPasswordEmail } from "@/lib/email";
+import { ensureUserOrganization } from "@/lib/services/organization.service";
 
 const GOOGLE_DEFAULT_ROLE_NAMES = ["TRUCKER", "USER"] as const;
 
@@ -172,6 +173,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         );
       }
 
+      let organizationUserId = user.id as string | undefined;
+
       // Handle account linking for existing users
       if (account && profile && user.email) {
         const existingUser = await prisma.user.findUnique({
@@ -180,6 +183,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         });
 
         if (existingUser) {
+          organizationUserId = existingUser.id;
+
           // Check if this OAuth account is already linked
           const isLinked = existingUser.accounts.some(
             (acc) =>
@@ -207,10 +212,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
               },
             });
           }
-
-          return true;
         }
       }
+
+      if (organizationUserId) {
+        await ensureUserOrganization(organizationUserId);
+      }
+
       return true;
     },
     async jwt({ token, user, trigger }) {

@@ -3,6 +3,7 @@ import "server-only";
 import Stripe from "stripe";
 import { SettingsValidationError } from "@/lib/services/settings-errors";
 import { prisma } from "@/lib/prisma";
+import { ensureUserOrganization } from "@/lib/services/organization.service";
 
 let stripeClient: Stripe | null = null;
 
@@ -37,9 +38,11 @@ export async function getOrCreateStripeCustomer(input: {
   email?: string | null;
   name?: string | null;
 }) {
+  const organization = await ensureUserOrganization(input.userId);
+
   const existing = await prisma.paymentMethod.findFirst({
     where: {
-      userId: input.userId,
+      organizationId: organization.id,
       provider: "stripe",
       providerCustomerId: { not: null },
     },
@@ -56,8 +59,33 @@ export async function getOrCreateStripeCustomer(input: {
     name: input.name ?? undefined,
     metadata: {
       appUserId: input.userId,
+      organizationId: organization.id,
     },
   });
 
   return customer.id;
+}
+
+export async function chargeStripePaymentMethod(input: {
+  customerId?: string | null;
+  paymentMethodId: string;
+  amountCents: number;
+  currency: string;
+  metadata?: Record<string, string>;
+  receiptEmail?: string | null;
+}) {
+  const stripe = getStripe();
+
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: input.amountCents,
+    currency: input.currency.toLowerCase(),
+    customer: input.customerId ?? undefined,
+    payment_method: input.paymentMethodId,
+    confirm: true,
+    off_session: true,
+    receipt_email: input.receiptEmail ?? undefined,
+    metadata: input.metadata,
+  });
+
+  return paymentIntent;
 }

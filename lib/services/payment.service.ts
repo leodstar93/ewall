@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ensureUserOrganization } from "./organization.service";
 import { SettingsValidationError } from "./settings-errors";
 
 export type PaymentMethodRecord = {
@@ -136,8 +137,9 @@ function formatPaymentMethod(method: {
 }
 
 export async function listPaymentMethods(userId: string): Promise<PaymentMethodRecord[]> {
+  const organization = await ensureUserOrganization(userId);
   const methods = await prisma.paymentMethod.findMany({
-    where: { userId },
+    where: { organizationId: organization.id },
     orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
   });
 
@@ -158,6 +160,8 @@ export function getPaymentConfiguration(): PaymentConfiguration {
 }
 
 export async function createPaymentMethod(userId: string, rawInput: unknown) {
+  const organization = await ensureUserOrganization(userId);
+
   if (!rawInput || typeof rawInput !== "object" || Array.isArray(rawInput)) {
     throw new SettingsValidationError("Payment method payload is invalid.");
   }
@@ -195,17 +199,23 @@ export async function createPaymentMethod(userId: string, rawInput: unknown) {
 
   const existing = providerPaymentMethodId
     ? await prisma.paymentMethod.findFirst({
-        where: { userId, provider, providerPaymentMethodId },
+        where: {
+          organizationId: organization.id,
+          provider,
+          providerPaymentMethodId,
+        },
       })
     : null;
 
-  const existingCount = await prisma.paymentMethod.count({ where: { userId } });
+  const existingCount = await prisma.paymentMethod.count({
+    where: { organizationId: organization.id },
+  });
   const isDefault = isDefaultRequested || existingCount === 0;
 
   const saved = await prisma.$transaction(async (tx) => {
     if (isDefault) {
       await tx.paymentMethod.updateMany({
-        where: { userId, isDefault: true },
+        where: { organizationId: organization.id, isDefault: true },
         data: { isDefault: false },
       });
     }
@@ -228,6 +238,7 @@ export async function createPaymentMethod(userId: string, rawInput: unknown) {
     return tx.paymentMethod.create({
       data: {
         userId,
+        organizationId: organization.id,
         provider,
         providerCustomerId,
         providerPaymentMethodId,
@@ -245,8 +256,12 @@ export async function createPaymentMethod(userId: string, rawInput: unknown) {
 }
 
 export async function deletePaymentMethod(userId: string, paymentMethodId: string) {
+  const organization = await ensureUserOrganization(userId);
   const existing = await prisma.paymentMethod.findFirst({
-    where: { id: paymentMethodId, userId },
+    where: {
+      id: paymentMethodId,
+      organizationId: organization.id,
+    },
   });
 
   if (!existing) {
@@ -259,7 +274,7 @@ export async function deletePaymentMethod(userId: string, paymentMethodId: strin
     if (!existing.isDefault) return;
 
     const fallback = await tx.paymentMethod.findFirst({
-      where: { userId },
+      where: { organizationId: organization.id },
       orderBy: [{ createdAt: "desc" }],
     });
 

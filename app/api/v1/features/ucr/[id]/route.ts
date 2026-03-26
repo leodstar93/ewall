@@ -1,3 +1,4 @@
+import { UCREntityType } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
@@ -5,7 +6,6 @@ import { canEditUcrFiling, canResubmitUcrFiling, canSubmitUcrFiling } from "@/li
 import { updateUcrFiling } from "@/services/ucr/updateUcrFiling";
 import {
   normalizeOptionalText,
-  parseEntityType,
   parseFilingYear,
   parseNonNegativeInt,
   sanitizeStateCode,
@@ -109,10 +109,6 @@ export async function PUT(
     if (typeof body.fleetSize !== "undefined" && parseNonNegativeInt(body.fleetSize) === null) {
       return Response.json({ error: "Invalid fleetSize" }, { status: 400 });
     }
-    if (typeof body.entityType !== "undefined" && !parseEntityType(body.entityType)) {
-      return Response.json({ error: "Invalid entityType" }, { status: 400 });
-    }
-
     const filing = await updateUcrFiling({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
@@ -128,8 +124,7 @@ export async function PUT(
       fein: typeof body.fein === "undefined" ? undefined : normalizeOptionalText(body.fein),
       baseState:
         typeof body.baseState === "undefined" ? undefined : sanitizeStateCode(body.baseState),
-      entityType:
-        typeof body.entityType === "undefined" ? undefined : parseEntityType(body.entityType) ?? undefined,
+      entityType: UCREntityType.MOTOR_CARRIER,
       interstateOperation:
         typeof body.interstateOperation === "boolean" ? body.interstateOperation : undefined,
       fleetSize:

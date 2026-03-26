@@ -1,3 +1,4 @@
+import { UCREntityType } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { buildSandboxActingUserContext, getSandboxErrorStatus } from "@/lib/sandbox/server";
 import { createSandboxAuditFromContext } from "@/services/sandbox/createSandboxAudit";
@@ -5,7 +6,6 @@ import { canEditUcrFiling, canResubmitUcrFiling, canSubmitUcrFiling } from "@/li
 import { updateUcrFiling } from "@/services/ucr/updateUcrFiling";
 import {
   normalizeOptionalText,
-  parseEntityType,
   parseFilingYear,
   parseNonNegativeInt,
   sanitizeStateCode,
@@ -104,10 +104,6 @@ export async function PUT(
     if (typeof body.fleetSize !== "undefined" && parseNonNegativeInt(body.fleetSize) === null) {
       return Response.json({ error: "Invalid fleetSize" }, { status: 400 });
     }
-    if (typeof body.entityType !== "undefined" && !parseEntityType(body.entityType)) {
-      return Response.json({ error: "Invalid entityType" }, { status: 400 });
-    }
-
     const filing = await updateUcrFiling(
       { db: ctx.db },
       {
@@ -132,10 +128,7 @@ export async function PUT(
           typeof body.baseState === "undefined"
             ? undefined
             : sanitizeStateCode(body.baseState),
-        entityType:
-          typeof body.entityType === "undefined"
-            ? undefined
-            : parseEntityType(body.entityType) ?? undefined,
+        entityType: UCREntityType.MOTOR_CARRIER,
         interstateOperation:
           typeof body.interstateOperation === "boolean"
             ? body.interstateOperation

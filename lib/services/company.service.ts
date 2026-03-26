@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ensureUserOrganization } from "./organization.service";
 import { SettingsValidationError } from "./settings-errors";
 
 export type CompanyProfileRecord = {
@@ -149,9 +150,12 @@ export async function upsertCompanyProfile(
   userId: string,
   input: CompanyProfileInput,
 ): Promise<CompanyProfileRecord> {
+  const organization = await ensureUserOrganization(userId);
+
   await prisma.companyProfile.upsert({
     where: { userId },
     update: {
+      organizationId: organization.id,
       legalName: normalizeOptionalString(input.legalName, "Legal name", 140),
       dbaName: normalizeOptionalString(input.dbaName, "DBA name", 140),
       dotNumber: normalizeDotNumber(input.dotNumber),
@@ -165,6 +169,7 @@ export async function upsertCompanyProfile(
     },
     create: {
       userId,
+      organizationId: organization.id,
       legalName: normalizeOptionalString(input.legalName, "Legal name", 140),
       dbaName: normalizeOptionalString(input.dbaName, "DBA name", 140),
       dotNumber: normalizeDotNumber(input.dotNumber),

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireModuleAccess } from "@/lib/guards/require-module-access";
 import { requirePermission } from "@/lib/rbac-guard";
 import Form2290FilingForm from "@/features/form2290/filing-form";
 
@@ -9,6 +10,7 @@ export default async function NewForm2290Page() {
     redirect(permission.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
   }
 
+  await requireModuleAccess("2290");
   return (
     <div className="space-y-6">
       <section className="rounded-[32px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fafc,_#ffffff_45%,_#dcfce7)] p-8 shadow-sm">

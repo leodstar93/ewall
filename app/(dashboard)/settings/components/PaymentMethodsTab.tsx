@@ -452,6 +452,10 @@ export default function PaymentMethodsTab({
     config?.stripeConfigured && config.stripePublishableKey
       ? getStripePromise(config.stripePublishableKey)
       : null;
+  const paypalMethods = methods.filter((method) => method.provider === "paypal");
+  const primaryPayPalMethod =
+    paypalMethods.find((method) => method.isDefault) ?? paypalMethods[0] ?? null;
+  const hasLinkedPayPal = Boolean(primaryPayPalMethod);
 
   return (
     <PanelCard
@@ -556,14 +560,28 @@ export default function PaymentMethodsTab({
             <div className="rounded-[24px] border border-zinc-200 bg-white p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-zinc-950">Link PayPal</h3>
+                  <h3 className="text-lg font-semibold text-zinc-950">
+                    {hasLinkedPayPal ? "PayPal account linked" : "Link PayPal"}
+                  </h3>
                   <p className="mt-2 text-sm leading-6 text-zinc-600">
-                    Tap one button, finish the approval in PayPal, and come back with the
-                    reference saved automatically.
+                    {hasLinkedPayPal
+                      ? `Your account is currently linked to ${primaryPayPalMethod?.paypalEmail || "PayPal"}. You can keep using it or link another PayPal account.`
+                      : "Tap one button, finish the approval in PayPal, and come back with the reference saved automatically."}
                   </p>
                 </div>
-                <StatusBadge tone="blue">Redirect</StatusBadge>
+                <StatusBadge tone={hasLinkedPayPal ? "green" : "blue"}>
+                  {hasLinkedPayPal ? "Linked" : "Redirect"}
+                </StatusBadge>
               </div>
+
+              {hasLinkedPayPal ? (
+                <div className="mt-5 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  Linked PayPal account:{" "}
+                  <span className="font-semibold">
+                    {primaryPayPalMethod?.paypalEmail || "PayPal"}
+                  </span>
+                </div>
+              ) : null}
 
               {!config?.paypalConfigured ? (
                 <div className="mt-5">
@@ -580,7 +598,11 @@ export default function PaymentMethodsTab({
                 className="mt-5 w-full rounded-2xl bg-[#0070ba] px-5 py-3 text-sm font-semibold text-white hover:bg-[#005ea6] disabled:opacity-60"
                 disabled={!config?.paypalConfigured || startingPayPal || savingPayPal}
               >
-                {startingPayPal ? "Redirecting to PayPal..." : "Link PayPal"}
+                {startingPayPal
+                  ? "Redirecting to PayPal..."
+                  : hasLinkedPayPal
+                    ? "Link another PayPal account"
+                    : "Link PayPal"}
               </button>
             </div>
 

@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { requireModuleAccess } from "@/lib/guards/require-module-access";
 import { requirePermission } from "@/lib/rbac-guard";
+import { getCompanyProfile } from "@/lib/services/company.service";
 import UcrFilingForm from "@/features/ucr/filing-form";
 
 export default async function NewUcrFilingPage() {
@@ -8,6 +10,10 @@ export default async function NewUcrFilingPage() {
   if (!permission.ok) {
     redirect(permission.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
   }
+
+  await requireModuleAccess("ucr");
+  const userId = permission.session.user.id ?? "";
+  const companyProfile = userId ? await getCompanyProfile(userId) : null;
 
   return (
     <div className="space-y-6">
@@ -24,7 +30,17 @@ export default async function NewUcrFilingPage() {
         </p>
       </section>
 
-      <UcrFilingForm mode="create" />
+      <UcrFilingForm
+        mode="create"
+        initialValues={{
+          legalName: companyProfile?.legalName || undefined,
+          usdotNumber: companyProfile?.dotNumber || undefined,
+          mcNumber: companyProfile?.mcNumber || undefined,
+          fein: companyProfile?.ein || undefined,
+          baseState: companyProfile?.state || undefined,
+          fleetSize: companyProfile?.trucksCount ? Number(companyProfile.trucksCount) : undefined,
+        }}
+      />
     </div>
   );
 }

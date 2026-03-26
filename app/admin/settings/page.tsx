@@ -39,6 +39,23 @@ export default async function AdminSettingsPage() {
 
         <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            Billing
+          </p>
+          <h3 className="mt-3 text-xl font-semibold text-zinc-950">Plans and entitlements</h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Manage billing feature flags, subscription plans, premium modules, coupons,
+            manual access grants, and provider configuration state.
+          </p>
+          <Link
+            href="/admin/settings/billing"
+            className="mt-5 inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            Open Billing Settings
+          </Link>
+        </article>
+
+        <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
             IFTA Tax Rates
           </p>
           <h3 className="mt-3 text-xl font-semibold text-zinc-950">

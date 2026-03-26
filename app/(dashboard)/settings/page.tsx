@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/rbac-guard";
+import { getBillingSettings } from "@/lib/services/billing-settings.service";
 import SettingsTabs from "./components/SettingsTabs";
 
 export default async function SettingsPage() {
@@ -9,5 +10,7 @@ export default async function SettingsPage() {
     redirect(access.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
   }
 
-  return <SettingsTabs />;
+  const billingSettings = await getBillingSettings();
+
+  return <SettingsTabs billingEnabled={billingSettings.subscriptionsEnabled} />;
 }

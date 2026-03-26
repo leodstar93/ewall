@@ -35,6 +35,7 @@ function titleFromPath(pathname: string | null) {
   if (pathname === "/admin") return "Dashboard";
   if (pathname.startsWith("/admin/profile")) return "Profile";
   if (pathname === "/admin/settings") return "Settings";
+  if (pathname.startsWith("/admin/settings/billing")) return "Billing Settings";
   if (pathname.startsWith("/admin/settings/2290")) return "Form 2290 Settings";
   if (pathname.startsWith("/admin/settings/ifta-tax-rates")) return "IFTA Tax Rates";
   if (pathname.startsWith("/admin/settings/ucr-rates")) return "UCR Rates";

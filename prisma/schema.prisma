@@ -26,9 +26,10 @@ model User {
   // Documents
   documents Document[]
   notifications Notification[]
-  userProfile    UserProfile?
-  companyProfile CompanyProfile?
-  paymentMethods PaymentMethod[]
+  userProfile            UserProfile?
+  companyProfile         CompanyProfile?
+  paymentMethods         PaymentMethod[]
+  organizationMemberships OrganizationMember[]
 
   //IFTA
   trucks           Truck[]
@@ -55,27 +56,30 @@ model UserProfile {
 }
 
 model CompanyProfile {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  legalName     String?
-  dbaName       String?
-  dotNumber     String?
-  mcNumber      String?
-  ein           String?
-  businessPhone String?
-  address       String?
-  state         String?
-  trucksCount   Int?
-  driversCount  Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String        @id @default(cuid())
+  userId         String        @unique
+  organizationId String?       @unique
+  legalName      String?
+  dbaName        String?
+  dotNumber      String?
+  mcNumber       String?
+  ein            String?
+  businessPhone  String?
+  address        String?
+  state          String?
+  trucksCount    Int?
+  driversCount   Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 }
 
 model PaymentMethod {
   id                      String   @id @default(cuid())
   userId                  String
+  organizationId          String?
   provider                String // stripe | paypal
   providerCustomerId      String?
   providerPaymentMethodId String?
@@ -87,10 +91,223 @@ model PaymentMethod {
   paypalEmail             String?
   createdAt               DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  subscriptions OrganizationSubscription[] @relation("SubscriptionPaymentMethod")
+  billingCharges BillingCharge[]
 
   @@index([userId])
   @@index([userId, provider])
+  @@index([organizationId])
+  @@index([organizationId, provider])
+}
+
+enum BillingProvider {
+  STRIPE
+  PAYPAL
+  MANUAL
+}
+
+enum SubscriptionInterval {
+  MONTH
+  YEAR
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+  PAUSED
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members            OrganizationMember[]
+  subscriptions      OrganizationSubscription[]
+  paymentMethods     PaymentMethod[]
+  subscriptionGrants SubscriptionGrant[]
+  billingCharges     BillingCharge[]
+  companyProfile     CompanyProfile?
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model BillingSettings {
+  id                     String   @id @default(cuid())
+  subscriptionsEnabled   Boolean  @default(false)
+  subscriptionsRequired  Boolean  @default(false)
+  allowStripe            Boolean  @default(true)
+  allowPaypal            Boolean  @default(true)
+  allowCoupons           Boolean  @default(true)
+  allowGiftSubscriptions Boolean  @default(true)
+  defaultGracePeriodDays Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model AppModule {
+  id                   String   @id @default(cuid())
+  slug                 String   @unique
+  name                 String
+  description          String?
+  isActive             Boolean  @default(true)
+  requiresSubscription Boolean  @default(false)
+  isCore               Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  planModules PlanModule[]
+  grants      SubscriptionGrant[]
+}
+
+model SubscriptionPlan {
+  id              String               @id @default(cuid())
+  code            String               @unique
+  name            String
+  description     String?
+  isActive        Boolean              @default(true)
+  interval        SubscriptionInterval
+  priceCents      Int
+  currency        String               @default("USD")
+  stripeProductId String?
+  stripePriceId   String?
+  paypalPlanId    String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  modules       PlanModule[]
+  subscriptions OrganizationSubscription[]
+}
+
+model PlanModule {
+  id        String   @id @default(cuid())
+  planId    String
+  moduleId  String
+  createdAt DateTime @default(now())
+
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  module AppModule        @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, moduleId])
+  @@index([moduleId])
+}
+
+model OrganizationSubscription {
+  id                     String             @id @default(cuid())
+  organizationId         String
+  planId                 String?
+  paymentMethodId        String?
+  provider               BillingProvider
+  status                 SubscriptionStatus
+  externalCustomerId     String?
+  externalSubscriptionId String?            @unique
+  externalPlanId         String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  gifted                 Boolean            @default(false)
+  giftedByUserId         String?
+  giftNote               String?
+  couponCode             String?
+  lastPaymentAttemptAt   DateTime?
+  lastPaymentError       String?
+  canceledAt             DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  paymentMethod PaymentMethod?   @relation("SubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  charges       BillingCharge[]
+
+  @@index([organizationId, status])
+  @@index([planId])
+  @@index([paymentMethodId])
+  @@index([currentPeriodEnd, status])
+}
+
+model BillingCharge {
+  id              String   @id @default(cuid())
+  organizationId  String
+  subscriptionId  String
+  paymentMethodId String?
+  provider        BillingProvider
+  amountCents     Int
+  currency        String   @default("USD")
+  status          String
+  externalPaymentId String?
+  externalOrderId String?
+  failureCode     String?
+  failureMessage  String?
+  billedForStart  DateTime?
+  billedForEnd    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription OrganizationSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod?       @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([subscriptionId, createdAt])
+  @@index([paymentMethodId])
+}
+
+model Coupon {
+  id                    String   @id @default(cuid())
+  code                  String   @unique
+  name                  String?
+  discountType          String
+  percentOff            Float?
+  amountOffCents        Int?
+  currency              String?
+  durationType          String
+  durationInMonths      Int?
+  maxRedemptions        Int?
+  timesRedeemed         Int      @default(0)
+  active                Boolean  @default(true)
+  stripeCouponId        String?
+  stripePromotionCodeId String?
+  startsAt              DateTime?
+  expiresAt             DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model SubscriptionGrant {
+  id             String   @id @default(cuid())
+  organizationId String
+  moduleId       String
+  source         String
+  active         Boolean  @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  module       AppModule    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, active])
+  @@index([moduleId, active])
 }
 
 model Account {

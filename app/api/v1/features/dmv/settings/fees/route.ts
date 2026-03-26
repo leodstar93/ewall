@@ -111,3 +111,25 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Failed to save DMV fee rule" }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  const guard = await requireApiPermission("dmv:manage_settings");
+  if (!guard.ok) return guard.res;
+
+  try {
+    const id = request.nextUrl.searchParams.get("id")?.trim();
+
+    if (!id) {
+      return Response.json({ error: "Fee rule id is required" }, { status: 400 });
+    }
+
+    await prisma.dmvFeeRule.delete({
+      where: { id },
+    });
+
+    return Response.json({ ok: true });
+  } catch (error) {
+    console.error("Failed to delete DMV fee rule", error);
+    return Response.json({ error: "Failed to delete DMV fee rule" }, { status: 500 });
+  }
+}

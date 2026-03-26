@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CompanyTab from "./CompanyTab";
+import BillingTab from "./BillingTab";
 import DocumentsTab from "./DocumentsTab";
 import PaymentMethodsTab from "./PaymentMethodsTab";
 import PersonalInfoTab from "./PersonalInfoTab";
@@ -36,6 +37,11 @@ const tabs = [
     caption: "Stripe/PayPal references only",
   },
   {
+    id: "billing",
+    label: "Billing",
+    caption: "Subscriptions, entitlements, and checkout",
+  },
+  {
     id: "documents",
     label: "Documents",
     caption: "Future-ready placeholder",
@@ -47,13 +53,18 @@ const tabs = [
   },
 ] as const;
 
-export default function SettingsTabs() {
+export default function SettingsTabs({
+  billingEnabled,
+}: {
+  billingEnabled: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [toasts, setToasts] = useState<SettingsToast[]>([]);
+  const availableTabs = billingEnabled ? tabs : tabs.filter((tab) => tab.id !== "billing");
   const requestedTab = searchParams.get("tab");
-  const activeTab = tabs.find((tab) => tab.id === requestedTab)?.id ?? "personal";
+  const activeTab = availableTabs.find((tab) => tab.id === requestedTab)?.id ?? "personal";
 
   const notify = useCallback(({ tone, message }: NotifyInput) => {
     const id =
@@ -80,6 +91,19 @@ export default function SettingsTabs() {
       scroll: false,
     });
   };
+
+  useEffect(() => {
+    if (billingEnabled || requestedTab !== "billing") {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tab");
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+      scroll: false,
+    });
+  }, [billingEnabled, pathname, requestedTab, router, searchParams]);
 
   return (
     <div className="space-y-6">
@@ -110,7 +134,7 @@ export default function SettingsTabs() {
       </section>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        {tabs.map((tab) => {
+        {availableTabs.map((tab) => {
           const isActive = tab.id === activeTab;
 
           return (
@@ -142,6 +166,7 @@ export default function SettingsTabs() {
       {activeTab === "personal" ? <PersonalInfoTab onNotify={notify} /> : null}
       {activeTab === "company" ? <CompanyTab onNotify={notify} /> : null}
       {activeTab === "payments" ? <PaymentMethodsTab onNotify={notify} /> : null}
+      {billingEnabled && activeTab === "billing" ? <BillingTab onNotify={notify} /> : null}
       {activeTab === "documents" ? <DocumentsTab /> : null}
       {activeTab === "security" ? <SecurityTab onNotify={notify} /> : null}
     </div>

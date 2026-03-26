@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireModuleAccess } from "@/lib/guards/require-module-access";
 import { requirePermission } from "@/lib/rbac-guard";
 import UcrDashboardPage from "@/features/ucr/dashboard-page";
 
@@ -9,5 +10,6 @@ export default async function UcrPage() {
     redirect(permission.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
   }
 
+  await requireModuleAccess("ucr");
   return <UcrDashboardPage />;
 }

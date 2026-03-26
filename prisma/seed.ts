@@ -1,7 +1,12 @@
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { prisma } from "../lib/prisma";
-import { DmvRegistrationType, Prisma, TruckVehicleType } from "@prisma/client";
+import {
+  DmvRegistrationType,
+  Prisma,
+  SubscriptionInterval,
+  TruckVehicleType,
+} from "@prisma/client";
 import { US_JURISDICTIONS } from "../features/ifta/constants/us-jurisdictions";
 
 // Cambia estos valores si quieres
@@ -42,7 +47,15 @@ const PERMISSIONS = [
   { key: "reports:download", description: "Download reports" },
   { key: "settings:read", description: "Read account and admin settings" },
   { key: "settings:update", description: "Update account and admin settings" },
-  { key: "billing:manage", description: "Manage payment methods and billing preferences" },
+  { key: "billing:read", description: "Read billing status and subscription details" },
+  { key: "billing:manage", description: "Manage customer billing actions and payment methods" },
+  { key: "billing.plans:read", description: "Read subscription plans" },
+  { key: "billing.plans:manage", description: "Create and manage subscription plans" },
+  { key: "billing.modules:read", description: "Read module billing catalog" },
+  { key: "billing.modules:manage", description: "Manage module billing catalog" },
+  { key: "billing.coupons:read", description: "Read coupons and discounts" },
+  { key: "billing.coupons:manage", description: "Manage coupons and discounts" },
+  { key: "billing.grants:manage", description: "Grant or revoke module access" },
   { key: "iftaTaxRates:read", description: "Read IFTA tax rates" },
   { key: "iftaTaxRates:write", description: "Create and edit IFTA tax rates" },
   { key: "iftaTaxRates:import", description: "Import IFTA tax rates" },
@@ -88,6 +101,7 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
   TRUCKER: [
     "settings:read",
     "settings:update",
+    "billing:read",
     "billing:manage",
     "ifta:read",
     "ifta:write",
@@ -113,6 +127,7 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
   STAFF: [
     "settings:read",
     "settings:update",
+    "billing:read",
     "billing:manage",
     "ifta:read",
     "ifta:write",
@@ -145,6 +160,7 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "dashboard:access",
     "settings:read",
     "settings:update",
+    "billing:read",
     "billing:manage",
     "ucr:read",
     "ucr:create",
@@ -160,6 +176,83 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "compliance2290:upload_schedule1",
   ],
 };
+
+const BILLING_SETTINGS_ID = "default-billing-settings";
+
+const APP_MODULES = [
+  {
+    slug: "ifta",
+    name: "IFTA",
+    description: "Fuel tax reporting and filing workflows.",
+    requiresSubscription: false,
+    isCore: false,
+  },
+  {
+    slug: "ucr",
+    name: "UCR",
+    description: "Unified Carrier Registration compliance workflows.",
+    requiresSubscription: false,
+    isCore: false,
+  },
+  {
+    slug: "2290",
+    name: "2290",
+    description: "HVUT Form 2290 compliance workflows.",
+    requiresSubscription: false,
+    isCore: false,
+  },
+  {
+    slug: "dmv",
+    name: "DMV Registration",
+    description: "Registration and renewal workflows for DMV compliance.",
+    requiresSubscription: false,
+    isCore: false,
+  },
+  {
+    slug: "documents",
+    name: "Documents",
+    description: "Shared document storage and retrieval.",
+    requiresSubscription: false,
+    isCore: true,
+  },
+  {
+    slug: "reports",
+    name: "Reports",
+    description: "Cross-module reporting and exports.",
+    requiresSubscription: false,
+    isCore: false,
+  },
+] as const;
+
+const BILLING_PLANS = [
+  {
+    code: "starter-monthly",
+    name: "Starter Monthly",
+    description: "Starter access for core collaboration and documents.",
+    interval: SubscriptionInterval.MONTH,
+    priceCents: 4900,
+    currency: "USD",
+    moduleSlugs: ["documents"],
+  },
+  {
+    code: "pro-monthly",
+    name: "Pro Monthly",
+    description: "Expanded compliance tooling for growing fleets.",
+    interval: SubscriptionInterval.MONTH,
+    priceCents: 9900,
+    currency: "USD",
+    moduleSlugs: ["documents", "ifta", "ucr", "dmv", "reports"],
+  },
+  {
+    code: "elite-monthly",
+    name: "Elite Monthly",
+    description: "Full compliance access across the current module suite.",
+    interval: SubscriptionInterval.MONTH,
+    priceCents: 14900,
+    currency: "USD",
+    moduleSlugs: ["documents", "ifta", "ucr", "2290", "dmv", "reports"],
+  },
+] as const;
 
 const SAMPLE_UCR_BRACKETS = [
   { minVehicles: 0, maxVehicles: 2, feeAmount: "46.00" },
@@ -351,6 +444,193 @@ async function upsertAdminUser() {
   return admin;
 }
 
+function buildOrganizationName(user: {
+  name: string | null;
+  email: string | null;
+  companyProfile: { legalName: string | null; dbaName: string | null } | null;
+}) {
+  return (
+    user.companyProfile?.legalName ??
+    user.companyProfile?.dbaName ??
+    user.name ??
+    user.email?.split("@")[0] ??
+    "Default Organization"
+  );
+}
+
+async function ensureOrganizationsForAllUsers() {
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      companyProfile: {
+        select: {
+          id: true,
+          legalName: true,
+          dbaName: true,
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  for (const user of users) {
+    const existingMembership = await prisma.organizationMember.findFirst({
+      where: { userId: user.id },
+      select: { organizationId: true },
+    });
+
+    let organizationId =
+      existingMembership?.organizationId ?? user.companyProfile?.organizationId ?? null;
+
+    if (!organizationId) {
+      const organization = await prisma.organization.create({
+        data: {
+          name: buildOrganizationName(user),
+          members: {
+            create: {
+              userId: user.id,
+              role: "OWNER",
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      organizationId = organization.id;
+    } else {
+      await prisma.organizationMember.upsert({
+        where: {
+          organizationId_userId: {
+            organizationId,
+            userId: user.id,
+          },
+        },
+        update: { role: "OWNER" },
+        create: {
+          organizationId,
+          userId: user.id,
+          role: "OWNER",
+        },
+      });
+    }
+
+    if (user.companyProfile && user.companyProfile.organizationId !== organizationId) {
+      await prisma.companyProfile.update({
+        where: { id: user.companyProfile.id },
+        data: { organizationId },
+      });
+    }
+
+    await prisma.paymentMethod.updateMany({
+      where: {
+        userId: user.id,
+        organizationId: null,
+      },
+      data: { organizationId },
+    });
+  }
+}
+
+async function upsertBillingSettings() {
+  await prisma.billingSettings.upsert({
+    where: { id: BILLING_SETTINGS_ID },
+    update: {
+      subscriptionsEnabled: false,
+      subscriptionsRequired: false,
+      allowStripe: true,
+      allowPaypal: true,
+      allowCoupons: true,
+      allowGiftSubscriptions: true,
+      defaultGracePeriodDays: 3,
+    },
+    create: {
+      id: BILLING_SETTINGS_ID,
+      subscriptionsEnabled: false,
+      subscriptionsRequired: false,
+      allowStripe: true,
+      allowPaypal: true,
+      allowCoupons: true,
+      allowGiftSubscriptions: true,
+      defaultGracePeriodDays: 3,
+    },
+  });
+}
+
+async function upsertBillingCatalog() {
+  for (const appModule of APP_MODULES) {
+    await prisma.appModule.upsert({
+      where: { slug: appModule.slug },
+      update: {
+        name: appModule.name,
+        description: appModule.description,
+        requiresSubscription: appModule.requiresSubscription,
+        isCore: appModule.isCore,
+        isActive: true,
+      },
+      create: {
+        slug: appModule.slug,
+        name: appModule.name,
+        description: appModule.description,
+        requiresSubscription: appModule.requiresSubscription,
+        isCore: appModule.isCore,
+        isActive: true,
+      },
+    });
+  }
+
+  const modules = await prisma.appModule.findMany({
+    where: {
+      slug: { in: APP_MODULES.map((module) => module.slug) },
+    },
+    select: { id: true, slug: true },
+  });
+  const moduleIdBySlug = new Map(modules.map((module) => [module.slug, module.id]));
+
+  for (const plan of BILLING_PLANS) {
+    const savedPlan = await prisma.subscriptionPlan.upsert({
+      where: { code: plan.code },
+      update: {
+        name: plan.name,
+        description: plan.description,
+        interval: plan.interval,
+        priceCents: plan.priceCents,
+        currency: plan.currency,
+        isActive: true,
+      },
+      create: {
+        code: plan.code,
+        name: plan.name,
+        description: plan.description,
+        interval: plan.interval,
+        priceCents: plan.priceCents,
+        currency: plan.currency,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    await prisma.planModule.deleteMany({
+      where: { planId: savedPlan.id },
+    });
+
+    const moduleIds = plan.moduleSlugs
+      .map((slug) => moduleIdBySlug.get(slug))
+      .filter((value): value is string => Boolean(value));
+
+    if (moduleIds.length > 0) {
+      await prisma.planModule.createMany({
+        data: moduleIds.map((moduleId) => ({
+          planId: savedPlan.id,
+          moduleId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  }
+}
+
 async function upsertSampleUcrBrackets() {
   const years = [new Date().getFullYear(), new Date().getFullYear() + 1];
 
@@ -485,6 +765,9 @@ async function main() {
   await upsertDmvFeeRules();
 
   const admin = await upsertAdminUser();
+  await ensureOrganizationsForAllUsers();
+  await upsertBillingSettings();
+  await upsertBillingCatalog();
 
   console.log("✅ Seed completed.");
   console.log(`👤 Admin: ${admin.email}`);

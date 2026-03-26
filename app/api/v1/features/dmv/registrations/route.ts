@@ -1,7 +1,8 @@
 import { DmvRegistrationStatus, DmvRegistrationType } from "@prisma/client";
 import { NextRequest } from "next/server";
-import { requireApiPermission } from "@/lib/rbac-api";
 import { prisma } from "@/lib/prisma";
+import { requireApiPermission } from "@/lib/rbac-api";
+import { getCompanyProfile } from "@/lib/services/company.service";
 import { createRegistration } from "@/services/dmv/createRegistration";
 import { toDmvErrorResponse } from "@/services/dmv/http";
 import {
@@ -122,6 +123,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as CreateRegistrationBody;
+    const userId = guard.session.user.id ?? "";
+    const companyProfile = userId ? await getCompanyProfile(userId) : null;
     const effectiveDate = parseOptionalDate(body.effectiveDate);
     const expirationDate = parseOptionalDate(body.expirationDate);
     const registrationMonth = parseOptionalInt(body.registrationMonth);
@@ -151,7 +154,7 @@ export async function POST(request: NextRequest) {
 
     const registration = await createRegistration({
       truckId: body.truckId,
-      actorUserId: guard.session.user.id ?? "",
+      actorUserId: userId,
       canManageAll: guard.isAdmin,
       registrationType,
       dmvAccountNumber: normalizeOptionalText(body.dmvAccountNumber),
@@ -176,10 +179,11 @@ export async function POST(request: NextRequest) {
           ? body.establishedBusinessOk
           : null,
       carrierRelocated: body.carrierRelocated === true,
-      dotNumber: normalizeOptionalText(body.dotNumber),
-      mcNumber: normalizeOptionalText(body.mcNumber),
-      fein: normalizeOptionalText(body.fein),
-      nevadaAddress: normalizeOptionalText(body.nevadaAddress),
+      dotNumber: normalizeOptionalText(body.dotNumber) ?? companyProfile?.dotNumber ?? null,
+      mcNumber: normalizeOptionalText(body.mcNumber) ?? companyProfile?.mcNumber ?? null,
+      fein: normalizeOptionalText(body.fein) ?? companyProfile?.ein ?? null,
+      nevadaAddress:
+        normalizeOptionalText(body.nevadaAddress) ?? companyProfile?.address ?? null,
       jurisdictions: parseJurisdictions(body.jurisdictions),
     });
 

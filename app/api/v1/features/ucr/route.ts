@@ -1,10 +1,11 @@
+import { UCREntityType } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
+import { getCompanyProfile } from "@/lib/services/company.service";
 import { createUcrFiling } from "@/services/ucr/createUcrFiling";
 import {
   normalizeOptionalText,
-  parseEntityType,
   parseFilingYear,
   parseNonNegativeInt,
   sanitizeStateCode,
@@ -66,17 +67,22 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as CreateUcrFilingBody;
     const filingYear = parseFilingYear(body.filingYear);
-    const fleetSize = parseNonNegativeInt(body.fleetSize);
-    const entityType = parseEntityType(body.entityType);
-    const legalName =
+    const userId = guard.session.user.id ?? "";
+    const companyProfile = userId ? await getCompanyProfile(userId) : null;
+    const legalNameInput =
       typeof body.legalName === "string" ? body.legalName.trim() : "";
+    const legalName = legalNameInput || companyProfile?.legalName || "";
+    const usdotNumber = normalizeOptionalText(body.usdotNumber) ?? companyProfile?.dotNumber ?? null;
+    const mcNumber = normalizeOptionalText(body.mcNumber) ?? companyProfile?.mcNumber ?? null;
+    const fein = normalizeOptionalText(body.fein) ?? companyProfile?.ein ?? null;
+    const baseState = sanitizeStateCode(body.baseState) ?? companyProfile?.state ?? null;
+    const fleetSize =
+      parseNonNegativeInt(body.fleetSize) ??
+      (companyProfile?.trucksCount ? parseNonNegativeInt(companyProfile.trucksCount) : null);
+    const entityType = UCREntityType.MOTOR_CARRIER;
 
     if (!filingYear) {
       return Response.json({ error: "Invalid filingYear" }, { status: 400 });
-    }
-
-    if (!entityType) {
-      return Response.json({ error: "Invalid entityType" }, { status: 400 });
     }
 
     if (fleetSize === null) {
@@ -88,13 +94,13 @@ export async function POST(request: NextRequest) {
     }
 
     const filing = await createUcrFiling({
-      userId: guard.session.user.id ?? "",
+      userId,
       filingYear,
       legalName,
-      usdotNumber: normalizeOptionalText(body.usdotNumber),
-      mcNumber: normalizeOptionalText(body.mcNumber),
-      fein: normalizeOptionalText(body.fein),
-      baseState: sanitizeStateCode(body.baseState),
+      usdotNumber,
+      mcNumber,
+      fein,
+      baseState,
       entityType,
       interstateOperation:
         typeof body.interstateOperation === "boolean" ? body.interstateOperation : true,

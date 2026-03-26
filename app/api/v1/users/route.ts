@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
+import { ensureUserOrganization } from "@/lib/services/organization.service";
 
 export async function GET() {
   const users = await prisma.user.findMany({
@@ -85,9 +86,11 @@ export async function POST(request: Request) {
         },
       });
 
+      await ensureUserOrganization(user.id);
       return Response.json(userWithRoles, { status: 201 });
     }
 
+    await ensureUserOrganization(user.id);
     return Response.json(user, { status: 201 });
   } catch (error) {
     console.error("Error creating user:", error);

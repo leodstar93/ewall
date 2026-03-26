@@ -27,6 +27,13 @@ type DmvRegistrationFormProps = {
   jurisdictionsApiPath?: string;
   registrationsApiPath?: string;
   detailHrefBase?: string;
+  initialValues?: {
+    dotNumber?: string;
+    mcNumber?: string;
+    fein?: string;
+    nevadaAddress?: string;
+    jurisdictionCode?: string;
+  };
 };
 
 export default function DmvRegistrationForm({
@@ -35,6 +42,7 @@ export default function DmvRegistrationForm({
   jurisdictionsApiPath,
   registrationsApiPath,
   detailHrefBase,
+  initialValues,
 }: DmvRegistrationFormProps) {
   const router = useRouter();
   const resolvedTrucksApiPath = trucksApiPath ?? "/api/v1/features/dmv/trucks";
@@ -50,6 +58,13 @@ export default function DmvRegistrationForm({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasCompanyPrefill = Boolean(
+    initialValues?.dotNumber ||
+      initialValues?.mcNumber ||
+      initialValues?.fein ||
+      initialValues?.nevadaAddress ||
+      initialValues?.jurisdictionCode,
+  );
   const [form, setForm] = useState({
     truckId: "",
     createTruckInline: false,
@@ -63,15 +78,15 @@ export default function DmvRegistrationForm({
     vehicleType: "TRACTOR",
     isInterstate: false,
     registrationType: "",
-    dotNumber: "",
-    mcNumber: "",
-    fein: "",
-    nevadaAddress: "",
+    dotNumber: initialValues?.dotNumber ?? "",
+    mcNumber: initialValues?.mcNumber ?? "",
+    fein: initialValues?.fein ?? "",
+    nevadaAddress: initialValues?.nevadaAddress ?? "",
     establishedBusinessOk: false,
     carrierRelocated: false,
     effectiveDate: "",
     expirationDate: "",
-    jurisdictionCode: "NV",
+    jurisdictionCode: initialValues?.jurisdictionCode ?? "NV",
   });
 
   useEffect(() => {
@@ -204,6 +219,12 @@ export default function DmvRegistrationForm({
       {error ? (
         <div className="rounded-[24px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      ) : null}
+
+      {hasCompanyPrefill ? (
+        <div className="rounded-[24px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          Company details were prefilled from your Company Profile in Settings, so you do not need to re-enter DOT, MC, EIN, or the address unless this DMV case needs a different snapshot.
         </div>
       ) : null}
 
