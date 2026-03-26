@@ -33,12 +33,6 @@ function readTokenNullableString(value: unknown): string | null | undefined {
   return value === null || typeof value === "string" ? value : undefined;
 }
 
-function readTokenStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
 function readTokenBoolean(value: unknown): boolean {
   return value === true;
 }
@@ -110,11 +104,11 @@ async function getUserAuthSnapshot(userId: string): Promise<UserAuthSnapshot | n
 
 function applySnapshotToToken(token: JWT, snapshot: UserAuthSnapshot) {
   token.sub = snapshot.id;
-  token.name = snapshot.name;
-  token.email = snapshot.email;
-  token.roles = snapshot.roles;
-  token.permissions = snapshot.permissions;
-  token.createdAt = snapshot.createdAt;
+  delete token.name;
+  delete token.email;
+  delete token.roles;
+  delete token.permissions;
+  delete token.createdAt;
   return token;
 }
 
@@ -319,11 +313,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
       if (impersonationUpdate?.action === "start") {
         const actorUserId = readTokenString(token.sub);
-        const actorRoles = readTokenStringArray(token.roles);
+        const actorSnapshot = actorUserId
+          ? await getUserAuthSnapshot(actorUserId)
+          : null;
 
         if (
           actorUserId &&
-          actorRoles.includes("ADMIN") &&
+          actorSnapshot?.roles.includes("ADMIN") &&
           !readTokenBoolean(token.impersonationActive) &&
           impersonationUpdate.targetUserId &&
           impersonationUpdate.targetUserId !== actorUserId
@@ -334,8 +330,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
           if (targetSnapshot) {
             token.actorUserId = actorUserId;
-            token.actorName = readTokenNullableString(token.name) ?? null;
-            token.actorEmail = readTokenNullableString(token.email) ?? null;
             token.impersonationActive = true;
             token.impersonationStartedAt = new Date().toISOString();
 
@@ -353,8 +347,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           const actorSnapshot = await getUserAuthSnapshot(actorUserId);
 
           token.actorUserId = undefined;
-          token.actorName = undefined;
-          token.actorEmail = undefined;
           token.impersonationActive = undefined;
           token.impersonationStartedAt = undefined;
 
@@ -371,33 +363,19 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         readTokenString(token.sub);
       if (!userId) return token;
 
-      const tokenRoles = readTokenStringArray(token.roles);
-      const needsRoleHydration = tokenRoles.length === 0;
-
-      if (needsRoleHydration) {
+      if (user) {
         await ensureGoogleDefaultRoles(userId);
       }
-
-      if (user || trigger === "update" || needsRoleHydration) {
+      if (user || trigger === "update") {
         const snapshot = await getUserAuthSnapshot(userId);
-
-        if (snapshot) {
-          applySnapshotToToken(token, snapshot);
-        }
+        if (snapshot) return applySnapshotToToken(token, snapshot);
       }
 
       return token;
     },
     async session({ session, token }) {
       const tokenSub = readTokenString(token.sub);
-      const tokenName = readTokenNullableString(token.name);
-      const tokenEmail = readTokenNullableString(token.email);
-      const tokenRoles = readTokenStringArray(token.roles);
-      const tokenPermissions = readTokenStringArray(token.permissions);
-      const tokenCreatedAt = readTokenNullableString(token.createdAt);
       const actorUserId = readTokenString(token.actorUserId);
-      const actorName = readTokenNullableString(token.actorName);
-      const actorEmail = readTokenNullableString(token.actorEmail);
       const impersonationStartedAt = readTokenNullableString(
         token.impersonationStartedAt,
       );
@@ -405,24 +383,36 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         readTokenBoolean(token.impersonationActive) && Boolean(actorUserId);
 
       if (tokenSub) {
-        session.user.id = tokenSub;
-      }
-      session.user.name = tokenName;
-      if (tokenEmail) {
-        session.user.email = tokenEmail;
-      }
-      session.user.roles = tokenRoles;
-      session.user.permissions = tokenPermissions;
-      session.user.createdAt = tokenCreatedAt ?? null;
-      session.impersonation = isImpersonating && actorUserId
-        ? {
-            isActive: true,
-            actorUserId,
-            actorName: actorName ?? null,
-            actorEmail: actorEmail ?? null,
-            startedAt: impersonationStartedAt ?? null,
+        const currentSnapshot = await getUserAuthSnapshot(tokenSub);
+
+        if (currentSnapshot) {
+          session.user.id = currentSnapshot.id;
+          session.user.name = currentSnapshot.name;
+          if (currentSnapshot.email) {
+            session.user.email = currentSnapshot.email;
           }
-        : null;
+          session.user.roles = currentSnapshot.roles;
+          session.user.permissions = currentSnapshot.permissions;
+          session.user.createdAt = currentSnapshot.createdAt ?? null;
+        } else {
+          session.user.id = tokenSub;
+          session.user.roles = [];
+          session.user.permissions = [];
+          session.user.createdAt = null;
+        }
+      }
+      session.impersonation = null;
+
+      if (isImpersonating && actorUserId) {
+        const actorSnapshot = await getUserAuthSnapshot(actorUserId);
+        session.impersonation = {
+          isActive: true,
+          actorUserId,
+          actorName: actorSnapshot?.name ?? null,
+          actorEmail: actorSnapshot?.email ?? null,
+          startedAt: impersonationStartedAt ?? null,
+        };
+      }
 
       return session;
     },

@@ -38,12 +38,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     userId?: string;
-    roles?: string[];
-    permissions?: string[];
-    createdAt?: string | null;
     actorUserId?: string;
-    actorName?: string | null;
-    actorEmail?: string | null;
     impersonationActive?: boolean;
     impersonationStartedAt?: string | null;
   }
