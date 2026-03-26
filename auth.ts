@@ -336,9 +336,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             token.actorUserId = actorUserId;
             token.actorName = readTokenNullableString(token.name) ?? null;
             token.actorEmail = readTokenNullableString(token.email) ?? null;
-            token.actorRoles = actorRoles;
-            token.actorPermissions = readTokenStringArray(token.permissions);
-            token.actorCreatedAt = readTokenNullableString(token.createdAt) ?? null;
             token.impersonationActive = true;
             token.impersonationStartedAt = new Date().toISOString();
 
@@ -358,9 +355,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           token.actorUserId = undefined;
           token.actorName = undefined;
           token.actorEmail = undefined;
-          token.actorRoles = undefined;
-          token.actorPermissions = undefined;
-          token.actorCreatedAt = undefined;
           token.impersonationActive = undefined;
           token.impersonationStartedAt = undefined;
 

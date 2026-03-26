@@ -44,9 +44,6 @@ declare module "next-auth/jwt" {
     actorUserId?: string;
     actorName?: string | null;
     actorEmail?: string | null;
-    actorRoles?: string[];
-    actorPermissions?: string[];
-    actorCreatedAt?: string | null;
     impersonationActive?: boolean;
     impersonationStartedAt?: string | null;
   }
