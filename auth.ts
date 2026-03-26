@@ -1,14 +1,29 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcrypt";
 import Google from "next-auth/providers/google";
+import type { JWT } from "next-auth/jwt";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { generateTemporaryPassword } from "@/lib/password";
+import bcrypt from "bcrypt";
+import { prisma } from "@/lib/prisma";
 import { sendGoogleCredentialsPasswordEmail } from "@/lib/email";
+import { generateTemporaryPassword } from "@/lib/password";
 import { ensureUserOrganization } from "@/lib/services/organization.service";
 
 const GOOGLE_DEFAULT_ROLE_NAMES = ["TRUCKER", "USER"] as const;
+
+type UserAuthSnapshot = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  roles: string[];
+  permissions: string[];
+  createdAt: string | null;
+};
+
+type ImpersonationUpdatePayload = {
+  action: "start" | "stop";
+  targetUserId?: string;
+};
 
 function readTokenString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -24,10 +39,86 @@ function readTokenStringArray(value: unknown): string[] {
     : [];
 }
 
-async function ensureGoogleDefaultRoles(
-  userId?: string,
-  email?: string | null,
-) {
+function readTokenBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+function parseImpersonationUpdate(value: unknown): ImpersonationUpdatePayload | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as {
+    action?: unknown;
+    targetUserId?: unknown;
+  };
+
+  if (candidate.action !== "start" && candidate.action !== "stop") {
+    return null;
+  }
+
+  return {
+    action: candidate.action,
+    targetUserId:
+      typeof candidate.targetUserId === "string" && candidate.targetUserId.trim()
+        ? candidate.targetUserId.trim()
+        : undefined,
+  };
+}
+
+async function getUserAuthSnapshot(userId: string): Promise<UserAuthSnapshot | null> {
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      createdAt: true,
+      roles: {
+        select: {
+          role: {
+            select: {
+              name: true,
+              permissions: {
+                select: { permission: { select: { key: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!dbUser) {
+    return null;
+  }
+
+  const roles = dbUser.roles.map((userRole) => userRole.role.name);
+  const permissions = dbUser.roles.flatMap((userRole) =>
+    userRole.role.permissions.map((permission) => permission.permission.key),
+  );
+
+  return {
+    id: dbUser.id,
+    name: dbUser.name ?? null,
+    email: dbUser.email ?? null,
+    roles,
+    permissions: Array.from(new Set(permissions)),
+    createdAt: dbUser.createdAt.toISOString(),
+  };
+}
+
+function applySnapshotToToken(token: JWT, snapshot: UserAuthSnapshot) {
+  token.sub = snapshot.id;
+  token.name = snapshot.name;
+  token.email = snapshot.email;
+  token.roles = snapshot.roles;
+  token.permissions = snapshot.permissions;
+  token.createdAt = snapshot.createdAt;
+  return token;
+}
+
+async function ensureGoogleDefaultRoles(userId?: string, email?: string | null) {
   if (!userId && !email) return;
 
   const normalizedEmail = email ?? undefined;
@@ -52,10 +143,7 @@ async function ensureGoogleDefaultRoles(
       : null;
 
   if (!dbUser) return;
-  const hasGoogleAccount = dbUser.accounts.some(
-    (account) => account.provider === "google",
-  );
-  if (!hasGoogleAccount) return;
+  if (!dbUser.accounts.some((account) => account.provider === "google")) return;
   if (dbUser.roles.length > 0) return;
 
   const defaultRoles = await prisma.role.findMany({
@@ -107,13 +195,8 @@ async function ensureGoogleCredentialsPassword(
       : null;
 
   if (!dbUser) return;
-
-  const hasGoogleAccount = dbUser.accounts.some(
-    (account) => account.provider === "google",
-  );
-  if (!hasGoogleAccount) return;
-  if (dbUser.passwordHash) return;
-  if (!dbUser.email) return;
+  if (!dbUser.accounts.some((account) => account.provider === "google")) return;
+  if (dbUser.passwordHash || !dbUser.email) return;
 
   const temporaryPassword = generateTemporaryPassword();
   const temporaryPasswordHash = await bcrypt.hash(temporaryPassword, 10);
@@ -176,10 +259,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
-        await ensureGoogleDefaultRoles(
-          user.id as string | undefined,
-          user.email,
-        );
+        await ensureGoogleDefaultRoles(user.id as string | undefined, user.email);
         await ensureGoogleCredentialsPassword(
           user.id as string | undefined,
           user.email,
@@ -189,7 +269,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
       let organizationUserId = user.id as string | undefined;
 
-      // Handle account linking for existing users
       if (account && profile && user.email) {
         const existingUser = await prisma.user.findUnique({
           where: { email: user.email },
@@ -199,15 +278,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         if (existingUser) {
           organizationUserId = existingUser.id;
 
-          // Check if this OAuth account is already linked
           const isLinked = existingUser.accounts.some(
-            (acc) =>
-              acc.provider === account.provider &&
-              acc.providerAccountId === account.providerAccountId,
+            (existingAccount) =>
+              existingAccount.provider === account.provider &&
+              existingAccount.providerAccountId === account.providerAccountId,
           );
 
           if (!isLinked) {
-            // Link the OAuth account to the existing user
             await prisma.account.create({
               data: {
                 userId: existingUser.id,
@@ -235,8 +312,66 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
       return true;
     },
-    async jwt({ token, user, trigger }) {
-      // En signIn, NextAuth puede traer user.id
+    async jwt({ token, user, trigger, session }) {
+      const impersonationUpdate = parseImpersonationUpdate(
+        (session as { impersonation?: unknown } | undefined)?.impersonation,
+      );
+
+      if (impersonationUpdate?.action === "start") {
+        const actorUserId = readTokenString(token.sub);
+        const actorRoles = readTokenStringArray(token.roles);
+
+        if (
+          actorUserId &&
+          actorRoles.includes("ADMIN") &&
+          !readTokenBoolean(token.impersonationActive) &&
+          impersonationUpdate.targetUserId &&
+          impersonationUpdate.targetUserId !== actorUserId
+        ) {
+          const targetSnapshot = await getUserAuthSnapshot(
+            impersonationUpdate.targetUserId,
+          );
+
+          if (targetSnapshot) {
+            token.actorUserId = actorUserId;
+            token.actorName = readTokenNullableString(token.name) ?? null;
+            token.actorEmail = readTokenNullableString(token.email) ?? null;
+            token.actorRoles = actorRoles;
+            token.actorPermissions = readTokenStringArray(token.permissions);
+            token.actorCreatedAt = readTokenNullableString(token.createdAt) ?? null;
+            token.impersonationActive = true;
+            token.impersonationStartedAt = new Date().toISOString();
+
+            return applySnapshotToToken(token, targetSnapshot);
+          }
+        }
+
+        return token;
+      }
+
+      if (impersonationUpdate?.action === "stop") {
+        const actorUserId = readTokenString(token.actorUserId);
+
+        if (actorUserId && readTokenBoolean(token.impersonationActive)) {
+          const actorSnapshot = await getUserAuthSnapshot(actorUserId);
+
+          token.actorUserId = undefined;
+          token.actorName = undefined;
+          token.actorEmail = undefined;
+          token.actorRoles = undefined;
+          token.actorPermissions = undefined;
+          token.actorCreatedAt = undefined;
+          token.impersonationActive = undefined;
+          token.impersonationStartedAt = undefined;
+
+          if (actorSnapshot) {
+            return applySnapshotToToken(token, actorSnapshot);
+          }
+        }
+
+        return token;
+      }
+
       const userId =
         (typeof user?.id === "string" ? user.id : undefined) ??
         readTokenString(token.sub);
@@ -249,55 +384,31 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         await ensureGoogleDefaultRoles(userId);
       }
 
-      // Recarga desde DB cuando:
-      // - primer login (user existe)
-      // - o cuando llames session.update() (trigger === "update")
-      // - o si el token todavía no trae roles (evita sesiones "vacías")
       if (user || trigger === "update" || needsRoleHydration) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            name: true, // ✅ IMPORTANTÍSIMO
-            email: true,
-            createdAt: true,
-            roles: {
-              select: {
-                role: {
-                  select: {
-                    name: true,
-                    permissions: {
-                      select: { permission: { select: { key: true } } },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        });
+        const snapshot = await getUserAuthSnapshot(userId);
 
-        const roles = dbUser?.roles?.map((ur) => ur.role.name) ?? [];
-        const permissions =
-          dbUser?.roles?.flatMap((ur) =>
-            (ur.role.permissions ?? []).map((rp) => rp.permission.key),
-          ) ?? [];
-
-        token.name = dbUser?.name ?? token.name; // ✅
-        token.email = dbUser?.email ?? token.email; // ✅
-        token.roles = roles;
-        token.permissions = Array.from(new Set(permissions));
-        token.createdAt = dbUser?.createdAt?.toISOString() ?? null;
+        if (snapshot) {
+          applySnapshotToToken(token, snapshot);
+        }
       }
 
       return token;
     },
     async session({ session, token }) {
-      // expone en session.user
       const tokenSub = readTokenString(token.sub);
       const tokenName = readTokenNullableString(token.name);
       const tokenEmail = readTokenNullableString(token.email);
       const tokenRoles = readTokenStringArray(token.roles);
       const tokenPermissions = readTokenStringArray(token.permissions);
       const tokenCreatedAt = readTokenNullableString(token.createdAt);
+      const actorUserId = readTokenString(token.actorUserId);
+      const actorName = readTokenNullableString(token.actorName);
+      const actorEmail = readTokenNullableString(token.actorEmail);
+      const impersonationStartedAt = readTokenNullableString(
+        token.impersonationStartedAt,
+      );
+      const isImpersonating =
+        readTokenBoolean(token.impersonationActive) && Boolean(actorUserId);
 
       if (tokenSub) {
         session.user.id = tokenSub;
@@ -309,6 +420,16 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       session.user.roles = tokenRoles;
       session.user.permissions = tokenPermissions;
       session.user.createdAt = tokenCreatedAt ?? null;
+      session.impersonation = isImpersonating && actorUserId
+        ? {
+            isActive: true,
+            actorUserId,
+            actorName: actorName ?? null,
+            actorEmail: actorEmail ?? null,
+            startedAt: impersonationStartedAt ?? null,
+          }
+        : null;
+
       return session;
     },
   },

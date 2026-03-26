@@ -90,8 +90,20 @@ function parsePageSize(value: string): UserPageSize {
   return parsed === 25 || parsed === 50 ? parsed : 10;
 }
 
+function getImpersonationDestination(permissions: string[]) {
+  if (permissions.includes("dashboard:access")) return "/panel";
+  if (permissions.includes("settings:read")) return "/settings";
+  if (permissions.includes("documents:read")) return "/documents";
+  if (permissions.includes("truck:read")) return "/trucks";
+  if (permissions.includes("ifta:read")) return "/ifta";
+  if (permissions.includes("ucr:read")) return "/ucr";
+  if (permissions.includes("dmv:read")) return "/dmv";
+  if (permissions.includes("compliance2290:view")) return "/2290";
+  return "/settings";
+}
+
 export default function AdminUsersPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -121,6 +133,7 @@ export default function AdminUsersPage() {
     msg: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -496,6 +509,41 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleLoginAsUser = async (user: User) => {
+    try {
+      setImpersonatingUserId(user.id);
+      const updatedSession = await update({
+        impersonation: {
+          action: "start",
+          targetUserId: user.id,
+        },
+      });
+
+      if (updatedSession?.user?.id !== user.id) {
+        throw new Error("Could not start impersonation for this user.");
+      }
+
+      const nextPermissions = Array.isArray(updatedSession.user.permissions)
+        ? updatedSession.user.permissions
+        : [];
+      const destination = getImpersonationDestination(nextPermissions);
+
+      setToast({
+        tone: "success",
+        msg: `Now acting as ${user.name || user.email}.`,
+      });
+      window.location.assign(destination);
+    } catch (error) {
+      console.error(error);
+      setToast({
+        tone: "error",
+        msg: "Could not login as this user.",
+      });
+    } finally {
+      setImpersonatingUserId(null);
+    }
+  };
+
   if (status === "loading" || loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -782,6 +830,21 @@ export default function AdminUsersPage() {
                             className="rounded-2xl border bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition"
                           >
                             Roles
+                          </button>
+
+                          <button
+                            onClick={() => void handleLoginAsUser(user)}
+                            disabled={
+                              impersonatingUserId === user.id ||
+                              session?.user?.id === user.id
+                            }
+                            className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
+                          >
+                            {session?.user?.id === user.id
+                              ? "Current user"
+                              : impersonatingUserId === user.id
+                                ? "Opening..."
+                                : "Login as this user"}
                           </button>
 
                           <button

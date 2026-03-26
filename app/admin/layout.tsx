@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
+import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { STAFF_ADMIN_FEATURE_MODULES } from "@/lib/rbac-feature-modules";
 import { hasPermission } from "@/lib/rbac-core";
@@ -384,7 +385,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
           <main className={styles.contentWrap}>
             <div className={styles.contentCard}>
-              <div className={styles.contentInner}>{children}</div>
+              <div className={styles.contentInner}>
+                {session?.impersonation?.isActive ? (
+                  <ImpersonationBanner
+                    actorName={session.impersonation.actorName}
+                    actorEmail={session.impersonation.actorEmail}
+                  />
+                ) : null}
+                {children}
+              </div>
             </div>
           </main>
         </div>
