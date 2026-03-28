@@ -61,19 +61,40 @@ model CompanyProfile {
   organizationId String?       @unique
   legalName      String?
   dbaName        String?
+  companyName    String?
   dotNumber      String?
   mcNumber       String?
   ein            String?
+  phone          String?
   businessPhone  String?
   address        String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
   state          String?
+  zipCode        String?
+  mailingAddressRaw String?
   trucksCount    Int?
   driversCount   Int?
+  saferStatus    String?
+  saferEntityType String?
+  saferOperatingStatus String?
+  saferPowerUnits Int?
+  saferDrivers   Int?
+  saferMcs150Mileage Int?
+  saferMileageYear Int?
+  saferLastFetchedAt DateTime?
+  saferAutoFilled Boolean      @default(false)
+  saferNeedsReview Boolean     @default(false)
+  saferRawSnapshot Json?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([dotNumber])
+  @@index([mcNumber])
 }
 
 model PaymentMethod {

@@ -11,6 +11,12 @@ export default async function SettingsPage() {
   }
 
   const billingSettings = await getBillingSettings();
+  const trucksAccess = await requirePermission("truck:read");
 
-  return <SettingsTabs billingEnabled={billingSettings.subscriptionsEnabled} />;
+  return (
+    <SettingsTabs
+      billingEnabled={billingSettings.subscriptionsEnabled}
+      trucksEnabled={trucksAccess.ok}
+    />
+  );
 }

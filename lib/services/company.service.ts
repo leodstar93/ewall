@@ -1,29 +1,51 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { SaferCompanyNormalized } from "@/services/fmcsa/saferTypes";
 import { ensureUserOrganization } from "./organization.service";
 import { SettingsValidationError } from "./settings-errors";
 
 export type CompanyProfileRecord = {
   legalName: string;
   dbaName: string;
+  companyName: string;
   dotNumber: string;
   mcNumber: string;
   ein: string;
   businessPhone: string;
   address: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
   state: string;
+  zipCode: string;
   trucksCount: string;
   driversCount: string;
+  saferStatus: string;
+  saferEntityType: string;
+  saferOperatingStatus: string;
+  saferPowerUnits: string;
+  saferDrivers: string;
+  saferMcs150Mileage: string;
+  saferMileageYear: string;
+  saferLastFetchedAt: string;
+  saferAutoFilled: boolean;
+  saferNeedsReview: boolean;
 };
 
 export type CompanyProfileInput = {
   legalName?: unknown;
   dbaName?: unknown;
+  companyName?: unknown;
   dotNumber?: unknown;
   mcNumber?: unknown;
   ein?: unknown;
   businessPhone?: unknown;
   address?: unknown;
+  addressLine1?: unknown;
+  addressLine2?: unknown;
+  city?: unknown;
   state?: unknown;
+  zipCode?: unknown;
   trucksCount?: unknown;
   driversCount?: unknown;
 };
@@ -64,6 +86,17 @@ function normalizeState(value: unknown) {
   }
 
   return normalized.toUpperCase();
+}
+
+function normalizeZipCode(value: unknown) {
+  const normalized = normalizeOptionalString(value, "ZIP code", 10);
+  if (!normalized) return null;
+
+  if (!/^\d{5}(?:-\d{4})?$/.test(normalized)) {
+    throw new SettingsValidationError("ZIP code must be 5 digits or ZIP+4.");
+  }
+
+  return normalized;
 }
 
 function normalizeDotNumber(value: unknown) {
@@ -113,36 +146,119 @@ function normalizeCount(value: unknown, label: string) {
   return numeric;
 }
 
+function formatOptionalNumber(value: number | null | undefined) {
+  return typeof value === "number" ? String(value) : "";
+}
+
+function formatOptionalDate(value: Date | null | undefined) {
+  return value ? value.toISOString() : "";
+}
+
+function joinAddressParts(parts: Array<string | null | undefined>) {
+  return parts.map((part) => part?.trim()).filter(Boolean).join(", ");
+}
+
+function buildLegacyAddress(input: {
+  address?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+}) {
+  if (input.address?.trim()) {
+    return input.address.trim();
+  }
+
+  const lineParts = [input.addressLine1, input.addressLine2]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(", ");
+  const locality = joinAddressParts([
+    input.city ?? null,
+    input.state ?? null,
+    input.zipCode ?? null,
+  ]);
+
+  return joinAddressParts([lineParts || null, locality || null]) || null;
+}
+
+function parseIsoDate(value: string, label: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new SettingsValidationError(`${label} must be a valid ISO date.`);
+  }
+
+  return date;
+}
+
 export async function getCompanyProfile(userId: string): Promise<CompanyProfileRecord> {
   const company = await prisma.companyProfile.findUnique({
     where: { userId },
     select: {
       legalName: true,
       dbaName: true,
+      companyName: true,
       dotNumber: true,
       mcNumber: true,
       ein: true,
+      phone: true,
       businessPhone: true,
       address: true,
+      addressLine1: true,
+      addressLine2: true,
+      city: true,
       state: true,
+      zipCode: true,
       trucksCount: true,
       driversCount: true,
+      saferStatus: true,
+      saferEntityType: true,
+      saferOperatingStatus: true,
+      saferPowerUnits: true,
+      saferDrivers: true,
+      saferMcs150Mileage: true,
+      saferMileageYear: true,
+      saferLastFetchedAt: true,
+      saferAutoFilled: true,
+      saferNeedsReview: true,
     },
   });
 
   return {
     legalName: company?.legalName ?? "",
     dbaName: company?.dbaName ?? "",
+    companyName: company?.companyName ?? "",
     dotNumber: company?.dotNumber ?? "",
     mcNumber: company?.mcNumber ?? "",
     ein: company?.ein ?? "",
-    businessPhone: company?.businessPhone ?? "",
-    address: company?.address ?? "",
+    businessPhone: company?.businessPhone ?? company?.phone ?? "",
+    address:
+      buildLegacyAddress({
+        address: company?.address ?? null,
+        addressLine1: company?.addressLine1 ?? null,
+        addressLine2: company?.addressLine2 ?? null,
+        city: company?.city ?? null,
+        state: company?.state ?? null,
+        zipCode: company?.zipCode ?? null,
+      }) ?? "",
+    addressLine1: company?.addressLine1 ?? company?.address ?? "",
+    addressLine2: company?.addressLine2 ?? "",
+    city: company?.city ?? "",
     state: company?.state ?? "",
-    trucksCount:
-      typeof company?.trucksCount === "number" ? String(company.trucksCount) : "",
-    driversCount:
-      typeof company?.driversCount === "number" ? String(company.driversCount) : "",
+    zipCode: company?.zipCode ?? "",
+    trucksCount: formatOptionalNumber(company?.trucksCount),
+    driversCount: formatOptionalNumber(company?.driversCount),
+    saferStatus: company?.saferStatus ?? "",
+    saferEntityType: company?.saferEntityType ?? "",
+    saferOperatingStatus: company?.saferOperatingStatus ?? "",
+    saferPowerUnits: formatOptionalNumber(company?.saferPowerUnits),
+    saferDrivers: formatOptionalNumber(company?.saferDrivers),
+    saferMcs150Mileage: formatOptionalNumber(company?.saferMcs150Mileage),
+    saferMileageYear: formatOptionalNumber(company?.saferMileageYear),
+    saferLastFetchedAt: formatOptionalDate(company?.saferLastFetchedAt),
+    saferAutoFilled: company?.saferAutoFilled ?? false,
+    saferNeedsReview: company?.saferNeedsReview ?? false,
   };
 }
 
@@ -152,34 +268,144 @@ export async function upsertCompanyProfile(
 ): Promise<CompanyProfileRecord> {
   const organization = await ensureUserOrganization(userId);
 
+  const legalName = normalizeOptionalString(input.legalName, "Legal name", 140);
+  const dbaName = normalizeOptionalString(input.dbaName, "DBA name", 140);
+  const companyName =
+    normalizeOptionalString(input.companyName, "Company display name", 140) ??
+    legalName ??
+    dbaName;
+  const businessPhone = normalizeOptionalPhone(input.businessPhone);
+  const addressFallback = normalizeOptionalString(input.address, "Business address", 180);
+  const addressLine1 =
+    normalizeOptionalString(input.addressLine1, "Address line 1", 180) ?? addressFallback;
+  const addressLine2 = normalizeOptionalString(input.addressLine2, "Address line 2", 180);
+  const city = normalizeOptionalString(input.city, "City", 120);
+  const state = normalizeState(input.state);
+  const zipCode = normalizeZipCode(input.zipCode);
+  const address = buildLegacyAddress({
+    address: addressFallback,
+    addressLine1,
+    addressLine2,
+    city,
+    state,
+    zipCode,
+  });
+
   await prisma.companyProfile.upsert({
     where: { userId },
     update: {
       organizationId: organization.id,
-      legalName: normalizeOptionalString(input.legalName, "Legal name", 140),
-      dbaName: normalizeOptionalString(input.dbaName, "DBA name", 140),
+      legalName,
+      dbaName,
+      companyName,
       dotNumber: normalizeDotNumber(input.dotNumber),
       mcNumber: normalizeMcNumber(input.mcNumber),
       ein: normalizeEin(input.ein),
-      businessPhone: normalizeOptionalPhone(input.businessPhone),
-      address: normalizeOptionalString(input.address, "Business address", 180),
-      state: normalizeState(input.state),
+      phone: businessPhone,
+      businessPhone,
+      address,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      zipCode,
       trucksCount: normalizeCount(input.trucksCount, "Trucks count"),
       driversCount: normalizeCount(input.driversCount, "Drivers count"),
     },
     create: {
       userId,
       organizationId: organization.id,
-      legalName: normalizeOptionalString(input.legalName, "Legal name", 140),
-      dbaName: normalizeOptionalString(input.dbaName, "DBA name", 140),
+      legalName,
+      dbaName,
+      companyName,
       dotNumber: normalizeDotNumber(input.dotNumber),
       mcNumber: normalizeMcNumber(input.mcNumber),
       ein: normalizeEin(input.ein),
-      businessPhone: normalizeOptionalPhone(input.businessPhone),
-      address: normalizeOptionalString(input.address, "Business address", 180),
-      state: normalizeState(input.state),
+      phone: businessPhone,
+      businessPhone,
+      address,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      zipCode,
       trucksCount: normalizeCount(input.trucksCount, "Trucks count"),
       driversCount: normalizeCount(input.driversCount, "Drivers count"),
+    },
+  });
+
+  return getCompanyProfile(userId);
+}
+
+export async function applySaferToCompanyProfile(
+  userId: string,
+  lookupResult: SaferCompanyNormalized,
+): Promise<CompanyProfileRecord> {
+  if (!lookupResult.found || !lookupResult.company) {
+    throw new SettingsValidationError("No SAFER result available to apply.");
+  }
+
+  const organization = await ensureUserOrganization(userId);
+  const existingProfile = await prisma.companyProfile.findUnique({
+    where: { userId },
+    select: { companyName: true },
+  });
+  const company = lookupResult.company;
+  const saferDate = parseIsoDate(lookupResult.fetchedAt, "Fetched date");
+  const saferNeedsReview =
+    lookupResult.warnings.length > 0 ||
+    !company.legalName ||
+    !company.addressLine1 ||
+    !company.state;
+  const address = buildLegacyAddress({
+    address: company.addressRaw ?? null,
+    addressLine1: company.addressLine1 ?? null,
+    addressLine2: company.addressLine2 ?? null,
+    city: company.city ?? null,
+    state: company.state ?? null,
+    zipCode: company.zipCode ?? null,
+  });
+
+  const profileData = {
+    organizationId: organization.id,
+    dotNumber: company.usdotNumber ?? lookupResult.searchedDotNumber,
+    mcNumber: company.mcNumber ?? undefined,
+    legalName: company.legalName ?? undefined,
+    dbaName: company.dbaName ?? undefined,
+    companyName:
+      existingProfile?.companyName?.trim() || company.dbaName || company.legalName
+        ? existingProfile?.companyName?.trim() || company.dbaName || company.legalName
+        : undefined,
+    phone: company.phone ?? undefined,
+    businessPhone: company.phone ?? undefined,
+    address: address ?? undefined,
+    addressLine1: company.addressLine1 ?? undefined,
+    addressLine2: company.addressLine2 ?? undefined,
+    city: company.city ?? undefined,
+    state: company.state ?? undefined,
+    zipCode: company.zipCode ?? undefined,
+    mailingAddressRaw: company.mailingAddressRaw ?? undefined,
+    trucksCount: company.powerUnits ?? undefined,
+    driversCount: company.drivers ?? undefined,
+    saferStatus: company.usdOTStatus ?? undefined,
+    saferEntityType: company.entityType ?? undefined,
+    saferOperatingStatus: company.operatingStatus ?? undefined,
+    saferPowerUnits: company.powerUnits ?? undefined,
+    saferDrivers: company.drivers ?? undefined,
+    saferMcs150Mileage: company.mcs150Mileage ?? undefined,
+    saferMileageYear: company.mileageYear ?? undefined,
+    saferLastFetchedAt: saferDate,
+    saferAutoFilled: true,
+    saferNeedsReview,
+    saferRawSnapshot: (lookupResult.rawSnapshot as Prisma.InputJsonValue | undefined) ?? undefined,
+  };
+
+  await prisma.companyProfile.upsert({
+    where: { userId },
+    update: profileData,
+    create: {
+      userId,
+      ...profileData,
     },
   });
 

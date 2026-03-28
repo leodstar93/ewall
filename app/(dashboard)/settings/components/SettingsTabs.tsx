@@ -8,6 +8,7 @@ import DocumentsTab from "./DocumentsTab";
 import PaymentMethodsTab from "./PaymentMethodsTab";
 import PersonalInfoTab from "./PersonalInfoTab";
 import SecurityTab from "./SecurityTab";
+import TrucksDashboardPage from "@/features/trucks/dashboard-page";
 import {
   StatusBadge,
   ToastViewport,
@@ -47,6 +48,11 @@ const tabs = [
     caption: "Future-ready placeholder",
   },
   {
+    id: "trucks",
+    label: "Trucks and Trails",
+    caption: "Fleet units, plates, VINs, and weight",
+  },
+  {
     id: "security",
     label: "Security",
     caption: "Password and connected accounts",
@@ -55,14 +61,26 @@ const tabs = [
 
 export default function SettingsTabs({
   billingEnabled,
+  trucksEnabled,
 }: {
   billingEnabled: boolean;
+  trucksEnabled: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [toasts, setToasts] = useState<SettingsToast[]>([]);
-  const availableTabs = billingEnabled ? tabs : tabs.filter((tab) => tab.id !== "billing");
+  const availableTabs = tabs.filter((tab) => {
+    if (!billingEnabled && tab.id === "billing") {
+      return false;
+    }
+
+    if (!trucksEnabled && tab.id === "trucks") {
+      return false;
+    }
+
+    return true;
+  });
   const requestedTab = searchParams.get("tab");
   const activeTab = availableTabs.find((tab) => tab.id === requestedTab)?.id ?? "personal";
 
@@ -133,7 +151,7 @@ export default function SettingsTabs({
         </div>
       </section>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         {availableTabs.map((tab) => {
           const isActive = tab.id === activeTab;
 
@@ -168,6 +186,7 @@ export default function SettingsTabs({
       {activeTab === "payments" ? <PaymentMethodsTab onNotify={notify} /> : null}
       {billingEnabled && activeTab === "billing" ? <BillingTab onNotify={notify} /> : null}
       {activeTab === "documents" ? <DocumentsTab /> : null}
+      {trucksEnabled && activeTab === "trucks" ? <TrucksDashboardPage /> : null}
       {activeTab === "security" ? <SecurityTab onNotify={notify} /> : null}
     </div>
   );
