@@ -49,7 +49,7 @@ const tabs = [
   },
   {
     id: "trucks",
-    label: "Trucks and Trails",
+    label: "Trucks and Trailers",
     caption: "Fleet units, plates, VINs, and weight",
   },
   {
