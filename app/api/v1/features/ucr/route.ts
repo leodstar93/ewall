@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { getCompanyProfile } from "@/lib/services/company.service";
+import { ensureUserOrganization } from "@/lib/services/organization.service";
 import { createUcrFiling } from "@/services/ucr/createUcrFiling";
 import {
   normalizeOptionalText,
@@ -10,20 +11,36 @@ import {
   parseNonNegativeInt,
   sanitizeStateCode,
   UcrServiceError,
+  ucrFilingInclude,
 } from "@/services/ucr/shared";
 
 type CreateUcrFilingBody = {
-  filingYear?: unknown;
+  year?: unknown;
   legalName?: unknown;
-  usdotNumber?: unknown;
+  dbaName?: unknown;
+  dotNumber?: unknown;
   mcNumber?: unknown;
   fein?: unknown;
   baseState?: unknown;
   entityType?: unknown;
   interstateOperation?: unknown;
-  fleetSize?: unknown;
+  vehicleCount?: unknown;
   clientNotes?: unknown;
 };
+
+function getMissingCompanyInfo(input: {
+  legalName?: string | null;
+  dotNumber?: string | null;
+  baseState?: string | null;
+}) {
+  const missing: string[] = [];
+
+  if (!input.legalName?.trim()) missing.push("Legal company name");
+  if (!input.dotNumber?.trim()) missing.push("DOT number");
+  if (!input.baseState?.trim()) missing.push("Base state");
+
+  return missing;
+}
 
 function toErrorResponse(error: unknown, fallback: string) {
   if (error instanceof UcrServiceError) {
@@ -38,7 +55,7 @@ function toErrorResponse(error: unknown, fallback: string) {
 }
 
 export async function GET() {
-  const guard = await requireApiPermission("ucr:read");
+  const guard = await requireApiPermission("ucr:read_own");
   if (!guard.ok) return guard.res;
 
   try {
@@ -46,12 +63,8 @@ export async function GET() {
       where: {
         userId: guard.session.user.id ?? "",
       },
-      include: {
-        documents: {
-          orderBy: [{ createdAt: "desc" }],
-        },
-      },
-      orderBy: [{ filingYear: "desc" }, { updatedAt: "desc" }],
+      include: ucrFilingInclude,
+      orderBy: [{ year: "desc" }, { updatedAt: "desc" }],
     });
 
     return Response.json({ filings });
@@ -66,45 +79,59 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as CreateUcrFilingBody;
-    const filingYear = parseFilingYear(body.filingYear);
+    const year = parseFilingYear(body.year);
     const userId = guard.session.user.id ?? "";
     const companyProfile = userId ? await getCompanyProfile(userId) : null;
+    const organization = userId ? await ensureUserOrganization(userId) : null;
     const legalNameInput =
       typeof body.legalName === "string" ? body.legalName.trim() : "";
-    const legalName = legalNameInput || companyProfile?.legalName || "";
-    const usdotNumber = normalizeOptionalText(body.usdotNumber) ?? companyProfile?.dotNumber ?? null;
+    const legalName = legalNameInput || companyProfile?.legalName || companyProfile?.companyName || "";
+    const dotNumber = normalizeOptionalText(body.dotNumber) ?? companyProfile?.dotNumber ?? null;
     const mcNumber = normalizeOptionalText(body.mcNumber) ?? companyProfile?.mcNumber ?? null;
     const fein = normalizeOptionalText(body.fein) ?? companyProfile?.ein ?? null;
     const baseState = sanitizeStateCode(body.baseState) ?? companyProfile?.state ?? null;
-    const fleetSize =
-      parseNonNegativeInt(body.fleetSize) ??
+    const vehicleCount =
+      parseNonNegativeInt(body.vehicleCount) ??
       (companyProfile?.trucksCount ? parseNonNegativeInt(companyProfile.trucksCount) : null);
     const entityType = UCREntityType.MOTOR_CARRIER;
+    const missingCompanyInfo = getMissingCompanyInfo({
+      legalName,
+      dotNumber,
+      baseState,
+    });
 
-    if (!filingYear) {
-      return Response.json({ error: "Invalid filingYear" }, { status: 400 });
+    if (!year) {
+      return Response.json({ error: "Invalid year" }, { status: 400 });
     }
 
-    if (fleetSize === null) {
-      return Response.json({ error: "Invalid fleetSize" }, { status: 400 });
+    if (!vehicleCount) {
+      return Response.json({ error: "Invalid vehicleCount" }, { status: 400 });
     }
 
-    if (!legalName) {
-      return Response.json({ error: "legalName is required" }, { status: 400 });
+    if (missingCompanyInfo.length > 0) {
+      return Response.json(
+        {
+          error: "Complete Company Info before creating a UCR filing.",
+          details: missingCompanyInfo.map((field) => `${field} is required in Company Info.`),
+        },
+        { status: 400 },
+      );
     }
 
     const filing = await createUcrFiling({
       userId,
-      filingYear,
+      organizationId: organization?.id ?? null,
+      year,
       legalName,
-      usdotNumber,
+      dbaName: normalizeOptionalText(body.dbaName) ?? companyProfile?.dbaName ?? null,
+      dotNumber,
       mcNumber,
       fein,
       baseState,
       entityType,
       interstateOperation:
         typeof body.interstateOperation === "boolean" ? body.interstateOperation : true,
-      fleetSize,
+      vehicleCount,
       clientNotes: normalizeOptionalText(body.clientNotes),
     });
 

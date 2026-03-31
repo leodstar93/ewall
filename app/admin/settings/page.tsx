@@ -75,6 +75,25 @@ export default async function AdminSettingsPage() {
 
         <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            UCR Concierge
+          </p>
+          <h3 className="mt-3 text-xl font-semibold text-zinc-950">
+            Concierge controls and pricing defaults
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Configure concierge mode, customer checkout behavior, fee defaults, and the
+            active operating year for the manual UCR payment workflow.
+          </p>
+          <Link
+            href="/admin/settings/ucr"
+            className="mt-5 inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            Open UCR Settings
+          </Link>
+        </article>
+
+        <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
             UCR Rates
           </p>
           <h3 className="mt-3 text-xl font-semibold text-zinc-950">

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { DbClient, ServiceContext } from "@/lib/db/types";
+import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/types";
 import { getUcrStatusLabel } from "@/lib/ucr-workflow";
 import { currentYear, getComplianceSnapshot } from "@/services/ucr/shared";
 
@@ -8,14 +8,14 @@ type GetUcrComplianceStatusInput = {
   year?: number;
 };
 
-function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | DbTransactionClient | null) {
   if (!ctxOrDb) return prisma;
   if ("db" in ctxOrDb) return ctxOrDb.db;
   return ctxOrDb;
 }
 
 export async function getUcrComplianceStatus(
-  ctxOrInput: Pick<ServiceContext, "db"> | GetUcrComplianceStatusInput,
+  ctxOrInput: { db: DbClient | DbTransactionClient } | GetUcrComplianceStatusInput,
   maybeInput?: GetUcrComplianceStatusInput,
 ) {
   const { userId, year = currentYear() } =

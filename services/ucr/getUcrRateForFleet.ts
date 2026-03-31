@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { DbClient, ServiceContext } from "@/lib/db/types";
+import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/types";
 import { formatBracketLabel, UcrServiceError } from "@/services/ucr/shared";
 
 type GetUcrRateForFleetInput = {
@@ -7,7 +7,7 @@ type GetUcrRateForFleetInput = {
   fleetSize: number;
 };
 
-function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | DbTransactionClient | null) {
   if (!ctxOrDb) return prisma;
   if ("db" in ctxOrDb) return ctxOrDb.db;
   return ctxOrDb;
@@ -21,7 +21,7 @@ export async function getUcrRateForFleet(
   feeAmount: string;
 }>;
 export async function getUcrRateForFleet(
-  ctx: Pick<ServiceContext, "db">,
+  ctx: { db: DbClient | DbTransactionClient },
   input: GetUcrRateForFleetInput,
 ): Promise<{
   bracket: Awaited<ReturnType<typeof prisma.uCRRateBracket.findMany>>[number];
@@ -29,7 +29,7 @@ export async function getUcrRateForFleet(
   feeAmount: string;
 }>;
 export async function getUcrRateForFleet(
-  ctxOrInput: Pick<ServiceContext, "db"> | GetUcrRateForFleetInput,
+  ctxOrInput: { db: DbClient | DbTransactionClient } | GetUcrRateForFleetInput,
   maybeInput?: GetUcrRateForFleetInput,
 ) {
   const { year, fleetSize } = maybeInput ?? (ctxOrInput as GetUcrRateForFleetInput);

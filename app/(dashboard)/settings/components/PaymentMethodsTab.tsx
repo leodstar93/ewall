@@ -3,7 +3,7 @@
 import { Elements, CardElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   EmptyState,
   InlineAlert,
@@ -79,6 +79,7 @@ function StripeCardSetupForm({
   const [loadingIntent, setLoadingIntent] = useState(true);
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState("");
+  const [cardElementKey, setCardElementKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -174,7 +175,6 @@ function StripeCardSetupForm({
         throw new Error(payload.error || "Stripe card could not be saved.");
       }
 
-      await onSaved();
       const refreshResponse = await fetch("/api/settings/payment-method/stripe/setup-intent", {
         method: "POST",
       });
@@ -188,7 +188,8 @@ function StripeCardSetupForm({
         );
       }
       setClientSecret(refreshPayload.clientSecret);
-      cardElement.clear();
+      setCardElementKey((current) => current + 1);
+      await onSaved();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Stripe card could not be saved.";
@@ -224,7 +225,7 @@ function StripeCardSetupForm({
         {loadingIntent ? (
           <div className="h-12 animate-pulse rounded-xl bg-white" />
         ) : (
-          <CardElement options={cardElementOptions} />
+          <CardElement key={cardElementKey} options={cardElementOptions} />
         )}
       </div>
 
@@ -263,7 +264,7 @@ export default function PaymentMethodsTab({
   const paypalStatus = searchParams.get("paypal_status");
   const paypalFlow = searchParams.get("paypal_flow");
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -307,11 +308,11 @@ export default function PaymentMethodsTab({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [loadData]);
 
   useEffect(() => {
     if (!paypalStatus || !paypalFlow) return;
@@ -443,10 +444,15 @@ export default function PaymentMethodsTab({
     }
   };
 
-  const handleStripeSaved = async () => {
+  const handleStripeSaved = useCallback(async () => {
     await loadData();
     onNotify({ tone: "success", message: "Stripe card saved successfully." });
-  };
+  }, [loadData, onNotify]);
+
+  const handleStripeError = useCallback((message: string) => {
+    setError(message);
+    onNotify({ tone: "error", message });
+  }, [onNotify]);
 
   const stripePromise =
     config?.stripeConfigured && config.stripePublishableKey
@@ -596,10 +602,7 @@ export default function PaymentMethodsTab({
                   enabled={Boolean(config?.stripeConfigured)}
                   makeDefault={makeDefault}
                   onSaved={handleStripeSaved}
-                  onError={(message) => {
-                    setError(message);
-                    onNotify({ tone: "error", message });
-                  }}
+                  onError={handleStripeError}
                 />
               </Elements>
             ) : (

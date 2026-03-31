@@ -4,6 +4,24 @@ export function getUcrStatusLabel(status: UCRFilingStatus) {
   switch (status) {
     case UCRFilingStatus.DRAFT:
       return "Draft";
+    case UCRFilingStatus.AWAITING_CUSTOMER_PAYMENT:
+      return "Awaiting customer payment";
+    case UCRFilingStatus.CUSTOMER_PAYMENT_PENDING:
+      return "Customer payment pending";
+    case UCRFilingStatus.CUSTOMER_PAID:
+      return "Customer paid";
+    case UCRFilingStatus.QUEUED_FOR_PROCESSING:
+      return "Queued for processing";
+    case UCRFilingStatus.IN_PROCESS:
+      return "In process";
+    case UCRFilingStatus.OFFICIAL_PAYMENT_PENDING:
+      return "Official payment pending";
+    case UCRFilingStatus.OFFICIAL_PAID:
+      return "Official paid";
+    case UCRFilingStatus.COMPLETED:
+      return "Completed";
+    case UCRFilingStatus.NEEDS_ATTENTION:
+      return "Needs attention";
     case UCRFilingStatus.SUBMITTED:
       return "Submitted";
     case UCRFilingStatus.UNDER_REVIEW:
@@ -30,12 +48,16 @@ export function getUcrStatusLabel(status: UCRFilingStatus) {
 export function canEditUcrFiling(status: UCRFilingStatus) {
   return (
     status === UCRFilingStatus.DRAFT ||
+    status === UCRFilingStatus.AWAITING_CUSTOMER_PAYMENT ||
     status === UCRFilingStatus.CORRECTION_REQUESTED
   );
 }
 
 export function canSubmitUcrFiling(status: UCRFilingStatus) {
-  return status === UCRFilingStatus.DRAFT;
+  return (
+    status === UCRFilingStatus.DRAFT ||
+    status === UCRFilingStatus.CORRECTION_REQUESTED
+  );
 }
 
 export function canResubmitUcrFiling(status: UCRFilingStatus) {

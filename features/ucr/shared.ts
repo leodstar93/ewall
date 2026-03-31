@@ -1,5 +1,15 @@
 export type UCRFilingStatus =
   | "DRAFT"
+  | "AWAITING_CUSTOMER_PAYMENT"
+  | "CUSTOMER_PAYMENT_PENDING"
+  | "CUSTOMER_PAID"
+  | "QUEUED_FOR_PROCESSING"
+  | "IN_PROCESS"
+  | "OFFICIAL_PAYMENT_PENDING"
+  | "OFFICIAL_PAID"
+  | "COMPLETED"
+  | "NEEDS_ATTENTION"
+  | "CANCELLED"
   | "SUBMITTED"
   | "UNDER_REVIEW"
   | "CORRECTION_REQUESTED"
@@ -7,8 +17,21 @@ export type UCRFilingStatus =
   | "PENDING_PROOF"
   | "APPROVED"
   | "COMPLIANT"
-  | "REJECTED"
-  | "CANCELLED";
+  | "REJECTED";
+
+export type UCRCustomerPaymentStatus =
+  | "NOT_STARTED"
+  | "PENDING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "REFUNDED"
+  | "PARTIALLY_REFUNDED";
+
+export type UCROfficialPaymentStatus =
+  | "NOT_STARTED"
+  | "PENDING"
+  | "PAID"
+  | "FAILED";
 
 export type UCREntityType =
   | "MOTOR_CARRIER"
@@ -17,11 +40,20 @@ export type UCREntityType =
   | "LEASING_COMPANY";
 
 export type UCRDocumentType =
+  | "OFFICIAL_RECEIPT"
   | "REGISTRATION_PROOF"
   | "PAYMENT_RECEIPT"
   | "SUPPORTING_DOCUMENT"
   | "CORRECTION_ATTACHMENT"
   | "OTHER";
+
+export type UcrWorkflowStage =
+  | "CREATE_AND_SUBMIT"
+  | "REQUEST_PAY_CLIENT"
+  | "COMPLETE_BY_STAFF"
+  | "COMPLETED"
+  | "NEEDS_ATTENTION"
+  | "CANCELLED";
 
 export type UcrDocument = {
   id: string;
@@ -34,61 +66,100 @@ export type UcrDocument = {
   createdAt: string;
 };
 
+export type UcrTimelineItem = {
+  id: string;
+  kind: "event" | "transition";
+  createdAt: string;
+  eventType?: string | null;
+  message?: string | null;
+  metaJson?: unknown;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  reason?: string | null;
+};
+
 export type UcrFiling = {
   id: string;
   userId: string;
+  organizationId: string | null;
+  year: number;
   filingYear: number;
   legalName: string;
+  dbaName: string | null;
+  dotNumber: string | null;
   usdotNumber: string | null;
   mcNumber: string | null;
   fein: string | null;
   baseState: string | null;
   entityType: UCREntityType;
   interstateOperation: boolean;
+  vehicleCount: number | null;
   fleetSize: number;
+  bracketCode: string | null;
   bracketLabel: string | null;
+  ucrAmount: string;
+  serviceFee: string;
+  processingFee: string;
+  totalCharged: string;
   feeAmount: string;
   status: UCRFilingStatus;
-  submittedAt: string | null;
-  reviewStartedAt: string | null;
-  correctionRequestedAt: string | null;
-  resubmittedAt: string | null;
-  approvedAt: string | null;
-  compliantAt: string | null;
-  rejectedAt: string | null;
-  cancelledAt: string | null;
+  customerPaymentStatus: UCRCustomerPaymentStatus;
+  officialPaymentStatus: UCROfficialPaymentStatus;
+  customerPaidAt: string | null;
+  queuedAt: string | null;
+  processingStartedAt: string | null;
+  officialPaidAt: string | null;
+  completedAt: string | null;
+  officialReceiptUrl: string | null;
+  officialReceiptName: string | null;
+  officialReceiptMimeType: string | null;
+  officialReceiptSize: number | null;
+  officialReceiptNumber: string | null;
+  officialConfirmation: string | null;
+  assignedToStaffId: string | null;
   clientNotes: string | null;
-  staffNotes: string | null;
-  correctionNote: string | null;
+  internalNotes: string | null;
+  customerVisibleNotes: string | null;
   createdAt: string;
   updatedAt: string;
   documents: UcrDocument[];
+  pricingSnapshot?: {
+    id: string;
+    bracketCode: string;
+    minVehicles: number;
+    maxVehicles: number | null;
+    ucrAmount: string;
+    serviceFee: string;
+    processingFee: string;
+    total: string;
+  } | null;
+  workItems?: Array<{
+    id: string;
+    status: string;
+    assignedToId: string | null;
+    createdAt: string;
+    startedAt: string | null;
+    finishedAt: string | null;
+  }>;
   user?: {
     id: string;
     name: string | null;
     email: string | null;
+    companyProfile?: {
+      legalName: string | null;
+      dbaName: string | null;
+      companyName: string | null;
+      dotNumber: string | null;
+      mcNumber: string | null;
+      ein: string | null;
+      state: string | null;
+      trucksCount: number | null;
+    } | null;
   };
 };
 
-export type UcrComplianceStatus = {
-  filingYear: number;
-  filingId: string | null;
-  workflowStatus: UCRFilingStatus | null;
-  workflowLabel: string;
-  complianceStatus: "COMPLIANT" | "IN_PROGRESS" | "ACTION_REQUIRED" | "MISSING" | "EXPIRED";
-  nextAction: string;
-  hasProof: boolean;
-  updatedAt?: string;
-};
-
-export const ucrEntityTypeOptions: Array<{ value: UCREntityType; label: string }> = [
-  { value: "MOTOR_CARRIER", label: "Motor carrier" },
-  { value: "BROKER", label: "Broker" },
-  { value: "FREIGHT_FORWARDER", label: "Freight forwarder" },
-  { value: "LEASING_COMPANY", label: "Leasing company" },
-];
-
 export const ucrDocumentTypeOptions: Array<{ value: UCRDocumentType; label: string }> = [
+  { value: "OFFICIAL_RECEIPT", label: "Official receipt" },
   { value: "PAYMENT_RECEIPT", label: "Payment receipt" },
   { value: "REGISTRATION_PROOF", label: "Registration proof" },
   { value: "SUPPORTING_DOCUMENT", label: "Supporting document" },
@@ -107,9 +178,10 @@ export function formatCurrency(value: string | number | null | undefined) {
   });
 }
 
-export function formatDate(value: string | null | undefined) {
+export function formatDate(value: string | Date | null | undefined) {
   if (!value) return "Not set";
-  return new Date(value).toLocaleString("en-US", {
+  const parsed = value instanceof Date ? value : new Date(value);
+  return parsed.toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -118,107 +190,180 @@ export function formatDate(value: string | null | undefined) {
   });
 }
 
-export function statusLabel(status: UCRFilingStatus) {
+export function filingStatusLabel(status: UCRFilingStatus) {
   switch (status) {
     case "DRAFT":
-      return "Draft";
-    case "SUBMITTED":
-      return "Submitted";
-    case "UNDER_REVIEW":
-      return "Under review";
-    case "CORRECTION_REQUESTED":
-      return "Correction requested";
-    case "RESUBMITTED":
-      return "Resubmitted";
-    case "PENDING_PROOF":
-      return "Pending proof";
-    case "APPROVED":
-      return "Approved";
+      return "Create and submit";
+    case "AWAITING_CUSTOMER_PAYMENT":
+    case "CUSTOMER_PAYMENT_PENDING":
+      return "Request pay client";
+    case "CUSTOMER_PAID":
+    case "QUEUED_FOR_PROCESSING":
+    case "IN_PROCESS":
+    case "OFFICIAL_PAYMENT_PENDING":
+    case "OFFICIAL_PAID":
+      return "Pending";
+    case "COMPLETED":
+      return "Completed";
+    case "NEEDS_ATTENTION":
+      return "Needs attention";
+    case "CANCELLED":
+      return "Cancelled";
     case "COMPLIANT":
       return "Compliant";
+    default:
+      return status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (match) => match.toUpperCase());
+  }
+}
+
+export function filingStatusClasses(status: UCRFilingStatus) {
+  switch (status) {
+    case "DRAFT":
+      return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+    case "AWAITING_CUSTOMER_PAYMENT":
+    case "CUSTOMER_PAYMENT_PENDING":
+      return "bg-amber-50 text-amber-800 ring-amber-200";
+    case "CUSTOMER_PAID":
+    case "QUEUED_FOR_PROCESSING":
+    case "IN_PROCESS":
+    case "OFFICIAL_PAYMENT_PENDING":
+      return "bg-sky-50 text-sky-800 ring-sky-200";
+    case "OFFICIAL_PAID":
+    case "COMPLETED":
+    case "COMPLIANT":
+      return "bg-emerald-50 text-emerald-800 ring-emerald-200";
+    case "NEEDS_ATTENTION":
+      return "bg-orange-50 text-orange-800 ring-orange-200";
+    case "CANCELLED":
     case "REJECTED":
-      return "Rejected";
+      return "bg-red-50 text-red-800 ring-red-200";
+    default:
+      return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+  }
+}
+
+export function workflowStageForFiling(filing: Pick<UcrFiling, "status">): UcrWorkflowStage {
+  switch (filing.status) {
+    case "DRAFT":
+      return "CREATE_AND_SUBMIT";
+    case "AWAITING_CUSTOMER_PAYMENT":
+    case "CUSTOMER_PAYMENT_PENDING":
+      return "REQUEST_PAY_CLIENT";
+    case "CUSTOMER_PAID":
+    case "QUEUED_FOR_PROCESSING":
+    case "IN_PROCESS":
+    case "OFFICIAL_PAYMENT_PENDING":
+    case "OFFICIAL_PAID":
+      return "COMPLETE_BY_STAFF";
+    case "COMPLETED":
+    case "COMPLIANT":
+      return "COMPLETED";
+    case "NEEDS_ATTENTION":
+      return "NEEDS_ATTENTION";
+    case "CANCELLED":
+    case "REJECTED":
+      return "CANCELLED";
+    default:
+      return "CREATE_AND_SUBMIT";
+  }
+}
+
+export function workflowStageLabel(stage: UcrWorkflowStage) {
+  switch (stage) {
+    case "CREATE_AND_SUBMIT":
+      return "Create and submit";
+    case "REQUEST_PAY_CLIENT":
+      return "Request pay client";
+    case "COMPLETE_BY_STAFF":
+      return "Pending";
+    case "COMPLETED":
+      return "Completed";
+    case "NEEDS_ATTENTION":
+      return "Needs attention";
     case "CANCELLED":
       return "Cancelled";
     default:
+      return stage;
+  }
+}
+
+export function customerPaymentStatusLabel(status: UCRCustomerPaymentStatus) {
+  switch (status) {
+    case "NOT_STARTED":
+      return "Not started";
+    case "PENDING":
+      return "Pending";
+    case "SUCCEEDED":
+      return "Succeeded";
+    case "FAILED":
+      return "Failed";
+    case "REFUNDED":
+      return "Refunded";
+    case "PARTIALLY_REFUNDED":
+      return "Partially refunded";
+    default:
       return status;
   }
 }
 
-export function statusClasses(status: UCRFilingStatus) {
+export function customerPaymentStatusClasses(status: UCRCustomerPaymentStatus) {
   switch (status) {
-    case "DRAFT":
-      return "bg-zinc-100 text-zinc-700 ring-zinc-200";
-    case "SUBMITTED":
-    case "UNDER_REVIEW":
-    case "RESUBMITTED":
-      return "bg-sky-50 text-sky-800 ring-sky-200";
-    case "CORRECTION_REQUESTED":
-      return "bg-amber-50 text-amber-800 ring-amber-200";
-    case "PENDING_PROOF":
-      return "bg-orange-50 text-orange-800 ring-orange-200";
-    case "COMPLIANT":
-    case "APPROVED":
+    case "SUCCEEDED":
       return "bg-emerald-50 text-emerald-800 ring-emerald-200";
-    case "REJECTED":
-    case "CANCELLED":
+    case "PENDING":
+      return "bg-amber-50 text-amber-800 ring-amber-200";
+    case "FAILED":
+    case "REFUNDED":
+    case "PARTIALLY_REFUNDED":
       return "bg-red-50 text-red-800 ring-red-200";
     default:
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
   }
 }
 
-export function complianceLabel(status: UcrComplianceStatus["complianceStatus"]) {
+export function officialPaymentStatusLabel(status: UCROfficialPaymentStatus) {
   switch (status) {
-    case "COMPLIANT":
-      return "Compliant";
-    case "IN_PROGRESS":
-      return "In progress";
-    case "ACTION_REQUIRED":
-      return "Action required";
-    case "MISSING":
-      return "Missing";
-    case "EXPIRED":
-      return "Expired";
+    case "NOT_STARTED":
+      return "Not started";
+    case "PENDING":
+      return "Pending";
+    case "PAID":
+      return "Paid";
+    case "FAILED":
+      return "Failed";
     default:
       return status;
   }
 }
 
-export function complianceClasses(status: UcrComplianceStatus["complianceStatus"]) {
+export function officialPaymentStatusClasses(status: UCROfficialPaymentStatus) {
   switch (status) {
-    case "COMPLIANT":
+    case "PAID":
       return "bg-emerald-50 text-emerald-800 ring-emerald-200";
-    case "ACTION_REQUIRED":
-      return "bg-amber-50 text-amber-800 ring-amber-200";
-    case "MISSING":
-    case "EXPIRED":
+    case "PENDING":
+      return "bg-sky-50 text-sky-800 ring-sky-200";
+    case "FAILED":
       return "bg-red-50 text-red-800 ring-red-200";
     default:
-      return "bg-sky-50 text-sky-800 ring-sky-200";
+      return "bg-zinc-100 text-zinc-700 ring-zinc-200";
   }
 }
 
-export function entityTypeLabel(entityType: UCREntityType) {
-  return (
-    ucrEntityTypeOptions.find((option) => option.value === entityType)?.label ?? entityType
-  );
+export function customerActionLabel(filing: UcrFiling) {
+  switch (workflowStageForFiling(filing)) {
+    case "REQUEST_PAY_CLIENT":
+      return filing.status === "CUSTOMER_PAYMENT_PENDING" ? "Payment pending" : "Pay now";
+    case "COMPLETE_BY_STAFF":
+      return "Pending";
+    case "COMPLETED":
+      return "Download official receipt";
+    default:
+      return "View filing";
+  }
 }
 
 export function documentTypeLabel(type: UCRDocumentType) {
   return (
     ucrDocumentTypeOptions.find((option) => option.value === type)?.label ?? type
   );
-}
-
-export function filingTimeline(filing: UcrFiling) {
-  return [
-    { label: "Created", value: filing.createdAt },
-    { label: "Submitted", value: filing.submittedAt },
-    { label: "Review started", value: filing.reviewStartedAt },
-    { label: "Correction requested", value: filing.correctionRequestedAt },
-    { label: "Resubmitted", value: filing.resubmittedAt },
-    { label: "Approved", value: filing.approvedAt },
-    { label: "Compliant", value: filing.compliantAt },
-  ].filter((item) => item.value);
 }

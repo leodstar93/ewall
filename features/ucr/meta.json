@@ -4,5 +4,5 @@
   "order": 30,
   "icon": "ShieldCheck",
   "href": "/ucr",
-  "permission": ["ucr:read"]
+  "permission": ["ucr:read_own", "ucr:read_all"]
 }

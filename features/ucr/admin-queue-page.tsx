@@ -5,16 +5,19 @@ import { useCallback, useEffect, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   UcrFiling,
+  customerPaymentStatusClasses,
+  customerPaymentStatusLabel,
+  filingStatusClasses,
+  filingStatusLabel,
   formatCurrency,
   formatDate,
-  statusClasses,
-  statusLabel,
+  officialPaymentStatusClasses,
+  officialPaymentStatusLabel,
 } from "@/features/ucr/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 type AdminPayload = {
   filings: UcrFiling[];
-  metrics: Record<string, number>;
 };
 
 type UcrAdminQueuePageProps = {
@@ -23,15 +26,14 @@ type UcrAdminQueuePageProps = {
 };
 
 export default function UcrAdminQueuePage({
-  apiPath = "/api/v1/features/ucr/admin",
+  apiPath = "/api/v1/admin/ucr/queue",
   detailHrefBase = "/admin/features/ucr",
 }: UcrAdminQueuePageProps) {
   const [filings, setFilings] = useState<UcrFiling[]>([]);
-  const [metrics, setMetrics] = useState<Record<string, number>>({});
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [status, setStatus] = useState("");
+  const [paymentState, setPaymentState] = useState("");
   const [search, setSearch] = useState("");
-  const [proof, setProof] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -45,8 +47,8 @@ export default function UcrAdminQueuePage({
       const params = new URLSearchParams();
       if (year.trim()) params.set("year", year.trim());
       if (status) params.set("status", status);
+      if (paymentState) params.set("paymentState", paymentState);
       if (search.trim()) params.set("search", search.trim());
-      if (proof) params.set("proof", proof);
 
       const response = await fetch(`${apiPath}?${params.toString()}`, {
         cache: "no-store",
@@ -58,7 +60,6 @@ export default function UcrAdminQueuePage({
         throw new Error(data.error || "Could not load the UCR admin queue.");
       }
       setFilings(Array.isArray(data.filings) ? data.filings : []);
-      setMetrics(data.metrics ?? {});
     } catch (fetchError) {
       setError(
         fetchError instanceof Error
@@ -68,7 +69,7 @@ export default function UcrAdminQueuePage({
     } finally {
       setLoading(false);
     }
-  }, [apiPath, proof, search, status, year]);
+  }, [apiPath, paymentState, search, status, year]);
 
   useEffect(() => {
     void load();
@@ -84,45 +85,11 @@ export default function UcrAdminQueuePage({
     <div className="space-y-6">
       <section className="rounded-[32px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fafc,_#ffffff_45%,_#dbeafe)] p-8 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-          Staff Review Queue
+          Concierge Queue
         </p>
         <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-          Monitor annual UCR filings and move records into compliance.
+          Paid filings waiting for manual official UCR processing.
         </h2>
-        <div className="mt-6 grid gap-4 sm:grid-cols-4">
-          <div className="rounded-[24px] border border-zinc-200 bg-white/70 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              Total
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-950">
-              {filings.length}
-            </p>
-          </div>
-          <div className="rounded-[24px] border border-zinc-200 bg-white/70 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              Compliant
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-950">
-              {metrics.COMPLIANT ?? 0}
-            </p>
-          </div>
-          <div className="rounded-[24px] border border-zinc-200 bg-white/70 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              Corrections
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-950">
-              {metrics.CORRECTION_REQUESTED ?? 0}
-            </p>
-          </div>
-          <div className="rounded-[24px] border border-zinc-200 bg-white/70 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-              Pending proof
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-950">
-              {metrics.PENDING_PROOF ?? 0}
-            </p>
-          </div>
-        </div>
       </section>
 
       {error && (
@@ -145,28 +112,29 @@ export default function UcrAdminQueuePage({
             className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
           >
             <option value="">All statuses</option>
-            <option value="SUBMITTED">Submitted</option>
-            <option value="UNDER_REVIEW">Under review</option>
-            <option value="CORRECTION_REQUESTED">Correction requested</option>
-            <option value="RESUBMITTED">Resubmitted</option>
-            <option value="PENDING_PROOF">Pending proof</option>
-            <option value="COMPLIANT">Compliant</option>
+            <option value="QUEUED_FOR_PROCESSING">Queued</option>
+            <option value="IN_PROCESS">In process</option>
+            <option value="OFFICIAL_PAYMENT_PENDING">Official payment pending</option>
+            <option value="OFFICIAL_PAID">Official paid</option>
+            <option value="NEEDS_ATTENTION">Needs attention</option>
+            <option value="COMPLETED">Completed</option>
+          </select>
+          <select
+            value={paymentState}
+            onChange={(event) => setPaymentState(event.target.value)}
+            className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+          >
+            <option value="">Any customer payment</option>
+            <option value="SUCCEEDED">Succeeded</option>
+            <option value="PENDING">Pending</option>
+            <option value="FAILED">Failed</option>
           </select>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="User or company"
+            placeholder="Customer, company, DOT"
             className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
           />
-          <select
-            value={proof}
-            onChange={(event) => setProof(event.target.value)}
-            className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            <option value="">Any proof state</option>
-            <option value="yes">Proof uploaded</option>
-            <option value="no">Proof missing</option>
-          </select>
         </div>
 
         <div className="mt-4 flex gap-3">
@@ -188,71 +156,100 @@ export default function UcrAdminQueuePage({
         ) : (
           <div className="overflow-hidden rounded-[24px] border border-zinc-200">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1040px]">
+              <table className="w-full min-w-[1360px]">
                 <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
                   <tr>
+                    <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">DOT</th>
+                    <th className="px-4 py-3">Company</th>
                     <th className="px-4 py-3">Year</th>
-                    <th className="px-4 py-3">Company / User</th>
-                    <th className="px-4 py-3">Entity</th>
-                    <th className="px-4 py-3">Fleet</th>
-                    <th className="px-4 py-3">Fee</th>
+                    <th className="px-4 py-3">Vehicles</th>
+                    <th className="px-4 py-3">Bracket</th>
+                    <th className="px-4 py-3">UCR</th>
+                    <th className="px-4 py-3">Service</th>
+                    <th className="px-4 py-3">Total</th>
+                    <th className="px-4 py-3">Customer paid</th>
+                    <th className="px-4 py-3">Assigned staff</th>
+                    <th className="px-4 py-3">Official payment</th>
                     <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Proof</th>
-                    <th className="px-4 py-3">Updated</th>
+                    <th className="px-4 py-3">Receipt</th>
                     <th className="px-4 py-3">Open</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 bg-white">
                   {paginatedFilings.items.map((filing) => {
-                    const hasProof = filing.documents.some(
-                      (document) =>
-                        document.type === "PAYMENT_RECEIPT" ||
-                        document.type === "REGISTRATION_PROOF",
-                    );
+                    const companyProfile = filing.user?.companyProfile;
+                    const companyName =
+                      companyProfile?.legalName ||
+                      companyProfile?.companyName ||
+                      filing.legalName;
+                    const dotNumber =
+                      companyProfile?.dotNumber || filing.dotNumber || filing.usdotNumber;
 
                     return (
-                      <tr key={filing.id}>
-                        <td className="px-4 py-3 text-sm text-zinc-700">{filing.filingYear}</td>
-                        <td className="px-4 py-3 text-sm text-zinc-700">
-                          <p className="font-medium text-zinc-900">{filing.legalName}</p>
-                          <p className="text-zinc-500">
-                            {filing.user?.name || filing.user?.email || "-"}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-zinc-700">{filing.entityType}</td>
-                        <td className="px-4 py-3 text-sm text-zinc-700">{filing.fleetSize}</td>
-                        <td className="px-4 py-3 text-sm text-zinc-700">
-                          {formatCurrency(filing.feeAmount)}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
+                    <tr key={filing.id}>
+                      <td className="px-4 py-3 text-sm text-zinc-700">
+                        <p className="font-medium text-zinc-900">{filing.user?.name || "-"}</p>
+                        <p className="text-zinc-500">{filing.user?.email || "-"}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">{dotNumber || "-"}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">{companyName || "-"}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.year}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.vehicleCount ?? filing.fleetSize}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.bracketCode || "-"}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">{formatCurrency(filing.ucrAmount)}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">{formatCurrency(filing.serviceFee)}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">{formatCurrency(filing.totalCharged)}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="space-y-1">
                           <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClasses(
-                              filing.status,
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${customerPaymentStatusClasses(
+                              filing.customerPaymentStatus,
                             )}`}
                           >
-                            {statusLabel(filing.status)}
+                            {customerPaymentStatusLabel(filing.customerPaymentStatus)}
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-zinc-700">
-                          {hasProof ? "Uploaded" : "Missing"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-zinc-700">
-                          {formatDate(filing.updatedAt)}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <Link
-                            href={`${detailHrefBase}/${filing.id}`}
-                            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
-                          >
-                            Open
-                          </Link>
-                        </td>
-                      </tr>
+                          <p className="text-xs text-zinc-500">{formatDate(filing.customerPaidAt)}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">
+                        {filing.assignedToStaffId || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${officialPaymentStatusClasses(
+                            filing.officialPaymentStatus,
+                          )}`}
+                        >
+                          {officialPaymentStatusLabel(filing.officialPaymentStatus)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${filingStatusClasses(
+                            filing.status,
+                          )}`}
+                        >
+                          {filingStatusLabel(filing.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-zinc-700">
+                        {filing.officialReceiptUrl ? "Uploaded" : "Missing"}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <Link
+                          href={`${detailHrefBase}/${filing.id}`}
+                          className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
+                        >
+                          Open
+                        </Link>
+                      </td>
+                    </tr>
                     );
                   })}
                   {filings.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-sm text-zinc-500">
+                      <td colSpan={15} className="px-4 py-8 text-center text-sm text-zinc-500">
                         No UCR filings match the current filters.
                       </td>
                     </tr>

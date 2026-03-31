@@ -452,6 +452,15 @@ enum Quarter {
 
 enum UCRFilingStatus {
   DRAFT
+  AWAITING_CUSTOMER_PAYMENT
+  CUSTOMER_PAYMENT_PENDING
+  CUSTOMER_PAID
+  QUEUED_FOR_PROCESSING
+  IN_PROCESS
+  OFFICIAL_PAYMENT_PENDING
+  OFFICIAL_PAID
+  COMPLETED
+  NEEDS_ATTENTION
   SUBMITTED
   UNDER_REVIEW
   CORRECTION_REQUESTED
@@ -471,11 +480,37 @@ enum UCREntityType {
 }
 
 enum UCRDocumentType {
+  OFFICIAL_RECEIPT
   REGISTRATION_PROOF
   PAYMENT_RECEIPT
   SUPPORTING_DOCUMENT
   CORRECTION_ATTACHMENT
   OTHER
+}
+
+enum UCROfficialPaymentStatus {
+  NOT_STARTED
+  PENDING
+  PAID
+  FAILED
+}
+
+enum UCRWorkItemStatus {
+  OPEN
+  CLAIMED
+  PROCESSING
+  WAITING_INTERNAL_INFO
+  DONE
+  FAILED
+}
+
+enum UCRCustomerPaymentStatus {
+  NOT_STARTED
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
 }
 
 enum Form2290Status {
@@ -862,21 +897,62 @@ model UCRRateBracket {
   @@index([year, active])
 }
 
+model UCRAdminSetting {
+  id                    String   @id @default(cuid())
+  activeYear            Int
+  conciergeModeEnabled  Boolean  @default(true)
+  allowCustomerCheckout Boolean  @default(true)
+  serviceFeeMode        String   @default("FLAT")
+  defaultServiceFee     Decimal? @db.Decimal(10, 2)
+  defaultProcessingFee  Decimal? @db.Decimal(10, 2)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
 model UCRFiling {
   id                    String          @id @default(cuid())
   userId                String
+  organizationId        String?
+  year                  Int
   filingYear            Int
   legalName             String
+  dbaName               String?
+  dotNumber             String?
   usdotNumber           String?
   mcNumber              String?
   fein                  String?
   baseState             String?
   entityType            UCREntityType
   interstateOperation   Boolean         @default(true)
+  vehicleCount          Int?
+  bracketCode           String?
+  customerPaymentStatus UCRCustomerPaymentStatus @default(NOT_STARTED)
+  officialPaymentStatus UCROfficialPaymentStatus @default(NOT_STARTED)
+  ucrAmount             Decimal         @default(0) @db.Decimal(10, 2)
+  serviceFee            Decimal         @default(0) @db.Decimal(10, 2)
+  processingFee         Decimal         @default(0) @db.Decimal(10, 2)
+  totalCharged          Decimal         @default(0) @db.Decimal(10, 2)
   fleetSize             Int
   bracketLabel          String?
   feeAmount             Decimal         @db.Decimal(10, 2)
+  pricingLockedAt       DateTime?
+  customerPaidAt        DateTime?
+  queuedAt              DateTime?
+  processingStartedAt   DateTime?
+  officialPaidAt        DateTime?
+  completedAt           DateTime?
   status                UCRFilingStatus @default(DRAFT)
+  stripeCheckoutSessionId String?       @unique
+  stripePaymentIntentId String?         @unique
+  stripeChargeId        String?
+  officialReceiptUrl    String?
+  officialReceiptName   String?
+  officialReceiptMimeType String?
+  officialReceiptSize   Int?
+  officialReceiptNumber String?
+  officialConfirmation  String?
+  officialPaidByStaffId String?
+  assignedToStaffId     String?
   submittedAt           DateTime?
   reviewStartedAt       DateTime?
   correctionRequestedAt DateTime?
@@ -888,15 +964,26 @@ model UCRFiling {
   clientNotes           String?
   staffNotes            String?
   correctionNote        String?
+  internalNotes         String?
+  customerVisibleNotes  String?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  documents UCRDocument[]
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pricingSnapshot UCRRateSnapshot?
+  documents       UCRDocument[]
+  workItems       UCRWorkItem[]
+  events          UCRFilingEvent[]
+  transitions     UCRStatusTransition[]
 
   @@unique([userId, filingYear])
   @@index([userId, filingYear])
+  @@index([organizationId, year])
+  @@index([year])
   @@index([status])
+  @@index([assignedToStaffId])
+  @@index([customerPaymentStatus])
+  @@index([officialPaymentStatus])
 }
 
 model UCRDocument {
@@ -914,6 +1001,70 @@ model UCRDocument {
   filing UCRFiling @relation(fields: [ucrFilingId], references: [id], onDelete: Cascade)
 
   @@index([ucrFilingId, type])
+}
+
+model UCRRateSnapshot {
+  id            String   @id @default(cuid())
+  filingId      String   @unique
+  year          Int
+  bracketCode   String
+  minVehicles   Int
+  maxVehicles   Int?
+  ucrAmount     Decimal  @db.Decimal(10, 2)
+  serviceFee    Decimal  @db.Decimal(10, 2)
+  processingFee Decimal  @db.Decimal(10, 2)
+  total         Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+
+  filing UCRFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+}
+
+model UCRWorkItem {
+  id           String            @id @default(cuid())
+  filingId     String
+  assignedToId String?
+  status       UCRWorkItemStatus @default(OPEN)
+  priority     String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  filing UCRFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model UCRFilingEvent {
+  id          String   @id @default(cuid())
+  filingId    String
+  actorUserId String?
+  eventType   String
+  message     String?
+  metaJson    Json?
+  createdAt   DateTime @default(now())
+
+  filing UCRFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId, createdAt])
+  @@index([eventType])
+}
+
+model UCRStatusTransition {
+  id          String   @id @default(cuid())
+  filingId    String
+  fromStatus  String?
+  toStatus    String
+  actorUserId String?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  filing UCRFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId, createdAt])
 }
 
 model Form2290Setting {

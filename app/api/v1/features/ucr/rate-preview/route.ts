@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireApiPermission } from "@/lib/rbac-api";
-import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
+import { calculateUcrPricing } from "@/services/ucr/calculateUcrPricing";
 import { parseFilingYear, parseNonNegativeInt, UcrServiceError } from "@/services/ucr/shared";
 
 function toErrorResponse(error: unknown, fallback: string) {
@@ -16,19 +16,24 @@ function toErrorResponse(error: unknown, fallback: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const guard = await requireApiPermission("ucr:read");
+  const guard = await requireApiPermission("ucr:read_own");
   if (!guard.ok) return guard.res;
 
-  const year = parseFilingYear(request.nextUrl.searchParams.get("year"));
-  const fleetSize = parseNonNegativeInt(request.nextUrl.searchParams.get("fleetSize"));
-
-  if (!year || fleetSize === null) {
-    return Response.json({ error: "year and fleetSize are required" }, { status: 400 });
-  }
-
   try {
-    const preview = await getUcrRateForFleet({ year, fleetSize });
-    return Response.json(preview);
+    const year = parseFilingYear(request.nextUrl.searchParams.get("year"));
+    const vehicleCount = parseNonNegativeInt(request.nextUrl.searchParams.get("vehicleCount"))
+      ?? parseNonNegativeInt(request.nextUrl.searchParams.get("fleetSize"));
+
+    if (!year || !vehicleCount) {
+      return Response.json({ error: "year and vehicleCount are required" }, { status: 400 });
+    }
+
+    const pricing = await calculateUcrPricing({
+      year,
+      vehicleCount,
+    });
+
+    return Response.json(pricing);
   } catch (error) {
     return toErrorResponse(error, "Failed to load UCR rate preview");
   }

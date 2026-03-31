@@ -40,6 +40,7 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/settings/2290")) return "Form 2290 Settings";
   if (pathname.startsWith("/admin/settings/ifta-tax-rates")) return "IFTA Tax Rates";
   if (pathname.startsWith("/admin/settings/ucr-rates")) return "UCR Rates";
+  if (pathname.startsWith("/admin/settings/ucr")) return "UCR Settings";
   if (pathname.startsWith("/admin/sandbox")) return "Sandbox";
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/roles")) return "Roles";

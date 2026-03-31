@@ -19,7 +19,7 @@ export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireApiPermission("ucr:submit");
+  const guard = await requireApiPermission("ucr:update_own_draft");
   if (!guard.ok) return guard.res;
 
   const { id } = await params;

@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  UCRFilingStatus,
-  UCREntityType,
-  formatCurrency,
-} from "@/features/ucr/shared";
+import { UCRFilingStatus, formatCurrency } from "@/features/ucr/shared";
 
 type UcrFilingFormProps = {
   mode: "create" | "edit";
@@ -15,52 +11,35 @@ type UcrFilingFormProps = {
   currentStatus?: UCRFilingStatus | null;
   detailHrefBase?: string;
   initialValues?: {
-    filingYear?: number;
+    year?: number;
     legalName?: string;
-    usdotNumber?: string | null;
+    dbaName?: string | null;
+    dotNumber?: string | null;
     mcNumber?: string | null;
     fein?: string | null;
     baseState?: string | null;
-    entityType?: UCREntityType;
     interstateOperation?: boolean;
-    fleetSize?: number;
+    vehicleCount?: number | null;
     clientNotes?: string | null;
   };
   onSaved?: () => void;
 };
 
 type PreviewState = {
-  bracketLabel: string;
-  feeAmount: string;
+  bracketCode: string;
+  ucrAmount: string;
+  serviceFee: string;
+  processingFee: string;
+  total: string;
 };
 
 export default function UcrFilingForm(props: UcrFilingFormProps) {
   const router = useRouter();
   const isCreateMode = props.mode === "create";
-  const hasCompanyPrefill =
-    isCreateMode &&
-    Boolean(
-      props.initialValues?.legalName ||
-        props.initialValues?.usdotNumber ||
-        props.initialValues?.mcNumber ||
-        props.initialValues?.fein ||
-        props.initialValues?.baseState ||
-        typeof props.initialValues?.fleetSize === "number",
-    );
-  const [filingYear, setFilingYear] = useState(
-    props.initialValues?.filingYear ?? new Date().getFullYear(),
+  const [year, setYear] = useState(
+    props.initialValues?.year ?? new Date().getFullYear(),
   );
-  const [legalName, setLegalName] = useState(props.initialValues?.legalName ?? "");
-  const [usdotNumber, setUsdotNumber] = useState(props.initialValues?.usdotNumber ?? "");
-  const [mcNumber, setMcNumber] = useState(props.initialValues?.mcNumber ?? "");
-  const [fein, setFein] = useState(props.initialValues?.fein ?? "");
-  const [baseState, setBaseState] = useState(props.initialValues?.baseState ?? "");
-  const [entityType] = useState<UCREntityType>("MOTOR_CARRIER");
-  const [interstateOperation, setInterstateOperation] = useState(
-    props.initialValues?.interstateOperation ?? true,
-  );
-  const [fleetSize, setFleetSize] = useState(props.initialValues?.fleetSize ?? 0);
-  const [clientNotes, setClientNotes] = useState(props.initialValues?.clientNotes ?? "");
+  const [vehicleCount, setVehicleCount] = useState(props.initialValues?.vehicleCount ?? 1);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,9 +48,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const year = Number(filingYear);
-    const size = Number(fleetSize);
-    if (!Number.isInteger(year) || year < 2000 || !Number.isInteger(size) || size < 0) {
+    if (!Number.isInteger(year) || year < 2000 || !Number.isInteger(vehicleCount) || vehicleCount <= 0) {
       setPreview(null);
       setPreviewError(null);
       return () => controller.abort();
@@ -81,32 +58,33 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       try {
         setPreviewError(null);
         const response = await fetch(
-          `${props.apiBasePath ?? "/api/v1/features/ucr"}/rate-preview?year=${year}&fleetSize=${size}`,
+          `${props.apiBasePath ?? "/api/v1/features/ucr"}/rate-preview?year=${year}&vehicleCount=${vehicleCount}`,
           {
             cache: "no-store",
             signal: controller.signal,
           },
         );
-        const data = (await response.json().catch(() => ({}))) as {
-          bracketLabel?: string;
-          feeAmount?: string;
+        const data = (await response.json().catch(() => ({}))) as PreviewState & {
           error?: string;
         };
 
         if (!response.ok) {
           setPreview(null);
-          setPreviewError(data.error || "No active rate bracket matches that fleet size.");
+          setPreviewError(data.error || "No active rate bracket matches that vehicle count.");
           return;
         }
 
         setPreview({
-          bracketLabel: data.bracketLabel ?? "-",
-          feeAmount: data.feeAmount ?? "0.00",
+          bracketCode: data.bracketCode ?? "-",
+          ucrAmount: data.ucrAmount ?? "0.00",
+          serviceFee: data.serviceFee ?? "0.00",
+          processingFee: data.processingFee ?? "0.00",
+          total: data.total ?? "0.00",
         });
       } catch {
         if (!controller.signal.aborted) {
           setPreview(null);
-          setPreviewError("Could not calculate the UCR fee preview.");
+          setPreviewError("Could not calculate the UCR pricing preview.");
         }
       }
     }, 250);
@@ -115,7 +93,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [filingYear, fleetSize, props.apiBasePath]);
+  }, [year, vehicleCount, props.apiBasePath]);
 
   async function persist(submitAfterSave: boolean) {
     try {
@@ -124,16 +102,8 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       setMessage(null);
 
       const payload = {
-        filingYear,
-        legalName,
-        usdotNumber,
-        mcNumber,
-        fein,
-        baseState,
-        entityType,
-        interstateOperation,
-        fleetSize,
-        clientNotes,
+        year,
+        vehicleCount,
       };
 
       const saveResponse = await fetch(
@@ -141,7 +111,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
           ? (props.apiBasePath ?? "/api/v1/features/ucr")
           : `${props.apiBasePath ?? "/api/v1/features/ucr"}/${props.filingId}`,
         {
-          method: props.mode === "create" ? "POST" : "PUT",
+          method: props.mode === "create" ? "POST" : "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         },
@@ -161,13 +131,12 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       }
 
       const savedId = saveData.filing.id;
-      const submitEndpoint =
-        props.currentStatus === "CORRECTION_REQUESTED"
-          ? `${props.apiBasePath ?? "/api/v1/features/ucr"}/${savedId}/resubmit`
-          : `${props.apiBasePath ?? "/api/v1/features/ucr"}/${savedId}/submit`;
 
       if (submitAfterSave) {
-        const submitResponse = await fetch(submitEndpoint, { method: "POST" });
+        const submitResponse = await fetch(
+          `${props.apiBasePath ?? "/api/v1/features/ucr"}/${savedId}/submit`,
+          { method: "POST" },
+        );
         const submitData = (await submitResponse.json().catch(() => ({}))) as {
           error?: string;
           details?: string[];
@@ -181,11 +150,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
           );
         }
 
-        setMessage(
-          props.currentStatus === "CORRECTION_REQUESTED"
-            ? "Filing resubmitted for review."
-            : "Filing submitted for review.",
-        );
+        setMessage("Filing is ready for payment.");
       } else {
         setMessage(props.mode === "create" ? "Draft created." : "Draft updated.");
       }
@@ -204,8 +169,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
     }
   }
 
-  const submitLabel =
-    props.currentStatus === "CORRECTION_REQUESTED" ? "Resubmit" : "Submit for review";
+  const canSubmit = props.currentStatus !== "AWAITING_CUSTOMER_PAYMENT";
 
   return (
     <div className="space-y-5 rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
@@ -214,20 +178,14 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
           <h3 className="text-lg font-semibold text-zinc-950">
             {isCreateMode ? "New UCR filing" : "Edit filing"}
           </h3>
-          {isCreateMode ? (
-            <p className="mt-1 text-sm text-zinc-600">
-              Choose the filing year, truck count, and any notes for this filing.
-            </p>
-          ) : (
-            <p className="mt-1 text-sm text-zinc-600">
-              UCR fees are always calculated from the active brackets configured in admin settings.
-            </p>
-          )}
+          <p className="mt-1 text-sm text-zinc-600">
+            We use the company information already saved in Company Info for this filing.
+          </p>
         </div>
         {preview && (
           <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-            <p className="font-semibold">{preview.bracketLabel}</p>
-            <p className="mt-1">{formatCurrency(preview.feeAmount)}</p>
+            <p className="font-semibold">Bracket {preview.bracketCode}</p>
+            <p className="mt-1">Total {formatCurrency(preview.total)}</p>
           </div>
         )}
       </div>
@@ -235,12 +193,6 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       {previewError && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {previewError}
-        </div>
-      )}
-
-      {hasCompanyPrefill && !isCreateMode && (
-        <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          Company details were prefilled from your Company Profile in Settings, so you do not need to re-enter DOT, MC, EIN, and fleet baseline unless you want to override them for this filing.
         </div>
       )}
 
@@ -256,141 +208,53 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
         </div>
       )}
 
-      {isCreateMode ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">Year</span>
-            <input
-              type="number"
-              value={filingYear}
-              onChange={(event) => setFilingYear(Number(event.target.value))}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
+      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+        Company name, DOT, MC, EIN, and base state are pulled automatically from Company Info.
+      </div>
 
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">Trucks</span>
-            <input
-              type="number"
-              min={0}
-              value={fleetSize}
-              onChange={(event) => setFleetSize(Number(event.target.value))}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="space-y-2 text-sm text-zinc-700">
+          <span className="font-medium text-zinc-900">Year</span>
+          <input
+            type="number"
+            value={year}
+            onChange={(event) => setYear(Number(event.target.value))}
+            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+          />
+        </label>
 
-          <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
-            <span className="font-medium text-zinc-900">Notes</span>
-            <textarea
-              value={clientNotes}
-              onChange={(event) => setClientNotes(event.target.value)}
-              rows={4}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">Filing year</span>
-            <input
-              type="number"
-              value={filingYear}
-              onChange={(event) => setFilingYear(Number(event.target.value))}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
+        <label className="space-y-2 text-sm text-zinc-700">
+          <span className="font-medium text-zinc-900">Vehicle count</span>
+          <input
+            type="number"
+            min={1}
+            value={vehicleCount}
+            onChange={(event) => setVehicleCount(Number(event.target.value))}
+            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+          />
+        </label>
+      </div>
 
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">Fleet size</span>
-            <input
-              type="number"
-              min={0}
-              value={fleetSize}
-              onChange={(event) => setFleetSize(Number(event.target.value))}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
-
-          <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
-            <span className="font-medium text-zinc-900">Legal company name</span>
-            <input
-              value={legalName}
-              onChange={(event) => setLegalName(event.target.value)}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
-
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">USDOT number</span>
-            <input
-              value={usdotNumber}
-              onChange={(event) => setUsdotNumber(event.target.value)}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
-
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">MC number</span>
-            <input
-              value={mcNumber}
-              onChange={(event) => setMcNumber(event.target.value)}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
-
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">FEIN</span>
-            <input
-              value={fein}
-              onChange={(event) => setFein(event.target.value)}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
-
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">Base state</span>
-            <input
-              maxLength={2}
-              value={baseState}
-              onChange={(event) => setBaseState(event.target.value.toUpperCase())}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 uppercase outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
-
-          <div className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">Entity type</span>
-            <div className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-zinc-900">
-              Motor carrier
-            </div>
+      {preview ? (
+        <div className="grid gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 md:grid-cols-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">UCR amount</p>
+            <p className="mt-2 text-sm font-medium text-zinc-900">{formatCurrency(preview.ucrAmount)}</p>
           </div>
-
-          <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-700">
-            <input
-              type="checkbox"
-              checked={interstateOperation}
-              onChange={(event) => setInterstateOperation(event.target.checked)}
-              className="h-4 w-4 rounded border-zinc-300"
-            />
-            <span>
-              <span className="font-medium text-zinc-900">Interstate operation</span>
-              <span className="mt-1 block text-zinc-500">
-                Uncheck only if the company is not operating interstate.
-              </span>
-            </span>
-          </label>
-
-          <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
-            <span className="font-medium text-zinc-900">Client notes</span>
-            <textarea
-              value={clientNotes}
-              onChange={(event) => setClientNotes(event.target.value)}
-              rows={4}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Service fee</p>
+            <p className="mt-2 text-sm font-medium text-zinc-900">{formatCurrency(preview.serviceFee)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Processing fee</p>
+            <p className="mt-2 text-sm font-medium text-zinc-900">{formatCurrency(preview.processingFee)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Total</p>
+            <p className="mt-2 text-sm font-semibold text-zinc-950">{formatCurrency(preview.total)}</p>
+          </div>
         </div>
-      )}
+      ) : null}
 
       <div className="flex flex-wrap gap-3">
         <button
@@ -401,14 +265,16 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
         >
           {busy ? "Saving..." : props.mode === "create" ? "Save draft" : "Save changes"}
         </button>
-        <button
-          type="button"
-          onClick={() => void persist(true)}
-          disabled={busy}
-          className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-        >
-          {busy ? "Working..." : submitLabel}
-        </button>
+        {canSubmit ? (
+          <button
+            type="button"
+            onClick={() => void persist(true)}
+            disabled={busy}
+            className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+          >
+            {busy ? "Working..." : "Submit for payment"}
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -1,9 +1,9 @@
-import { Prisma, UCRFilingStatus } from "@prisma/client";
+import { UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { DbClient, ServiceContext } from "@/lib/db/types";
-import { canSubmitUcrFiling } from "@/lib/ucr-workflow";
+import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/types";
+import { createPricingSnapshot } from "@/services/ucr/createPricingSnapshot";
 import { notifyUcrSubmitted } from "@/services/ucr/notifications";
-import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
+import { transitionUcrStatus } from "@/services/ucr/transitionUcrStatus";
 import {
   UcrServiceError,
   ucrFilingInclude,
@@ -15,7 +15,7 @@ type SubmitUcrFilingInput = {
   actorUserId: string;
 };
 
-function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | DbTransactionClient | null) {
   if (!ctxOrDb) return prisma;
   if ("db" in ctxOrDb) return ctxOrDb.db;
   return ctxOrDb;
@@ -23,13 +23,13 @@ function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
 
 export async function submitUcrFiling(
   input: SubmitUcrFilingInput,
-): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.update>>>;
+): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.findUniqueOrThrow>>>;
 export async function submitUcrFiling(
-  ctx: Pick<ServiceContext, "db">,
+  ctx: { db: DbClient | DbTransactionClient },
   input: SubmitUcrFilingInput,
-): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.update>>>;
+): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.findUniqueOrThrow>>>;
 export async function submitUcrFiling(
-  ctxOrInput: Pick<ServiceContext, "db"> | SubmitUcrFilingInput,
+  ctxOrInput: { db: DbClient | DbTransactionClient } | SubmitUcrFilingInput,
   maybeInput?: SubmitUcrFilingInput,
 ) {
   const input = maybeInput ?? (ctxOrInput as SubmitUcrFilingInput);
@@ -48,7 +48,10 @@ export async function submitUcrFiling(
     throw new UcrServiceError("Forbidden", 403, "FORBIDDEN");
   }
 
-  if (!canSubmitUcrFiling(filing.status)) {
+  if (
+    filing.status !== UCRFilingStatus.DRAFT &&
+    filing.status !== UCRFilingStatus.CORRECTION_REQUESTED
+  ) {
     throw new UcrServiceError(
       "This filing cannot be submitted from its current status.",
       409,
@@ -56,15 +59,16 @@ export async function submitUcrFiling(
     );
   }
 
-  const rate = await getUcrRateForFleet({ db }, {
-    year: filing.filingYear,
-    fleetSize: filing.fleetSize,
+  const issues = validateFilingCompleteness({
+    year: filing.year,
+    legalName: filing.legalName,
+    dotNumber: filing.dotNumber ?? filing.usdotNumber,
+    baseState: filing.baseState,
+    vehicleCount: filing.vehicleCount ?? filing.fleetSize,
+    ucrAmount: filing.ucrAmount,
+    totalCharged: filing.totalCharged,
   });
 
-  const issues = validateFilingCompleteness({
-    ...filing,
-    feeAmount: rate.feeAmount,
-  });
   if (issues.length > 0) {
     throw new UcrServiceError(
       "Filing validation failed",
@@ -74,19 +78,29 @@ export async function submitUcrFiling(
     );
   }
 
-  const updated = await db.uCRFiling.update({
-    where: { id: input.filingId },
+  await createPricingSnapshot({ db }, {
+    filingId: input.filingId,
+  });
+
+  await transitionUcrStatus({ db }, {
+    filingId: input.filingId,
+    toStatus: UCRFilingStatus.AWAITING_CUSTOMER_PAYMENT,
+    actorUserId: input.actorUserId,
+    eventType: "ucr.customer_payment.awaiting",
+    message: "Filing is ready for customer checkout.",
     data: {
-      status: UCRFilingStatus.SUBMITTED,
       submittedAt: new Date(),
-      bracketLabel: rate.bracketLabel,
-      feeAmount: new Prisma.Decimal(rate.feeAmount),
     },
+  });
+
+  const updated = await db.uCRFiling.findUniqueOrThrow({
+    where: { id: input.filingId },
     include: ucrFilingInclude,
   });
 
   if (db === prisma) {
     await notifyUcrSubmitted(updated);
   }
+
   return updated;
 }

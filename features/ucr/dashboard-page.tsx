@@ -5,11 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   UcrFiling,
-  UCRFilingStatus,
+  customerActionLabel,
+  filingStatusClasses,
+  filingStatusLabel,
   formatCurrency,
   formatDate,
-  statusClasses,
-  statusLabel,
+  workflowStageForFiling,
+  workflowStageLabel,
+  type UcrWorkflowStage,
 } from "@/features/ucr/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
@@ -19,18 +22,14 @@ type UcrDashboardPageProps = {
   newHref?: string;
 };
 
-type StatusFilter = "ALL" | UCRFilingStatus;
+type StatusFilter = "ALL" | UcrWorkflowStage;
 
 const statusTabs: Array<{ value: StatusFilter; label: string }> = [
   { value: "ALL", label: "All" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "SUBMITTED", label: "Submitted" },
-  { value: "UNDER_REVIEW", label: "Under Review" },
-  { value: "CORRECTION_REQUESTED", label: "Corrections" },
-  { value: "PENDING_PROOF", label: "Pending Proof" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "COMPLIANT", label: "Compliant" },
-  { value: "REJECTED", label: "Rejected" },
+  { value: "CREATE_AND_SUBMIT", label: workflowStageLabel("CREATE_AND_SUBMIT") },
+  { value: "REQUEST_PAY_CLIENT", label: workflowStageLabel("REQUEST_PAY_CLIENT") },
+  { value: "COMPLETE_BY_STAFF", label: workflowStageLabel("COMPLETE_BY_STAFF") },
+  { value: "COMPLETED", label: workflowStageLabel("COMPLETED") },
 ];
 
 export default function UcrDashboardPage({
@@ -79,7 +78,7 @@ export default function UcrDashboardPage({
 
   const filteredFilings = useMemo(() => {
     if (activeStatus === "ALL") return filings;
-    return filings.filter((filing) => filing.status === activeStatus);
+    return filings.filter((filing) => workflowStageForFiling(filing) === activeStatus);
   }, [activeStatus, filings]);
 
   const paginatedFilings = useMemo(
@@ -91,14 +90,11 @@ export default function UcrDashboardPage({
     setPage(1);
   }, [filteredFilings.length, pageSize, activeStatus]);
 
-  async function runTransition(
-    filingId: string,
-    endpoint: "submit" | "resubmit",
-  ) {
+  async function submitForPayment(filingId: string) {
     try {
       setBusyId(filingId);
       setError(null);
-      const response = await fetch(`${apiBasePath}/${filingId}/${endpoint}`, {
+      const response = await fetch(`${apiBasePath}/${filingId}/submit`, {
         method: "POST",
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -121,7 +117,7 @@ export default function UcrDashboardPage({
 
   const countForStatus = (status: StatusFilter) => {
     if (status === "ALL") return filings.length;
-    return filings.filter((filing) => filing.status === status).length;
+    return filings.filter((filing) => workflowStageForFiling(filing) === status).length;
   };
 
   return (
@@ -135,7 +131,7 @@ export default function UcrDashboardPage({
       <section className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-zinc-950">UCR</h2>
+            <h2 className="text-xl font-semibold text-zinc-950">UCR Concierge Filings</h2>
             <p className="mt-1 text-sm text-zinc-500">
               {filings.length} filings in your dashboard.
             </p>
@@ -178,13 +174,14 @@ export default function UcrDashboardPage({
 
         <div className="mt-4 overflow-hidden rounded-[24px] border border-zinc-200">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px]">
+            <table className="w-full min-w-[1040px]">
               <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
                 <tr>
                   <th className="px-4 py-3">Year</th>
                   <th className="px-4 py-3">Company</th>
-                  <th className="px-4 py-3">Fleet</th>
-                  <th className="px-4 py-3">Fee</th>
+                  <th className="px-4 py-3">Vehicles</th>
+                  <th className="px-4 py-3">UCR</th>
+                  <th className="px-4 py-3">Total</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Updated</th>
                   <th className="px-4 py-3">Actions</th>
@@ -193,22 +190,27 @@ export default function UcrDashboardPage({
               <tbody className="divide-y divide-zinc-200 bg-white">
                 {paginatedFilings.items.map((filing) => (
                   <tr key={filing.id}>
-                    <td className="px-4 py-3 text-sm text-zinc-700">{filing.filingYear}</td>
+                    <td className="px-4 py-3 text-sm text-zinc-700">{filing.year}</td>
                     <td className="px-4 py-3 text-sm text-zinc-700">
                       <p className="font-medium text-zinc-900">{filing.legalName}</p>
-                      <p className="text-zinc-500">{filing.usdotNumber || filing.mcNumber || "-"}</p>
+                      <p className="text-zinc-500">{filing.dotNumber || filing.mcNumber || "-"}</p>
                     </td>
-                    <td className="px-4 py-3 text-sm text-zinc-700">{filing.fleetSize}</td>
                     <td className="px-4 py-3 text-sm text-zinc-700">
-                      {formatCurrency(filing.feeAmount)}
+                      {filing.vehicleCount ?? filing.fleetSize}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-zinc-700">
+                      {formatCurrency(filing.ucrAmount)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-zinc-700">
+                      {formatCurrency(filing.totalCharged)}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClasses(
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${filingStatusClasses(
                           filing.status,
                         )}`}
                       >
-                        {statusLabel(filing.status)}
+                        {filingStatusLabel(filing.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-zinc-700">
@@ -220,26 +222,16 @@ export default function UcrDashboardPage({
                           href={`${detailHrefBase}/${filing.id}`}
                           className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
                         >
-                          View
+                          {customerActionLabel(filing)}
                         </Link>
                         {filing.status === "DRAFT" && (
                           <button
                             type="button"
-                            onClick={() => void runTransition(filing.id, "submit")}
+                            onClick={() => void submitForPayment(filing.id)}
                             disabled={busyId === filing.id}
                             className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-3 py-2 font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
                           >
                             {busyId === filing.id ? "Working..." : "Submit"}
-                          </button>
-                        )}
-                        {filing.status === "CORRECTION_REQUESTED" && (
-                          <button
-                            type="button"
-                            onClick={() => void runTransition(filing.id, "resubmit")}
-                            disabled={busyId === filing.id}
-                            className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-3 py-2 font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
-                          >
-                            {busyId === filing.id ? "Working..." : "Resubmit"}
                           </button>
                         )}
                       </div>
@@ -248,7 +240,7 @@ export default function UcrDashboardPage({
                 ))}
                 {filteredFilings.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-zinc-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-zinc-500">
                       No UCR filings in this status.
                     </td>
                   </tr>

@@ -8,7 +8,7 @@ export default async function UcrDetailRoute({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const permission = await requirePermission("ucr:read");
+  const permission = await requirePermission("ucr:read_own");
 
   if (!permission.ok) {
     redirect(permission.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");

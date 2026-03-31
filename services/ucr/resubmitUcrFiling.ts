@@ -1,6 +1,6 @@
 import { Prisma, UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { DbClient, ServiceContext } from "@/lib/db/types";
+import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/types";
 import { canResubmitUcrFiling } from "@/lib/ucr-workflow";
 import { notifyUcrSubmitted } from "@/services/ucr/notifications";
 import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
@@ -15,7 +15,7 @@ type ResubmitUcrFilingInput = {
   actorUserId: string;
 };
 
-function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | null) {
+function resolveDb(ctxOrDb?: Pick<ServiceContext, "db"> | DbClient | DbTransactionClient | null) {
   if (!ctxOrDb) return prisma;
   if ("db" in ctxOrDb) return ctxOrDb.db;
   return ctxOrDb;
@@ -25,11 +25,11 @@ export async function resubmitUcrFiling(
   input: ResubmitUcrFilingInput,
 ): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.update>>>;
 export async function resubmitUcrFiling(
-  ctx: Pick<ServiceContext, "db">,
+  ctx: { db: DbClient | DbTransactionClient },
   input: ResubmitUcrFilingInput,
 ): Promise<Awaited<ReturnType<typeof prisma.uCRFiling.update>>>;
 export async function resubmitUcrFiling(
-  ctxOrInput: Pick<ServiceContext, "db"> | ResubmitUcrFilingInput,
+  ctxOrInput: { db: DbClient | DbTransactionClient } | ResubmitUcrFilingInput,
   maybeInput?: ResubmitUcrFilingInput,
 ) {
   const input = maybeInput ?? (ctxOrInput as ResubmitUcrFilingInput);

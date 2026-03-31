@@ -2,7 +2,6 @@ import { UCREntityType } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
-import { canEditUcrFiling, canResubmitUcrFiling, canSubmitUcrFiling } from "@/lib/ucr-workflow";
 import { updateUcrFiling } from "@/services/ucr/updateUcrFiling";
 import {
   normalizeOptionalText,
@@ -10,18 +9,20 @@ import {
   parseNonNegativeInt,
   sanitizeStateCode,
   UcrServiceError,
+  ucrFilingInclude,
 } from "@/services/ucr/shared";
 
 type UpdateUcrFilingBody = {
-  filingYear?: unknown;
+  year?: unknown;
   legalName?: unknown;
-  usdotNumber?: unknown;
+  dbaName?: unknown;
+  dotNumber?: unknown;
   mcNumber?: unknown;
   fein?: unknown;
   baseState?: unknown;
   entityType?: unknown;
   interstateOperation?: unknown;
-  fleetSize?: unknown;
+  vehicleCount?: unknown;
   clientNotes?: unknown;
 };
 
@@ -37,11 +38,47 @@ function toErrorResponse(error: unknown, fallback: string) {
   return Response.json({ error: fallback }, { status: 500 });
 }
 
+function buildTimeline(filing: {
+  events: Array<{
+    id: string;
+    createdAt: Date;
+    eventType: string;
+    message: string | null;
+    metaJson: unknown;
+  }>;
+  transitions: Array<{
+    id: string;
+    createdAt: Date;
+    fromStatus: string | null;
+    toStatus: string;
+    reason: string | null;
+  }>;
+}) {
+  return [
+    ...filing.events.map((event) => ({
+      id: event.id,
+      kind: "event" as const,
+      createdAt: event.createdAt,
+      eventType: event.eventType,
+      message: event.message,
+      metaJson: event.metaJson,
+    })),
+    ...filing.transitions.map((transition) => ({
+      id: transition.id,
+      kind: "transition" as const,
+      createdAt: transition.createdAt,
+      fromStatus: transition.fromStatus,
+      toStatus: transition.toStatus,
+      reason: transition.reason,
+    })),
+  ].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireApiPermission("ucr:read");
+  const guard = await requireApiPermission("ucr:read_own");
   if (!guard.ok) return guard.res;
 
   const { id } = await params;
@@ -49,18 +86,7 @@ export async function GET(
   try {
     const filing = await prisma.uCRFiling.findUnique({
       where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        documents: {
-          orderBy: [{ createdAt: "desc" }],
-        },
-      },
+      include: ucrFilingInclude,
     });
 
     if (!filing) {
@@ -75,16 +101,20 @@ export async function GET(
 
     return Response.json({
       filing,
+      timeline: buildTimeline(filing),
       permissions: {
         isOwner,
         canManageAll,
-        canEdit: isOwner && canEditUcrFiling(filing.status),
-        canSubmit: isOwner && canSubmitUcrFiling(filing.status),
-        canResubmit: isOwner && canResubmitUcrFiling(filing.status),
-        canUploadDocuments: isOwner || canManageAll,
-        canReview: canManageAll,
-        canRequestCorrection: canManageAll,
-        canApprove: canManageAll,
+        canEdit: isOwner && ["DRAFT", "AWAITING_CUSTOMER_PAYMENT"].includes(filing.status),
+        canSubmit: isOwner && filing.status === "DRAFT",
+        canCheckout:
+          isOwner &&
+          filing.status === "AWAITING_CUSTOMER_PAYMENT" &&
+          filing.customerPaymentStatus === "NOT_STARTED",
+        canViewReceipt:
+          (isOwner || canManageAll) &&
+          Boolean(filing.officialReceiptUrl) &&
+          filing.status === "COMPLETED",
       },
     });
   } catch (error) {
@@ -92,33 +122,43 @@ export async function GET(
   }
 }
 
-export async function PUT(
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireApiPermission("ucr:update");
+  const guard = await requireApiPermission("ucr:update_own_draft");
   if (!guard.ok) return guard.res;
 
   const { id } = await params;
 
   try {
     const body = (await request.json()) as UpdateUcrFilingBody;
-    if (typeof body.filingYear !== "undefined" && parseFilingYear(body.filingYear) === null) {
-      return Response.json({ error: "Invalid filingYear" }, { status: 400 });
+    if (typeof body.year !== "undefined" && parseFilingYear(body.year) === null) {
+      return Response.json({ error: "Invalid year" }, { status: 400 });
     }
-    if (typeof body.fleetSize !== "undefined" && parseNonNegativeInt(body.fleetSize) === null) {
-      return Response.json({ error: "Invalid fleetSize" }, { status: 400 });
+    if (
+      typeof body.vehicleCount !== "undefined" &&
+      parseNonNegativeInt(body.vehicleCount) === null
+    ) {
+      return Response.json({ error: "Invalid vehicleCount" }, { status: 400 });
     }
+
     const filing = await updateUcrFiling({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
-      filingYear:
-        typeof body.filingYear === "undefined" ? undefined : parseFilingYear(body.filingYear) ?? undefined,
-      legalName: typeof body.legalName === "string" ? body.legalName : undefined,
-      usdotNumber:
-        typeof body.usdotNumber === "undefined"
+      year:
+        typeof body.year === "undefined"
           ? undefined
-          : normalizeOptionalText(body.usdotNumber),
+          : parseFilingYear(body.year) ?? undefined,
+      legalName: typeof body.legalName === "string" ? body.legalName : undefined,
+      dbaName:
+        typeof body.dbaName === "undefined"
+          ? undefined
+          : normalizeOptionalText(body.dbaName),
+      dotNumber:
+        typeof body.dotNumber === "undefined"
+          ? undefined
+          : normalizeOptionalText(body.dotNumber),
       mcNumber:
         typeof body.mcNumber === "undefined" ? undefined : normalizeOptionalText(body.mcNumber),
       fein: typeof body.fein === "undefined" ? undefined : normalizeOptionalText(body.fein),
@@ -127,8 +167,10 @@ export async function PUT(
       entityType: UCREntityType.MOTOR_CARRIER,
       interstateOperation:
         typeof body.interstateOperation === "boolean" ? body.interstateOperation : undefined,
-      fleetSize:
-        typeof body.fleetSize === "undefined" ? undefined : parseNonNegativeInt(body.fleetSize) ?? undefined,
+      vehicleCount:
+        typeof body.vehicleCount === "undefined"
+          ? undefined
+          : parseNonNegativeInt(body.vehicleCount) ?? undefined,
       clientNotes:
         typeof body.clientNotes === "undefined"
           ? undefined
@@ -140,3 +182,5 @@ export async function PUT(
     return toErrorResponse(error, "Failed to update UCR filing");
   }
 }
+
+export const PUT = PATCH;

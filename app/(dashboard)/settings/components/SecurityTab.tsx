@@ -1,6 +1,7 @@
 "use client";
 
 import { signOut, useSession } from "next-auth/react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   EmptyState,
@@ -37,12 +38,16 @@ export default function SecurityTab({
   onNotify: (input: { tone: "success" | "error"; message: string }) => void;
 }) {
   const { data: session } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [passwordForm, setPasswordForm] = useState<PasswordForm>(emptyPasswordForm);
   const [error, setError] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [linkingGoogle, setLinkingGoogle] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -160,6 +165,18 @@ export default function SecurityTab({
     await signOut({ callbackUrl: "/" });
   };
 
+  const googleLinked = linkedAccounts.some((account) => account.provider === "google");
+
+  const handleLinkGoogle = () => {
+    setLinkingGoogle(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "security");
+    const callbackUrl = `${pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+    router.push(
+      `/auth/link-account?provider=google&callbackUrl=${encodeURIComponent(callbackUrl)}`,
+    );
+  };
+
   return (
     <PanelCard
       title="Security"
@@ -227,7 +244,7 @@ export default function SecurityTab({
                 {!loadingAccounts && linkedAccounts.length === 0 ? (
                   <EmptyState
                     title="No external providers linked"
-                    description="Credential login is active. Link additional providers from your profile flow when needed."
+                    description="Credential login is active. Link Google here if you want an easier sign-in option."
                   />
                 ) : null}
 
@@ -249,6 +266,27 @@ export default function SecurityTab({
                     </div>
                   </div>
                 ))}
+
+                {!loadingAccounts && !googleLinked ? (
+                  <div className="rounded-[22px] border border-zinc-200 bg-zinc-50/70 px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-950">Google account</p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Link your Google account for faster sign-in.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleLinkGoogle}
+                        disabled={linkingGoogle}
+                        className="rounded-2xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+                      >
+                        {linkingGoogle ? "Redirecting..." : "Link Google account"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 

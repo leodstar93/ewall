@@ -20,12 +20,13 @@ export default async function NewUcrFilingPage() {
       <UcrFilingForm
         mode="create"
         initialValues={{
+          year: new Date().getFullYear(),
           legalName: companyProfile?.legalName || undefined,
-          usdotNumber: companyProfile?.dotNumber || undefined,
+          dotNumber: companyProfile?.dotNumber || undefined,
           mcNumber: companyProfile?.mcNumber || undefined,
           fein: companyProfile?.ein || undefined,
           baseState: companyProfile?.state || undefined,
-          fleetSize: companyProfile?.trucksCount ? Number(companyProfile.trucksCount) : undefined,
+          vehicleCount: companyProfile?.trucksCount ? Number(companyProfile.trucksCount) : undefined,
         }}
       />
     </div>

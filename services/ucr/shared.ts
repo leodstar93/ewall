@@ -1,4 +1,9 @@
-import { Prisma, UCRDocumentType, UCREntityType, UCRFilingStatus } from "@prisma/client";
+import {
+  Prisma,
+  UCRDocumentType,
+  UCREntityType,
+  UCRFilingStatus,
+} from "@prisma/client";
 
 export class UcrServiceError extends Error {
   status: number;
@@ -14,15 +19,64 @@ export class UcrServiceError extends Error {
   }
 }
 
+export const UCR_ALLOWED_RECEIPT_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+]);
+
+export const UCR_EDITABLE_STATUSES: UCRFilingStatus[] = [
+  UCRFilingStatus.DRAFT,
+  UCRFilingStatus.AWAITING_CUSTOMER_PAYMENT,
+  UCRFilingStatus.CORRECTION_REQUESTED,
+];
+
+export const UCR_FINAL_STATUSES = new Set<UCRFilingStatus>([
+  UCRFilingStatus.COMPLETED,
+  UCRFilingStatus.CANCELLED,
+  UCRFilingStatus.COMPLIANT,
+  UCRFilingStatus.REJECTED,
+]);
+
 export const ucrFilingInclude: Prisma.UCRFilingInclude = {
   user: {
     select: {
       id: true,
       name: true,
       email: true,
+      companyProfile: {
+        select: {
+          legalName: true,
+          dbaName: true,
+          companyName: true,
+          dotNumber: true,
+          mcNumber: true,
+          ein: true,
+          state: true,
+          trucksCount: true,
+        },
+      },
     },
   },
+  pricingSnapshot: true,
   documents: {
+    orderBy: {
+      createdAt: "desc",
+    },
+  },
+  workItems: {
+    orderBy: {
+      createdAt: "desc",
+    },
+  },
+  events: {
+    orderBy: {
+      createdAt: "desc",
+    },
+  },
+  transitions: {
     orderBy: {
       createdAt: "desc",
     },
@@ -42,11 +96,19 @@ export function sanitizeStateCode(value: unknown) {
   return normalized;
 }
 
-export function formatBracketLabel(minVehicles: number, maxVehicles: number) {
-  if (maxVehicles >= 1000000) {
-    return `${minVehicles}+ vehicles`;
+export function formatBracketLabel(minVehicles: number, maxVehicles: number | null) {
+  if (maxVehicles === null || maxVehicles >= 1000000) {
+    return `${minVehicles}+`;
   }
-  return `${minVehicles}-${maxVehicles} vehicles`;
+
+  return `${minVehicles}-${maxVehicles}`;
+}
+
+export function getReadableBracketLabel(code: string | null | undefined) {
+  if (!code) return "-";
+  if (code.includes("-")) return `${code} vehicles`;
+  if (code.endsWith("+")) return `${code} vehicles`;
+  return code;
 }
 
 export function getUcrDocumentFileName(name: string, filePath: string) {
@@ -62,12 +124,16 @@ export function getUcrDocumentFileName(name: string, filePath: string) {
   return `${sanitizedName}${extension}`;
 }
 
-export function moneyToString(value: number | string) {
+export function moneyToString(value: number | string | Prisma.Decimal) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
     throw new UcrServiceError("Invalid money value", 400, "INVALID_MONEY");
   }
   return parsed.toFixed(2);
+}
+
+export function decimalFromMoney(value: number | string | Prisma.Decimal) {
+  return new Prisma.Decimal(moneyToString(value));
 }
 
 export function parseNonNegativeInt(value: unknown) {
@@ -103,41 +169,113 @@ export function hasProofDocument(
     const type = typeof document === "string" ? document : document.type;
     return (
       type === UCRDocumentType.PAYMENT_RECEIPT ||
-      type === UCRDocumentType.REGISTRATION_PROOF
+      type === UCRDocumentType.REGISTRATION_PROOF ||
+      type === UCRDocumentType.OFFICIAL_RECEIPT
     );
   });
 }
 
+export function parseOptionalIsoDate(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new UcrServiceError("Invalid ISO date", 400, "INVALID_DATE");
+  }
+
+  return parsed;
+}
+
+export function validateOfficialReceiptFile(file: File) {
+  if (!file) {
+    throw new UcrServiceError("No file provided", 400, "FILE_REQUIRED");
+  }
+
+  if (!UCR_ALLOWED_RECEIPT_MIME_TYPES.has(file.type)) {
+    throw new UcrServiceError(
+      "Receipt must be a PDF, PNG, JPG, JPEG, or WEBP file.",
+      400,
+      "INVALID_RECEIPT_TYPE",
+    );
+  }
+}
+
+export function isCustomerEditableStatus(status: UCRFilingStatus) {
+  return UCR_EDITABLE_STATUSES.includes(status);
+}
+
+export function isLegacyUcrStatus(status: UCRFilingStatus) {
+  return ([
+    UCRFilingStatus.SUBMITTED,
+    UCRFilingStatus.UNDER_REVIEW,
+    UCRFilingStatus.CORRECTION_REQUESTED,
+    UCRFilingStatus.RESUBMITTED,
+    UCRFilingStatus.PENDING_PROOF,
+    UCRFilingStatus.APPROVED,
+    UCRFilingStatus.COMPLIANT,
+    UCRFilingStatus.REJECTED,
+  ] as UCRFilingStatus[]).includes(status);
+}
+
 export function validateFilingCompleteness(filing: {
-  legalName: string;
-  filingYear: number;
-  fleetSize: number;
+  year?: number;
+  filingYear?: number;
+  legalName: string | null;
+  usdotNumber?: string | null;
+  dotNumber: string | null;
   baseState: string | null;
-  entityType: UCREntityType;
-  usdotNumber: string | null;
-  mcNumber: string | null;
-  feeAmount: unknown;
+  vehicleCount?: number | null;
+  fleetSize?: number | null;
+  feeAmount?: unknown;
+  ucrAmount: unknown;
+  totalCharged?: unknown;
+}) {
+  const issues: string[] = [];
+  const year = filing.year ?? filing.filingYear;
+  const dotNumber = filing.dotNumber ?? filing.usdotNumber ?? null;
+  const vehicleCount = filing.vehicleCount ?? filing.fleetSize ?? null;
+  const ucrAmount = filing.ucrAmount ?? filing.feeAmount;
+
+  if (!Number.isInteger(year)) issues.push("Year is required.");
+  if (!filing.legalName?.trim()) issues.push("Company or legal name is required.");
+  if (!dotNumber?.trim()) issues.push("DOT number is required.");
+  if (!filing.baseState?.trim()) issues.push("Base state is required.");
+  if (vehicleCount === null || !Number.isInteger(vehicleCount) || vehicleCount <= 0) {
+    issues.push("Vehicle count is required.");
+  }
+  if (!Number.isFinite(Number(ucrAmount))) {
+    issues.push("Calculated UCR amount is missing.");
+  }
+  if (typeof filing.totalCharged !== "undefined" && !Number.isFinite(Number(filing.totalCharged))) {
+    issues.push("Calculated total is missing.");
+  }
+
+  return issues;
+}
+
+export function getCompletionValidationIssues(filing: {
+  customerPaymentStatus: string;
+  officialPaymentStatus: string;
+  officialReceiptUrl: string | null;
+  officialPaidAt: Date | null;
+  officialReceiptNumber: string | null;
+  officialConfirmation: string | null;
 }) {
   const issues: string[] = [];
 
-  if (!filing.legalName.trim()) issues.push("Legal name is required.");
-  if (!Number.isInteger(filing.filingYear)) issues.push("Filing year is required.");
-  if (!Number.isInteger(filing.fleetSize) || filing.fleetSize < 0) {
-    issues.push("Fleet size must be zero or greater.");
+  if (filing.customerPaymentStatus !== "SUCCEEDED") {
+    issues.push("Customer payment has not been confirmed.");
   }
-  if (!filing.baseState?.trim()) issues.push("Base state is required.");
-  if (!Object.values(UCREntityType).includes(filing.entityType)) {
-    issues.push("Entity type is required.");
+  if (filing.officialPaymentStatus !== "PAID") {
+    issues.push("Official UCR payment has not been marked paid.");
   }
-  if (
-    filing.entityType === UCREntityType.MOTOR_CARRIER &&
-    !filing.usdotNumber?.trim() &&
-    !filing.mcNumber?.trim()
-  ) {
-    issues.push("USDOT or MC number is required for motor carriers.");
+  if (!filing.officialReceiptUrl) {
+    issues.push("Official receipt is required.");
   }
-  if (!Number.isFinite(Number(filing.feeAmount))) {
-    issues.push("Calculated fee is missing.");
+  if (!filing.officialPaidAt) {
+    issues.push("Official paid date is required.");
+  }
+  if (!filing.officialReceiptNumber && !filing.officialConfirmation) {
+    issues.push("Official receipt number or confirmation is required.");
   }
 
   return issues;
@@ -149,31 +287,39 @@ export function currentYear() {
 
 export function getComplianceSnapshot(status: UCRFilingStatus) {
   switch (status) {
+    case UCRFilingStatus.COMPLETED:
     case UCRFilingStatus.COMPLIANT:
       return {
         complianceStatus: "COMPLIANT" as const,
         nextAction: "No action required",
       };
+    case UCRFilingStatus.NEEDS_ATTENTION:
     case UCRFilingStatus.CORRECTION_REQUESTED:
-      return {
-        complianceStatus: "ACTION_REQUIRED" as const,
-        nextAction: "Review the correction request and resubmit the filing",
-      };
-    case UCRFilingStatus.PENDING_PROOF:
-      return {
-        complianceStatus: "IN_PROGRESS" as const,
-        nextAction: "Upload payment proof to continue approval",
-      };
-    case UCRFilingStatus.REJECTED:
     case UCRFilingStatus.CANCELLED:
+    case UCRFilingStatus.REJECTED:
       return {
         complianceStatus: "ACTION_REQUIRED" as const,
-        nextAction: "Create or replace the filing for this year",
+        nextAction: "Review the filing and resolve the open issue.",
       };
     default:
       return {
         complianceStatus: "IN_PROGRESS" as const,
-        nextAction: "Continue the current filing workflow",
+        nextAction: "Continue the current filing workflow.",
       };
   }
+}
+
+export function getUcrAppBaseUrl() {
+  const direct =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim();
+  if (!direct) {
+    throw new UcrServiceError(
+      "App URL is not configured. Set NEXT_PUBLIC_APP_URL or NEXTAUTH_URL.",
+      500,
+      "APP_URL_NOT_CONFIGURED",
+    );
+  }
+
+  return direct.replace(/\/+$/, "");
 }
