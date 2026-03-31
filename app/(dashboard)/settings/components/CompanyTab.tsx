@@ -7,48 +7,38 @@ import {
   emptyCompanyProfileState,
   type CompanyProfileFormData,
 } from "@/components/settings/company/companyProfileTypes";
-import type { SaferCompanyNormalized } from "@/services/fmcsa/saferTypes";
 import {
-  Field,
   InlineAlert,
   LoadingPanel,
   PanelCard,
   StickyActions,
+  Field,
   textInputClassName,
 } from "./settings-ui";
 
-type CompanyProfile = {
-  legalName: string;
-  dbaName: string;
-  dotNumber: string;
-  mcNumber: string;
-  ein: string;
-  businessPhone: string;
-  address: string;
-  state: string;
-  trucksCount: string;
-  driversCount: string;
-};
-
 type SaferLookupResponse = {
   found?: boolean;
-  company?: Partial<CompanyProfile>;
+  company?: Partial<CompanyProfileFormData>;
   warnings?: string[];
   error?: string;
 };
 
-const emptyState: CompanyProfile = {
-  legalName: "",
-  dbaName: "",
-  dotNumber: "",
-  mcNumber: "",
-  ein: "",
-  businessPhone: "",
-  address: "",
-  state: "",
-  trucksCount: "",
-  driversCount: "",
-};
+function syncAddressFields(form: CompanyProfileFormData): CompanyProfileFormData {
+  const addressLine1 = form.addressLine1.trim() || form.address.trim();
+  const addressLine2 = form.addressLine2.trim();
+  const city = form.city.trim();
+  const state = form.state.trim();
+  const zipCode = form.zipCode.trim();
+
+  const locality = [city, state, zipCode].filter(Boolean).join(", ");
+  const address = [addressLine1, addressLine2, locality].filter(Boolean).join(", ");
+
+  return {
+    ...form,
+    addressLine1,
+    address,
+  };
+}
 
 export default function CompanyTab({
   onNotify,
@@ -115,7 +105,16 @@ export default function CompanyTab({
 
   const handleGeneralChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) =>
+      syncAddressFields({
+        ...current,
+        [name]: value,
+      }),
+    );
+  };
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    handleGeneralChange(event);
   };
 
   const handleSearch = async () => {
@@ -161,10 +160,10 @@ export default function CompanyTab({
         return;
       }
 
-      const nextForm: CompanyProfile = {
+      const nextForm = syncAddressFields({
         ...form,
         legalName: payload.company.legalName ?? form.legalName,
-        dbaName: payload.company.dbaName ?? "",
+        dbaName: payload.company.dbaName ?? form.dbaName,
         dotNumber: payload.company.dotNumber ?? form.dotNumber,
         mcNumber: payload.company.mcNumber ?? form.mcNumber,
         businessPhone: payload.company.businessPhone ?? form.businessPhone,
@@ -172,7 +171,7 @@ export default function CompanyTab({
         state: payload.company.state ?? form.state,
         trucksCount: payload.company.trucksCount ?? form.trucksCount,
         driversCount: payload.company.driversCount ?? form.driversCount,
-      };
+      });
 
       setForm(nextForm);
       setSearchMessage({
@@ -228,7 +227,7 @@ export default function CompanyTab({
   const handleReset = () => {
     setForm(initialForm);
     setError("");
-    setNotice(null);
+    setSearchMessage(null);
   };
 
   return (
@@ -268,90 +267,7 @@ export default function CompanyTab({
             </div>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Legal name">
-              <input
-                name="legalName"
-                value={form.legalName}
-                onChange={handleChange}
-                className={textInputClassName()}
-              />
-            </Field>
-
-            <Field label="DBA name">
-              <input
-                name="dbaName"
-                value={form.dbaName}
-                onChange={handleChange}
-                className={textInputClassName()}
-              />
-            </Field>
-
-            <Field label="MC number">
-              <input
-                name="mcNumber"
-                value={form.mcNumber}
-                onChange={handleChange}
-                className={textInputClassName()}
-              />
-            </Field>
-
-            <Field label="EIN">
-              <input
-                name="ein"
-                value={form.ein}
-                onChange={handleChange}
-                className={textInputClassName()}
-              />
-            </Field>
-
-            <Field label="Business phone">
-              <input
-                name="businessPhone"
-                value={form.businessPhone}
-                onChange={handleChange}
-                className={textInputClassName()}
-              />
-            </Field>
-
-            <Field label="Business address">
-              <input
-                name="address"
-                value={form.address}
-                onChange={handleChange}
-                className={textInputClassName()}
-              />
-            </Field>
-
-            <Field label="State">
-              <input
-                name="state"
-                value={form.state}
-                onChange={handleChange}
-                className={textInputClassName()}
-              />
-            </Field>
-
-            <Field label="Trucks count">
-              <input
-                name="trucksCount"
-                value={form.trucksCount}
-                onChange={handleChange}
-                className={textInputClassName()}
-                inputMode="numeric"
-              />
-            </Field>
-
-            <Field label="Drivers count">
-              <input
-                name="driversCount"
-                value={form.driversCount}
-                onChange={handleChange}
-                className={textInputClassName()}
-                inputMode="numeric"
-              />
-            </Field>
-          </div>
+          <CompanyProfileForm form={form} onChange={handleChange} />
 
           {isDirty ? (
             <StickyActions>
@@ -359,7 +275,7 @@ export default function CompanyTab({
                 type="button"
                 onClick={handleReset}
                 className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
-                disabled={saving || searchingSafer}
+                disabled={saving || searching}
               >
                 Reset
               </button>
@@ -367,7 +283,7 @@ export default function CompanyTab({
                 type="button"
                 onClick={handleSave}
                 className="rounded-2xl bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-                disabled={saving || searchingSafer}
+                disabled={saving || searching}
               >
                 {saving ? "Saving..." : "Save company profile"}
               </button>
