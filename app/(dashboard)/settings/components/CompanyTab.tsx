@@ -13,35 +13,42 @@ import {
   InlineAlert,
   LoadingPanel,
   PanelCard,
-  StatusBadge,
   StickyActions,
   textInputClassName,
 } from "./settings-ui";
 
-function formatSyncDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+type CompanyProfile = {
+  legalName: string;
+  dbaName: string;
+  dotNumber: string;
+  mcNumber: string;
+  ein: string;
+  businessPhone: string;
+  address: string;
+  state: string;
+  trucksCount: string;
+  driversCount: string;
+};
 
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
+type SaferLookupResponse = {
+  found?: boolean;
+  company?: Partial<CompanyProfile>;
+  warnings?: string[];
+  error?: string;
+};
 
-function syncAddressFields(nextState: CompanyProfileFormData) {
-  return {
-    ...nextState,
-    address: [
-      nextState.addressLine1.trim(),
-      nextState.addressLine2.trim(),
-      [nextState.city.trim(), nextState.state.trim(), nextState.zipCode.trim()]
-        .filter(Boolean)
-        .join(", "),
-    ]
-      .filter(Boolean)
-      .join(", "),
-  };
-}
+const emptyState: CompanyProfile = {
+  legalName: "",
+  dbaName: "",
+  dotNumber: "",
+  mcNumber: "",
+  ein: "",
+  businessPhone: "",
+  address: "",
+  state: "",
+  trucksCount: "",
+  driversCount: "",
+};
 
 export default function CompanyTab({
   onNotify,
@@ -52,12 +59,12 @@ export default function CompanyTab({
   const [initialForm, setInitialForm] = useState<CompanyProfileFormData>(emptyCompanyProfileState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchingSafer, setSearchingSafer] = useState(false);
-  const [notice, setNotice] = useState<{
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState("");
+  const [searchMessage, setSearchMessage] = useState<{
     tone: "success" | "error" | "info";
     message: string;
   } | null>(null);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -106,118 +113,82 @@ export default function CompanyTab({
     [form, initialForm],
   );
 
-  const completeness = useMemo(() => {
-    const requiredKeys: Array<keyof CompanyProfileFormData> = [
-      "legalName",
-      "companyName",
-      "dotNumber",
-      "mcNumber",
-      "ein",
-      "addressLine1",
-      "city",
-      "state",
-      "zipCode",
-    ];
-
-    const completed = requiredKeys.filter((key) => {
-      const value = form[key];
-      return typeof value === "string" ? value.trim().length > 0 : Boolean(value);
-    }).length;
-
-    return Math.round((completed / requiredKeys.length) * 100);
-  }, [form]);
-
   const handleGeneralChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
-    setForm((current) => syncAddressFields({ ...current, [name]: value }));
+    setForm((current) => ({ ...current, [name]: value }));
   };
 
-  const handleDotChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const dotNumber = event.target.value;
-    setNotice(null);
-    setForm((current) => ({ ...current, dotNumber }));
-  };
+  const handleSearch = async () => {
+    const dotNumber = form.dotNumber.trim();
 
-  const handleSearchSafer = async () => {
+    if (!dotNumber) {
+      setSearchMessage({
+        tone: "error",
+        message: "Enter a USDOT number first.",
+      });
+      return;
+    }
+
     try {
-      setSearchingSafer(true);
+      setSearching(true);
       setError("");
-      setNotice(null);
-
-      const normalizedDot = form.dotNumber.trim().replace(/\D/g, "");
-      if (!/^\d{5,8}$/.test(normalizedDot)) {
-        throw new Error("Invalid USDOT number.");
-      }
-
-      const lookupResponse = await fetch("/api/v1/integrations/safer/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dotNumber: normalizedDot }),
+      setSearchMessage({
+        tone: "info",
+        message: "Searching SAFER...",
       });
 
-      const lookupPayload = (await lookupResponse.json().catch(() => ({}))) as Partial<SaferCompanyNormalized> & {
-        error?: string;
-      };
+      const response = await fetch("/api/v1/integrations/safer/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dotNumber }),
+      });
 
-      if (lookupResponse.status === 404) {
-        setNotice({
+      const payload = (await response.json().catch(() => ({}))) as SaferLookupResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ||
+            payload.warnings?.[0] ||
+            "We couldn't retrieve company data from SAFER right now.",
+        );
+      }
+
+      if (!payload.found || !payload.company) {
+        setSearchMessage({
           tone: "info",
-          message:
-            lookupPayload.warnings?.[0] ??
-            "No pudimos encontrar esta compania en SAFER. Puedes completar manualmente.",
+          message: payload.warnings?.[0] || "No company found for this USDOT number.",
         });
         return;
       }
 
-      if (!lookupResponse.ok) {
-        throw new Error(lookupPayload.error || "We couldn't retrieve company data from SAFER right now.");
-      }
-
-      const applyResponse = await fetch("/api/v1/carrier-profile/apply-safer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dotNumber: normalizedDot,
-          lookupResult: lookupPayload,
-        }),
-      });
-
-      const applyPayload = (await applyResponse.json().catch(() => ({}))) as {
-        error?: string;
-        profile?: CompanyProfileFormData;
+      const nextForm: CompanyProfile = {
+        ...form,
+        legalName: payload.company.legalName ?? form.legalName,
+        dbaName: payload.company.dbaName ?? "",
+        dotNumber: payload.company.dotNumber ?? form.dotNumber,
+        mcNumber: payload.company.mcNumber ?? form.mcNumber,
+        businessPhone: payload.company.businessPhone ?? form.businessPhone,
+        address: payload.company.address ?? form.address,
+        state: payload.company.state ?? form.state,
+        trucksCount: payload.company.trucksCount ?? form.trucksCount,
+        driversCount: payload.company.driversCount ?? form.driversCount,
       };
 
-      if (!applyResponse.ok || !applyPayload.profile) {
-        throw new Error(applyPayload.error || "Unable to apply SAFER data.");
-      }
-
-      const nextState = syncAddressFields({
-        ...emptyCompanyProfileState,
-        ...applyPayload.profile,
-      });
-      setForm(nextState);
-      setInitialForm(nextState);
-      setNotice({
-        tone: nextState.saferNeedsReview ? "info" : "success",
-        message: nextState.saferNeedsReview
-          ? "SAFER encontro la compania y lleno el formulario, pero hay campos para revisar."
-          : "SAFER encontro la compania y lleno el formulario.",
-      });
-      onNotify({
+      setForm(nextForm);
+      setSearchMessage({
         tone: "success",
-        message: nextState.saferNeedsReview
-          ? "SAFER lleno el perfil. Revisa los campos importados."
-          : "SAFER lleno el perfil correctamente.",
+        message: "Company found. Review the fields and save your changes.",
       });
     } catch (searchError) {
-      const message =
-        searchError instanceof Error
-          ? searchError.message
-          : "We couldn't retrieve company data from SAFER right now.";
-      setError(message);
-      onNotify({ tone: "error", message });
+      setSearchMessage({
+        tone: "error",
+        message:
+          searchError instanceof Error
+            ? searchError.message
+            : "We couldn't retrieve company data from SAFER right now.",
+      });
     } finally {
-      setSearchingSafer(false);
+      setSearching(false);
     }
   };
 
@@ -262,38 +233,25 @@ export default function CompanyTab({
 
   return (
     <PanelCard
-      eyebrow="Compliance Core"
-      title="Company and compliance profile"
-      description="Use the USDOT search first, then review or adjust the general company fields below."
+      title="Company information"
+      description="Core company details."
     >
       {loading ? <LoadingPanel /> : null}
 
       {!loading ? (
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge tone="blue">Profile {completeness}% complete</StatusBadge>
-            <StatusBadge tone="amber">DOT/MC/EIN validated on save</StatusBadge>
-            {searchingSafer ? <StatusBadge tone="blue">Searching SAFER...</StatusBadge> : null}
-            {form.saferAutoFilled ? <StatusBadge tone="green">Imported from FMCSA SAFER</StatusBadge> : null}
-            {form.saferLastFetchedAt ? (
-              <StatusBadge tone="zinc">Last synced: {formatSyncDate(form.saferLastFetchedAt)}</StatusBadge>
-            ) : null}
-            {form.saferNeedsReview ? <StatusBadge tone="amber">Review suggested</StatusBadge> : null}
-          </div>
-
           {error ? <InlineAlert tone="error" message={error} /> : null}
-          {notice ? <InlineAlert tone={notice.tone} message={notice.message} /> : null}
+          {searchMessage ? (
+            <InlineAlert tone={searchMessage.tone} message={searchMessage.message} />
+          ) : null}
 
-          <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/60 px-5 py-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <Field
-                label="USDOT Search"
-                hint="Search SAFER first. When a company is found, the form below is filled field by field."
-              >
+          <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-4">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <Field label="USDOT number">
                 <input
                   name="dotNumber"
                   value={form.dotNumber}
-                  onChange={handleDotChange}
+                  onChange={handleChange}
                   className={textInputClassName()}
                   inputMode="numeric"
                 />
@@ -301,35 +259,98 @@ export default function CompanyTab({
 
               <button
                 type="button"
-                onClick={handleSearchSafer}
-                disabled={searchingSafer}
-                className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => void handleSearch()}
+                className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+                disabled={searching || !form.dotNumber.trim()}
               >
-                {searchingSafer ? "Searching..." : "Search"}
+                {searching ? "Searching..." : "Search"}
               </button>
             </div>
           </div>
 
-          {form.saferAutoFilled ? (
-            <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-4">
-              <p className="text-sm font-semibold text-zinc-900">Imported SAFER reference</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Legal name: {form.legalName || "Unknown"}.
-                {form.dbaName ? ` DBA: ${form.dbaName}.` : ""}
-                {form.saferStatus ? ` USDOT status: ${form.saferStatus}.` : ""}
-              </p>
-            </div>
-          ) : null}
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field label="Legal name">
+              <input
+                name="legalName"
+                value={form.legalName}
+                onChange={handleChange}
+                className={textInputClassName()}
+              />
+            </Field>
 
-          <CompanyProfileForm form={form} onChange={handleGeneralChange} />
+            <Field label="DBA name">
+              <input
+                name="dbaName"
+                value={form.dbaName}
+                onChange={handleChange}
+                className={textInputClassName()}
+              />
+            </Field>
 
-          <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-4">
-            <p className="text-sm font-semibold text-zinc-900">Next modules that plug into this</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              IFTA filing setup, UCR registration, Form 2290 preparation, and DMV registration
-              flows can all reuse this company profile instead of asking the carrier for the same
-              compliance identifiers multiple times.
-            </p>
+            <Field label="MC number">
+              <input
+                name="mcNumber"
+                value={form.mcNumber}
+                onChange={handleChange}
+                className={textInputClassName()}
+              />
+            </Field>
+
+            <Field label="EIN">
+              <input
+                name="ein"
+                value={form.ein}
+                onChange={handleChange}
+                className={textInputClassName()}
+              />
+            </Field>
+
+            <Field label="Business phone">
+              <input
+                name="businessPhone"
+                value={form.businessPhone}
+                onChange={handleChange}
+                className={textInputClassName()}
+              />
+            </Field>
+
+            <Field label="Business address">
+              <input
+                name="address"
+                value={form.address}
+                onChange={handleChange}
+                className={textInputClassName()}
+              />
+            </Field>
+
+            <Field label="State">
+              <input
+                name="state"
+                value={form.state}
+                onChange={handleChange}
+                className={textInputClassName()}
+              />
+            </Field>
+
+            <Field label="Trucks count">
+              <input
+                name="trucksCount"
+                value={form.trucksCount}
+                onChange={handleChange}
+                className={textInputClassName()}
+                inputMode="numeric"
+              />
+            </Field>
+
+            <Field label="Drivers count">
+              <input
+                name="driversCount"
+                value={form.driversCount}
+                onChange={handleChange}
+                className={textInputClassName()}
+                inputMode="numeric"
+              />
+            </Field>
           </div>
 
           {isDirty ? (

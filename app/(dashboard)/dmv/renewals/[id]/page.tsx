@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/guards/require-module-access";
 import { requirePermission } from "@/lib/rbac-guard";
-import DmvRenewalPage from "@/features/dmv/renewal-page";
+import DmvRenewalDetailPage from "@/features/dmv-renewals/detail-page";
 
 export default async function DmvRenewalWorkspacePage({
   params,
@@ -16,5 +16,5 @@ export default async function DmvRenewalWorkspacePage({
 
   await requireModuleAccess("dmv");
   const { id } = await params;
-  return <DmvRenewalPage renewalId={id} />;
+  return <DmvRenewalDetailPage renewalId={id} mode="client" />;
 }

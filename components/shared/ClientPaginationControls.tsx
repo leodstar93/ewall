@@ -18,7 +18,7 @@ export default function ClientPaginationControls(props: {
   const endItem = Math.min(props.totalItems, props.page * props.pageSize);
 
   return (
-    <div className="mt-4 flex flex-col gap-3 border-t border-zinc-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mt-4 flex flex-col gap-3 border-t border-zinc-100 bg-[linear-gradient(180deg,_rgba(248,251,255,0.92),_rgba(255,255,255,0.98))] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="text-sm text-zinc-600">
         Showing <span className="font-semibold text-zinc-900">{startItem}</span>
         {" - "}
@@ -35,7 +35,7 @@ export default function ClientPaginationControls(props: {
             onChange={(event) =>
               props.onPageSizeChange(Number(event.target.value))
             }
-            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400"
+            className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none shadow-sm focus:border-sky-400"
           >
             {pageSizeOptions.map((option) => (
               <option key={option} value={option}>
@@ -54,7 +54,7 @@ export default function ClientPaginationControls(props: {
             type="button"
             onClick={() => props.onPageChange(1)}
             disabled={props.page === 1}
-            className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:border-zinc-300 hover:bg-zinc-50 disabled:opacity-50"
           >
             First
           </button>
@@ -62,7 +62,7 @@ export default function ClientPaginationControls(props: {
             type="button"
             onClick={() => props.onPageChange(Math.max(1, props.page - 1))}
             disabled={props.page === 1}
-            className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:border-zinc-300 hover:bg-zinc-50 disabled:opacity-50"
           >
             Previous
           </button>
@@ -72,7 +72,7 @@ export default function ClientPaginationControls(props: {
               props.onPageChange(Math.min(props.totalPages, props.page + 1))
             }
             disabled={props.page === props.totalPages}
-            className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:border-zinc-300 hover:bg-zinc-50 disabled:opacity-50"
           >
             Next
           </button>
@@ -80,7 +80,7 @@ export default function ClientPaginationControls(props: {
             type="button"
             onClick={() => props.onPageChange(props.totalPages)}
             disabled={props.page === props.totalPages}
-            className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            className="rounded-full border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:border-zinc-300 hover:bg-zinc-50 disabled:opacity-50"
           >
             Last
           </button>

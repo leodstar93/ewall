@@ -41,7 +41,7 @@ export default function LoginPage() {
         ) {
           router.push("/admin");
         } else {
-          router.push("/panel");
+          router.push("/settings");
         }
       }
     } catch {
@@ -56,7 +56,7 @@ export default function LoginPage() {
     try {
       // signIn with callbackUrl will handle the redirect automatically
       // No need to check result as NextAuth will redirect on success
-      await signIn("google", { callbackUrl: "/panel" });
+      await signIn("google", { callbackUrl: "/settings" });
     } catch {
       setError("Failed to sign in with Google");
       setIsLoading(false);

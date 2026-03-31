@@ -8,6 +8,7 @@ type FeatureMeta = {
   icon?: string;
   href?: string;
   permission?: string[];
+  visible?: boolean;
   hidden?: boolean;
 };
 
@@ -19,6 +20,7 @@ export type Feature = {
   icon?: string;
   href: string;
   permission?: string[];
+  visible?: boolean;
   hidden?: boolean;
 };
 
@@ -52,13 +54,14 @@ export async function getFeatures(): Promise<Feature[]> {
             icon: meta.icon,
             href: meta.href ?? `/panel/${name}`,
             permissions: meta.permission,
+            visible: meta.visible !== false,
             hidden: meta.hidden === true,
           };
         })
     );
 
     return features
-      .filter((feature) => !feature.hidden)
+      .filter((feature) => feature.visible !== false && !feature.hidden)
       .sort((a, b) => {
       if (a.section !== b.section) return a.section.localeCompare(b.section);
       return a.order - b.order;

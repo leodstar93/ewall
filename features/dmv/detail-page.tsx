@@ -502,12 +502,12 @@ export default function DmvDetailPage({
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            {currentRenewal && resolvedRenewalHrefBase ? (
+            {resolvedRenewalHrefBase ? (
               <Link
-                href={`${resolvedRenewalHrefBase}/${currentRenewal.id}`}
+                href={resolvedRenewalHrefBase}
                 className="inline-flex items-center justify-center rounded-2xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
               >
-                Current renewal
+                Renewals
               </Link>
             ) : null}
             <Link
@@ -615,10 +615,10 @@ export default function DmvDetailPage({
               </div>
               {resolvedRenewalHrefBase ? (
                 <Link
-                  href={`${resolvedRenewalHrefBase}/${currentRenewal.id}`}
+                  href={resolvedRenewalHrefBase}
                   className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
                 >
-                  Open renewal workspace
+                  Open renewals module
                 </Link>
               ) : null}
             </div>

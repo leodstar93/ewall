@@ -1,20 +1,13 @@
-
-import { requirePermission } from "@/lib/rbac-guard";
-import DashboardPage from "./panel-client";
 import { redirect } from "next/navigation";
-
+import { requirePermission } from "@/lib/rbac-guard";
 
 export default async function DashboardServer() {
+  const access = await requirePermission("settings:read");
 
-    const res = await requirePermission("dashboard:access");
-    console.log("requirePermission result:", res);
-    
-     if (!res.ok) {
-    redirect(res.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
+  if (!access.ok) {
+    redirect(access.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
   }
-  
-  
 
-  return <DashboardPage />;
+  redirect("/settings");
 }
 

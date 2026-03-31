@@ -236,16 +236,26 @@ export default function DmvAdminQueuePage(props: DmvAdminQueuePageProps) {
   return (
     <div className="space-y-6">
       <section className="rounded-[32px] border border-zinc-200 bg-[linear-gradient(135deg,_#eff6ff,_#ffffff_45%,_#ffedd5)] p-8 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-          Staff Review Screen
-        </p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-          Internal DMV review queue
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-700">
-          Review registrations, request corrections, mark cases ready for filing, and finalize
-          staff approval once the DMV result comes back.
-        </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+              Staff Review Screen
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
+              Internal DMV review queue
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-700">
+              Review registrations, request corrections, mark cases ready for filing, and finalize
+              staff approval once the DMV result comes back.
+            </p>
+          </div>
+          <Link
+            href="/admin/features/dmv/renewals"
+            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+          >
+            Renewal Queue
+          </Link>
+        </div>
       </section>
 
       {error ? (

@@ -136,9 +136,8 @@ export default function PersonalInfoTab({
 
   return (
     <PanelCard
-      eyebrow="Profile Identity"
       title="Personal information"
-      description="These details identify the primary account owner across filings, notifications, and downstream workflows."
+      description="Basic contact details."
     >
       {loading ? <LoadingPanel /> : null}
 
@@ -153,14 +152,10 @@ export default function PersonalInfoTab({
                 value={form.name}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="Jane Smith"
               />
             </Field>
 
-            <Field
-              label="Email address"
-              hint="Email stays read-only because authentication and linked accounts depend on it."
-            >
+            <Field label="Email address">
               <input
                 name="email"
                 value={form.email}
@@ -175,7 +170,6 @@ export default function PersonalInfoTab({
                 value={form.phone}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="(702) 555-0110"
               />
             </Field>
 
@@ -185,7 +179,6 @@ export default function PersonalInfoTab({
                 value={form.address}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="123 Freight Ave"
               />
             </Field>
 
@@ -195,7 +188,6 @@ export default function PersonalInfoTab({
                 value={form.city}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="Las Vegas"
               />
             </Field>
 
@@ -206,7 +198,6 @@ export default function PersonalInfoTab({
                   value={form.state}
                   onChange={handleChange}
                   className={textInputClassName()}
-                  placeholder="NV"
                 />
               </Field>
 
@@ -216,7 +207,6 @@ export default function PersonalInfoTab({
                   value={form.zip}
                   onChange={handleChange}
                   className={textInputClassName()}
-                  placeholder="89101"
                 />
               </Field>
             </div>

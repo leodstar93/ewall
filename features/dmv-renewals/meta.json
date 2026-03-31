@@ -1,0 +1,8 @@
+{
+  "label": "DMV Renewals",
+  "section": "Operaciones",
+  "order": 36,
+  "icon": "FileCheck2",
+  "href": "/dmv/renewals",
+  "permission": ["dmv:read"]
+}

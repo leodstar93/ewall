@@ -9,7 +9,7 @@ function LinkAccountPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const provider = searchParams.get("provider") || "google";
-  const callbackUrl = searchParams.get("callbackUrl") || "/panel/users/profile";
+  const callbackUrl = searchParams.get("callbackUrl") || "/settings";
 
   useEffect(() => {
     // Initiate OAuth sign-in with account linking

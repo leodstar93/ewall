@@ -39,6 +39,11 @@ model User {
   ucrFilings       UCRFiling[]
   form2290Filings  Form2290Filing[]
   dmvRegistrations DmvRegistration[]
+  dmvRenewalCases  DmvRenewalCase[]        @relation("UserDmvRenewalCases")
+  assignedDmvRenewalCases DmvRenewalCase[] @relation("StaffAssignedDmvRenewalCases")
+  uploadedDmvRenewalCaseDocuments DmvRenewalCaseDocument[]
+  dmvRenewalCaseStatusChanges DmvRenewalCaseStatusHistory[]
+  dmvRenewalCaseMessages DmvRenewalCaseMessage[]
 }
 
 model UserProfile {
@@ -418,6 +423,7 @@ model Document {
   form2290Links        Form2290Document[]
   dmvRegistrationLinks DmvRegistrationDocument[]
   dmvRenewalLinks      DmvRenewalDocument[]
+  dmvRenewalCaseSourceLinks DmvRenewalCaseDocument[]
 
   @@index([userId])
   @@index([category])
@@ -545,6 +551,29 @@ enum DmvRenewalStatus {
   OVERDUE
 }
 
+enum DmvRenewalCaseStatus {
+  SUBMITTED
+  IN_REVIEW
+  NEEDS_CLIENT_ACTION
+  PENDING_CLIENT_APPROVAL
+  CHANGES_REQUESTED
+  APPROVED
+  COMPLETED
+  CANCELLED
+}
+
+enum DmvRenewalCaseDocumentKind {
+  CLIENT_INITIAL_UPLOAD
+  CLIENT_RESPONSE_UPLOAD
+  STAFF_RETURN_DOCUMENT
+  STAFF_INTERNAL_DOCUMENT
+}
+
+enum DmvRenewalCaseMessageAudience {
+  INTERNAL
+  CLIENT_VISIBLE
+}
+
 enum DmvRequirementStatus {
   MISSING
   UPLOADED
@@ -618,6 +647,7 @@ model Truck {
   iftaReports      IftaReport[]
   form2290Filings  Form2290Filing[]
   dmvRegistrations DmvRegistration[]
+  dmvRenewalCases  DmvRenewalCase[]
 
   @@index([userId])
   @@index([vin])
@@ -1068,6 +1098,40 @@ model DmvRenewal {
   @@index([status])
 }
 
+model DmvRenewalCase {
+  id                 String               @id @default(cuid())
+  caseNumber         String               @unique
+  userId             String
+  truckId            String
+  assignedToId       String?
+  status             DmvRenewalCaseStatus @default(SUBMITTED)
+  state              String?
+  note               String?
+  clientApprovalNote String?
+  internalNote       String?
+  submittedAt        DateTime?
+  inReviewAt         DateTime?
+  sentToClientAt     DateTime?
+  clientApprovedAt   DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  user       User                  @relation("UserDmvRenewalCases", fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo User?                 @relation("StaffAssignedDmvRenewalCases", fields: [assignedToId], references: [id], onDelete: SetNull)
+  truck      Truck                 @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  documents  DmvRenewalCaseDocument[]
+  statusHistory DmvRenewalCaseStatusHistory[]
+  messages   DmvRenewalCaseMessage[]
+
+  @@index([userId])
+  @@index([truckId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model DmvRegistrationJurisdiction {
   id               String  @id @default(cuid())
   registrationId   String
@@ -1157,6 +1221,63 @@ model DmvRenewalDocument {
   @@index([renewalId])
   @@index([documentId])
   @@index([requirementCode])
+}
+
+model DmvRenewalCaseDocument {
+  id               String                    @id @default(cuid())
+  renewalId        String
+  uploadedByUserId String
+  kind             DmvRenewalCaseDocumentKind
+  fileName         String
+  fileUrl          String
+  fileSize         Int?
+  mimeType         String?
+  note             String?
+  visibleToClient  Boolean                   @default(true)
+  sourceDocumentId String?
+  createdAt        DateTime                  @default(now())
+
+  renewal        DmvRenewalCase @relation(fields: [renewalId], references: [id], onDelete: Cascade)
+  uploadedBy     User           @relation(fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+  sourceDocument Document?      @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([renewalId])
+  @@index([uploadedByUserId])
+  @@index([kind])
+  @@index([sourceDocumentId])
+}
+
+model DmvRenewalCaseStatusHistory {
+  id              String               @id @default(cuid())
+  renewalId       String
+  fromStatus      DmvRenewalCaseStatus?
+  toStatus        DmvRenewalCaseStatus
+  changedByUserId String
+  note            String?
+  createdAt       DateTime             @default(now())
+
+  renewal   DmvRenewalCase @relation(fields: [renewalId], references: [id], onDelete: Cascade)
+  changedBy User           @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([renewalId])
+  @@index([changedByUserId])
+  @@index([createdAt])
+}
+
+model DmvRenewalCaseMessage {
+  id        String                       @id @default(cuid())
+  renewalId String
+  authorId  String
+  audience  DmvRenewalCaseMessageAudience @default(CLIENT_VISIBLE)
+  message   String
+  createdAt DateTime                     @default(now())
+
+  renewal DmvRenewalCase @relation(fields: [renewalId], references: [id], onDelete: Cascade)
+  author  User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([renewalId])
+  @@index([authorId])
+  @@index([audience])
 }
 
 model DmvActivity {

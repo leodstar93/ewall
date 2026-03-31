@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReportSummary,
-  formatCurrency,
   formatNumber,
+  fuelTypeLabel,
   quarterLabel,
+  ReportStatus,
   statusClasses,
   statusLabel,
   truckLabel,
@@ -24,17 +25,16 @@ type IftaDashboardPageProps = {
   newHref?: string;
 };
 
-function StatCard(props: { label: string; value: string | number; hint: string }) {
-  return (
-    <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
-        {props.label}
-      </p>
-      <p className="mt-2 text-3xl font-semibold text-zinc-950">{props.value}</p>
-      <p className="mt-2 text-sm text-zinc-600">{props.hint}</p>
-    </div>
-  );
-}
+type StatusFilter = "ALL" | ReportStatus;
+
+const statusTabs: Array<{ value: StatusFilter; label: string }> = [
+  { value: "ALL", label: "All" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "PENDING_STAFF_REVIEW", label: "Staff Review" },
+  { value: "PENDING_TRUCKER_FINALIZATION", label: "Ready To File" },
+  { value: "FILED", label: "Filed" },
+  { value: "AMENDED", label: "Amended" },
+];
 
 export default function IftaDashboardPage({
   apiBasePath = "/api/v1/features/ifta",
@@ -47,6 +47,7 @@ export default function IftaDashboardPage({
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeStatus, setActiveStatus] = useState<StatusFilter>("ALL");
 
   const loadDashboard = useCallback(async (active = true) => {
     try {
@@ -115,16 +116,20 @@ export default function IftaDashboardPage({
     [apiBasePath, loadDashboard],
   );
 
-  const totals = useMemo(
-    () => ({
-      miles: reports.reduce((sum, report) => sum + Number(report.totalMiles || 0), 0),
-      gallons: reports.reduce(
-        (sum, report) => sum + Number(report.totalGallons || 0),
-        0,
-      ),
-      tax: reports.reduce((sum, report) => sum + Number(report.totalTaxDue || 0), 0),
-    }),
-    [reports],
+  const filteredReports = useMemo(() => {
+    if (activeStatus === "ALL") return reports;
+    return reports.filter((report) => report.status === activeStatus);
+  }, [activeStatus, reports]);
+
+  const countForStatus = useCallback(
+    (status: StatusFilter) => {
+      if (status === "ALL") {
+        return reports.length;
+      }
+
+      return workflowCounts[status] ?? reports.filter((report) => report.status === status).length;
+    },
+    [reports, workflowCounts],
   );
 
   if (loading) {
@@ -140,167 +145,148 @@ export default function IftaDashboardPage({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-[32px] border border-zinc-200 bg-[radial-gradient(circle_at_top_left,_rgba(12,74,110,0.18),_transparent_40%),linear-gradient(135deg,_#f4efe4,_#ffffff_55%,_#e6f4ff)] p-8 shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.26em] text-zinc-600">
-              IFTA Manual Workflow
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-              Capture miles and fuel by state, then hand off the report to staff.
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-700">
-              The backend calculates MPG, taxable gallons, and tax due automatically.
-              Drivers only enter the manual state totals.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={newHref}
-              className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800"
-            >
-              New manual report
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          label="Reports"
-          value={workflowCounts.total ?? reports.length}
-          hint="Manual reports in your workspace"
-        />
-        <StatCard
-          label="Drafts"
-          value={workflowCounts.DRAFT ?? 0}
-          hint="Still editable by the trucker"
-        />
-        <StatCard
-          label="With Staff"
-          value={workflowCounts.PENDING_STAFF_REVIEW ?? 0}
-          hint="Waiting for staff review"
-        />
-        <StatCard
-          label="Ready To File"
-          value={workflowCounts.PENDING_TRUCKER_FINALIZATION ?? 0}
-          hint="Approved by staff and waiting for you"
-        />
-        <StatCard
-          label="Fleet Ready"
-          value={truckCount}
-          hint="Trucks available for manual filing"
-        />
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
-            Total Miles
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-zinc-950">
-            {formatNumber(totals.miles)}
-          </p>
-        </div>
-        <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
-            Total Gallons
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-zinc-950">
-            {formatNumber(totals.gallons)}
-          </p>
-        </div>
-        <div className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
-            Estimated Tax
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-zinc-950">
-            {formatCurrency(totals.tax)}
-          </p>
-        </div>
-      </section>
-
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-4">
+      <section className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-zinc-950">Your report queue</h3>
-            <p className="mt-1 text-sm text-zinc-600">
-              Open any report to continue manual entry, submit it to staff, or finalize it
-              after review.
+            <h2 className="text-xl font-semibold text-zinc-950">IFTA</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              {reports.length} reports and {truckCount} trucks available.
             </p>
           </div>
+
           <Link
             href={newHref}
-            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+            className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800"
           >
-            Create report
+            New IFTA
           </Link>
         </div>
 
-        <div className="mt-5 space-y-4">
-          {reports.length === 0 ? (
-            <div className="rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center">
-              <h4 className="text-base font-semibold text-zinc-900">No reports yet</h4>
+        <div className="mt-5 flex flex-wrap gap-2 border-b border-zinc-200 pb-4">
+          {statusTabs.map((tab) => {
+            const isActive = tab.value === activeStatus;
+
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setActiveStatus(tab.value)}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                  isActive
+                    ? "bg-zinc-950 text-white"
+                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`inline-flex min-w-6 items-center justify-center rounded-full px-2 py-0.5 text-xs ${
+                    isActive ? "bg-white/15 text-white" : "bg-white text-zinc-600"
+                  }`}
+                >
+                  {countForStatus(tab.value)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 overflow-hidden rounded-[22px] border border-zinc-200">
+          {filteredReports.length === 0 ? (
+            <div className="bg-zinc-50 px-6 py-14 text-center">
+              <h3 className="text-base font-semibold text-zinc-900">No reports in this status</h3>
               <p className="mt-2 text-sm text-zinc-600">
-                Start with a truck, period, and fuel type. You can enter the state totals on
-                the next screen.
+                Create a new IFTA report or pick another filter.
               </p>
             </div>
           ) : (
-            reports.map((report) => (
-              <article
-                key={report.id}
-                className="rounded-[24px] border border-zinc-200 bg-zinc-50/70 p-5"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h4 className="text-lg font-semibold text-zinc-950">
-                        {report.year} {quarterLabel(report.quarter)}
-                      </h4>
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClasses(report.status)}`}
-                      >
-                        {statusLabel(report.status)}
-                      </span>
-                    </div>
-                    <div className="grid gap-2 text-sm text-zinc-700 sm:grid-cols-2">
-                      <p>{truckLabel(report.truck)}</p>
-                      <p>{report.fuelType === "DI" ? "Diesel" : "Gasoline"}</p>
-                      <p>{formatNumber(report.totalMiles)} mi</p>
-                      <p>{formatNumber(report.totalGallons)} gal</p>
-                      <p>{formatCurrency(report.totalTaxDue)}</p>
-                      <p>{report._count?.lines ?? 0} jurisdictions entered</p>
-                    </div>
-                    {report.reviewNotes && (
-                      <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                        <span className="font-semibold">Staff note:</span> {report.reviewNotes}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    {report.status === "DRAFT" && (
-                      <button
-                        onClick={() => void deleteReport(report)}
-                        disabled={deletingId === report.id}
-                        className="inline-flex items-center justify-center rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                      >
-                        {deletingId === report.id ? "Deleting..." : "Delete draft"}
-                      </button>
-                    )}
-                    <Link
-                      href={`${detailHrefBase}/${report.id}/manual`}
-                      className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
-                    >
-                      Open report
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            ))
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-0">
+                <thead>
+                  <tr className="bg-zinc-50 text-left">
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Period
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Truck
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Fuel
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Miles
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Gallons
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Jurisdictions
+                    </th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white">
+                  {filteredReports.map((report) => (
+                    <tr key={report.id} className="border-t border-zinc-200 align-top">
+                      <td className="px-4 py-4 text-sm text-zinc-800">
+                        <div className="font-semibold text-zinc-950">
+                          {report.year} {quarterLabel(report.quarter)}
+                        </div>
+                        {report.reviewNotes ? (
+                          <p className="mt-2 max-w-sm text-xs text-sky-700">
+                            Staff note: {report.reviewNotes}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-zinc-700">{truckLabel(report.truck)}</td>
+                      <td className="px-4 py-4 text-sm text-zinc-700">
+                        {fuelTypeLabel(report.fuelType)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-zinc-700">
+                        {formatNumber(report.totalMiles)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-zinc-700">
+                        {formatNumber(report.totalGallons)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-zinc-700">
+                        {report._count?.lines ?? 0}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClasses(report.status)}`}
+                        >
+                          {statusLabel(report.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex justify-end gap-2">
+                          {report.status === "DRAFT" && (
+                            <button
+                              onClick={() => void deleteReport(report)}
+                              disabled={deletingId === report.id}
+                              className="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                            >
+                              {deletingId === report.id ? "Deleting..." : "Delete"}
+                            </button>
+                          )}
+                          <Link
+                            href={`${detailHrefBase}/${report.id}/manual`}
+                            className="inline-flex items-center justify-center rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+                          >
+                            Open
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </section>
