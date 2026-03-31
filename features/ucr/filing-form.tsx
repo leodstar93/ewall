@@ -36,8 +36,9 @@ type PreviewState = {
 
 export default function UcrFilingForm(props: UcrFilingFormProps) {
   const router = useRouter();
+  const isCreateMode = props.mode === "create";
   const hasCompanyPrefill =
-    props.mode === "create" &&
+    isCreateMode &&
     Boolean(
       props.initialValues?.legalName ||
         props.initialValues?.usdotNumber ||
@@ -211,11 +212,17 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-zinc-950">
-            {props.mode === "create" ? "Annual filing details" : "Edit filing"}
+            {isCreateMode ? "New UCR filing" : "Edit filing"}
           </h3>
-          <p className="mt-1 text-sm text-zinc-600">
-            UCR fees are always calculated from the active brackets configured in admin settings.
-          </p>
+          {isCreateMode ? (
+            <p className="mt-1 text-sm text-zinc-600">
+              Choose the filing year, truck count, and any notes for this filing.
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-zinc-600">
+              UCR fees are always calculated from the active brackets configured in admin settings.
+            </p>
+          )}
         </div>
         {preview && (
           <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
@@ -231,7 +238,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
         </div>
       )}
 
-      {hasCompanyPrefill && (
+      {hasCompanyPrefill && !isCreateMode && (
         <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
           Company details were prefilled from your Company Profile in Settings, so you do not need to re-enter DOT, MC, EIN, and fleet baseline unless you want to override them for this filing.
         </div>
@@ -249,106 +256,141 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">Filing year</span>
-          <input
-            type="number"
-            value={filingYear}
-            onChange={(event) => setFilingYear(Number(event.target.value))}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-        </label>
+      {isCreateMode ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">Year</span>
+            <input
+              type="number"
+              value={filingYear}
+              onChange={(event) => setFilingYear(Number(event.target.value))}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
 
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">Fleet size</span>
-          <input
-            type="number"
-            min={0}
-            value={fleetSize}
-            onChange={(event) => setFleetSize(Number(event.target.value))}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-        </label>
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">Trucks</span>
+            <input
+              type="number"
+              min={0}
+              value={fleetSize}
+              onChange={(event) => setFleetSize(Number(event.target.value))}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
 
-        <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
-          <span className="font-medium text-zinc-900">Legal company name</span>
-          <input
-            value={legalName}
-            onChange={(event) => setLegalName(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-        </label>
-
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">USDOT number</span>
-          <input
-            value={usdotNumber}
-            onChange={(event) => setUsdotNumber(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-        </label>
-
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">MC number</span>
-          <input
-            value={mcNumber}
-            onChange={(event) => setMcNumber(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-        </label>
-
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">FEIN</span>
-          <input
-            value={fein}
-            onChange={(event) => setFein(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-        </label>
-
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">Base state</span>
-          <input
-            maxLength={2}
-            value={baseState}
-            onChange={(event) => setBaseState(event.target.value.toUpperCase())}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 uppercase outline-none ring-0 focus:border-zinc-400"
-          />
-        </label>
-
-        <div className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">Entity type</span>
-          <div className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-zinc-900">
-            Motor carrier
-          </div>
+          <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
+            <span className="font-medium text-zinc-900">Notes</span>
+            <textarea
+              value={clientNotes}
+              onChange={(event) => setClientNotes(event.target.value)}
+              rows={4}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
         </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">Filing year</span>
+            <input
+              type="number"
+              value={filingYear}
+              onChange={(event) => setFilingYear(Number(event.target.value))}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
 
-        <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-700">
-          <input
-            type="checkbox"
-            checked={interstateOperation}
-            onChange={(event) => setInterstateOperation(event.target.checked)}
-            className="h-4 w-4 rounded border-zinc-300"
-          />
-          <span>
-            <span className="font-medium text-zinc-900">Interstate operation</span>
-            <span className="mt-1 block text-zinc-500">
-              Uncheck only if the company is not operating interstate.
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">Fleet size</span>
+            <input
+              type="number"
+              min={0}
+              value={fleetSize}
+              onChange={(event) => setFleetSize(Number(event.target.value))}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
+            <span className="font-medium text-zinc-900">Legal company name</span>
+            <input
+              value={legalName}
+              onChange={(event) => setLegalName(event.target.value)}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">USDOT number</span>
+            <input
+              value={usdotNumber}
+              onChange={(event) => setUsdotNumber(event.target.value)}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">MC number</span>
+            <input
+              value={mcNumber}
+              onChange={(event) => setMcNumber(event.target.value)}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">FEIN</span>
+            <input
+              value={fein}
+              onChange={(event) => setFein(event.target.value)}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
+
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">Base state</span>
+            <input
+              maxLength={2}
+              value={baseState}
+              onChange={(event) => setBaseState(event.target.value.toUpperCase())}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 uppercase outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
+
+          <div className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">Entity type</span>
+            <div className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-zinc-900">
+              Motor carrier
+            </div>
+          </div>
+
+          <label className="flex items-center gap-3 rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              checked={interstateOperation}
+              onChange={(event) => setInterstateOperation(event.target.checked)}
+              className="h-4 w-4 rounded border-zinc-300"
+            />
+            <span>
+              <span className="font-medium text-zinc-900">Interstate operation</span>
+              <span className="mt-1 block text-zinc-500">
+                Uncheck only if the company is not operating interstate.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
 
-        <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
-          <span className="font-medium text-zinc-900">Client notes</span>
-          <textarea
-            value={clientNotes}
-            onChange={(event) => setClientNotes(event.target.value)}
-            rows={4}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-        </label>
-      </div>
+          <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
+            <span className="font-medium text-zinc-900">Client notes</span>
+            <textarea
+              value={clientNotes}
+              onChange={(event) => setClientNotes(event.target.value)}
+              rows={4}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3">
         <button

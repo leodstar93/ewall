@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getAuthz, hasPermission } from "@/lib/rbac";
-import DmvRenewalPage from "@/features/dmv/renewal-page";
+import { getAuthz } from "@/lib/rbac";
+import DmvRenewalDetailPage from "@/features/dmv-renewals/detail-page";
 
 export default async function AdminDmvRenewalPage({
   params,
@@ -16,14 +16,5 @@ export default async function AdminDmvRenewalPage({
 
   const { id } = await params;
 
-  return (
-    <DmvRenewalPage
-      renewalId={id}
-      mode="staff"
-      canReviewRequirements={
-        hasPermission(perms, roles, "dmv:review") ||
-        hasPermission(perms, roles, "dmv:approve")
-      }
-    />
-  );
+  return <DmvRenewalDetailPage renewalId={id} mode="staff" />;
 }

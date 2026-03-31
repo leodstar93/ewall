@@ -110,6 +110,12 @@ export default function DmvDashboardPage(props: DmvDashboardPageProps) {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
+              href="/dmv/renewals"
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+            >
+              Renewals
+            </Link>
+            <Link
               href={newHref}
               className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
             >

@@ -47,7 +47,7 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/features/documents")) return "Documents";
   if (pathname.startsWith("/admin/features/ifta")) return "IFTA";
   if (pathname.startsWith("/admin/features/ucr")) return "UCR";
-  if (pathname.startsWith("/admin/features/dmv")) return "DMV Registration";
+  if (pathname.startsWith("/admin/features/dmv")) return "DMV Renewals";
   if (pathname.startsWith("/admin/features/2290")) return "Form 2290";
   const last = pathname.split("/").filter(Boolean).pop() ?? "Admin";
   return last.charAt(0).toUpperCase() + last.slice(1);
@@ -132,8 +132,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         moduleKey: "ucr",
       },
       {
-        href: "/admin/features/dmv",
-        label: "DMV Registration",
+        href: "/admin/features/dmv/renewals",
+        label: "DMV Renewals",
         permission: "dmv:read",
         moduleKey: "dmv",
       },

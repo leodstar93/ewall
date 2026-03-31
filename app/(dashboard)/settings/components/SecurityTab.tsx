@@ -7,7 +7,6 @@ import {
   Field,
   InlineAlert,
   PanelCard,
-  StatusBadge,
   textInputClassName,
 } from "./settings-ui";
 
@@ -163,26 +162,17 @@ export default function SecurityTab({
 
   return (
     <PanelCard
-      eyebrow="Access Control"
       title="Security"
-      description="Review connected providers, rotate your password, and prepare for future session management controls."
+      description="Password and connected accounts."
     >
       <div className="space-y-6">
-        <div className="flex flex-wrap gap-3">
-          <StatusBadge tone="green">Password self-service</StatusBadge>
-          <StatusBadge tone="amber">Logout all sessions coming soon</StatusBadge>
-        </div>
-
         {error ? <InlineAlert tone="error" message={error} /> : null}
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
-            <h3 className="text-lg font-semibold text-zinc-950">Change password</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Use your current password to set a new one for credential-based sign-in.
-            </p>
+            <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
+              <h3 className="text-lg font-semibold text-zinc-950">Change password</h3>
 
-            <div className="mt-5 space-y-4">
+              <div className="mt-5 space-y-4">
               <Field label="Current password">
                 <input
                   type="password"
@@ -190,7 +180,6 @@ export default function SecurityTab({
                   value={passwordForm.currentPassword}
                   onChange={handlePasswordChange}
                   className={textInputClassName()}
-                  placeholder="Current password"
                 />
               </Field>
 
@@ -201,7 +190,6 @@ export default function SecurityTab({
                   value={passwordForm.newPassword}
                   onChange={handlePasswordChange}
                   className={textInputClassName()}
-                  placeholder="At least 8 characters"
                 />
               </Field>
 
@@ -212,7 +200,6 @@ export default function SecurityTab({
                   value={passwordForm.confirmPassword}
                   onChange={handlePasswordChange}
                   className={textInputClassName()}
-                  placeholder="Repeat the new password"
                 />
               </Field>
 
@@ -232,11 +219,8 @@ export default function SecurityTab({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-zinc-950">Connected accounts</h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-600">
-                    Review identity providers linked to this account.
-                  </p>
                 </div>
-                {loadingAccounts ? <StatusBadge tone="zinc">Loading</StatusBadge> : null}
+                {loadingAccounts ? <span className="text-sm text-zinc-500">Loading...</span> : null}
               </div>
 
               <div className="mt-5 space-y-3">
@@ -261,7 +245,7 @@ export default function SecurityTab({
                           {account.providerAccountId}
                         </p>
                       </div>
-                      <StatusBadge tone="green">Linked</StatusBadge>
+                      <span className="text-sm text-zinc-500">Linked</span>
                     </div>
                   </div>
                 ))}
@@ -270,10 +254,6 @@ export default function SecurityTab({
 
             <div className="rounded-[28px] border border-zinc-200 bg-white p-5">
               <h3 className="text-lg font-semibold text-zinc-950">Session controls</h3>
-              <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Log out of the current device now. Global session revocation stays reserved for
-                a future rollout.
-              </p>
 
               <div className="mt-5 flex flex-wrap gap-3">
                 <button

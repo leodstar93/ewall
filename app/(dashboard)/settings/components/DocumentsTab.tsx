@@ -6,8 +6,8 @@ export default function DocumentsTab() {
   return (
     <DocumentsPage
       embedded
-      title="Account documents"
-      subtitle="Upload, review, and manage your user documents directly inside account settings."
+      title="Documents"
+      subtitle="Manage your documents."
     />
   );
 }

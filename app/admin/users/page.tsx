@@ -91,8 +91,8 @@ function parsePageSize(value: string): UserPageSize {
 }
 
 function getImpersonationDestination(permissions: string[]) {
-  if (permissions.includes("dashboard:access")) return "/panel";
   if (permissions.includes("settings:read")) return "/settings";
+  if (permissions.includes("dashboard:access")) return "/settings";
   if (permissions.includes("documents:read")) return "/documents";
   if (permissions.includes("truck:read")) return "/trucks";
   if (permissions.includes("ifta:read")) return "/ifta";

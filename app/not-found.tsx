@@ -63,7 +63,7 @@ export default function NotFoundPage() {
           <p className="text-gray-600 mb-4">Need help?</p>
           <div className="flex justify-center gap-6">
             <Link
-              href="/panel"
+              href="/settings"
               className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
             >
               Dashboard

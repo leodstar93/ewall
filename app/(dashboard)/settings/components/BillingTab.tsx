@@ -234,9 +234,8 @@ export default function BillingTab({
 
   return (
     <PanelCard
-      eyebrow="Organization Billing"
-      title="Subscription, modules, and payment state"
-      description="Billing is owned by the organization. Access is granted by entitlements, not directly by Stripe or PayPal."
+      title="Billing"
+      description="Subscription and module access."
     >
       <div className="space-y-6">
         {loading ? <div className="text-sm text-zinc-500">Loading billing overview...</div> : null}
@@ -294,16 +293,10 @@ export default function BillingTab({
                     {canceling ? "Canceling..." : "Cancel subscription"}
                   </button>
                 </div>
-                <p className="mt-3 text-xs text-zinc-500">
-                  Payment methods are managed from the Payment Methods tab. Subscriptions are billed directly by the backend using the saved provider token.
-                </p>
               </article>
 
               <article className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-zinc-950">Start or change subscription</h3>
-                <p className="mt-2 text-sm text-zinc-600">
-                  Pick a plan and the saved payment method you want to bill. The provider is inferred from that method, so there is only one subscription action.
-                </p>
                 <div className="mt-4 space-y-4">
                   <Field label="Select plan">
                     <select
@@ -351,7 +344,6 @@ export default function BillingTab({
                         value={couponCode}
                         onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
                         className={textInputClassName()}
-                        placeholder="OPTIONAL"
                       />
                       <button
                         type="button"

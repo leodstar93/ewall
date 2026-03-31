@@ -459,21 +459,10 @@ export default function PaymentMethodsTab({
 
   return (
     <PanelCard
-      eyebrow="Billing Rails"
       title="Payment methods"
-      description="Use PayPal or Stripe the easy way. We send the user to the provider or collect the card securely with Stripe, then save only the reference in your account."
+      description="Manage your saved payment methods."
     >
       <div className="space-y-6">
-        <div className="flex flex-wrap gap-3">
-          <StatusBadge tone="green">References only</StatusBadge>
-          <StatusBadge tone="blue">Stripe + PayPal ready</StatusBadge>
-        </div>
-
-        <InlineAlert
-          tone="info"
-          message="PayPal opens a provider approval flow. Stripe collects the card securely and stores it in Stripe. Your app saves only the tokenized reference."
-        />
-
         {error ? <InlineAlert tone="error" message={error} /> : null}
         {savingPayPal ? (
           <InlineAlert
@@ -563,11 +552,6 @@ export default function PaymentMethodsTab({
                   <h3 className="text-lg font-semibold text-zinc-950">
                     {hasLinkedPayPal ? "PayPal account linked" : "Link PayPal"}
                   </h3>
-                  <p className="mt-2 text-sm leading-6 text-zinc-600">
-                    {hasLinkedPayPal
-                      ? `Your account is currently linked to ${primaryPayPalMethod?.paypalEmail || "PayPal"}. You can keep using it or link another PayPal account.`
-                      : "Tap one button, finish the approval in PayPal, and come back with the reference saved automatically."}
-                  </p>
                 </div>
                 <StatusBadge tone={hasLinkedPayPal ? "green" : "blue"}>
                   {hasLinkedPayPal ? "Linked" : "Redirect"}

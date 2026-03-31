@@ -9,7 +9,7 @@ function LinkCallbackPageContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/panel/users/profile";
+  const callbackUrl = searchParams.get("callbackUrl") || "/settings";
   const message =
     status === "authenticated" && session?.user?.id
       ? "Account linked successfully!"

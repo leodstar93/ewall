@@ -83,6 +83,7 @@ export default function TrucksDashboardPage() {
   const [pageSize, setPageSize] =
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<TruckFormState>(emptyForm);
 
   const load = useCallback(async () => {
@@ -159,6 +160,7 @@ export default function TrucksDashboardPage() {
       setMessage(editingId ? "Truck updated." : "Truck created.");
       setForm(emptyForm);
       setEditingId(null);
+      setIsModalOpen(false);
       await load();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save the truck.");
@@ -200,6 +202,7 @@ export default function TrucksDashboardPage() {
     setForm(toForm(truck));
     setMessage(null);
     setError(null);
+    setIsModalOpen(true);
   }
 
   function resetForm() {
@@ -207,6 +210,7 @@ export default function TrucksDashboardPage() {
     setForm(emptyForm);
     setMessage(null);
     setError(null);
+    setIsModalOpen(false);
   }
 
   if (loading) {
@@ -215,18 +219,6 @@ export default function TrucksDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[32px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fafc,_#ffffff_50%,_#dbeafe)] p-8 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-          Fleet Records
-        </p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-          Manage your trucks in one place.
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-700">
-          Create, update, and remove trucks without leaving the dashboard. These records are reused by IFTA and 2290 workflows.
-        </p>
-      </section>
-
       {error && (
         <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
           {error}
@@ -239,146 +231,35 @@ export default function TrucksDashboardPage() {
         </div>
       )}
 
-      <section className="grid gap-6 xl:grid-cols-[1fr_1.5fr]">
-        <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold text-zinc-950">
-                {editingId ? "Edit truck" : "Add truck"}
-              </h3>
-              <p className="mt-1 text-sm text-zinc-600">
-                Unit number is required. VIN and weight help downstream filings.
-              </p>
-            </div>
-            {editingId && (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <label className="space-y-2 text-sm text-zinc-700">
-              <span className="font-medium text-zinc-900">Unit number</span>
-              <input
-                value={form.unitNumber}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, unitNumber: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-zinc-700">
-              <span className="font-medium text-zinc-900">Nickname</span>
-              <input
-                value={form.nickname}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, nickname: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-zinc-700">
-              <span className="font-medium text-zinc-900">Plate number</span>
-              <input
-                value={form.plateNumber}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, plateNumber: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-zinc-700">
-              <span className="font-medium text-zinc-900">VIN</span>
-              <input
-                value={form.vin}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, vin: event.target.value.toUpperCase() }))
-                }
-                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 uppercase outline-none ring-0 focus:border-zinc-400"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-zinc-700">
-              <span className="font-medium text-zinc-900">Make</span>
-              <input
-                value={form.make}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, make: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-zinc-700">
-              <span className="font-medium text-zinc-900">Model</span>
-              <input
-                value={form.model}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, model: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-zinc-700">
-              <span className="font-medium text-zinc-900">Year</span>
-              <input
-                type="number"
-                value={form.year}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, year: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-              />
-            </label>
-            <label className="space-y-2 text-sm text-zinc-700">
-              <span className="font-medium text-zinc-900">Gross weight</span>
-              <input
-                type="number"
-                value={form.grossWeight}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, grossWeight: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-              />
-            </label>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => void saveTruck()}
-              disabled={busy !== null || !form.unitNumber.trim()}
-              className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-            >
-              {busy === (editingId ?? "create")
-                ? "Saving..."
-                : editingId
-                  ? "Save changes"
-                  : "Create truck"}
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-zinc-950">Your trucks</h3>
-              <p className="mt-1 text-sm text-zinc-600">
-                Search by unit, VIN, make, model, or plate.
-              </p>
             </div>
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Search trucks..."
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none ring-0 focus:border-zinc-400 sm:max-w-xs"
-            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search trucks..."
+                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none ring-0 focus:border-zinc-400 sm:min-w-[280px]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setForm(emptyForm);
+                  setMessage(null);
+                  setError(null);
+                  setIsModalOpen(true);
+                }}
+                className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+              >
+                Add truck
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 overflow-hidden rounded-[24px] border border-zinc-200">
@@ -483,8 +364,136 @@ export default function TrucksDashboardPage() {
               }}
             />
           </div>
-        </div>
       </section>
+
+      {isModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/45 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-4xl rounded-[28px] border border-zinc-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-950">
+                  {editingId ? "Edit truck" : "Add truck"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="space-y-2 text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">Unit number</span>
+                <input
+                  value={form.unitNumber}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, unitNumber: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">Nickname</span>
+                <input
+                  value={form.nickname}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, nickname: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">Plate number</span>
+                <input
+                  value={form.plateNumber}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, plateNumber: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">VIN</span>
+                <input
+                  value={form.vin}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, vin: event.target.value.toUpperCase() }))
+                  }
+                  className="w-full rounded-2xl border border-zinc-200 px-4 py-3 uppercase outline-none ring-0 focus:border-zinc-400"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">Make</span>
+                <input
+                  value={form.make}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, make: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">Model</span>
+                <input
+                  value={form.model}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, model: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">Year</span>
+                <input
+                  type="number"
+                  value={form.year}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, year: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">Gross weight</span>
+                <input
+                  type="number"
+                  value={form.grossWeight}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, grossWeight: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+                disabled={busy !== null}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveTruck()}
+                disabled={busy !== null || !form.unitNumber.trim()}
+                className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+              >
+                {busy === (editingId ?? "create")
+                  ? "Saving..."
+                  : editingId
+                    ? "Save changes"
+                    : "Create truck"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

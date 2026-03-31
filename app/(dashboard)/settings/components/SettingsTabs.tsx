@@ -8,8 +8,8 @@ import DocumentsTab from "./DocumentsTab";
 import PaymentMethodsTab from "./PaymentMethodsTab";
 import PersonalInfoTab from "./PersonalInfoTab";
 import SecurityTab from "./SecurityTab";
+import TrucksDashboardPage from "@/features/trucks/dashboard-page";
 import {
-  StatusBadge,
   ToastViewport,
   type SettingsToast,
   cx,
@@ -20,51 +20,111 @@ type NotifyInput = {
   message: string;
 };
 
+type PersonalSummary = {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+};
+
+type CompanySummary = {
+  legalName: string;
+  dbaName: string;
+  dotNumber: string;
+  mcNumber: string;
+  ein: string;
+  businessPhone: string;
+  address: string;
+  state: string;
+  trucksCount: string;
+  driversCount: string;
+};
+
 const tabs = [
   {
     id: "personal",
     label: "Personal Info",
-    caption: "Identity and contact details",
   },
   {
     id: "company",
-    label: "Company & Compliance",
-    caption: "DOT, MC, EIN, fleet baseline",
+    label: "Company",
   },
   {
     id: "payments",
-    label: "Payment Methods",
-    caption: "Stripe/PayPal references only",
+    label: "Payments",
   },
   {
     id: "billing",
     label: "Billing",
-    caption: "Subscriptions, entitlements, and checkout",
   },
   {
     id: "documents",
     label: "Documents",
-    caption: "Future-ready placeholder",
+  },
+  {
+    id: "trucks",
+    label: "Trucks and Trailers",
   },
   {
     id: "security",
     label: "Security",
-    caption: "Password and connected accounts",
   },
 ] as const;
 
 export default function SettingsTabs({
   billingEnabled,
+  trucksEnabled,
 }: {
   billingEnabled: boolean;
+  trucksEnabled: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [toasts, setToasts] = useState<SettingsToast[]>([]);
-  const availableTabs = billingEnabled ? tabs : tabs.filter((tab) => tab.id !== "billing");
+  const [personalSummary, setPersonalSummary] = useState<PersonalSummary | null>(null);
+  const [companySummary, setCompanySummary] = useState<CompanySummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const availableTabs = tabs.filter((tab) => {
+    if (!billingEnabled && tab.id === "billing") {
+      return false;
+    }
+
+    if (!trucksEnabled && tab.id === "trucks") {
+      return false;
+    }
+
+    return true;
+  });
   const requestedTab = searchParams.get("tab");
-  const activeTab = availableTabs.find((tab) => tab.id === requestedTab)?.id ?? "personal";
+  const activeTab = availableTabs.find((tab) => tab.id === requestedTab)?.id ?? null;
+
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+
+    try {
+      const [personalResponse, companyResponse] = await Promise.all([
+        fetch("/api/settings/personal", { cache: "no-store" }),
+        fetch("/api/settings/company", { cache: "no-store" }),
+      ]);
+
+      const personalPayload = (await personalResponse.json().catch(() => ({}))) as PersonalSummary;
+      const companyPayload = (await companyResponse.json().catch(() => ({}))) as CompanySummary;
+
+      if (personalResponse.ok) {
+        setPersonalSummary(personalPayload);
+      }
+
+      if (companyResponse.ok) {
+        setCompanySummary(companyPayload);
+      }
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, []);
 
   const notify = useCallback(({ tone, message }: NotifyInput) => {
     const id =
@@ -76,11 +136,14 @@ export default function SettingsTabs({
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 2600);
-  }, []);
+    if (tone === "success") {
+      void loadSummary();
+    }
+  }, [loadSummary]);
 
   const selectTab = (tabId: (typeof tabs)[number]["id"]) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (tabId === "personal") {
+    if (activeTab === tabId) {
       params.delete("tab");
     } else {
       params.set("tab", tabId);
@@ -93,7 +156,7 @@ export default function SettingsTabs({
   };
 
   useEffect(() => {
-    if (billingEnabled || requestedTab !== "billing") {
+    if ((billingEnabled || requestedTab !== "billing") && (trucksEnabled || requestedTab !== "trucks")) {
       return;
     }
 
@@ -103,37 +166,147 @@ export default function SettingsTabs({
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
       scroll: false,
     });
-  }, [billingEnabled, pathname, requestedTab, router, searchParams]);
+  }, [billingEnabled, pathname, requestedTab, router, searchParams, trucksEnabled]);
+
+  useEffect(() => {
+    let active = true;
+
+    const run = async () => {
+      try {
+        const [personalResponse, companyResponse] = await Promise.all([
+          fetch("/api/settings/personal", { cache: "no-store" }),
+          fetch("/api/settings/company", { cache: "no-store" }),
+        ]);
+
+        const personalPayload = (await personalResponse.json().catch(() => ({}))) as PersonalSummary;
+        const companyPayload = (await companyResponse.json().catch(() => ({}))) as CompanySummary;
+
+        if (!active) return;
+
+        if (personalResponse.ok) {
+          setPersonalSummary(personalPayload);
+        }
+
+        if (companyResponse.ok) {
+          setCompanySummary(companyPayload);
+        }
+      } finally {
+        if (active) {
+          setSummaryLoading(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <ToastViewport toasts={toasts} />
 
-      <section className="rounded-[32px] border border-zinc-200 bg-[linear-gradient(135deg,_#fff7ed,_#ffffff_48%,_#ecfeff)] p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-              Account Settings
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-              The account foundation that powers every compliance workflow.
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-600">
-              Keep personal identity, company compliance data, billing references, and
-              security controls in one place so future IFTA, UCR, DMV, and 2290 flows can
-              reuse a single source of truth.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="green">Upsert-based persistence</StatusBadge>
-            <StatusBadge tone="blue">Stripe-safe storage</StatusBadge>
-            <StatusBadge tone="amber">Documents ready next</StatusBadge>
-          </div>
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-zinc-950">
+            Dashboard
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Manage your account in one place.
+          </p>
         </div>
-      </section>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-[30px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fbff,_#ffffff_50%,_#eef6ff)] p-5 shadow-sm">
+          {summaryLoading ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
+              <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                  Personal
+                </p>
+                <h3 className="mt-3 text-lg font-semibold text-zinc-950">
+                  {personalSummary?.name || "No personal info yet"}
+                </h3>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Email</p>
+                    <p className="mt-1 text-sm text-zinc-800">
+                      {personalSummary?.email || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Phone</p>
+                    <p className="mt-1 text-sm text-zinc-800">
+                      {personalSummary?.phone || "Not set"}
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Address</p>
+                    <p className="mt-1 text-sm text-zinc-800">
+                      {[
+                        personalSummary?.address,
+                        personalSummary?.city,
+                        personalSummary?.state,
+                        personalSummary?.zip,
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "Not set"}
+                    </p>
+                  </div>
+                </div>
+              </article>
+
+              <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                  Company
+                </p>
+                <h3 className="mt-3 text-lg font-semibold text-zinc-950">
+                  {companySummary?.legalName || companySummary?.dbaName || "No company info yet"}
+                </h3>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">USDOT</p>
+                    <p className="mt-1 text-sm text-zinc-800">
+                      {companySummary?.dotNumber || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">MC</p>
+                    <p className="mt-1 text-sm text-zinc-800">
+                      {companySummary?.mcNumber || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Phone</p>
+                    <p className="mt-1 text-sm text-zinc-800">
+                      {companySummary?.businessPhone || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Fleet</p>
+                    <p className="mt-1 text-sm text-zinc-800">
+                      {companySummary?.trucksCount || "0"} trucks / {companySummary?.driversCount || "0"} drivers
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Address</p>
+                    <p className="mt-1 text-sm text-zinc-800">
+                      {[companySummary?.address, companySummary?.state].filter(Boolean).join(", ") || "Not set"}
+                    </p>
+                  </div>
+                </div>
+              </article>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
         {availableTabs.map((tab) => {
           const isActive = tab.id === activeTab;
 
@@ -143,31 +316,25 @@ export default function SettingsTabs({
               type="button"
               onClick={() => selectTab(tab.id)}
               className={cx(
-                "rounded-[26px] border p-4 text-left transition",
+                "rounded-full border px-4 py-2 text-sm font-medium transition",
                 isActive
-                  ? "border-zinc-900 bg-zinc-900 text-white shadow-lg shadow-zinc-950/10"
-                  : "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-300 hover:bg-zinc-50",
+                  ? "border-zinc-900 bg-zinc-900 text-white"
+                  : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50",
               )}
             >
-              <div className="text-sm font-semibold">{tab.label}</div>
-              <div
-                className={cx(
-                  "mt-2 text-xs leading-5",
-                  isActive ? "text-zinc-300" : "text-zinc-500",
-                )}
-              >
-                {tab.caption}
-              </div>
+              {tab.label}
             </button>
           );
         })}
-      </div>
+        </div>
+      </section>
 
       {activeTab === "personal" ? <PersonalInfoTab onNotify={notify} /> : null}
       {activeTab === "company" ? <CompanyTab onNotify={notify} /> : null}
       {activeTab === "payments" ? <PaymentMethodsTab onNotify={notify} /> : null}
       {billingEnabled && activeTab === "billing" ? <BillingTab onNotify={notify} /> : null}
       {activeTab === "documents" ? <DocumentsTab /> : null}
+      {trucksEnabled && activeTab === "trucks" ? <TrucksDashboardPage /> : null}
       {activeTab === "security" ? <SecurityTab onNotify={notify} /> : null}
     </div>
   );

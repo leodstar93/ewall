@@ -6,7 +6,6 @@ import {
   InlineAlert,
   LoadingPanel,
   PanelCard,
-  StatusBadge,
   StickyActions,
   textInputClassName,
 } from "./settings-ui";
@@ -22,6 +21,13 @@ type CompanyProfile = {
   state: string;
   trucksCount: string;
   driversCount: string;
+};
+
+type SaferLookupResponse = {
+  found?: boolean;
+  company?: Partial<CompanyProfile>;
+  warnings?: string[];
+  error?: string;
 };
 
 const emptyState: CompanyProfile = {
@@ -46,7 +52,12 @@ export default function CompanyTab({
   const [initialForm, setInitialForm] = useState<CompanyProfile>(emptyState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
+  const [searchMessage, setSearchMessage] = useState<{
+    tone: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -97,23 +108,83 @@ export default function CompanyTab({
     [form, initialForm],
   );
 
-  const completeness = useMemo(() => {
-    const requiredKeys: Array<keyof CompanyProfile> = [
-      "legalName",
-      "dotNumber",
-      "mcNumber",
-      "ein",
-      "trucksCount",
-      "driversCount",
-    ];
-
-    const completed = requiredKeys.filter((key) => form[key].trim().length > 0).length;
-    return Math.round((completed / requiredKeys.length) * 100);
-  }, [form]);
-
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleSearch = async () => {
+    const dotNumber = form.dotNumber.trim();
+
+    if (!dotNumber) {
+      setSearchMessage({
+        tone: "error",
+        message: "Enter a USDOT number first.",
+      });
+      return;
+    }
+
+    try {
+      setSearching(true);
+      setError("");
+      setSearchMessage({
+        tone: "info",
+        message: "Searching SAFER...",
+      });
+
+      const response = await fetch("/api/v1/integrations/safer/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dotNumber }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as SaferLookupResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ||
+            payload.warnings?.[0] ||
+            "We couldn't retrieve company data from SAFER right now.",
+        );
+      }
+
+      if (!payload.found || !payload.company) {
+        setSearchMessage({
+          tone: "info",
+          message: payload.warnings?.[0] || "No company found for this USDOT number.",
+        });
+        return;
+      }
+
+      const nextForm: CompanyProfile = {
+        ...form,
+        legalName: payload.company.legalName ?? form.legalName,
+        dbaName: payload.company.dbaName ?? "",
+        dotNumber: payload.company.dotNumber ?? form.dotNumber,
+        mcNumber: payload.company.mcNumber ?? form.mcNumber,
+        businessPhone: payload.company.businessPhone ?? form.businessPhone,
+        address: payload.company.address ?? form.address,
+        state: payload.company.state ?? form.state,
+        trucksCount: payload.company.trucksCount ?? form.trucksCount,
+        driversCount: payload.company.driversCount ?? form.driversCount,
+      };
+
+      setForm(nextForm);
+      setSearchMessage({
+        tone: "success",
+        message: "Company found. Review the fields and save your changes.",
+      });
+    } catch (searchError) {
+      setSearchMessage({
+        tone: "error",
+        message:
+          searchError instanceof Error
+            ? searchError.message
+            : "We couldn't retrieve company data from SAFER right now.",
+      });
+    } finally {
+      setSearching(false);
+    }
   };
 
   const handleSave = async () => {
@@ -155,20 +226,40 @@ export default function CompanyTab({
 
   return (
     <PanelCard
-      eyebrow="Compliance Core"
-      title="Company and compliance profile"
-      description="This record becomes the shared source for DOT, MC, EIN, and fleet sizing across UCR, IFTA, DMV, and 2290 workflows."
+      title="Company information"
+      description="Core company details."
     >
       {loading ? <LoadingPanel /> : null}
 
       {!loading ? (
         <div className="space-y-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge tone="blue">Profile {completeness}% complete</StatusBadge>
-            <StatusBadge tone="amber">DOT/MC/EIN validated on save</StatusBadge>
-          </div>
-
           {error ? <InlineAlert tone="error" message={error} /> : null}
+          {searchMessage ? (
+            <InlineAlert tone={searchMessage.tone} message={searchMessage.message} />
+          ) : null}
+
+          <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-4">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <Field label="USDOT number">
+                <input
+                  name="dotNumber"
+                  value={form.dotNumber}
+                  onChange={handleChange}
+                  className={textInputClassName()}
+                  inputMode="numeric"
+                />
+              </Field>
+
+              <button
+                type="button"
+                onClick={() => void handleSearch()}
+                className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+                disabled={searching || !form.dotNumber.trim()}
+              >
+                {searching ? "Searching..." : "Search"}
+              </button>
+            </div>
+          </div>
 
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Legal name">
@@ -177,7 +268,6 @@ export default function CompanyTab({
                 value={form.legalName}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="Silver State Logistics LLC"
               />
             </Field>
 
@@ -187,17 +277,6 @@ export default function CompanyTab({
                 value={form.dbaName}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="Silver State Freight"
-              />
-            </Field>
-
-            <Field label="DOT number">
-              <input
-                name="dotNumber"
-                value={form.dotNumber}
-                onChange={handleChange}
-                className={textInputClassName()}
-                placeholder="1234567"
               />
             </Field>
 
@@ -207,7 +286,6 @@ export default function CompanyTab({
                 value={form.mcNumber}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="MC-123456"
               />
             </Field>
 
@@ -217,7 +295,6 @@ export default function CompanyTab({
                 value={form.ein}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="12-3456789"
               />
             </Field>
 
@@ -227,7 +304,6 @@ export default function CompanyTab({
                 value={form.businessPhone}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="(702) 555-0199"
               />
             </Field>
 
@@ -237,7 +313,6 @@ export default function CompanyTab({
                 value={form.address}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="4500 Haul Rd"
               />
             </Field>
 
@@ -247,7 +322,6 @@ export default function CompanyTab({
                 value={form.state}
                 onChange={handleChange}
                 className={textInputClassName()}
-                placeholder="NV"
               />
             </Field>
 
@@ -258,7 +332,6 @@ export default function CompanyTab({
                 onChange={handleChange}
                 className={textInputClassName()}
                 inputMode="numeric"
-                placeholder="8"
               />
             </Field>
 
@@ -269,18 +342,8 @@ export default function CompanyTab({
                 onChange={handleChange}
                 className={textInputClassName()}
                 inputMode="numeric"
-                placeholder="12"
               />
             </Field>
-          </div>
-
-          <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-4">
-            <p className="text-sm font-semibold text-zinc-900">Next modules that plug into this</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              IFTA filing setup, UCR registration, Form 2290 preparation, and DMV registration
-              flows can all reuse this company profile instead of asking the carrier for the same
-              compliance identifiers multiple times.
-            </p>
           </div>
 
           {isDirty ? (

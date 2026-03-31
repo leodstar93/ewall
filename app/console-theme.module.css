@@ -524,6 +524,75 @@
   padding: 1.15rem;
 }
 
+.contentInner :where(table) {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.contentInner :where(table thead th) {
+  background: linear-gradient(180deg, #fcfdff 0%, #eff5fb 100%);
+  color: #6b8093;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-top: 1px solid rgba(8, 38, 63, 0.06);
+  border-bottom: 1px solid rgba(8, 38, 63, 0.1);
+}
+
+.contentInner :where(table thead th:first-child) {
+  border-top-left-radius: 1rem;
+}
+
+.contentInner :where(table thead th:last-child) {
+  border-top-right-radius: 1rem;
+}
+
+.contentInner :where(table tbody td) {
+  position: relative;
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid rgba(8, 38, 63, 0.07);
+  color: #29475f;
+  transition:
+    background-color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.contentInner :where(table tbody tr:nth-child(even) td) {
+  background: #fbfdff;
+}
+
+.contentInner :where(table tbody tr:hover td) {
+  background: #f2f8ff;
+}
+
+.contentInner :where(table tbody tr:last-child td) {
+  border-bottom: none;
+}
+
+.contentInner :where(table tbody td p + p) {
+  margin-top: 0.2rem;
+}
+
+.contentInner :where(table tbody td span[class*="rounded-full"]) {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65),
+    0 2px 6px rgba(8, 38, 63, 0.08);
+}
+
+.contentInner :where(table tbody td a),
+.contentInner :where(table tbody td button) {
+  box-shadow: 0 1px 2px rgba(8, 38, 63, 0.05);
+}
+
+.contentInner :where(table tbody td a:hover),
+.contentInner :where(table tbody td button:hover) {
+  box-shadow: 0 6px 16px rgba(8, 38, 63, 0.08);
+}
+
 .warningBox {
   border-radius: 0.8rem;
   border: 1px solid #f2d298;
