@@ -269,35 +269,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
               <div className={styles.brandActions}>
                 <span className={styles.roleBadge}>{roleBadge}</span>
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  className={styles.sidebarToggle}
-                  aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                  title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                >
-                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                    <path
-                      d="M4 4.75C4 4.336 4.336 4 4.75 4H6.5C6.914 4 7.25 4.336 7.25 4.75V15.25C7.25 15.664 6.914 16 6.5 16H4.75C4.336 16 4 15.664 4 15.25V4.75Z"
-                      fill="currentColor"
-                    />
-                    <path
-                      d="M9.75 5.25C9.75 4.836 10.086 4.5 10.5 4.5H15.25C15.664 4.5 16 4.836 16 5.25V6C16 6.414 15.664 6.75 15.25 6.75H10.5C10.086 6.75 9.75 6.414 9.75 6V5.25Z"
-                      fill="currentColor"
-                      opacity=".9"
-                    />
-                    <path
-                      d="M9.75 9.625C9.75 9.211 10.086 8.875 10.5 8.875H15.25C15.664 8.875 16 9.211 16 9.625V10.375C16 10.789 15.664 11.125 15.25 11.125H10.5C10.086 11.125 9.75 10.789 9.75 10.375V9.625Z"
-                      fill="currentColor"
-                      opacity=".72"
-                    />
-                    <path
-                      d="M9.75 14C9.75 13.586 10.086 13.25 10.5 13.25H15.25C15.664 13.25 16 13.586 16 14V14.75C16 15.164 15.664 15.5 15.25 15.5H10.5C10.086 15.5 9.75 15.164 9.75 14.75V14Z"
-                      fill="currentColor"
-                      opacity=".55"
-                    />
-                  </svg>
-                </button>
               </div>
             </div>
 
@@ -404,12 +375,44 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <div className={styles.mainWrap}>
           <header className={styles.topbar}>
             <div className={styles.topbarInner}>
-              <div className="min-w-0">
-                <div className={styles.breadcrumb}>
-                  {consoleLabel} <span className="mx-1">/</span>{" "}
-                  <span className={styles.breadcrumbCurrent}>{pageTitle}</span>
+              <div className={styles.topbarLead}>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className={styles.topbarSidebarToggle}
+                  aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path
+                      d="M4 4.75C4 4.336 4.336 4 4.75 4H6.5C6.914 4 7.25 4.336 7.25 4.75V15.25C7.25 15.664 6.914 16 6.5 16H4.75C4.336 16 4 15.664 4 15.25V4.75Z"
+                      fill="currentColor"
+                    />
+                    <path
+                      d="M9.75 5.25C9.75 4.836 10.086 4.5 10.5 4.5H15.25C15.664 4.5 16 4.836 16 5.25V6C16 6.414 15.664 6.75 15.25 6.75H10.5C10.086 6.75 9.75 6.414 9.75 6V5.25Z"
+                      fill="currentColor"
+                      opacity=".9"
+                    />
+                    <path
+                      d="M9.75 9.625C9.75 9.211 10.086 8.875 10.5 8.875H15.25C15.664 8.875 16 9.211 16 9.625V10.375C16 10.789 15.664 11.125 15.25 11.125H10.5C10.086 11.125 9.75 10.789 9.75 10.375V9.625Z"
+                      fill="currentColor"
+                      opacity=".72"
+                    />
+                    <path
+                      d="M9.75 14C9.75 13.586 10.086 13.25 10.5 13.25H15.25C15.664 13.25 16 13.586 16 14V14.75C16 15.164 15.664 15.5 15.25 15.5H10.5C10.086 15.5 9.75 15.164 9.75 14.75V14Z"
+                      fill="currentColor"
+                      opacity=".55"
+                    />
+                  </svg>
+                </button>
+
+                <div className="min-w-0">
+                  <div className={styles.breadcrumb}>
+                    {consoleLabel} <span className="mx-1">/</span>{" "}
+                    <span className={styles.breadcrumbCurrent}>{pageTitle}</span>
+                  </div>
+                  <h1 className={styles.pageTitle}>{pageTitle}</h1>
                 </div>
-                <h1 className={styles.pageTitle}>{pageTitle}</h1>
               </div>
 
               <div className={styles.topActions}>
