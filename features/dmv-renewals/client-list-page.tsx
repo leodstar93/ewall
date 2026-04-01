@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 import {
   dmvRenewalStatusClasses,
   dmvRenewalStatusLabel,
@@ -44,6 +46,13 @@ export default function DmvRenewalClientListPage() {
   const [status, setStatus] = useState<"ALL" | DmvRenewalCaseStatus>("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [status, items.length, pageSize]);
 
   useEffect(() => {
     async function load() {
@@ -78,6 +87,10 @@ export default function DmvRenewalClientListPage() {
   const totalCount = useMemo(
     () => Object.values(counts).reduce((sum, value) => sum + value, 0),
     [counts],
+  );
+  const paginatedItems = useMemo(
+    () => paginateItems(items, page, pageSize),
+    [items, page, pageSize],
   );
 
   return (
@@ -153,7 +166,7 @@ export default function DmvRenewalClientListPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 bg-white">
-                  {items.map((item) => (
+                  {paginatedItems.items.map((item) => (
                     <tr key={item.id}>
                       <td className="px-4 py-4 text-sm">
                         <div className="font-semibold text-zinc-950">{item.caseNumber}</div>
@@ -179,7 +192,7 @@ export default function DmvRenewalClientListPage() {
                       </td>
                     </tr>
                   ))}
-                  {items.length === 0 ? (
+                  {paginatedItems.totalItems === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-4 py-10 text-center text-sm text-zinc-500">
                         No DMV renewals found for this filter.
@@ -189,6 +202,24 @@ export default function DmvRenewalClientListPage() {
                 </tbody>
               </table>
             </div>
+
+            <ClientPaginationControls
+              page={paginatedItems.currentPage}
+              totalPages={paginatedItems.totalPages}
+              pageSize={paginatedItems.pageSize}
+              totalItems={paginatedItems.totalItems}
+              itemLabel="cases"
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) =>
+                setPageSize(
+                  DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                    nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                  )
+                    ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                    : 10,
+                )
+              }
+            />
           </div>
         )}
       </section>

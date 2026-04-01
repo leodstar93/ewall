@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import { getStatusTone } from "@/lib/ui/status-utils";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 import {
   dmvRenewalStatusLabel,
   DmvRenewalCaseStatus,
@@ -56,6 +58,13 @@ export default function DmvRenewalAdminQueuePage() {
   const [status, setStatus] = useState<"ALL" | DmvRenewalCaseStatus>("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
+
+  useEffect(() => {
+    setPage(1);
+  }, [status, items.length, pageSize]);
 
   useEffect(() => {
     async function load() {
@@ -90,6 +99,10 @@ export default function DmvRenewalAdminQueuePage() {
   const totalCount = useMemo(
     () => Object.values(counts).reduce((sum, value) => sum + value, 0),
     [counts],
+  );
+  const paginatedItems = useMemo(
+    () => paginateItems(items, page, pageSize),
+    [items, page, pageSize],
   );
 
   return (
@@ -193,7 +206,7 @@ export default function DmvRenewalAdminQueuePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
-                  {items.map((item) => (
+                  {paginatedItems.items.map((item) => (
                     <tr key={item.id} className="transition hover:bg-zinc-50/70">
                       <td className="px-6 py-4 text-sm">
                         <div className="font-medium text-zinc-900">{item.caseNumber}</div>
@@ -231,7 +244,7 @@ export default function DmvRenewalAdminQueuePage() {
                       </td>
                     </tr>
                   ))}
-                  {items.length === 0 ? (
+                  {paginatedItems.totalItems === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-12 text-center text-sm text-zinc-500">
                         No DMV renewals found for this filter.
@@ -241,6 +254,24 @@ export default function DmvRenewalAdminQueuePage() {
                 </tbody>
               </table>
             </div>
+
+            <ClientPaginationControls
+              page={paginatedItems.currentPage}
+              totalPages={paginatedItems.totalPages}
+              pageSize={paginatedItems.pageSize}
+              totalItems={paginatedItems.totalItems}
+              itemLabel="cases"
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) =>
+                setPageSize(
+                  DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                    nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+                  )
+                    ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                    : 10,
+                )
+              }
+            />
           </div>
         )}
       </section>
