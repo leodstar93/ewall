@@ -368,7 +368,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                       clipRule="evenodd"
                     />
                   </svg>
-                  <span className="select-none">Search...</span>
+                  <span className="select-none">Search or type command...</span>
                   <span className={styles.searchKey}>Ctrl K</span>
                 </div>
 

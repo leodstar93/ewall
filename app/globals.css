@@ -1,57 +1,144 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --placeholder-color: #52525b;
-  --select-color: #27272a;
-  --input-color: #18181b;
+  --background: #f9fafb;
+  --foreground: #101828;
+  --placeholder-color: #98a2b3;
+  --input-color: #344054;
+  --border-color: #e4e7ec;
+  --brand-25: #f2f7ff;
+  --brand-50: #ecf3ff;
+  --brand-100: #dde9ff;
+  --brand-300: #9cb9ff;
+  --brand-500: #465fff;
+  --brand-600: #3641f5;
+  --gray-25: #fcfcfd;
+  --gray-50: #f9fafb;
+  --gray-100: #f2f4f7;
+  --gray-200: #e4e7ec;
+  --gray-300: #d0d5dd;
+  --gray-400: #98a2b3;
+  --gray-500: #667085;
+  --gray-600: #475467;
+  --gray-700: #344054;
+  --gray-800: #1d2939;
+  --success-50: #ecfdf3;
+  --success-500: #12b76a;
+  --warning-50: #fffaeb;
+  --warning-500: #f79009;
+  --error-50: #fef3f2;
+  --error-500: #f04438;
+  --info-50: #f0f9ff;
+  --info-500: #0ba5ec;
+  --shadow-theme-xs:
+    0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+  --shadow-theme-sm:
+    0px 1px 3px 0px rgba(16, 24, 40, 0.1),
+    0px 1px 2px 0px rgba(16, 24, 40, 0.06);
+  --shadow-theme-md:
+    0px 4px 8px -2px rgba(16, 24, 40, 0.1),
+    0px 2px 4px -2px rgba(16, 24, 40, 0.06);
+  --radius-card: 1rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand-25: var(--brand-25);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-300: var(--brand-300);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-gray-25: var(--gray-25);
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-success-50: var(--success-50);
+  --color-success-500: var(--success-500);
+  --color-warning-50: var(--warning-50);
+  --color-warning-500: var(--warning-500);
+  --color-error-50: var(--error-50);
+  --color-error-500: var(--error-500);
+  --color-blue-light-50: var(--info-50);
+  --color-blue-light-500: var(--info-500);
+  --shadow-theme-xs: var(--shadow-theme-xs);
+  --shadow-theme-sm: var(--shadow-theme-sm);
+  --shadow-theme-md: var(--shadow-theme-md);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --placeholder-color: #a1a1aa;
-    --select-color: #e4e4e7;
-    --input-color: #f4f4f5;
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--gray-200, currentColor);
+  }
+
+  html {
+    background: var(--background);
+  }
+
+  body {
+    min-height: 100vh;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--placeholder-color) !important;
+    opacity: 1;
+  }
+
+  input,
+  textarea,
+  select,
+  select option {
+    color: var(--input-color) !important;
+    -webkit-text-fill-color: var(--input-color);
   }
 }
 
-body {
-  background: var(--background);
-  color: black;
-  font-family: Arial, Helvetica, sans-serif;
-}
+@layer utilities {
+  .shadow-theme-xs {
+    box-shadow: var(--shadow-theme-xs);
+  }
 
-input::placeholder,
-textarea::placeholder {
-  color: var(--placeholder-color) !important;
-  opacity: 1;
-}
+  .shadow-theme-sm {
+    box-shadow: var(--shadow-theme-sm);
+  }
 
-input,
-textarea {
-  color: gray !important;
-  -webkit-text-fill-color: gray;
-  opacity: 1;
-}
+  .shadow-theme-md {
+    box-shadow: var(--shadow-theme-md);
+  }
 
-input{
-  color: gray !important;
-}
+  .bg-admin-surface {
+    background: var(--gray-50);
+  }
 
-select,
-select option {
-  color: gray !important;
-}
-.border {
-  border-color: var(--select-color) !important;
+  .text-theme-xs {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .text-theme-sm {
+    font-size: 14px;
+    line-height: 20px;
+  }
 }

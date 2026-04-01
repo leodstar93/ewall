@@ -569,7 +569,7 @@ export default function AdminUsersPage() {
     pageUsers.length > 0 && pageUsers.every((u) => selectedIds.has(u.id));
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       {/* Header */}
       <div className="rounded-2xl border bg-white shadow-sm">
         <div className="p-6 flex items-start justify-between gap-4">

@@ -422,10 +422,26 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <header className={styles.topbar}>
             <div className={styles.topbarInner}>
               <div className="min-w-0">
+                <div className={styles.breadcrumb}>
+                  Dashboard <span className="mx-1">/</span>{" "}
+                  <span className={styles.breadcrumbCurrent}>{pageTitle}</span>
+                </div>
                 <h1 className={styles.pageTitle}>{pageTitle}</h1>
               </div>
 
               <div className={styles.topActions}>
+                <div className={styles.searchMock}>
+                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M8.5 3.5a5 5 0 103.14 8.9l3.48 3.48a.75.75 0 101.06-1.06l-3.48-3.48A5 5 0 008.5 3.5zM5 8.5a3.5 3.5 0 117 0 3.5 3.5 0 01-7 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="select-none">Search or type command...</span>
+                  <span className={styles.searchKey}>Ctrl K</span>
+                </div>
+
                 <NotificationBell />
 
                 <Link href="/settings" className={styles.quickProfile}>

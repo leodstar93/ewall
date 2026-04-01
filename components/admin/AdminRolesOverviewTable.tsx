@@ -1,7 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroller,
+  TableWrapper,
+} from "@/components/ui/table";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 type RoleOverview = {
@@ -28,85 +39,72 @@ export default function AdminRolesOverviewTable(props: {
 
   if (props.roles.length === 0) {
     return (
-      <div className="mt-6 rounded-2xl border bg-zinc-50 p-6 text-sm text-zinc-600">
+      <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
         No roles found.
       </div>
     );
   }
 
   return (
-    <div className="mt-6 overflow-hidden rounded-2xl border">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-zinc-50 border-b">
-            <tr>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                Role
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                Description
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                Users
-              </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                Permissions
-              </th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y">
-            {paginatedRoles.items.map((role) => (
-              <tr key={role.id} className="hover:bg-zinc-50">
-                <td className="px-6 py-4">
-                  <span className="text-sm font-semibold text-zinc-900">
-                    {role.name}
-                  </span>
-                  {role.name === "ADMIN" && (
-                    <span className="ml-2 rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-white">
-                      System
-                    </span>
-                  )}
-                </td>
-
-                <td className="px-6 py-4 text-sm text-zinc-600">
-                  {role.description || "—"}
-                </td>
-
-                <td className="px-6 py-4">
-                  <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-100">
-                    {role._count.users}
-                  </span>
-                </td>
-
-                <td className="px-6 py-4">
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-100">
-                    {role._count.permissions}
-                  </span>
-                </td>
+    <div className="mt-6">
+      <TableWrapper>
+        <TableScroller>
+          <Table>
+            <TableHeader>
+              <tr>
+                <TableHead>Role</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Users</TableHead>
+                <TableHead>Permissions</TableHead>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <ClientPaginationControls
-        page={paginatedRoles.currentPage}
-        totalPages={paginatedRoles.totalPages}
-        pageSize={paginatedRoles.pageSize}
-        totalItems={paginatedRoles.totalItems}
-        itemLabel="roles"
-        onPageChange={setPage}
-        onPageSizeChange={(nextPageSize) => {
-          setPage(1);
-          setPageSize(
-            DEFAULT_PAGE_SIZE_OPTIONS.includes(
-              nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
-            )
-              ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
-              : 10,
-          );
-        }}
-      />
+            </TableHeader>
+
+            <TableBody>
+              {paginatedRoles.items.map((role) => (
+                <TableRow key={role.id}>
+                  <TableCell className="text-gray-800">
+                    <span className="font-medium">{role.name}</span>
+                    {role.name === "ADMIN" ? (
+                      <Badge className="ml-2" tone="primary">
+                        System
+                      </Badge>
+                    ) : null}
+                  </TableCell>
+
+                  <TableCell>{role.description || "-"}</TableCell>
+
+                  <TableCell>
+                    <Badge tone="info">{role._count.users}</Badge>
+                  </TableCell>
+
+                  <TableCell>
+                    <Badge tone="success">{role._count.permissions}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableScroller>
+
+        <ClientPaginationControls
+          page={paginatedRoles.currentPage}
+          totalPages={paginatedRoles.totalPages}
+          pageSize={paginatedRoles.pageSize}
+          totalItems={paginatedRoles.totalItems}
+          itemLabel="roles"
+          onPageChange={setPage}
+          onPageSizeChange={(nextPageSize) => {
+            setPage(1);
+            setPageSize(
+              DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+              )
+                ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                : 10,
+            );
+          }}
+        />
+      </TableWrapper>
     </div>
   );
 }

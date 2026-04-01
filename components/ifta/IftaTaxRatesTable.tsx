@@ -1,9 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroller,
+  TableWrapper,
+} from "@/components/ui/table";
 import { IftaTaxRateTableRow } from "@/features/ifta/types/tax-rate";
-import { formatTaxRateLabel, sourceLabel } from "@/features/ifta/utils/tax-rate-mappers";
+import {
+  formatTaxRateLabel,
+  sourceLabel,
+} from "@/features/ifta/utils/tax-rate-mappers";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 function formatDate(value: string | null) {
@@ -32,60 +46,70 @@ export default function IftaTaxRatesTable(props: {
   );
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1120px]">
-          <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+    <TableWrapper className="rounded-[28px]">
+      <TableScroller>
+        <Table className="min-w-[1120px]">
+          <TableHeader>
             <tr>
-              <th className="px-4 py-3">Code</th>
-              <th className="px-4 py-3">Jurisdiction</th>
-              <th className="px-4 py-3">Country</th>
-              <th className="px-4 py-3">Fuel Type</th>
-              <th className="px-4 py-3">Year</th>
-              <th className="px-4 py-3">Quarter</th>
-              <th className="px-4 py-3">Tax Rate</th>
-              <th className="px-4 py-3">Source</th>
-              <th className="px-4 py-3">Imported At</th>
-              <th className="px-4 py-3">Actions</th>
+              <TableHead>Code</TableHead>
+              <TableHead>Jurisdiction</TableHead>
+              <TableHead>Country</TableHead>
+              <TableHead>Fuel Type</TableHead>
+              <TableHead>Year</TableHead>
+              <TableHead>Quarter</TableHead>
+              <TableHead>Tax Rate</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Imported At</TableHead>
+              <TableHead>Actions</TableHead>
             </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-200 bg-white">
+          </TableHeader>
+
+          <TableBody>
             {paginatedRows.items.map((row) => (
-              <tr key={`${row.jurisdictionId}-${row.fuelType}-${row.year}-${row.quarter}`}>
-                <td className="px-4 py-3 text-sm font-semibold text-zinc-900">{row.code}</td>
-                <td className="px-4 py-3 text-sm text-zinc-700">{row.name}</td>
-                <td className="px-4 py-3 text-sm text-zinc-700">{row.countryCode ?? "-"}</td>
-                <td className="px-4 py-3 text-sm text-zinc-700">
+              <TableRow
+                key={`${row.jurisdictionId}-${row.fuelType}-${row.year}-${row.quarter}`}
+              >
+                <TableCell className="font-medium text-gray-800">{row.code}</TableCell>
+                <TableCell>{row.name}</TableCell>
+                <TableCell>{row.countryCode ?? "-"}</TableCell>
+                <TableCell>
                   {row.fuelType === "DI" ? "Diesel" : "Gasoline"}
-                </td>
-                <td className="px-4 py-3 text-sm text-zinc-700">{row.year}</td>
-                <td className="px-4 py-3 text-sm text-zinc-700">{row.quarter}</td>
-                <td className="px-4 py-3 text-sm font-medium text-zinc-900">
+                </TableCell>
+                <TableCell>{row.year}</TableCell>
+                <TableCell>{row.quarter}</TableCell>
+                <TableCell className="font-medium text-gray-800">
                   {formatTaxRateLabel(row)}
-                </td>
-                <td className="px-4 py-3 text-sm text-zinc-700">{sourceLabel(row.source)}</td>
-                <td className="px-4 py-3 text-sm text-zinc-700">{formatDate(row.importedAt)}</td>
-                <td className="px-4 py-3 text-sm">
-                  <button
-                    onClick={() => props.onEdit(row)}
+                </TableCell>
+                <TableCell>{sourceLabel(row.source)}</TableCell>
+                <TableCell>{formatDate(row.importedAt)}</TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     disabled={props.busy}
-                    className="rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-60"
+                    onClick={() => props.onEdit(row)}
                   >
                     Edit
-                  </button>
-                </td>
-              </tr>
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))}
-            {props.rows.length === 0 && (
+
+            {props.rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-10 text-center text-sm text-zinc-500">
+                <td
+                  colSpan={10}
+                  className="px-4 py-10 text-center text-sm text-gray-500"
+                >
                   No tax rates found for the selected filters.
                 </td>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            ) : null}
+          </TableBody>
+        </Table>
+      </TableScroller>
+
       <ClientPaginationControls
         page={paginatedRows.currentPage}
         totalPages={paginatedRows.totalPages}
@@ -104,6 +128,6 @@ export default function IftaTaxRatesTable(props: {
           );
         }}
       />
-    </div>
+    </TableWrapper>
   );
 }
