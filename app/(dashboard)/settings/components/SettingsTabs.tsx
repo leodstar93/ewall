@@ -335,6 +335,17 @@ export default function SettingsTabs({
           )}
         </div>
 
+        {recentClientFilings ? (
+          <StaffRecentSubmissionsTable
+            rows={recentClientFilings}
+            title="My submitted filings"
+            description="Track the filings you've already submitted and the ones still pending with staff."
+            emptyMessage="You do not have any submitted or staff-pending filings yet."
+            dateColumnLabel="Updated"
+            showCustomerColumn={false}
+          />
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
         {availableTabs.map((tab) => {
           const isActive = tab.id === activeTab;
@@ -357,17 +368,6 @@ export default function SettingsTabs({
         })}
         </div>
       </section>
-
-      {!activeTab && recentClientFilings ? (
-        <StaffRecentSubmissionsTable
-          rows={recentClientFilings}
-          title="My submitted filings"
-          description="Track the filings you've already submitted and the ones still pending with staff."
-          emptyMessage="You do not have any submitted or staff-pending filings yet."
-          dateColumnLabel="Updated"
-          showCustomerColumn={false}
-        />
-      ) : null}
 
       {activeTab === "personal" ? <PersonalInfoTab onNotify={notify} /> : null}
       {activeTab === "company" ? <CompanyTab onNotify={notify} /> : null}
