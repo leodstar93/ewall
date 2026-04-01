@@ -109,8 +109,8 @@ export async function GET(
         canSubmit: isOwner && filing.status === "DRAFT",
         canCheckout:
           isOwner &&
-          filing.status === "AWAITING_CUSTOMER_PAYMENT" &&
-          filing.customerPaymentStatus === "NOT_STARTED",
+          ["AWAITING_CUSTOMER_PAYMENT", "CUSTOMER_PAYMENT_PENDING"].includes(filing.status) &&
+          filing.customerPaymentStatus !== "SUCCEEDED",
         canViewReceipt:
           (isOwner || canManageAll) &&
           Boolean(filing.officialReceiptUrl) &&

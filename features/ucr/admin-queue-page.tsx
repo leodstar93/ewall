@@ -30,12 +30,13 @@ export default function UcrAdminQueuePage({
   detailHrefBase = "/admin/features/ucr",
 }: UcrAdminQueuePageProps) {
   const [filings, setFilings] = useState<UcrFiling[]>([]);
-  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [year, setYear] = useState("");
   const [status, setStatus] = useState("");
   const [paymentState, setPaymentState] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busyFilingId, setBusyFilingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
@@ -79,6 +80,37 @@ export default function UcrAdminQueuePage({
     setPage(1);
   }, [filings.length, pageSize]);
 
+  function assignedStaffLabel(filing: UcrFiling) {
+    return (
+      filing.assignedStaff?.name?.trim() ||
+      filing.assignedStaff?.email ||
+      "Unassigned"
+    );
+  }
+
+  async function assignToMe(filingId: string) {
+    try {
+      setBusyFilingId(filingId);
+      setError(null);
+      const response = await fetch(`/api/v1/admin/ucr/${filingId}/claim`, {
+        method: "POST",
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not assign the UCR filing.");
+      }
+      await load();
+    } catch (assignError) {
+      setError(
+        assignError instanceof Error
+          ? assignError.message
+          : "Could not assign the UCR filing.",
+      );
+    } finally {
+      setBusyFilingId(null);
+    }
+  }
+
   const paginatedFilings = paginateItems(filings, page, pageSize);
 
   return (
@@ -88,7 +120,7 @@ export default function UcrAdminQueuePage({
           Concierge Queue
         </p>
         <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-          Paid filings waiting for manual official UCR processing.
+          All UCR concierge filings for staff review and processing.
         </h2>
       </section>
 
@@ -103,7 +135,7 @@ export default function UcrAdminQueuePage({
           <input
             value={year}
             onChange={(event) => setYear(event.target.value)}
-            placeholder="Year"
+            placeholder="All years"
             className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
           />
           <select
@@ -213,7 +245,7 @@ export default function UcrAdminQueuePage({
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-zinc-700">
-                        {filing.assignedToStaffId || "-"}
+                        {assignedStaffLabel(filing)}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span
@@ -237,12 +269,22 @@ export default function UcrAdminQueuePage({
                         {filing.officialReceiptUrl ? "Uploaded" : "Missing"}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        <Link
-                          href={`${detailHrefBase}/${filing.id}`}
-                          className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
-                        >
-                          Open
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void assignToMe(filing.id)}
+                            disabled={busyFilingId === filing.id}
+                            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-60"
+                          >
+                            {busyFilingId === filing.id ? "Assigning..." : "Assign to me"}
+                          </button>
+                          <Link
+                            href={`${detailHrefBase}/${filing.id}`}
+                            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
+                          >
+                            Open
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                     );

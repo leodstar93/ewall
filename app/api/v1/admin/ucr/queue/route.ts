@@ -2,7 +2,6 @@ import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
-import { currentYear } from "@/services/ucr/shared";
 
 export async function GET(request: NextRequest) {
   const guard = await requireApiPermission("ucr:read_all");
@@ -16,10 +15,12 @@ export async function GET(request: NextRequest) {
     const officialPaymentState = request.nextUrl.searchParams.get("officialPaymentState");
     const search = request.nextUrl.searchParams.get("search")?.trim() ?? "";
 
-    const year = yearValue ? Number(yearValue) : currentYear();
-    const where: Prisma.UCRFilingWhereInput = {
-      year: Number.isInteger(year) ? year : undefined,
-    };
+    const year = yearValue ? Number(yearValue) : null;
+    const where: Prisma.UCRFilingWhereInput = {};
+
+    if (year !== null && Number.isInteger(year)) {
+      where.year = year;
+    }
 
     if (statusValue) where.status = statusValue as Prisma.EnumUCRFilingStatusFilter["equals"];
     if (assignedTo) where.assignedToStaffId = assignedTo;
@@ -49,6 +50,18 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             email: true,
+            companyProfile: {
+              select: {
+                legalName: true,
+                dbaName: true,
+                companyName: true,
+                dotNumber: true,
+                mcNumber: true,
+                ein: true,
+                state: true,
+                trucksCount: true,
+              },
+            },
           },
         },
         pricingSnapshot: true,
@@ -66,7 +79,42 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    return Response.json({ filings });
+    const assignedStaffIds = Array.from(
+      new Set(
+        filings
+          .map((filing) => filing.assignedToStaffId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    const assignedStaffMap =
+      assignedStaffIds.length === 0
+        ? new Map<string, { id: string; name: string | null; email: string | null }>()
+        : new Map(
+            (
+              await prisma.user.findMany({
+                where: {
+                  id: {
+                    in: assignedStaffIds,
+                  },
+                },
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              })
+            ).map((user) => [user.id, user]),
+          );
+
+    return Response.json({
+      filings: filings.map((filing) => ({
+        ...filing,
+        assignedStaff: filing.assignedToStaffId
+          ? assignedStaffMap.get(filing.assignedToStaffId) ?? null
+          : null,
+      })),
+    });
   } catch (error) {
     console.error("Failed to load admin UCR queue", error);
     return Response.json({ error: "Failed to load admin UCR queue" }, { status: 500 });

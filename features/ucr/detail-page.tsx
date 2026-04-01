@@ -56,7 +56,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`${props.apiBasePath ?? "/api/v1/features/ucr"}/${props.filingId}`, {
+      const response = await fetch(`${apiBasePath}/${props.filingId}`, {
         cache: "no-store",
       });
       const data = (await response.json().catch(() => ({}))) as DetailPayload & {
@@ -83,7 +83,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [props.apiBasePath, props.filingId]);
+  }, [apiBasePath, props.filingId]);
 
   useEffect(() => {
     void load();
@@ -98,14 +98,25 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
       });
       const data = (await response.json().catch(() => ({}))) as {
         checkoutUrl?: string;
+        paymentStatus?: string;
         error?: string;
       };
 
-      if (!response.ok || !data.checkoutUrl) {
+      if (!response.ok) {
         throw new Error(data.error || "Could not start checkout.");
       }
 
-      window.location.href = data.checkoutUrl;
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
+      if (data.paymentStatus === "SUCCEEDED") {
+        await load();
+        return;
+      }
+
+      throw new Error("Could not start checkout.");
     } catch (checkoutError) {
       setError(
         checkoutError instanceof Error
@@ -209,6 +220,10 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
   const companyMc = companyProfile?.mcNumber || filing.mcNumber;
   const companyEin = companyProfile?.ein || filing.fein;
   const companyState = companyProfile?.state || filing.baseState;
+  const assignedStaffLabel =
+    filing.assignedStaff?.name?.trim() ||
+    filing.assignedStaff?.email ||
+    "Unassigned";
   const backHref =
     props.backHref ?? (props.mode === "staff" ? "/admin/features/ucr" : "/ucr");
 
@@ -432,7 +447,21 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
 
           <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-zinc-950">Staff actions</h3>
+            <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Assigned staff</p>
+              <p className="mt-2 text-sm font-medium text-zinc-900">
+                {assignedStaffLabel}
+              </p>
+            </div>
             <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void postAdminAction("claim")}
+                disabled={busy}
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Assign to me
+              </button>
               <button
                 type="button"
                 onClick={() => void postAdminAction("needs-attention", { reason: staffReason })}

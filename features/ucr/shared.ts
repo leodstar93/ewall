@@ -117,6 +117,11 @@ export type UcrFiling = {
   officialReceiptNumber: string | null;
   officialConfirmation: string | null;
   assignedToStaffId: string | null;
+  assignedStaff?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  } | null;
   clientNotes: string | null;
   internalNotes: string | null;
   customerVisibleNotes: string | null;
@@ -352,7 +357,7 @@ export function officialPaymentStatusClasses(status: UCROfficialPaymentStatus) {
 export function customerActionLabel(filing: UcrFiling) {
   switch (workflowStageForFiling(filing)) {
     case "REQUEST_PAY_CLIENT":
-      return filing.status === "CUSTOMER_PAYMENT_PENDING" ? "Payment pending" : "Pay now";
+      return filing.status === "CUSTOMER_PAYMENT_PENDING" ? "Resume payment" : "Pay now";
     case "COMPLETE_BY_STAFF":
       return "Pending";
     case "COMPLETED":

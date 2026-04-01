@@ -257,6 +257,7 @@ export default function PaymentMethodsTab({
   const [config, setConfig] = useState<PaymentConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState("");
+  const [defaultingId, setDefaultingId] = useState("");
   const [startingPayPal, setStartingPayPal] = useState(false);
   const [savingPayPal, setSavingPayPal] = useState(false);
   const [error, setError] = useState("");
@@ -414,6 +415,34 @@ export default function PaymentMethodsTab({
     }
   };
 
+  const handleMakeDefault = async (id: string) => {
+    try {
+      setDefaultingId(id);
+      setError("");
+
+      const response = await fetch(`/api/settings/payment-method/${id}`, {
+        method: "PATCH",
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to update the default payment method.");
+      }
+
+      await loadData();
+      onNotify({ tone: "success", message: "Default payment method updated." });
+    } catch (updateError) {
+      const message =
+        updateError instanceof Error
+          ? updateError.message
+          : "Failed to update the default payment method.";
+      setError(message);
+      onNotify({ tone: "error", message });
+    } finally {
+      setDefaultingId("");
+    }
+  };
+
   const handlePayPalStart = async () => {
     try {
       setStartingPayPal(true);
@@ -536,14 +565,26 @@ export default function PaymentMethodsTab({
                         </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(method.id)}
-                        disabled={deletingId === method.id}
-                        className="rounded-2xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
-                      >
-                        {deletingId === method.id ? "Deleting..." : "Delete"}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        {!method.isDefault ? (
+                          <button
+                            type="button"
+                            onClick={() => handleMakeDefault(method.id)}
+                            disabled={defaultingId === method.id}
+                            className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-60"
+                          >
+                            {defaultingId === method.id ? "Updating..." : "Make default"}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(method.id)}
+                          disabled={deletingId === method.id}
+                          className="rounded-2xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                        >
+                          {deletingId === method.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
                   </article>
                 ))}

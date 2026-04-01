@@ -286,3 +286,40 @@ export async function deletePaymentMethod(userId: string, paymentMethodId: strin
     }
   });
 }
+
+export async function setDefaultPaymentMethod(userId: string, paymentMethodId: string) {
+  const organization = await ensureUserOrganization(userId);
+  const existing = await prisma.paymentMethod.findFirst({
+    where: {
+      id: paymentMethodId,
+      organizationId: organization.id,
+    },
+  });
+
+  if (!existing) {
+    throw new SettingsValidationError("Payment method not found.");
+  }
+
+  if (existing.isDefault) {
+    return formatPaymentMethod(existing);
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.paymentMethod.updateMany({
+      where: {
+        organizationId: organization.id,
+        isDefault: true,
+      },
+      data: {
+        isDefault: false,
+      },
+    });
+
+    return tx.paymentMethod.update({
+      where: { id: paymentMethodId },
+      data: { isDefault: true },
+    });
+  });
+
+  return formatPaymentMethod(updated);
+}
