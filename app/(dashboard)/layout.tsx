@@ -6,6 +6,10 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
+import {
+  SidebarNavIcon,
+  resolveSidebarIcon,
+} from "@/components/navigation/SidebarNavIcon";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import styles from "../console-theme.module.css";
 
@@ -292,7 +296,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   height={64}
                   className={styles.brandLogo}
                 />
-                <div>
+                <div className={styles.brandText}>
                   <div className={styles.brandTitle}>Truckers Unidos</div>
                   <div className={styles.brandSubtitle}>Dashboard</div>
                 </div>
@@ -304,9 +308,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <nav className={styles.sidebarScroll}>
               <div className={styles.navHeading}>General</div>
               <div className={styles.navSection}>
-                <Link href="/settings" className={navItemClass("/settings")}>
-                  <span className={styles.navDot} />
-                  Dashboard
+                <Link
+                  href="/settings"
+                  className={navItemClass("/settings")}
+                  title="Dashboard"
+                >
+                  <span className={styles.navIconWrap} aria-hidden="true">
+                    <SidebarNavIcon
+                      name={resolveSidebarIcon({
+                        href: "/settings",
+                        label: "Dashboard",
+                        section: "General",
+                      })}
+                      className={styles.navIcon}
+                    />
+                  </span>
+                  <span className={styles.navLabel}>Dashboard</span>
                 </Link>
               </div>
 
@@ -345,9 +362,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                             key={feature.href}
                             href={feature.href}
                             className={navItemClass(feature.href)}
+                            title={feature.label ?? feature.name}
                           >
-                            <span className={styles.navDot} />
-                            <span className="truncate">
+                            <span
+                              className={styles.navIconWrap}
+                              aria-hidden="true"
+                            >
+                              <SidebarNavIcon
+                                name={resolveSidebarIcon({
+                                  href: feature.href,
+                                  label: feature.label ?? feature.name,
+                                  section,
+                                })}
+                                className={styles.navIcon}
+                              />
+                            </span>
+                            <span className={`${styles.navLabel} truncate`}>
                               {feature.label ?? feature.name}
                             </span>
                           </Link>
@@ -366,7 +396,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 >
                   <div className="flex items-center gap-3">
                     <div className={styles.accountAvatar}>{initials}</div>
-                    <div className="min-w-0 text-left flex-1">
+                    <div className={styles.accountMeta}>
                       <div className={`${styles.accountName} truncate`}>
                         {session?.user?.name || "User"}
                       </div>

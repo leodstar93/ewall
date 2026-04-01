@@ -6,6 +6,10 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
+import {
+  SidebarNavIcon,
+  resolveSidebarIcon,
+} from "@/components/navigation/SidebarNavIcon";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { STAFF_ADMIN_FEATURE_MODULES } from "@/lib/rbac-feature-modules";
 import { hasPermission } from "@/lib/rbac-core";
@@ -249,7 +253,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   height={64}
                   className={styles.brandLogo}
                 />
-                <div>
+                <div className={styles.brandText}>
                   <div className={styles.brandTitle}>Truckers Unidos</div>
                   <div className={styles.brandSubtitle}>{consoleSubtitle}</div>
                 </div>
@@ -278,9 +282,19 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                         key={item.href}
                         href={item.href}
                         className={navItemClass(item.href)}
+                        title={item.label}
                       >
-                        <span className={styles.navDot} />
-                        {item.label}
+                        <span className={styles.navIconWrap} aria-hidden="true">
+                          <SidebarNavIcon
+                            name={resolveSidebarIcon({
+                              href: item.href,
+                              label: item.label,
+                              section: group.heading,
+                            })}
+                            className={styles.navIcon}
+                          />
+                        </span>
+                        <span className={styles.navLabel}>{item.label}</span>
                       </Link>
                     ))}
                   </div>
@@ -296,7 +310,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 >
                   <div className="flex items-center gap-3">
                     <div className={styles.accountAvatar}>{initials}</div>
-                    <div className="min-w-0 text-left flex-1">
+                    <div className={styles.accountMeta}>
                       <div className={`${styles.accountName} truncate`}>
                         {session?.user?.name || roleBadge}
                       </div>
