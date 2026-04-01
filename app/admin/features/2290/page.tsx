@@ -10,5 +10,5 @@ export default async function AdminForm2290Page() {
   const isStaff = roles.includes("STAFF");
   if (!isAdmin && !isStaff) redirect("/forbidden");
 
-  return <Form2290AdminQueuePage />;
+  return <Form2290AdminQueuePage showCreateButton={isAdmin} />;
 }

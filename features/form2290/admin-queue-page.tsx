@@ -25,11 +25,14 @@ type FilingsPayload = {
 type Form2290AdminQueuePageProps = {
   apiPath?: string;
   detailHrefBase?: string;
+  showCreateButton?: boolean;
 };
 
 export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProps) {
   const apiPath = props.apiPath ?? "/api/v1/features/2290";
   const detailHrefBase = props.detailHrefBase ?? "/admin/features/2290";
+  const newHref = "/2290/new";
+  const showCreateButton = props.showCreateButton ?? true;
 
   const [filings, setFilings] = useState<Form2290Filing[]>([]);
   const [statusCounts, setStatusCounts] = useState<Form2290ComplianceStatus | null>(null);
@@ -106,57 +109,6 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
 
   return (
     <div className="w-full min-w-0 space-y-6">
-      <section className="rounded-2xl border bg-white shadow-sm">
-        <div className="p-6">
-          <div className="text-xs text-zinc-500">Compliance</div>
-          <h1 className="text-xl font-semibold text-zinc-900">Form 2290</h1>
-          <p className="mt-1 max-w-3xl text-sm text-zinc-600">
-            Review annual heavy vehicle tax filings, track payment progress, and confirm
-            compliance from one full-width queue.
-          </p>
-        </div>
-      </section>
-
-      {statusCounts ? (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <article className="rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total</p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-900">{statusCounts.total}</p>
-            <p className="mt-2 text-sm text-zinc-500">All filings in the current queue.</p>
-          </article>
-
-          <article className="rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Pending</p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-900">{statusCounts.pending}</p>
-            <p className="mt-2 text-sm text-zinc-500">Waiting for staff review or payment.</p>
-          </article>
-
-          <article className="rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Corrections
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-900">
-              {statusCounts.correctionNeeded}
-            </p>
-            <p className="mt-2 text-sm text-zinc-500">Need additional client updates.</p>
-          </article>
-
-          <article className="rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Compliant
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-900">{statusCounts.compliant}</p>
-            <p className="mt-2 text-sm text-zinc-500">Ready with payment and Schedule 1.</p>
-          </article>
-
-          <article className="rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Expired</p>
-            <p className="mt-2 text-3xl font-semibold text-zinc-900">{statusCounts.expired}</p>
-            <p className="mt-2 text-sm text-zinc-500">Require follow-up or renewal work.</p>
-          </article>
-        </section>
-      ) : null}
-
       {error ? (
         <section className="rounded-2xl border bg-white shadow-sm">
           <div className="p-4">
@@ -169,14 +121,6 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
 
       <section className="rounded-2xl border bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-zinc-100 p-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-900">Queue</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Staff and admins can access every filing from here using the same standardized
-              controls as the rest of the admin module.
-            </p>
-          </div>
-
           <label className="space-y-2">
             <span className="block text-xs font-medium text-zinc-600">Status</span>
             <select
@@ -192,6 +136,15 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
               <option value="COMPLIANT">Compliant</option>
             </select>
           </label>
+
+          {showCreateButton ? (
+            <Link
+              href={newHref}
+              className="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
+            >
+              Create new filing
+            </Link>
+          ) : null}
         </div>
 
         <div className="overflow-hidden rounded-b-2xl">

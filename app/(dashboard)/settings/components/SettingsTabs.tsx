@@ -74,12 +74,16 @@ const tabs = [
   },
 ] as const;
 
+type TabId = (typeof tabs)[number]["id"];
+
 export default function SettingsTabs({
   billingEnabled,
   trucksEnabled,
+  visibleTabs,
 }: {
   billingEnabled: boolean;
   trucksEnabled: boolean;
+  visibleTabs?: TabId[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -88,7 +92,12 @@ export default function SettingsTabs({
   const [personalSummary, setPersonalSummary] = useState<PersonalSummary | null>(null);
   const [companySummary, setCompanySummary] = useState<CompanySummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
+  const visibleTabSet = visibleTabs?.length ? new Set(visibleTabs) : null;
   const availableTabs = tabs.filter((tab) => {
+    if (visibleTabSet && !visibleTabSet.has(tab.id)) {
+      return false;
+    }
+
     if (!billingEnabled && tab.id === "billing") {
       return false;
     }
@@ -101,6 +110,8 @@ export default function SettingsTabs({
   });
   const requestedTab = searchParams.get("tab");
   const activeTab = availableTabs.find((tab) => tab.id === requestedTab)?.id ?? null;
+  const showPersonalSummary = availableTabs.some((tab) => tab.id === "personal");
+  const showCompanySummary = availableTabs.some((tab) => tab.id === "company");
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
@@ -141,7 +152,7 @@ export default function SettingsTabs({
     }
   }, [loadSummary]);
 
-  const selectTab = (tabId: (typeof tabs)[number]["id"]) => {
+  const selectTab = (tabId: TabId) => {
     const params = new URLSearchParams(searchParams.toString());
     if (activeTab === tabId) {
       params.delete("tab");
@@ -156,7 +167,12 @@ export default function SettingsTabs({
   };
 
   useEffect(() => {
-    if ((billingEnabled || requestedTab !== "billing") && (trucksEnabled || requestedTab !== "trucks")) {
+    if (!requestedTab) {
+      return;
+    }
+
+    const isAllowedTab = availableTabs.some((tab) => tab.id === requestedTab);
+    if (isAllowedTab) {
       return;
     }
 
@@ -166,7 +182,7 @@ export default function SettingsTabs({
     router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
       scroll: false,
     });
-  }, [billingEnabled, pathname, requestedTab, router, searchParams, trucksEnabled]);
+  }, [availableTabs, pathname, requestedTab, router, searchParams]);
 
   useEffect(() => {
     let active = true;
@@ -220,88 +236,96 @@ export default function SettingsTabs({
 
         <div className="rounded-[30px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fbff,_#ffffff_50%,_#eef6ff)] p-5 shadow-sm">
           {summaryLoading ? (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
-              <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
+            <div className={cx("grid gap-4", showCompanySummary ? "lg:grid-cols-2" : "lg:grid-cols-1")}>
+              {showPersonalSummary ? (
+                <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
+              ) : null}
+              {showCompanySummary ? (
+                <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
+              ) : null}
             </div>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                  Personal
-                </p>
-                <h3 className="mt-3 text-lg font-semibold text-zinc-950">
-                  {personalSummary?.name || "No personal info yet"}
-                </h3>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Email</p>
-                    <p className="mt-1 text-sm text-zinc-800">
-                      {personalSummary?.email || "Not set"}
-                    </p>
+            <div className={cx("grid gap-4", showCompanySummary ? "lg:grid-cols-2" : "lg:grid-cols-1")}>
+              {showPersonalSummary ? (
+                <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                    Personal
+                  </p>
+                  <h3 className="mt-3 text-lg font-semibold text-zinc-950">
+                    {personalSummary?.name || "No personal info yet"}
+                  </h3>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Email</p>
+                      <p className="mt-1 text-sm text-zinc-800">
+                        {personalSummary?.email || "Not set"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Phone</p>
+                      <p className="mt-1 text-sm text-zinc-800">
+                        {personalSummary?.phone || "Not set"}
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Address</p>
+                      <p className="mt-1 text-sm text-zinc-800">
+                        {[
+                          personalSummary?.address,
+                          personalSummary?.city,
+                          personalSummary?.state,
+                          personalSummary?.zip,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "Not set"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Phone</p>
-                    <p className="mt-1 text-sm text-zinc-800">
-                      {personalSummary?.phone || "Not set"}
-                    </p>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Address</p>
-                    <p className="mt-1 text-sm text-zinc-800">
-                      {[
-                        personalSummary?.address,
-                        personalSummary?.city,
-                        personalSummary?.state,
-                        personalSummary?.zip,
-                      ]
-                        .filter(Boolean)
-                        .join(", ") || "Not set"}
-                    </p>
-                  </div>
-                </div>
-              </article>
+                </article>
+              ) : null}
 
-              <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                  Company
-                </p>
-                <h3 className="mt-3 text-lg font-semibold text-zinc-950">
-                  {companySummary?.legalName || companySummary?.dbaName || "No company info yet"}
-                </h3>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">USDOT</p>
-                    <p className="mt-1 text-sm text-zinc-800">
-                      {companySummary?.dotNumber || "Not set"}
-                    </p>
+              {showCompanySummary ? (
+                <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                    Company
+                  </p>
+                  <h3 className="mt-3 text-lg font-semibold text-zinc-950">
+                    {companySummary?.legalName || companySummary?.dbaName || "No company info yet"}
+                  </h3>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">USDOT</p>
+                      <p className="mt-1 text-sm text-zinc-800">
+                        {companySummary?.dotNumber || "Not set"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">MC</p>
+                      <p className="mt-1 text-sm text-zinc-800">
+                        {companySummary?.mcNumber || "Not set"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Phone</p>
+                      <p className="mt-1 text-sm text-zinc-800">
+                        {companySummary?.businessPhone || "Not set"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Fleet</p>
+                      <p className="mt-1 text-sm text-zinc-800">
+                        {companySummary?.trucksCount || "0"} trucks / {companySummary?.driversCount || "0"} drivers
+                      </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Address</p>
+                      <p className="mt-1 text-sm text-zinc-800">
+                        {[companySummary?.address, companySummary?.state].filter(Boolean).join(", ") || "Not set"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">MC</p>
-                    <p className="mt-1 text-sm text-zinc-800">
-                      {companySummary?.mcNumber || "Not set"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Phone</p>
-                    <p className="mt-1 text-sm text-zinc-800">
-                      {companySummary?.businessPhone || "Not set"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Fleet</p>
-                    <p className="mt-1 text-sm text-zinc-800">
-                      {companySummary?.trucksCount || "0"} trucks / {companySummary?.driversCount || "0"} drivers
-                    </p>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Address</p>
-                    <p className="mt-1 text-sm text-zinc-800">
-                      {[companySummary?.address, companySummary?.state].filter(Boolean).join(", ") || "Not set"}
-                    </p>
-                  </div>
-                </div>
-              </article>
+                </article>
+              ) : null}
             </div>
           )}
         </div>

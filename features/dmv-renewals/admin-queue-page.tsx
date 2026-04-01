@@ -105,34 +105,6 @@ export default function DmvRenewalAdminQueuePage() {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total cases</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">{totalCount}</p>
-          <p className="mt-2 text-sm text-zinc-500">All cases currently in the staff queue.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Submitted</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">{counts.SUBMITTED ?? 0}</p>
-          <p className="mt-2 text-sm text-zinc-500">Newly submitted renewals awaiting review.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">In review</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">{counts.IN_REVIEW ?? 0}</p>
-          <p className="mt-2 text-sm text-zinc-500">Cases currently being handled by staff.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Completed</p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">{counts.COMPLETED ?? 0}</p>
-          <p className="mt-2 text-sm text-zinc-500">
-            {counts.NEEDS_CLIENT_ACTION ?? 0} cases still need client action.
-          </p>
-        </article>
-      </section>
-
       <section className="rounded-2xl border bg-white shadow-sm">
         <div className="border-b border-zinc-100 p-6">
           <h2 className="text-base font-semibold text-zinc-900">Status tabs</h2>

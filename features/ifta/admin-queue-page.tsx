@@ -33,7 +33,6 @@ export default function AdminIftaQueuePage({
   detailHrefBase = "/admin/features/ifta",
 }: AdminIftaQueuePageProps) {
   const [reports, setReports] = useState<ReportSummary[]>([]);
-  const [workflowCounts, setWorkflowCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -55,7 +54,6 @@ export default function AdminIftaQueuePage({
         if (!active) return;
 
         setReports(Array.isArray(data.reports) ? data.reports : []);
-        setWorkflowCounts(data.workflowCounts ?? {});
       } catch (fetchError) {
         if (!active) return;
         setError(
@@ -79,28 +77,6 @@ export default function AdminIftaQueuePage({
     () =>
       reports.filter((report) => report.status === "PENDING_STAFF_REVIEW"),
     [reports],
-  );
-
-  const readyForDriver = useMemo(
-    () =>
-      reports.filter(
-        (report) => report.status === "PENDING_TRUCKER_FINALIZATION",
-      ),
-    [reports],
-  );
-
-  const filedReports = useMemo(
-    () => reports.filter((report) => report.status === "FILED").length,
-    [reports],
-  );
-
-  const queueTaxTotal = useMemo(
-    () =>
-      pendingStaff.reduce(
-        (sum, report) => sum + Number(report.totalTaxDue || 0),
-        0,
-      ),
-    [pendingStaff],
   );
 
   useEffect(() => {
@@ -149,46 +125,6 @@ export default function AdminIftaQueuePage({
             aligned with the new admin table system.
           </p>
         </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Total reports
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">{reports.length}</p>
-          <p className="mt-2 text-sm text-zinc-500">All visible periods and trucks.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Waiting for staff
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {workflowCounts.PENDING_STAFF_REVIEW ?? pendingStaff.length}
-          </p>
-          <p className="mt-2 text-sm text-zinc-500">Ready for review from the staff team.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Returned to driver
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {workflowCounts.PENDING_TRUCKER_FINALIZATION ?? readyForDriver.length}
-          </p>
-          <p className="mt-2 text-sm text-zinc-500">Awaiting trucker finalization.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Tax in queue
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {formatCurrency(queueTaxTotal)}
-          </p>
-          <p className="mt-2 text-sm text-zinc-500">{filedReports} reports already filed.</p>
-        </article>
       </section>
 
       <section className="rounded-2xl border bg-white shadow-sm">

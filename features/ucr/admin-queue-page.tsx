@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
@@ -111,34 +111,6 @@ export default function UcrAdminQueuePage({
     }
   }
 
-  const totalCharged = useMemo(
-    () =>
-      filings.reduce((sum, filing) => sum + Number(filing.totalCharged || 0), 0),
-    [filings],
-  );
-
-  const unassignedCount = useMemo(
-    () => filings.filter((filing) => !filing.assignedToStaffId).length,
-    [filings],
-  );
-
-  const completedCount = useMemo(
-    () =>
-      filings.filter(
-        (filing) => filing.status === "COMPLETED" || filing.status === "COMPLIANT",
-      ).length,
-    [filings],
-  );
-
-  const attentionCount = useMemo(
-    () =>
-      filings.filter(
-        (filing) =>
-          filing.status === "NEEDS_ATTENTION" || filing.officialPaymentStatus === "FAILED",
-      ).length,
-    [filings],
-  );
-
   const paginatedFilings = paginateItems(filings, page, pageSize);
 
   return (
@@ -152,42 +124,6 @@ export default function UcrAdminQueuePage({
             payment states from one standardized queue.
           </p>
         </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Total filings
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">{filings.length}</p>
-          <p className="mt-2 text-sm text-zinc-500">All queue items matching current filters.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Unassigned
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">{unassignedCount}</p>
-          <p className="mt-2 text-sm text-zinc-500">Ready to be claimed by staff.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Completed
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">{completedCount}</p>
-          <p className="mt-2 text-sm text-zinc-500">{attentionCount} need attention.</p>
-        </article>
-
-        <article className="rounded-2xl border bg-white p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Total billed
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {formatCurrency(totalCharged)}
-          </p>
-          <p className="mt-2 text-sm text-zinc-500">Customer totals across visible filings.</p>
-        </article>
       </section>
 
       {error ? (
