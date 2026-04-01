@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
+import { Badge } from "@/components/ui/badge";
+import { getStatusTone } from "@/lib/ui/status-utils";
 import {
   UcrFiling,
-  customerPaymentStatusClasses,
   customerPaymentStatusLabel,
-  filingStatusClasses,
   filingStatusLabel,
   formatCurrency,
   formatDate,
-  officialPaymentStatusClasses,
   officialPaymentStatusLabel,
 } from "@/features/ucr/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
@@ -111,104 +111,237 @@ export default function UcrAdminQueuePage({
     }
   }
 
+  const totalCharged = useMemo(
+    () =>
+      filings.reduce((sum, filing) => sum + Number(filing.totalCharged || 0), 0),
+    [filings],
+  );
+
+  const unassignedCount = useMemo(
+    () => filings.filter((filing) => !filing.assignedToStaffId).length,
+    [filings],
+  );
+
+  const completedCount = useMemo(
+    () =>
+      filings.filter(
+        (filing) => filing.status === "COMPLETED" || filing.status === "COMPLIANT",
+      ).length,
+    [filings],
+  );
+
+  const attentionCount = useMemo(
+    () =>
+      filings.filter(
+        (filing) =>
+          filing.status === "NEEDS_ATTENTION" || filing.officialPaymentStatus === "FAILED",
+      ).length,
+    [filings],
+  );
+
   const paginatedFilings = paginateItems(filings, page, pageSize);
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[32px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fafc,_#ffffff_45%,_#dbeafe)] p-8 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-          Concierge Queue
-        </p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-          All UCR concierge filings for staff review and processing.
-        </h2>
-      </section>
-
-      {error && (
-        <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
-          {error}
-        </div>
-      )}
-
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-4">
-          <input
-            value={year}
-            onChange={(event) => setYear(event.target.value)}
-            placeholder="All years"
-            className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-          <select
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-            className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            <option value="">All statuses</option>
-            <option value="QUEUED_FOR_PROCESSING">Queued</option>
-            <option value="IN_PROCESS">In process</option>
-            <option value="OFFICIAL_PAYMENT_PENDING">Official payment pending</option>
-            <option value="OFFICIAL_PAID">Official paid</option>
-            <option value="NEEDS_ATTENTION">Needs attention</option>
-            <option value="COMPLETED">Completed</option>
-          </select>
-          <select
-            value={paymentState}
-            onChange={(event) => setPaymentState(event.target.value)}
-            className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            <option value="">Any customer payment</option>
-            <option value="SUCCEEDED">Succeeded</option>
-            <option value="PENDING">Pending</option>
-            <option value="FAILED">Failed</option>
-          </select>
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Customer, company, DOT"
-            className="rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
-        </div>
-
-        <div className="mt-4 flex gap-3">
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
-          >
-            Apply filters
-          </button>
+    <div className="w-full min-w-0 space-y-6">
+      <section className="rounded-2xl border bg-white shadow-sm">
+        <div className="p-6">
+          <div className="text-xs text-zinc-500">Compliance</div>
+          <h1 className="text-xl font-semibold text-zinc-900">UCR</h1>
+          <p className="mt-1 max-w-3xl text-sm text-zinc-600">
+            Review concierge filings, assign work to yourself, and process customer and official
+            payment states from one standardized queue.
+          </p>
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <article className="rounded-2xl border bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Total filings
+          </p>
+          <p className="mt-2 text-3xl font-semibold text-zinc-900">{filings.length}</p>
+          <p className="mt-2 text-sm text-zinc-500">All queue items matching current filters.</p>
+        </article>
+
+        <article className="rounded-2xl border bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Unassigned
+          </p>
+          <p className="mt-2 text-3xl font-semibold text-zinc-900">{unassignedCount}</p>
+          <p className="mt-2 text-sm text-zinc-500">Ready to be claimed by staff.</p>
+        </article>
+
+        <article className="rounded-2xl border bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Completed
+          </p>
+          <p className="mt-2 text-3xl font-semibold text-zinc-900">{completedCount}</p>
+          <p className="mt-2 text-sm text-zinc-500">{attentionCount} need attention.</p>
+        </article>
+
+        <article className="rounded-2xl border bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Total billed
+          </p>
+          <p className="mt-2 text-3xl font-semibold text-zinc-900">
+            {formatCurrency(totalCharged)}
+          </p>
+          <p className="mt-2 text-sm text-zinc-500">Customer totals across visible filings.</p>
+        </article>
+      </section>
+
+      {error ? (
+        <section className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-4">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              {error}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="rounded-2xl border bg-white shadow-sm">
+        <div className="border-b border-zinc-100 p-6">
+          <h2 className="text-base font-semibold text-zinc-900">Filters</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Narrow the queue by year, filing state, payment state, or customer details.
+          </p>
+        </div>
+
+        <div className="p-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <label className="space-y-2">
+              <span className="block text-xs font-medium text-zinc-600">Year</span>
+              <input
+                value={year}
+                onChange={(event) => setYear(event.target.value)}
+                placeholder="All years"
+                className="w-full rounded-2xl border bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:ring-2 focus:ring-zinc-900/10"
+              />
+            </label>
+
+            <label className="space-y-2">
+              <span className="block text-xs font-medium text-zinc-600">Status</span>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+                className="w-full rounded-2xl border bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:ring-2 focus:ring-zinc-900/10"
+              >
+                <option value="">All statuses</option>
+                <option value="QUEUED_FOR_PROCESSING">Queued</option>
+                <option value="IN_PROCESS">In process</option>
+                <option value="OFFICIAL_PAYMENT_PENDING">Official payment pending</option>
+                <option value="OFFICIAL_PAID">Official paid</option>
+                <option value="NEEDS_ATTENTION">Needs attention</option>
+                <option value="COMPLETED">Completed</option>
+              </select>
+            </label>
+
+            <label className="space-y-2">
+              <span className="block text-xs font-medium text-zinc-600">Customer payment</span>
+              <select
+                value={paymentState}
+                onChange={(event) => setPaymentState(event.target.value)}
+                className="w-full rounded-2xl border bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:ring-2 focus:ring-zinc-900/10"
+              >
+                <option value="">Any customer payment</option>
+                <option value="SUCCEEDED">Succeeded</option>
+                <option value="PENDING">Pending</option>
+                <option value="FAILED">Failed</option>
+              </select>
+            </label>
+
+            <label className="space-y-2">
+              <span className="block text-xs font-medium text-zinc-600">Search</span>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Customer, company, DOT"
+                className="w-full rounded-2xl border bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:ring-2 focus:ring-zinc-900/10"
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 flex gap-3">
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
+            >
+              Apply filters
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border bg-white shadow-sm">
+        <div className="border-b border-zinc-100 p-6">
+          <h2 className="text-base font-semibold text-zinc-900">Queue</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Concierge filings with customer, billing, assignment, and processing status details.
+          </p>
+        </div>
+
         {loading ? (
-          <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-600">
-            Loading UCR filings...
+          <div className="p-6">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
+              Loading UCR filings...
+            </div>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-[24px] border border-zinc-200">
+          <div className="overflow-hidden rounded-b-2xl">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1360px]">
-                <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                <thead className="border-b bg-zinc-50/80">
                   <tr>
-                    <th className="px-4 py-3">Customer</th>
-                    <th className="px-4 py-3">DOT</th>
-                    <th className="px-4 py-3">Company</th>
-                    <th className="px-4 py-3">Year</th>
-                    <th className="px-4 py-3">Vehicles</th>
-                    <th className="px-4 py-3">Bracket</th>
-                    <th className="px-4 py-3">UCR</th>
-                    <th className="px-4 py-3">Service</th>
-                    <th className="px-4 py-3">Total</th>
-                    <th className="px-4 py-3">Customer paid</th>
-                    <th className="px-4 py-3">Assigned staff</th>
-                    <th className="px-4 py-3">Official payment</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Receipt</th>
-                    <th className="px-4 py-3">Open</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Customer
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      DOT
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Company
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Year
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Vehicles
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Bracket
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      UCR
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Service
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Total
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Customer paid
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Assigned staff
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Official payment
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Receipt
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 bg-white">
+                <tbody className="divide-y divide-zinc-100">
                   {paginatedFilings.items.map((filing) => {
                     const companyProfile = filing.user?.companyProfile;
                     const companyName =
@@ -219,86 +352,110 @@ export default function UcrAdminQueuePage({
                       companyProfile?.dotNumber || filing.dotNumber || filing.usdotNumber;
 
                     return (
-                    <tr key={filing.id}>
-                      <td className="px-4 py-3 text-sm text-zinc-700">
-                        <p className="font-medium text-zinc-900">{filing.user?.name || "-"}</p>
-                        <p className="text-zinc-500">{filing.user?.email || "-"}</p>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{dotNumber || "-"}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{companyName || "-"}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.year}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.vehicleCount ?? filing.fleetSize}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.bracketCode || "-"}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{formatCurrency(filing.ucrAmount)}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{formatCurrency(filing.serviceFee)}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{formatCurrency(filing.totalCharged)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="space-y-1">
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${customerPaymentStatusClasses(
-                              filing.customerPaymentStatus,
-                            )}`}
+                      <tr key={filing.id} className="transition hover:bg-zinc-50/70">
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          <p className="font-medium text-zinc-900">{filing.user?.name || "-"}</p>
+                          <p className="text-zinc-500">{filing.user?.email || "-"}</p>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">{dotNumber || "-"}</td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">{companyName || "-"}</td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">{filing.year}</td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          {filing.vehicleCount ?? filing.fleetSize}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          {filing.bracketCode || "-"}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          {formatCurrency(filing.ucrAmount)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          {formatCurrency(filing.serviceFee)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          {formatCurrency(filing.totalCharged)}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <div className="space-y-2">
+                            <Badge
+                              tone={getStatusTone(
+                                customerPaymentStatusLabel(filing.customerPaymentStatus),
+                              )}
+                            >
+                              {customerPaymentStatusLabel(filing.customerPaymentStatus)}
+                            </Badge>
+                            <p className="text-xs text-zinc-500">{formatDate(filing.customerPaidAt)}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          {assignedStaffLabel(filing)}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <Badge
+                            tone={getStatusTone(
+                              officialPaymentStatusLabel(filing.officialPaymentStatus),
+                            )}
                           >
-                            {customerPaymentStatusLabel(filing.customerPaymentStatus)}
-                          </span>
-                          <p className="text-xs text-zinc-500">{formatDate(filing.customerPaidAt)}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">
-                        {assignedStaffLabel(filing)}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${officialPaymentStatusClasses(
-                            filing.officialPaymentStatus,
-                          )}`}
-                        >
-                          {officialPaymentStatusLabel(filing.officialPaymentStatus)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${filingStatusClasses(
-                            filing.status,
-                          )}`}
-                        >
-                          {filingStatusLabel(filing.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">
-                        {filing.officialReceiptUrl ? "Uploaded" : "Missing"}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void assignToMe(filing.id)}
-                            disabled={busyFilingId === filing.id}
-                            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50 disabled:opacity-60"
-                          >
-                            {busyFilingId === filing.id ? "Assigning..." : "Assign to me"}
-                          </button>
-                          <Link
-                            href={`${detailHrefBase}/${filing.id}`}
-                            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
-                          >
-                            Open
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
+                            {officialPaymentStatusLabel(filing.officialPaymentStatus)}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <Badge tone={getStatusTone(filingStatusLabel(filing.status))}>
+                            {filingStatusLabel(filing.status)}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <Badge tone={filing.officialReceiptUrl ? "success" : "light"}>
+                            {filing.officialReceiptUrl ? "Uploaded" : "Missing"}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void assignToMe(filing.id)}
+                              disabled={busyFilingId === filing.id}
+                              aria-label={
+                                busyFilingId === filing.id ? "Assigning filing" : "Assign to me"
+                              }
+                              title={
+                                busyFilingId === filing.id ? "Assigning filing" : "Assign to me"
+                              }
+                              className={iconButtonClasses({
+                                variant: "default",
+                                className: busyFilingId === filing.id ? "opacity-60" : undefined,
+                              })}
+                            >
+                              {busyFilingId === filing.id ? (
+                                <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+                              ) : (
+                                <ActionIcon name="roles" />
+                              )}
+                            </button>
+                            <Link
+                              href={`${detailHrefBase}/${filing.id}`}
+                              aria-label="Open filing"
+                              title="Open filing"
+                              className={iconButtonClasses({ variant: "dark" })}
+                            >
+                              <ActionIcon name="view" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
-                  {filings.length === 0 && (
+                  {filings.length === 0 ? (
                     <tr>
-                      <td colSpan={15} className="px-4 py-8 text-center text-sm text-zinc-500">
+                      <td colSpan={15} className="px-6 py-12 text-center text-sm text-zinc-500">
                         No UCR filings match the current filters.
                       </td>
                     </tr>
-                  )}
+                  ) : null}
                 </tbody>
               </table>
             </div>
+
             <ClientPaginationControls
               page={paginatedFilings.currentPage}
               totalPages={paginatedFilings.totalPages}

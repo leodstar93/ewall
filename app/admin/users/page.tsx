@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ActionIcon, IconButton, iconButtonClasses } from "@/components/ui/icon-button";
 
 interface User {
   id: string;
@@ -820,39 +821,42 @@ export default function AdminUsersPage() {
                         <div className="flex justify-end gap-2">
                           <Link
                             href={`/admin/users/${user.id}`}
-                            className="rounded-2xl border bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition"
+                            aria-label="View user"
+                            title="View user"
+                            className={iconButtonClasses({ variant: "default" })}
                           >
-                            View
+                            <ActionIcon name="view" />
                           </Link>
 
-                          <button
+                          <IconButton
                             onClick={() => openRolesModal(user)}
-                            className="rounded-2xl border bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition"
-                          >
-                            Roles
-                          </button>
+                            label="Manage roles"
+                            icon="roles"
+                          />
 
-                          <button
+                          <IconButton
                             onClick={() => void handleLoginAsUser(user)}
                             disabled={
                               impersonatingUserId === user.id ||
                               session?.user?.id === user.id
                             }
-                            className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400"
-                          >
-                            {session?.user?.id === user.id
-                              ? "Current user"
-                              : impersonatingUserId === user.id
-                                ? "Opening..."
-                                : "Login as this user"}
-                          </button>
+                            variant="brand"
+                            label={
+                              session?.user?.id === user.id
+                                ? "Current user"
+                                : impersonatingUserId === user.id
+                                  ? "Opening..."
+                                  : "Login as this user"
+                            }
+                            icon="login"
+                          />
 
-                          <button
+                          <IconButton
                             onClick={() => openDeleteModal(user)}
-                            className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100 transition"
-                          >
-                            Delete
-                          </button>
+                            variant="danger"
+                            label="Delete user"
+                            icon="delete"
+                          />
                         </div>
                       </td>
                     </tr>

@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { Badge } from "@/components/ui/badge";
+import {
+  ActionIcon,
+  IconButton,
+  iconButtonClasses,
+} from "@/components/ui/icon-button";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 interface Role {
@@ -30,6 +35,15 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function parsePageSize(value: string) {
+  const next = Number(value);
+  return DEFAULT_PAGE_SIZE_OPTIONS.includes(
+    next as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+  )
+    ? (next as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+    : 10;
+}
+
 export default function AdminRolesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -44,14 +58,12 @@ export default function AdminRolesPage() {
   const [formData, setFormData] = useState({ name: "", description: "" });
   const [formError, setFormError] = useState("");
 
-  // Search + sort
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("name-asc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
-  // Toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
   const pushToast = (t: Omit<Toast, "id">) => {
     const id = uid();
@@ -69,13 +81,11 @@ export default function AdminRolesPage() {
     [session],
   );
 
-  // Check admin access
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
     if (status === "authenticated" && !isAdmin) router.replace("/panel");
   }, [status, isAdmin, router]);
 
-  // Fetch roles
   useEffect(() => {
     const fetchRoles = async () => {
       try {
@@ -129,7 +139,6 @@ export default function AdminRolesPage() {
       return;
     }
 
-    // optimistic guard: prevent duplicates by name
     const upper = trimmed.toUpperCase();
     if (roles.some((r) => r.name === upper)) {
       setFormError("A role with that name already exists");
@@ -220,15 +229,13 @@ export default function AdminRolesPage() {
     const getUsers = (r: Role) => r._count?.users || 0;
     const getPerms = (r: Role) => r._count?.permissions || 0;
 
-    const sorted = [...filtered].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       if (sort === "name-asc") return a.name.localeCompare(b.name);
       if (sort === "name-desc") return b.name.localeCompare(a.name);
       if (sort === "users-desc") return getUsers(b) - getUsers(a);
       if (sort === "perms-desc") return getPerms(b) - getPerms(a);
       return 0;
     });
-
-    return sorted;
   }, [roles, query, sort]);
 
   useEffect(() => {
@@ -252,34 +259,17 @@ export default function AdminRolesPage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex-1 overflow-auto bg-zinc-50">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="h-11 w-11 animate-pulse rounded-2xl bg-zinc-100" />
-              <div className="flex-1">
-                <div className="h-5 w-56 animate-pulse rounded bg-zinc-100" />
-                <div className="mt-2 h-4 w-80 animate-pulse rounded bg-zinc-100" />
-              </div>
-              <div className="h-10 w-32 animate-pulse rounded-xl bg-zinc-100" />
-            </div>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="h-6 w-44 animate-pulse rounded bg-zinc-100" />
+          <div className="mt-6 space-y-3">
+            <div className="h-3 w-full animate-pulse rounded bg-zinc-100" />
+            <div className="h-3 w-5/6 animate-pulse rounded bg-zinc-100" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-zinc-100" />
           </div>
-
-          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-2xl border bg-white p-6 shadow-sm"
-              >
-                <div className="h-5 w-40 animate-pulse rounded bg-zinc-100" />
-                <div className="mt-3 h-4 w-56 animate-pulse rounded bg-zinc-100" />
-                <div className="mt-5 flex gap-3">
-                  <div className="h-16 flex-1 animate-pulse rounded-xl bg-zinc-100" />
-                  <div className="h-16 flex-1 animate-pulse rounded-xl bg-zinc-100" />
-                </div>
-                <div className="mt-5 h-10 w-full animate-pulse rounded-xl bg-zinc-100" />
-              </div>
-            ))}
+          <div className="mt-6 h-10 w-full animate-pulse rounded-xl bg-zinc-100" />
+          <div className="mt-3 text-center text-sm text-zinc-600">
+            Loading roles...
           </div>
         </div>
       </div>
@@ -289,8 +279,7 @@ export default function AdminRolesPage() {
   if (!isAdmin) return null;
 
   return (
-    <div className="flex-1 overflow-auto bg-zinc-50">
-      {/* Toasts */}
+    <div className="w-full min-w-0 space-y-6">
       <div className="pointer-events-none fixed right-4 top-4 z-[60] flex w-[92vw] max-w-sm flex-col gap-3">
         {toasts.map((t) => (
           <div
@@ -315,261 +304,303 @@ export default function AdminRolesPage() {
                 className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
                 aria-label="Dismiss"
               >
-                ✕
+                x
               </button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Header */}
-      <div className="border-b bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-900 text-white shadow-sm">
-                  <span className="text-sm font-semibold">R</span>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-                    Manage roles
-                  </h1>
-                  <p className="mt-1 text-sm text-zinc-600">
-                    Search, sort, and maintain roles for your RBAC.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={handleOpenAddModal}
-                className="inline-flex items-center justify-center rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-700"
-              >
-                + Add role
-              </button>
-
-              <Link
-                href="/admin"
-                className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
-              >
-                ← Back to Admin
-              </Link>
-            </div>
+      <div className="rounded-2xl border bg-white shadow-sm">
+        <div className="flex items-start justify-between gap-4 p-6">
+          <div className="min-w-0">
+            <div className="text-xs text-zinc-500">Admin</div>
+            <h1 className="text-xl font-semibold text-zinc-900">Roles</h1>
+            <p className="mt-1 text-sm text-zinc-600">
+              Manage role definitions and access distribution.
+            </p>
           </div>
 
-          {/* Summary */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border bg-zinc-50 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Total roles
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                {roles.length}
-              </p>
-            </div>
-            <div className="rounded-2xl border bg-zinc-50 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Assigned users
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                {totalUsers}
-              </p>
-            </div>
-            <div className="rounded-2xl border bg-zinc-50 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Total permissions
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                {totalPerms}
-              </p>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-md">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search roles by name or description..."
-                className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 pr-10 text-sm text-zinc-900 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
-                  aria-label="Clear search"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-zinc-700">Sort</label>
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortKey)}
-                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100"
-              >
-                <option value="name-asc">Name (A → Z)</option>
-                <option value="name-desc">Name (Z → A)</option>
-                <option value="users-desc">Most users</option>
-                <option value="perms-desc">Most permissions</option>
-              </select>
-            </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleOpenAddModal}
+              className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
+            >
+              Add role
+            </button>
+            <Link
+              href="/admin"
+              className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              Back
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        {filteredSortedRoles.length > 0 ? (
-          <div className="space-y-4">
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {paginatedRoles.items.map((role) => {
-                const usersCount = role._count?.users || 0;
-                const permsCount = role._count?.permissions || 0;
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Total roles
+          </div>
+          <div className="mt-2 text-3xl font-semibold text-zinc-900">
+            {roles.length}
+          </div>
+        </div>
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Assigned users
+          </div>
+          <div className="mt-2 text-3xl font-semibold text-zinc-900">
+            {totalUsers}
+          </div>
+        </div>
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Permissions
+          </div>
+          <div className="mt-2 text-3xl font-semibold text-zinc-900">
+            {totalPerms}
+          </div>
+        </div>
+      </div>
 
-              const locked = role.name === "ADMIN" || usersCount > 0;
-
-              return (
-                <div
-                  key={role.id}
-                  className="rounded-2xl border bg-white p-6 shadow-sm transition hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-base font-semibold text-zinc-900">
-                        {role.name}
-                      </h3>
-                      <p className="mt-1 line-clamp-2 text-sm text-zinc-600">
-                        {role.description || "—"}
-                      </p>
-                    </div>
-
-                    {role.name === "ADMIN" ? (
-                      <span className="rounded-full bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-white">
-                        System
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-purple-50 px-2.5 py-1 text-[11px] font-medium text-purple-700 ring-1 ring-purple-100">
-                        Custom
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border bg-zinc-50 p-4">
-                      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                        Users
-                      </p>
-                      <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                        {usersCount}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border bg-zinc-50 p-4">
-                      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                        Permissions
-                      </p>
-                      <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                        {permsCount}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex items-center justify-between gap-3">
-                    <Link
-                      href={`/admin/roles/${role.id}`}
-                      className="inline-flex flex-1 items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
-                    >
-                      View
-                    </Link>
-
-                    <button
-                      onClick={() => handleOpenDeleteModal(role)}
-                      disabled={locked}
-                      className={`inline-flex flex-1 items-center justify-center rounded-xl px-4 py-2 text-sm font-medium shadow-sm transition ${
-                        locked
-                          ? "cursor-not-allowed border bg-zinc-100 text-zinc-400"
-                          : "bg-red-600 text-white hover:bg-red-700"
-                      }`}
-                      title={
-                        role.name === "ADMIN"
-                          ? "Cannot delete ADMIN role"
-                          : usersCount > 0
-                            ? "Cannot delete role with assigned users"
-                            : "Delete role"
-                      }
-                    >
-                      Delete
-                    </button>
-                  </div>
-
-                  {locked && (
-                    <p className="mt-3 text-xs text-zinc-500">
-                      {role.name === "ADMIN"
-                        ? "ADMIN is a protected system role."
-                        : "Unassign users before deleting this role."}
-                    </p>
-                  )}
-                </div>
-                );
-              })}
-            </div>
-            <div className="rounded-2xl border bg-white shadow-sm">
-              <ClientPaginationControls
-                page={paginatedRoles.currentPage}
-                totalPages={paginatedRoles.totalPages}
-                pageSize={paginatedRoles.pageSize}
-                totalItems={paginatedRoles.totalItems}
-                itemLabel="roles"
-                onPageChange={setPage}
-                onPageSizeChange={(nextPageSize) =>
-                  setPageSize(
-                    DEFAULT_PAGE_SIZE_OPTIONS.includes(
-                      nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
-                    )
-                      ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
-                      : 10,
-                  )
-                }
+      <div className="rounded-2xl border bg-white shadow-sm">
+        <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-3">
+          <div>
+            <label className="mb-2 block text-xs font-medium text-zinc-600">
+              Search
+            </label>
+            <div className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-600">
+              <svg
+                className="h-4 w-4 text-zinc-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8.5 3.5a5 5 0 103.14 8.9l3.48 3.48a.75.75 0 101.06-1.06l-3.48-3.48A5 5 0 008.5 3.5zM5 8.5a3.5 3.5 0 117 0 3.5 3.5 0 01-7 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by role or description..."
+                className="w-full bg-transparent text-zinc-900 outline-none placeholder:text-zinc-400"
               />
             </div>
           </div>
-        ) : (
-          <div className="rounded-2xl border bg-white p-10 text-center shadow-sm">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-700 ring-1 ring-purple-100">
-              🔎
+
+          <div>
+            <label className="mb-2 block text-xs font-medium text-zinc-600">
+              Sort by
+            </label>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
+            >
+              <option value="name-asc">Name</option>
+              <option value="name-desc">Name desc</option>
+              <option value="users-desc">Most users</option>
+              <option value="perms-desc">Most permissions</option>
+            </select>
+          </div>
+
+          <div className="flex items-end justify-between gap-3 md:justify-end">
+            <div className="text-sm text-zinc-600">
+              Showing{" "}
+              <span className="font-semibold text-zinc-900">
+                {filteredSortedRoles.length}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-zinc-900">{roles.length}</span>
             </div>
-            <h2 className="mt-4 text-lg font-semibold text-zinc-900">
-              No results
-            </h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Try a different search or create a new role.
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <button
-                onClick={() => setQuery("")}
-                className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
-              >
-                Clear search
-              </button>
-              <button
-                onClick={handleOpenAddModal}
-                className="inline-flex items-center justify-center rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-700"
-              >
-                Create role
-              </button>
+
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(parsePageSize(e.target.value))}
+              className="rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
+              title="Rows per page"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+        {paginatedRoles.totalItems > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="border-b bg-zinc-50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-700">
+                      Role
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-700">
+                      Description
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-700">
+                      Users
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-700">
+                      Permissions
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wide text-zinc-700">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y">
+                  {paginatedRoles.items.map((role) => {
+                    const usersCount = role._count?.users || 0;
+                    const permsCount = role._count?.permissions || 0;
+                    const locked = role.name === "ADMIN" || usersCount > 0;
+
+                    return (
+                      <tr
+                        key={role.id}
+                        className="transition-colors hover:bg-zinc-50/70"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-900 font-semibold text-white">
+                              {(role.name[0] || "R").toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <div className="truncate text-sm font-medium text-zinc-900">
+                                  {role.name}
+                                </div>
+                                <Badge
+                                  tone={role.name === "ADMIN" ? "dark" : "info"}
+                                  variant={
+                                    role.name === "ADMIN" ? "solid" : "light"
+                                  }
+                                >
+                                  {role.name === "ADMIN" ? "System" : "Custom"}
+                                </Badge>
+                              </div>
+                              <div className="mt-1 text-xs text-zinc-500">
+                                {locked
+                                  ? role.name === "ADMIN"
+                                    ? "Protected system role"
+                                    : "Delete disabled while users are assigned"
+                                  : "Role available for updates"}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          {role.description || "No description"}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <Badge tone="info">{usersCount}</Badge>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <Badge tone="success">{permsCount}</Badge>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/admin/roles/${role.id}`}
+                              aria-label="View role"
+                              title="View role"
+                              className={iconButtonClasses({ variant: "default" })}
+                            >
+                              <ActionIcon name="view" />
+                            </Link>
+                            <IconButton
+                              onClick={() => handleOpenDeleteModal(role)}
+                              disabled={locked}
+                              variant="danger"
+                              label="Delete role"
+                              icon="delete"
+                              title={
+                                role.name === "ADMIN"
+                                  ? "Cannot delete ADMIN role"
+                                  : usersCount > 0
+                                    ? "Cannot delete role with assigned users"
+                                    : "Delete role"
+                              }
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-zinc-600">
+                Page{" "}
+                <span className="font-semibold text-zinc-900">
+                  {paginatedRoles.currentPage}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-zinc-900">
+                  {paginatedRoles.totalPages}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={paginatedRoles.currentPage === 1}
+                  className="rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  First
+                </button>
+                <button
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={paginatedRoles.currentPage === 1}
+                  className="rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() =>
+                    setPage((current) =>
+                      Math.min(paginatedRoles.totalPages, current + 1),
+                    )
+                  }
+                  disabled={paginatedRoles.currentPage === paginatedRoles.totalPages}
+                  className="rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+                <button
+                  onClick={() => setPage(paginatedRoles.totalPages)}
+                  disabled={paginatedRoles.currentPage === paginatedRoles.totalPages}
+                  className="rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="p-10 text-center">
+            <div className="text-sm text-zinc-600">
+              {query ? "No roles found." : "No roles created yet."}
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-xl">
@@ -589,7 +620,7 @@ export default function AdminRolesPage() {
                     className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
                     aria-label="Close"
                   >
-                    ✕
+                    x
                   </button>
                 </div>
 
@@ -604,8 +635,8 @@ export default function AdminRolesPage() {
                       onChange={(e) =>
                         setFormData({ ...formData, name: e.target.value })
                       }
-                      placeholder="e.g., EDITOR, VIEWER, DOCTOR"
-                      className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100"
+                      placeholder="e.g., EDITOR, VIEWER, SUPPORT"
+                      className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/10"
                     />
                   </div>
 
@@ -621,9 +652,9 @@ export default function AdminRolesPage() {
                           description: e.target.value,
                         })
                       }
-                      placeholder="Describe this role’s purpose..."
+                      placeholder="Describe this role's purpose..."
                       rows={3}
-                      className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100"
+                      className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/10"
                     />
                   </div>
 
@@ -643,7 +674,7 @@ export default function AdminRolesPage() {
                   </button>
                   <button
                     onClick={handleAddRole}
-                    className="flex-1 rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-700"
+                    className="flex-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
                   >
                     Create
                   </button>
@@ -667,20 +698,20 @@ export default function AdminRolesPage() {
                     className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
                     aria-label="Close"
                   >
-                    ✕
+                    x
                   </button>
                 </div>
 
                 <div className="mt-5 rounded-2xl border bg-zinc-50 p-4">
                   <p className="text-sm text-zinc-700">
-                    You’re about to delete{" "}
+                    You're about to delete{" "}
                     <span className="font-semibold text-zinc-900">
                       {selectedRole.name}
                     </span>
                     .
                   </p>
                   <p className="mt-2 text-xs text-zinc-500">
-                    Tip: unassign users first if you’re reorganizing access.
+                    Tip: unassign users first if you're reorganizing access.
                   </p>
                 </div>
 

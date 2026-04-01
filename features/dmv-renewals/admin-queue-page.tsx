@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
+import { Badge } from "@/components/ui/badge";
+import { getStatusTone } from "@/lib/ui/status-utils";
 import {
-  dmvRenewalStatusClasses,
   dmvRenewalStatusLabel,
   DmvRenewalCaseStatus,
   formatDateTime,
@@ -91,16 +93,55 @@ export default function DmvRenewalAdminQueuePage() {
   );
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-zinc-950">DMV Renewal Queue</h2>
-            <p className="mt-1 text-sm text-zinc-500">{totalCount} cases in the staff queue.</p>
-          </div>
+    <div className="w-full min-w-0 space-y-6">
+      <section className="rounded-2xl border bg-white shadow-sm">
+        <div className="p-6">
+          <div className="text-xs text-zinc-500">Compliance</div>
+          <h1 className="text-xl font-semibold text-zinc-900">DMV Renewals</h1>
+          <p className="mt-1 max-w-3xl text-sm text-zinc-600">
+            Track renewal cases, filter by workflow stage, and keep the queue aligned with the
+            same visual system used across the rest of the admin area.
+          </p>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <article className="rounded-2xl border bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total cases</p>
+          <p className="mt-2 text-3xl font-semibold text-zinc-900">{totalCount}</p>
+          <p className="mt-2 text-sm text-zinc-500">All cases currently in the staff queue.</p>
+        </article>
+
+        <article className="rounded-2xl border bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Submitted</p>
+          <p className="mt-2 text-3xl font-semibold text-zinc-900">{counts.SUBMITTED ?? 0}</p>
+          <p className="mt-2 text-sm text-zinc-500">Newly submitted renewals awaiting review.</p>
+        </article>
+
+        <article className="rounded-2xl border bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">In review</p>
+          <p className="mt-2 text-3xl font-semibold text-zinc-900">{counts.IN_REVIEW ?? 0}</p>
+          <p className="mt-2 text-sm text-zinc-500">Cases currently being handled by staff.</p>
+        </article>
+
+        <article className="rounded-2xl border bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Completed</p>
+          <p className="mt-2 text-3xl font-semibold text-zinc-900">{counts.COMPLETED ?? 0}</p>
+          <p className="mt-2 text-sm text-zinc-500">
+            {counts.NEEDS_CLIENT_ACTION ?? 0} cases still need client action.
+          </p>
+        </article>
+      </section>
+
+      <section className="rounded-2xl border bg-white shadow-sm">
+        <div className="border-b border-zinc-100 p-6">
+          <h2 className="text-base font-semibold text-zinc-900">Status tabs</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Switch between queue stages without changing the existing case-loading logic.
+          </p>
         </div>
 
-        <div className="mt-5 flex flex-wrap gap-2 border-b border-zinc-200 pb-4">
+        <div className="flex flex-wrap gap-2 p-6">
           {statusTabs.map((tab) => {
             const isActive = status === tab.value;
             const count = tab.value === "ALL" ? totalCount : counts[tab.value] ?? 0;
@@ -110,73 +151,117 @@ export default function DmvRenewalAdminQueuePage() {
                 key={tab.value}
                 type="button"
                 onClick={() => setStatus(tab.value)}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
+                className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition ${
                   isActive
-                    ? "bg-zinc-950 text-white"
-                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
                 }`}
               >
                 <span>{tab.label}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${isActive ? "bg-white/15" : "bg-white text-zinc-600"}`}>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs ${
+                    isActive ? "bg-white/15 text-white" : "bg-zinc-100 text-zinc-600"
+                  }`}
+                >
                   {count}
                 </span>
               </button>
             );
           })}
         </div>
+      </section>
+
+      <section className="rounded-2xl border bg-white shadow-sm">
+        <div className="border-b border-zinc-100 p-6">
+          <h2 className="text-base font-semibold text-zinc-900">Queue</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            Case number, client, unit details, assignment, and status in a full-width table.
+          </p>
+        </div>
 
         {loading ? (
-          <div className="mt-4 rounded-[22px] border border-zinc-200 bg-zinc-50 px-6 py-10 text-sm text-zinc-500">
-            Loading DMV renewal queue...
+          <div className="p-6">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
+              Loading DMV renewal queue...
+            </div>
           </div>
         ) : error ? (
-          <div className="mt-4 rounded-[22px] border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
-            {error}
+          <div className="p-6">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
+              {error}
+            </div>
           </div>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-[22px] border border-zinc-200">
+          <div className="overflow-hidden rounded-b-2xl">
             <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead className="bg-zinc-50 text-left">
+              <table className="w-full min-w-[980px]">
+                <thead className="border-b bg-zinc-50/80 text-left">
                   <tr>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Case</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Client</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Unit</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Assigned</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Status</th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Updated</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Action</th>
+                    <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Case
+                    </th>
+                    <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Client
+                    </th>
+                    <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Unit
+                    </th>
+                    <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Assigned
+                    </th>
+                    <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Updated
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200 bg-white">
+                <tbody className="divide-y divide-zinc-100">
                   {items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-4 text-sm">
-                        <div className="font-semibold text-zinc-950">{item.caseNumber}</div>
+                    <tr key={item.id} className="transition hover:bg-zinc-50/70">
+                      <td className="px-6 py-4 text-sm">
+                        <div className="font-medium text-zinc-900">{item.caseNumber}</div>
                         <div className="text-zinc-500">{formatDateTime(item.createdAt)}</div>
                       </td>
-                      <td className="px-4 py-4 text-sm text-zinc-700">{displayName(item.user)}</td>
-                      <td className="px-4 py-4 text-sm text-zinc-700">
+                      <td className="px-6 py-4 text-sm text-zinc-700">{displayName(item.user)}</td>
+                      <td className="px-6 py-4 text-sm text-zinc-700">
                         <div>{item.truck.unitNumber}</div>
-                        <div className="text-zinc-500">{item.truck.plateNumber || item.truck.vin || "-"}</div>
+                        <div className="text-zinc-500">
+                          {item.truck.plateNumber || item.truck.vin || "-"}
+                        </div>
                       </td>
-                      <td className="px-4 py-4 text-sm text-zinc-700">{displayName(item.assignedTo)}</td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${dmvRenewalStatusClasses(item.status)}`}>
+                      <td className="px-6 py-4 text-sm text-zinc-700">
+                        {displayName(item.assignedTo)}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <Badge tone={getStatusTone(dmvRenewalStatusLabel(item.status))}>
                           {dmvRenewalStatusLabel(item.status)}
-                        </span>
+                        </Badge>
                       </td>
-                      <td className="px-4 py-4 text-sm text-zinc-700">{formatDateTime(item.updatedAt)}</td>
-                      <td className="px-4 py-4 text-right">
-                        <Link href={`/admin/features/dmv/renewals/${item.id}`} className="inline-flex items-center justify-center rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800">
-                          Open
-                        </Link>
+                      <td className="px-6 py-4 text-sm text-zinc-700">
+                        {formatDateTime(item.updatedAt)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end">
+                          <Link
+                            href={`/admin/features/dmv/renewals/${item.id}`}
+                            aria-label="Open case"
+                            title="Open case"
+                            className={iconButtonClasses({ variant: "dark" })}
+                          >
+                            <ActionIcon name="view" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-zinc-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-sm text-zinc-500">
                         No DMV renewals found for this filter.
                       </td>
                     </tr>

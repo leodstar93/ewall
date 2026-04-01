@@ -3,16 +3,16 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
+import { Badge } from "@/components/ui/badge";
+import { getStatusTone } from "@/lib/ui/status-utils";
 import {
-  complianceClasses,
   complianceLabel,
   Form2290ComplianceStatus,
   Form2290Filing,
   formatDate,
   getComplianceStateForFiling,
-  paymentStatusClasses,
   paymentStatusLabel,
-  statusClasses,
   statusLabel,
 } from "@/features/form2290/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
@@ -88,136 +88,203 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
   );
 
   if (loading) {
-    return <div className="rounded-[28px] border border-zinc-200 bg-white p-8 shadow-sm">Loading Form 2290 queue...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="h-6 w-44 animate-pulse rounded bg-zinc-100" />
+          <div className="mt-6 space-y-3">
+            <div className="h-3 w-full animate-pulse rounded bg-zinc-100" />
+            <div className="h-3 w-5/6 animate-pulse rounded bg-zinc-100" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-zinc-100" />
+          </div>
+          <div className="mt-6 h-10 w-full animate-pulse rounded-xl bg-zinc-100" />
+          <div className="mt-3 text-center text-sm text-zinc-600">Loading Form 2290 queue...</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-[32px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fafc,_#ffffff_45%,_#dbeafe)] p-8 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
-          Staff Queue
-        </p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-          Review Form 2290 compliance across all managed fleets.
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-700">
-          Start from pending review, request corrections when something is missing, then confirm payment and Schedule 1 to complete annual compliance.
-        </p>
-
-        {statusCounts && (
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
-            <article className="rounded-[24px] border border-zinc-200 bg-white/80 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Total</p>
-              <p className="mt-3 text-2xl font-semibold text-zinc-950">{statusCounts.total}</p>
-            </article>
-            <article className="rounded-[24px] border border-zinc-200 bg-white/80 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Pending</p>
-              <p className="mt-3 text-2xl font-semibold text-zinc-950">{statusCounts.pending}</p>
-            </article>
-            <article className="rounded-[24px] border border-zinc-200 bg-white/80 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Corrections</p>
-              <p className="mt-3 text-2xl font-semibold text-zinc-950">{statusCounts.correctionNeeded}</p>
-            </article>
-            <article className="rounded-[24px] border border-zinc-200 bg-white/80 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Compliant</p>
-              <p className="mt-3 text-2xl font-semibold text-zinc-950">{statusCounts.compliant}</p>
-            </article>
-          </div>
-        )}
+    <div className="w-full min-w-0 space-y-6">
+      <section className="rounded-2xl border bg-white shadow-sm">
+        <div className="p-6">
+          <div className="text-xs text-zinc-500">Compliance</div>
+          <h1 className="text-xl font-semibold text-zinc-900">Form 2290</h1>
+          <p className="mt-1 max-w-3xl text-sm text-zinc-600">
+            Review annual heavy vehicle tax filings, track payment progress, and confirm
+            compliance from one full-width queue.
+          </p>
+        </div>
       </section>
 
-      {error && (
-        <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
-          {error}
-        </div>
-      )}
+      {statusCounts ? (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <article className="rounded-2xl border bg-white p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total</p>
+            <p className="mt-2 text-3xl font-semibold text-zinc-900">{statusCounts.total}</p>
+            <p className="mt-2 text-sm text-zinc-500">All filings in the current queue.</p>
+          </article>
 
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <article className="rounded-2xl border bg-white p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Pending</p>
+            <p className="mt-2 text-3xl font-semibold text-zinc-900">{statusCounts.pending}</p>
+            <p className="mt-2 text-sm text-zinc-500">Waiting for staff review or payment.</p>
+          </article>
+
+          <article className="rounded-2xl border bg-white p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Corrections
+            </p>
+            <p className="mt-2 text-3xl font-semibold text-zinc-900">
+              {statusCounts.correctionNeeded}
+            </p>
+            <p className="mt-2 text-sm text-zinc-500">Need additional client updates.</p>
+          </article>
+
+          <article className="rounded-2xl border bg-white p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Compliant
+            </p>
+            <p className="mt-2 text-3xl font-semibold text-zinc-900">{statusCounts.compliant}</p>
+            <p className="mt-2 text-sm text-zinc-500">Ready with payment and Schedule 1.</p>
+          </article>
+
+          <article className="rounded-2xl border bg-white p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Expired</p>
+            <p className="mt-2 text-3xl font-semibold text-zinc-900">{statusCounts.expired}</p>
+            <p className="mt-2 text-sm text-zinc-500">Require follow-up or renewal work.</p>
+          </article>
+        </section>
+      ) : null}
+
+      {error ? (
+        <section className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-4">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              {error}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="rounded-2xl border bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-zinc-100 p-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-zinc-950">Queue</h3>
+            <h2 className="text-base font-semibold text-zinc-900">Queue</h2>
             <p className="mt-1 text-sm text-zinc-600">
-              Staff and admins can access every filing from here.
+              Staff and admins can access every filing from here using the same standardized
+              controls as the rest of the admin module.
             </p>
           </div>
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none ring-0 focus:border-zinc-400"
-          >
-            <option value="all">All statuses</option>
-            <option value="PENDING_REVIEW">Pending review</option>
-            <option value="NEEDS_CORRECTION">Needs correction</option>
-            <option value="SUBMITTED">Submitted</option>
-            <option value="PAID">Paid</option>
-            <option value="COMPLIANT">Compliant</option>
-          </select>
+
+          <label className="space-y-2">
+            <span className="block text-xs font-medium text-zinc-600">Status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="w-full min-w-[210px] rounded-2xl border bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:ring-2 focus:ring-zinc-900/10"
+            >
+              <option value="all">All statuses</option>
+              <option value="PENDING_REVIEW">Pending review</option>
+              <option value="NEEDS_CORRECTION">Needs correction</option>
+              <option value="SUBMITTED">Submitted</option>
+              <option value="PAID">Paid</option>
+              <option value="COMPLIANT">Compliant</option>
+            </select>
+          </label>
         </div>
 
-        <div className="mt-5 overflow-hidden rounded-[24px] border border-zinc-200">
+        <div className="overflow-hidden rounded-b-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1220px]">
-              <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+            <table className="w-full min-w-[1120px]">
+              <thead className="border-b bg-zinc-50/80 text-left">
                 <tr>
-                  <th className="px-4 py-3">Owner</th>
-                  <th className="px-4 py-3">Unit</th>
-                  <th className="px-4 py-3">VIN</th>
-                  <th className="px-4 py-3">Period</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Payment</th>
-                  <th className="px-4 py-3">Compliance</th>
-                  <th className="px-4 py-3">Updated</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Owner
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Unit
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    VIN
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Period
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Payment
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Compliance
+                  </th>
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Updated
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-200 bg-white">
+              <tbody className="divide-y divide-zinc-100">
                 {paginatedFilings.items.map((filing) => {
                   const compliance = getComplianceStateForFiling(filing);
                   const owner = filing.user?.name || filing.user?.email || "Unknown";
 
                   return (
-                    <tr key={filing.id}>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{owner}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.unitNumberSnapshot || filing.truck.unitNumber}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.vinSnapshot}</td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{filing.taxPeriod.name}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClasses(filing.status)}`}>
+                    <tr key={filing.id} className="transition hover:bg-zinc-50/70">
+                      <td className="px-6 py-4 text-sm text-zinc-700">{owner}</td>
+                      <td className="px-6 py-4 text-sm text-zinc-700">
+                        {filing.unitNumberSnapshot || filing.truck.unitNumber}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-zinc-700">{filing.vinSnapshot}</td>
+                      <td className="px-6 py-4 text-sm text-zinc-700">{filing.taxPeriod.name}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <Badge tone={getStatusTone(statusLabel(filing.status))}>
                           {statusLabel(filing.status)}
-                        </span>
+                        </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${paymentStatusClasses(filing.paymentStatus)}`}>
+                      <td className="px-6 py-4 text-sm">
+                        <Badge tone={getStatusTone(paymentStatusLabel(filing.paymentStatus))}>
                           {paymentStatusLabel(filing.paymentStatus)}
-                        </span>
+                        </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${complianceClasses(compliance)}`}>
+                      <td className="px-6 py-4 text-sm">
+                        <Badge tone={getStatusTone(complianceLabel(compliance))}>
                           {complianceLabel(compliance)}
-                        </span>
+                        </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm text-zinc-700">{formatDate(filing.updatedAt)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <Link
-                          href={`${detailHrefBase}/${filing.id}`}
-                          className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-3 py-2 font-medium text-zinc-800 hover:bg-zinc-50"
-                        >
-                          Review
-                        </Link>
+                      <td className="px-6 py-4 text-sm text-zinc-700">
+                        {formatDate(filing.updatedAt)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end">
+                          <Link
+                            href={`${detailHrefBase}/${filing.id}`}
+                            aria-label="Review filing"
+                            title="Review filing"
+                            className={iconButtonClasses({ variant: "dark" })}
+                          >
+                            <ActionIcon name="view" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
-                {filings.length === 0 && (
+                {filings.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-sm text-zinc-500">
+                    <td colSpan={9} className="px-6 py-12 text-center text-sm text-zinc-500">
                       No Form 2290 filings match the current filter.
                     </td>
                   </tr>
-                )}
+                ) : null}
               </tbody>
             </table>
           </div>
+
           <ClientPaginationControls
             page={paginatedFilings.currentPage}
             totalPages={paginatedFilings.totalPages}

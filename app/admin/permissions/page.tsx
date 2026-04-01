@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/icon-button";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 interface Permission {
@@ -34,6 +35,15 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function parsePageSize(value: string) {
+  const next = Number(value);
+  return DEFAULT_PAGE_SIZE_OPTIONS.includes(
+    next as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+  )
+    ? (next as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+    : 10;
+}
+
 export default function AdminPermissionsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -53,14 +63,12 @@ export default function AdminPermissionsPage() {
   const [formData, setFormData] = useState({ key: "", description: "" });
   const [formError, setFormError] = useState("");
 
-  // search + sort
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("key-asc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
-  // toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
   const pushToast = (t: Omit<Toast, "id">) => {
     const id = uid();
@@ -78,13 +86,11 @@ export default function AdminPermissionsPage() {
     [session],
   );
 
-  // Check admin access
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
     if (status === "authenticated" && !isAdmin) router.replace("/panel");
   }, [status, isAdmin, router]);
 
-  // Fetch permissions and roles
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -146,15 +152,13 @@ export default function AdminPermissionsPage() {
         })
       : permissions;
 
-    const sorted = [...filtered].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       if (sort === "key-asc") return a.key.localeCompare(b.key);
       if (sort === "key-desc") return b.key.localeCompare(a.key);
       if (sort === "roles-desc") return getRoleCount(b) - getRoleCount(a);
       if (sort === "roles-asc") return getRoleCount(a) - getRoleCount(b);
       return 0;
     });
-
-    return sorted;
   }, [permissions, query, sort]);
 
   useEffect(() => {
@@ -210,7 +214,6 @@ export default function AdminPermissionsPage() {
       return;
     }
 
-    // quick duplicate guard
     if (permissions.some((p) => p.key === key)) {
       setFormError("This permission key already exists");
       return;
@@ -267,7 +270,6 @@ export default function AdminPermissionsPage() {
       );
 
       if (response.ok) {
-        // update local state to reflect assignment
         setPermissions((prev) =>
           prev.map((p) => {
             if (p.id !== selectedPermission.id) return p;
@@ -355,26 +357,17 @@ export default function AdminPermissionsPage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex-1 overflow-auto bg-zinc-50">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="h-11 w-11 animate-pulse rounded-2xl bg-zinc-100" />
-              <div className="flex-1">
-                <div className="h-5 w-56 animate-pulse rounded bg-zinc-100" />
-                <div className="mt-2 h-4 w-80 animate-pulse rounded bg-zinc-100" />
-              </div>
-              <div className="h-10 w-32 animate-pulse rounded-xl bg-zinc-100" />
-            </div>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="w-full max-w-sm rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="h-6 w-44 animate-pulse rounded bg-zinc-100" />
+          <div className="mt-6 space-y-3">
+            <div className="h-3 w-full animate-pulse rounded bg-zinc-100" />
+            <div className="h-3 w-5/6 animate-pulse rounded bg-zinc-100" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-zinc-100" />
           </div>
-
-          <div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
-            <div className="h-5 w-44 animate-pulse rounded bg-zinc-100" />
-            <div className="mt-4 space-y-2">
-              <div className="h-4 w-full animate-pulse rounded bg-zinc-100" />
-              <div className="h-4 w-5/6 animate-pulse rounded bg-zinc-100" />
-              <div className="h-4 w-4/6 animate-pulse rounded bg-zinc-100" />
-            </div>
+          <div className="mt-6 h-10 w-full animate-pulse rounded-xl bg-zinc-100" />
+          <div className="mt-3 text-center text-sm text-zinc-600">
+            Loading permissions...
           </div>
         </div>
       </div>
@@ -384,8 +377,7 @@ export default function AdminPermissionsPage() {
   if (!isAdmin) return null;
 
   return (
-    <div className="flex-1 overflow-auto bg-zinc-50">
-      {/* Toasts */}
+    <div className="w-full min-w-0 space-y-6">
       <div className="pointer-events-none fixed right-4 top-4 z-[60] flex w-[92vw] max-w-sm flex-col gap-3">
         {toasts.map((t) => (
           <div
@@ -410,158 +402,159 @@ export default function AdminPermissionsPage() {
                 className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
                 aria-label="Dismiss"
               >
-                ✕
+                x
               </button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Header */}
-      <div className="border-b bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-900 text-white shadow-sm">
-                  <span className="text-sm font-semibold">P</span>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-                    Manage permissions
-                  </h1>
-                  <p className="mt-1 text-sm text-zinc-600">
-                    Create permissions and assign them to roles.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={handleOpenAddModal}
-                className="inline-flex items-center justify-center rounded-xl bg-orange-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-orange-700"
-              >
-                + Add permission
-              </button>
-
-              <Link
-                href="/admin"
-                className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
-              >
-                ← Back to Admin
-              </Link>
-            </div>
+      <div className="rounded-2xl border bg-white shadow-sm">
+        <div className="flex items-start justify-between gap-4 p-6">
+          <div className="min-w-0">
+            <div className="text-xs text-zinc-500">Admin</div>
+            <h1 className="text-xl font-semibold text-zinc-900">
+              Permissions
+            </h1>
+            <p className="mt-1 text-sm text-zinc-600">
+              Manage permission keys and assign them to roles.
+            </p>
           </div>
 
-          {/* Summary */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border bg-zinc-50 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Total permissions
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                {totals.totalPerms}
-              </p>
-            </div>
-            <div className="rounded-2xl border bg-zinc-50 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Assigned permissions
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                {totals.assignedPerms}
-              </p>
-            </div>
-            <div className="rounded-2xl border bg-zinc-50 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Role assignments
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-zinc-900">
-                {totals.totalAssignments}
-              </p>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-md">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by key, description, or role..."
-                className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 pr-10 text-sm text-zinc-900 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
-                  aria-label="Clear search"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-zinc-700">Sort</label>
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortKey)}
-                className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
-              >
-                <option value="key-asc">Key (A → Z)</option>
-                <option value="key-desc">Key (Z → A)</option>
-                <option value="roles-desc">Most roles</option>
-                <option value="roles-asc">Least roles</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Info strip */}
-          <div className="mt-6 rounded-2xl border bg-zinc-50 p-5">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 text-lg">🔑</div>
-              <div>
-                <p className="text-sm font-semibold text-zinc-900">
-                  About permissions
-                </p>
-                <p className="mt-1 text-sm text-zinc-600">
-                  Use a consistent format like{" "}
-                  <span className="font-mono">resource:action</span>. Example:
-                  <span className="ml-2 rounded-md bg-white px-2 py-0.5 font-mono text-xs ring-1 ring-zinc-200">
-                    users:read
-                  </span>
-                  <span className="ml-2 rounded-md bg-white px-2 py-0.5 font-mono text-xs ring-1 ring-zinc-200">
-                    users:write
-                  </span>
-                  <span className="ml-2 rounded-md bg-white px-2 py-0.5 font-mono text-xs ring-1 ring-zinc-200">
-                    users:manage
-                  </span>
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleOpenAddModal}
+              className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
+            >
+              Add permission
+            </button>
+            <Link
+              href="/admin"
+              className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              Back
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        {filteredSortedPermissions.length > 0 ? (
-          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Total permissions
+          </div>
+          <div className="mt-2 text-3xl font-semibold text-zinc-900">
+            {totals.totalPerms}
+          </div>
+        </div>
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Assigned
+          </div>
+          <div className="mt-2 text-3xl font-semibold text-zinc-900">
+            {totals.assignedPerms}
+          </div>
+        </div>
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            Role assignments
+          </div>
+          <div className="mt-2 text-3xl font-semibold text-zinc-900">
+            {totals.totalAssignments}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-white shadow-sm">
+        <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-3">
+          <div>
+            <label className="mb-2 block text-xs font-medium text-zinc-600">
+              Search
+            </label>
+            <div className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-600">
+              <svg
+                className="h-4 w-4 text-zinc-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8.5 3.5a5 5 0 103.14 8.9l3.48 3.48a.75.75 0 101.06-1.06l-3.48-3.48A5 5 0 008.5 3.5zM5 8.5a3.5 3.5 0 117 0 3.5 3.5 0 01-7 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by key, description, or role..."
+                className="w-full bg-transparent text-zinc-900 outline-none placeholder:text-zinc-400"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs font-medium text-zinc-600">
+              Sort by
+            </label>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
+            >
+              <option value="key-asc">Key</option>
+              <option value="key-desc">Key desc</option>
+              <option value="roles-desc">Most roles</option>
+              <option value="roles-asc">Least roles</option>
+            </select>
+          </div>
+
+          <div className="flex items-end justify-between gap-3 md:justify-end">
+            <div className="text-sm text-zinc-600">
+              Showing{" "}
+              <span className="font-semibold text-zinc-900">
+                {filteredSortedPermissions.length}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-zinc-900">
+                {permissions.length}
+              </span>
+            </div>
+
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(parsePageSize(e.target.value))}
+              className="rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
+              title="Rows per page"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+        {paginatedPermissions.totalItems > 0 ? (
+          <>
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-zinc-50 border-b">
+              <table className="min-w-full">
+                <thead className="border-b bg-zinc-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-700">
                       Permission
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-700">
                       Description
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-700">
                       Roles
                     </th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-zinc-700">
+                      Assigned
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wide text-zinc-700">
                       Actions
                     </th>
                   </tr>
@@ -573,62 +566,76 @@ export default function AdminPermissionsPage() {
                       permission._count?.roles ?? permission.roles?.length ?? 0;
 
                     return (
-                      <tr key={permission.id} className="hover:bg-zinc-50">
+                      <tr
+                        key={permission.id}
+                        className="transition-colors hover:bg-zinc-50/70"
+                      >
                         <td className="px-6 py-4">
-                          <span className="inline-flex items-center rounded-lg bg-zinc-100 px-3 py-1 font-mono text-sm font-semibold text-zinc-900">
-                            {permission.key}
-                          </span>
-                          <div className="mt-2 text-xs text-zinc-500">
-                            {roleCount > 0
-                              ? `${roleCount} role(s) assigned`
-                              : "Not assigned"}
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-900 font-semibold text-white">
+                              {(permission.key[0] || "P").toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate font-mono text-sm font-semibold text-zinc-900">
+                                {permission.key}
+                              </div>
+                              <div className="mt-1 text-xs text-zinc-500">
+                                {roleCount > 0
+                                  ? `${roleCount} role(s) assigned`
+                                  : "Not assigned"}
+                              </div>
+                            </div>
                           </div>
                         </td>
 
-                        <td className="px-6 py-4 text-sm text-zinc-600">
-                          {permission.description || "—"}
+                        <td className="px-6 py-4 text-sm text-zinc-700">
+                          {permission.description || "No description"}
                         </td>
 
                         <td className="px-6 py-4">
                           <div className="flex flex-wrap gap-2">
                             {permission.roles && permission.roles.length > 0 ? (
                               permission.roles.slice(0, 4).map((r) => (
-                                <span
-                                  key={r.role.id}
-                                  className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700 ring-1 ring-purple-100"
-                                >
+                                <Badge key={r.role.id} tone="primary">
                                   {r.role.name}
-                                </span>
+                                </Badge>
                               ))
                             ) : (
-                              <span className="text-sm text-zinc-500">—</span>
+                              <span className="text-sm text-zinc-500">
+                                No roles
+                              </span>
                             )}
 
                             {permission.roles &&
                               permission.roles.length > 4 && (
-                                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">
+                                <Badge tone="light">
                                   +{permission.roles.length - 4}
-                                </span>
+                                </Badge>
                               )}
                           </div>
                         </td>
 
                         <td className="px-6 py-4">
+                          <Badge tone={roleCount > 0 ? "success" : "light"}>
+                            {roleCount}
+                          </Badge>
+                        </td>
+
+                        <td className="px-6 py-4">
                           <div className="flex justify-end gap-2">
-                            <button
+                            <IconButton
                               onClick={() =>
                                 handleOpenAssignRolesModal(permission)
                               }
-                              className="rounded-xl border bg-white px-3 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
-                            >
-                              Roles
-                            </button>
-                            <button
+                              label="Assign roles"
+                              icon="roles"
+                            />
+                            <IconButton
                               onClick={() => handleOpenDeleteModal(permission)}
-                              className="rounded-xl bg-red-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700"
-                            >
-                              Delete
-                            </button>
+                              variant="danger"
+                              label="Delete permission"
+                              icon="delete"
+                            />
                           </div>
                         </td>
                       </tr>
@@ -637,59 +644,70 @@ export default function AdminPermissionsPage() {
                 </tbody>
               </table>
             </div>
-            <ClientPaginationControls
-              page={paginatedPermissions.currentPage}
-              totalPages={paginatedPermissions.totalPages}
-              pageSize={paginatedPermissions.pageSize}
-              totalItems={paginatedPermissions.totalItems}
-              itemLabel="permissions"
-              onPageChange={setPage}
-              onPageSizeChange={(nextPageSize) =>
-                setPageSize(
-                  DEFAULT_PAGE_SIZE_OPTIONS.includes(
-                    nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
-                  )
-                    ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
-                    : 10,
-                )
-              }
-            />
-          </div>
-        ) : (
-          <div className="rounded-2xl border bg-white p-10 text-center shadow-sm">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-orange-700 ring-1 ring-orange-100">
-              🔎
-            </div>
-            <h2 className="mt-4 text-lg font-semibold text-zinc-900">
-              {query ? "No results" : "No permissions yet"}
-            </h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              {query
-                ? "Try a different search."
-                : "Create your first permission to start controlling access."}
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              {query ? (
-                <button
-                  onClick={() => setQuery("")}
-                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50"
-                >
-                  Clear search
-                </button>
-              ) : null}
 
-              <button
-                onClick={handleOpenAddModal}
-                className="inline-flex items-center justify-center rounded-xl bg-orange-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-orange-700"
-              >
-                Create permission
-              </button>
+            <div className="flex flex-col gap-3 border-t bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-zinc-600">
+                Page{" "}
+                <span className="font-semibold text-zinc-900">
+                  {paginatedPermissions.currentPage}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-zinc-900">
+                  {paginatedPermissions.totalPages}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={paginatedPermissions.currentPage === 1}
+                  className="rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  First
+                </button>
+                <button
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  disabled={paginatedPermissions.currentPage === 1}
+                  className="rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() =>
+                    setPage((current) =>
+                      Math.min(paginatedPermissions.totalPages, current + 1),
+                    )
+                  }
+                  disabled={
+                    paginatedPermissions.currentPage ===
+                    paginatedPermissions.totalPages
+                  }
+                  className="rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+                <button
+                  onClick={() => setPage(paginatedPermissions.totalPages)}
+                  disabled={
+                    paginatedPermissions.currentPage ===
+                    paginatedPermissions.totalPages
+                  }
+                  className="rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="p-10 text-center">
+            <div className="text-sm text-zinc-600">
+              {query ? "No permissions found." : "No permissions created yet."}
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-xl">
@@ -710,7 +728,7 @@ export default function AdminPermissionsPage() {
                     className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
                     aria-label="Close"
                   >
-                    ✕
+                    x
                   </button>
                 </div>
 
@@ -726,7 +744,7 @@ export default function AdminPermissionsPage() {
                         setFormData({ ...formData, key: e.target.value })
                       }
                       placeholder="e.g., users:read"
-                      className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 font-mono text-sm text-zinc-900 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+                      className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 font-mono text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/10"
                     />
                     <p className="mt-1 text-xs text-zinc-500">
                       Tip: add <span className="font-mono">:manage</span> for
@@ -748,7 +766,7 @@ export default function AdminPermissionsPage() {
                       }
                       placeholder="Describe what this permission allows..."
                       rows={3}
-                      className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+                      className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/10"
                     />
                   </div>
 
@@ -768,7 +786,7 @@ export default function AdminPermissionsPage() {
                   </button>
                   <button
                     onClick={handleAddPermission}
-                    className="flex-1 rounded-xl bg-orange-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-orange-700"
+                    className="flex-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
                   >
                     Create
                   </button>
@@ -795,18 +813,18 @@ export default function AdminPermissionsPage() {
                     className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
                     aria-label="Close"
                   >
-                    ✕
+                    x
                   </button>
                 </div>
 
-                <div className="mt-5 space-y-3 max-h-72 overflow-y-auto pr-1">
+                <div className="mt-5 max-h-72 space-y-3 overflow-y-auto pr-1">
                   {roles.map((role) => {
                     const checked = selectedRoles.includes(role.id);
                     return (
                       <label
                         key={role.id}
                         className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition hover:bg-zinc-50 ${
-                          checked ? "ring-2 ring-orange-200" : ""
+                          checked ? "ring-2 ring-zinc-200" : ""
                         }`}
                       >
                         <input
@@ -821,18 +839,16 @@ export default function AdminPermissionsPage() {
                               );
                             }
                           }}
-                          className="mt-1 h-4 w-4 rounded border-zinc-300 text-orange-600"
+                          className="mt-1 h-4 w-4 rounded border-zinc-300 text-zinc-900"
                         />
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-zinc-900">
                               {role.name}
                             </span>
-                            {checked && (
-                              <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 ring-1 ring-orange-100">
-                                Selected
-                              </span>
-                            )}
+                            {checked ? (
+                              <Badge tone="light">Selected</Badge>
+                            ) : null}
                           </div>
                           {role.description && (
                             <p className="mt-1 text-sm text-zinc-600">
@@ -854,7 +870,7 @@ export default function AdminPermissionsPage() {
                   </button>
                   <button
                     onClick={handleSaveRoles}
-                    className="flex-1 rounded-xl bg-orange-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-orange-700"
+                    className="flex-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
                   >
                     Save
                   </button>
@@ -878,13 +894,13 @@ export default function AdminPermissionsPage() {
                     className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50"
                     aria-label="Close"
                   >
-                    ✕
+                    x
                   </button>
                 </div>
 
                 <div className="mt-5 rounded-2xl border bg-zinc-50 p-4">
                   <p className="text-sm text-zinc-700">
-                    You’re about to delete{" "}
+                    You're about to delete{" "}
                     <span className="font-mono font-semibold text-zinc-900">
                       {selectedPermission.key}
                     </span>

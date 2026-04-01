@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
@@ -391,9 +392,11 @@ export default function RoleDetailPage() {
                       <td className="py-3 px-4">
                         <Link
                           href={`/admin/users/${user.id}`}
-                          className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                          aria-label="View user"
+                          title="View user"
+                          className={iconButtonClasses({ variant: "default" })}
                         >
-                          View User
+                          <ActionIcon name="view" />
                         </Link>
                       </td>
                     </tr>

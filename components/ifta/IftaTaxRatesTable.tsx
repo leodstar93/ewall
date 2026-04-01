@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
+import { IconButton } from "@/components/ui/icon-button";
 import {
   Table,
   TableBody,
@@ -83,15 +83,12 @@ export default function IftaTaxRatesTable(props: {
                 <TableCell>{sourceLabel(row.source)}</TableCell>
                 <TableCell>{formatDate(row.importedAt)}</TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
+                  <IconButton
                     disabled={props.busy}
                     onClick={() => props.onEdit(row)}
-                  >
-                    Edit
-                  </Button>
+                    label="Edit tax rate"
+                    icon="edit"
+                  />
                 </TableCell>
               </TableRow>
             ))}
