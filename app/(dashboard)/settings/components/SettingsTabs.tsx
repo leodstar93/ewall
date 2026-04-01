@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import StaffRecentSubmissionsTable, {
+  type StaffRecentSubmissionRow,
+} from "@/components/admin/StaffRecentSubmissionsTable";
 import CompanyTab from "./CompanyTab";
 import BillingTab from "./BillingTab";
 import DocumentsTab from "./DocumentsTab";
@@ -80,10 +83,12 @@ export default function SettingsTabs({
   billingEnabled,
   trucksEnabled,
   visibleTabs,
+  recentClientFilings,
 }: {
   billingEnabled: boolean;
   trucksEnabled: boolean;
   visibleTabs?: TabId[];
+  recentClientFilings?: StaffRecentSubmissionRow[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -352,6 +357,17 @@ export default function SettingsTabs({
         })}
         </div>
       </section>
+
+      {!activeTab && recentClientFilings ? (
+        <StaffRecentSubmissionsTable
+          rows={recentClientFilings}
+          title="My submitted filings"
+          description="Track the filings you've already submitted and the ones still pending with staff."
+          emptyMessage="You do not have any submitted or staff-pending filings yet."
+          dateColumnLabel="Updated"
+          showCustomerColumn={false}
+        />
+      ) : null}
 
       {activeTab === "personal" ? <PersonalInfoTab onNotify={notify} /> : null}
       {activeTab === "company" ? <CompanyTab onNotify={notify} /> : null}

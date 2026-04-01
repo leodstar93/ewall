@@ -40,8 +40,18 @@ const moduleTone: Record<StaffRecentSubmissionModule, "info" | "warning" | "prim
 
 export default function StaffRecentSubmissionsTable({
   rows,
+  title = "Latest submitted filings",
+  description = "Unified review table for the most recent submissions reaching the staff workflow.",
+  emptyMessage = "No recent submitted filings found for this module.",
+  dateColumnLabel = "Submitted",
+  showCustomerColumn = true,
 }: {
   rows: StaffRecentSubmissionRow[];
+  title?: string;
+  description?: string;
+  emptyMessage?: string;
+  dateColumnLabel?: string;
+  showCustomerColumn?: boolean;
 }) {
   const [activeFilter, setActiveFilter] = useState<ModuleFilter>("ALL");
 
@@ -65,10 +75,8 @@ export default function StaffRecentSubmissionsTable({
       <div className="border-b border-zinc-100 p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-zinc-900">Latest submitted filings</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Unified review table for the most recent submissions reaching the staff workflow.
-            </p>
+            <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
+            <p className="mt-1 text-sm text-zinc-600">{description}</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -111,14 +119,16 @@ export default function StaffRecentSubmissionsTable({
                 <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
                   Filing
                 </th>
-                <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Customer
-                </th>
+                {showCustomerColumn ? (
+                  <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Customer
+                  </th>
+                ) : null}
                 <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
                   Status
                 </th>
                 <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Submitted
+                  {dateColumnLabel}
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-500">
                   Actions
@@ -137,10 +147,12 @@ export default function StaffRecentSubmissionsTable({
                     <p className="font-medium text-zinc-900">{row.filingTitle}</p>
                     <p className="text-zinc-500">{row.filingMeta || "-"}</p>
                   </td>
-                  <td className="px-6 py-4 text-sm text-zinc-700">
-                    <p className="font-medium text-zinc-900">{row.customerName}</p>
-                    <p className="text-zinc-500">{row.customerMeta || "-"}</p>
-                  </td>
+                  {showCustomerColumn ? (
+                    <td className="px-6 py-4 text-sm text-zinc-700">
+                      <p className="font-medium text-zinc-900">{row.customerName}</p>
+                      <p className="text-zinc-500">{row.customerMeta || "-"}</p>
+                    </td>
+                  ) : null}
                   <td className="px-6 py-4 text-sm">
                     <Badge tone={getStatusTone(row.status)}>{row.status}</Badge>
                   </td>
@@ -161,8 +173,11 @@ export default function StaffRecentSubmissionsTable({
               ))}
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-zinc-500">
-                    No recent submitted filings found for this module.
+                  <td
+                    colSpan={showCustomerColumn ? 6 : 5}
+                    className="px-6 py-12 text-center text-sm text-zinc-500"
+                  >
+                    {emptyMessage}
                   </td>
                 </tr>
               ) : null}
