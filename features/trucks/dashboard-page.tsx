@@ -72,7 +72,11 @@ function getUsageSummary(truck: TruckRecord) {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-export default function TrucksDashboardPage() {
+export default function TrucksDashboardPage({
+  integrated = false,
+}: {
+  integrated?: boolean;
+}) {
   const [trucks, setTrucks] = useState<TruckRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -231,7 +235,13 @@ export default function TrucksDashboardPage() {
         </div>
       )}
 
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+      <section
+        className={`border border-zinc-200 bg-white p-6 ${
+          integrated
+            ? "rounded-b-[28px] rounded-t-none border-t-0 shadow-none"
+            : "rounded-[28px] shadow-sm"
+        }`}
+      >
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-zinc-950">Your trucks</h3>

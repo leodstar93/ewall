@@ -53,6 +53,7 @@ type DocumentsPageProps = {
   title?: string;
   subtitle?: string;
   embedded?: boolean;
+  integrated?: boolean;
 };
 
 export default function DocumentsPage({
@@ -60,6 +61,7 @@ export default function DocumentsPage({
   title = "Documents",
   subtitle = "Upload and manage your documents securely.",
   embedded = false,
+  integrated = false,
 }: DocumentsPageProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -357,7 +359,15 @@ export default function DocumentsPage({
       </div>
 
       {/* Header */}
-      <div className={embedded ? "rounded-[28px] border bg-white p-6 shadow-sm" : "border-b bg-white"}>
+      <div
+        className={
+          embedded
+            ? integrated
+              ? "rounded-b-[28px] rounded-t-none border border-t-0 bg-white p-6 shadow-none"
+              : "rounded-[28px] border bg-white p-6 shadow-sm"
+            : "border-b bg-white"
+        }
+      >
         <div className={embedded ? "" : "mx-auto max-w-6xl px-6 py-10"}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

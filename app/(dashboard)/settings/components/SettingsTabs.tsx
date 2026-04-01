@@ -225,6 +225,23 @@ export default function SettingsTabs({
     };
   }, []);
 
+  const activeContent =
+    activeTab === "personal" ? (
+      <PersonalInfoTab onNotify={notify} />
+    ) : activeTab === "company" ? (
+      <CompanyTab onNotify={notify} />
+    ) : activeTab === "payments" ? (
+      <PaymentMethodsTab onNotify={notify} />
+    ) : billingEnabled && activeTab === "billing" ? (
+      <BillingTab onNotify={notify} />
+    ) : activeTab === "documents" ? (
+      <DocumentsTab integrated />
+    ) : trucksEnabled && activeTab === "trucks" ? (
+      <TrucksDashboardPage integrated />
+    ) : activeTab === "security" ? (
+      <SecurityTab onNotify={notify} />
+    ) : null;
+
   return (
     <div className="space-y-5">
       <ToastViewport toasts={toasts} />
@@ -238,144 +255,178 @@ export default function SettingsTabs({
             Manage your account in one place.
           </p>
         </div>
+        <div className="space-y-0">
+          <div className="rounded-t-[30px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fbff,_#ffffff_50%,_#eef6ff)] p-5 shadow-sm">
+            {summaryLoading ? (
+              <div
+                className={cx(
+                  "grid gap-4",
+                  showCompanySummary ? "lg:grid-cols-2" : "lg:grid-cols-1",
+                )}
+              >
+                {showPersonalSummary ? (
+                  <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
+                ) : null}
+                {showCompanySummary ? (
+                  <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
+                ) : null}
+              </div>
+            ) : (
+              <div
+                className={cx(
+                  "grid gap-4",
+                  showCompanySummary ? "lg:grid-cols-2" : "lg:grid-cols-1",
+                )}
+              >
+                {showPersonalSummary ? (
+                  <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                      Personal
+                    </p>
+                    <h3 className="mt-3 text-lg font-semibold text-zinc-950">
+                      {personalSummary?.name || "No personal info yet"}
+                    </h3>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          Email
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {personalSummary?.email || "Not set"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          Phone
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {personalSummary?.phone || "Not set"}
+                        </p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          Address
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {[
+                            personalSummary?.address,
+                            personalSummary?.city,
+                            personalSummary?.state,
+                            personalSummary?.zip,
+                          ]
+                            .filter(Boolean)
+                            .join(", ") || "Not set"}
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                ) : null}
 
-        <div className="rounded-[30px] border border-zinc-200 bg-[linear-gradient(135deg,_#f8fbff,_#ffffff_50%,_#eef6ff)] p-5 shadow-sm">
-          {summaryLoading ? (
-            <div className={cx("grid gap-4", showCompanySummary ? "lg:grid-cols-2" : "lg:grid-cols-1")}>
-              {showPersonalSummary ? (
-                <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
-              ) : null}
-              {showCompanySummary ? (
-                <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
-              ) : null}
+                {showCompanySummary ? (
+                  <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                      Company
+                    </p>
+                    <h3 className="mt-3 text-lg font-semibold text-zinc-950">
+                      {companySummary?.legalName ||
+                        companySummary?.dbaName ||
+                        "No company info yet"}
+                    </h3>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          USDOT
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {companySummary?.dotNumber || "Not set"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          MC
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {companySummary?.mcNumber || "Not set"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          Phone
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {companySummary?.businessPhone || "Not set"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          Fleet
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {companySummary?.trucksCount || "0"} trucks /{" "}
+                          {companySummary?.driversCount || "0"} drivers
+                        </p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          Address
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {[companySummary?.address, companySummary?.state]
+                            .filter(Boolean)
+                            .join(", ") || "Not set"}
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="-mt-px border border-zinc-200 bg-white px-5 py-4 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              {availableTabs.map((tab) => {
+                const isActive = tab.id === activeTab;
+
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => selectTab(tab.id)}
+                    className={cx(
+                      "rounded-full border px-4 py-2 text-sm font-medium transition",
+                      isActive
+                        ? "border-zinc-900 bg-zinc-900 text-white"
+                        : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50",
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
-          ) : (
-            <div className={cx("grid gap-4", showCompanySummary ? "lg:grid-cols-2" : "lg:grid-cols-1")}>
-              {showPersonalSummary ? (
-                <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                    Personal
-                  </p>
-                  <h3 className="mt-3 text-lg font-semibold text-zinc-950">
-                    {personalSummary?.name || "No personal info yet"}
-                  </h3>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Email</p>
-                      <p className="mt-1 text-sm text-zinc-800">
-                        {personalSummary?.email || "Not set"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Phone</p>
-                      <p className="mt-1 text-sm text-zinc-800">
-                        {personalSummary?.phone || "Not set"}
-                      </p>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Address</p>
-                      <p className="mt-1 text-sm text-zinc-800">
-                        {[
-                          personalSummary?.address,
-                          personalSummary?.city,
-                          personalSummary?.state,
-                          personalSummary?.zip,
-                        ]
-                          .filter(Boolean)
-                          .join(", ") || "Not set"}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              ) : null}
+          </div>
 
-              {showCompanySummary ? (
-                <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                    Company
-                  </p>
-                  <h3 className="mt-3 text-lg font-semibold text-zinc-950">
-                    {companySummary?.legalName || companySummary?.dbaName || "No company info yet"}
-                  </h3>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">USDOT</p>
-                      <p className="mt-1 text-sm text-zinc-800">
-                        {companySummary?.dotNumber || "Not set"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">MC</p>
-                      <p className="mt-1 text-sm text-zinc-800">
-                        {companySummary?.mcNumber || "Not set"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Phone</p>
-                      <p className="mt-1 text-sm text-zinc-800">
-                        {companySummary?.businessPhone || "Not set"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Fleet</p>
-                      <p className="mt-1 text-sm text-zinc-800">
-                        {companySummary?.trucksCount || "0"} trucks / {companySummary?.driversCount || "0"} drivers
-                      </p>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Address</p>
-                      <p className="mt-1 text-sm text-zinc-800">
-                        {[companySummary?.address, companySummary?.state].filter(Boolean).join(", ") || "Not set"}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              ) : null}
+          {activeContent ? (
+            <div className="-mt-px [&>*:first-child]:rounded-t-none [&>*:first-child]:rounded-b-none [&>*:first-child]:border-t-0 [&>*:first-child]:shadow-none">
+              {activeContent}
             </div>
-          )}
-        </div>
+          ) : null}
 
-        {recentClientFilings ? (
-          <StaffRecentSubmissionsTable
-            rows={recentClientFilings}
-            title="My submitted filings"
-            description="Track the filings you've already submitted and the ones still pending with staff."
-            emptyMessage="You do not have any submitted or staff-pending filings yet."
-            dateColumnLabel="Updated"
-            showCustomerColumn={false}
-          />
-        ) : null}
-
-        <div className="flex flex-wrap gap-2">
-        {availableTabs.map((tab) => {
-          const isActive = tab.id === activeTab;
-
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => selectTab(tab.id)}
-              className={cx(
-                "rounded-full border px-4 py-2 text-sm font-medium transition",
-                isActive
-                  ? "border-zinc-900 bg-zinc-900 text-white"
-                  : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50",
-              )}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+          {recentClientFilings ? (
+            <div className="mt-4 [&>*:first-child]:rounded-t-none [&>*:first-child]:border-t-0 [&>*:first-child]:shadow-none">
+              <StaffRecentSubmissionsTable
+                rows={recentClientFilings}
+                title="My submitted filings"
+                description="Track the filings you've already submitted and the ones still pending with staff."
+                emptyMessage="You do not have any submitted or staff-pending filings yet."
+                dateColumnLabel="Updated"
+                showCustomerColumn={false}
+              />
+            </div>
+          ) : null}
         </div>
       </section>
-
-      {activeTab === "personal" ? <PersonalInfoTab onNotify={notify} /> : null}
-      {activeTab === "company" ? <CompanyTab onNotify={notify} /> : null}
-      {activeTab === "payments" ? <PaymentMethodsTab onNotify={notify} /> : null}
-      {billingEnabled && activeTab === "billing" ? <BillingTab onNotify={notify} /> : null}
-      {activeTab === "documents" ? <DocumentsTab /> : null}
-      {trucksEnabled && activeTab === "trucks" ? <TrucksDashboardPage /> : null}
-      {activeTab === "security" ? <SecurityTab onNotify={notify} /> : null}
     </div>
   );
 }
