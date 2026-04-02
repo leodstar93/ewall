@@ -39,6 +39,25 @@ export default async function AdminSettingsPage() {
 
         <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            Security
+          </p>
+          <h3 className="mt-3 text-xl font-semibold text-zinc-950">
+            ACH financial access audits
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Review every ACH reveal, authorization, revoke event, and manual payment usage
+            recorded by the custody vault workflow.
+          </p>
+          <Link
+            href="/admin/settings/security/financial-access"
+            className="mt-5 inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            Open Financial Audit Log
+          </Link>
+        </article>
+
+        <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
             Billing
           </p>
           <h3 className="mt-3 text-xl font-semibold text-zinc-950">Plans and entitlements</h3>

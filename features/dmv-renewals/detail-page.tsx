@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import {
   dmvRenewalStatusClasses,
   dmvRenewalStatusLabel,
@@ -441,6 +442,10 @@ export default function DmvRenewalDetailPage({
                 </div>
               </div>
             </article>
+          ) : null}
+
+          {mode === "staff" ? (
+            <StaffFilingPaymentPanel filingType="dmv-renewal" filingId={renewalId} />
           ) : null}
 
           <article className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">

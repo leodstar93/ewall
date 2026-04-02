@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import UcrFilingForm from "@/features/ucr/filing-form";
 import {
   UcrFiling,
@@ -490,6 +491,8 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
               />
             </label>
           </div>
+
+          <StaffFilingPaymentPanel filingType="ucr" filingId={props.filingId} />
 
           <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-zinc-950">Official receipt</h3>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   JurisdictionOption,
@@ -471,6 +472,10 @@ export default function IftaManualReportPage(props: {
           {message}
         </div>
       )}
+
+      {props.mode === "staff" ? (
+        <StaffFilingPaymentPanel filingType="ifta" filingId={props.reportId} />
+      ) : null}
 
       {error && (
         <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">

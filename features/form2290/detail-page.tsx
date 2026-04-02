@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import Form2290FilingForm from "@/features/form2290/filing-form";
 import {
   complianceClasses,
@@ -343,6 +344,10 @@ export default function Form2290DetailPage(props: DetailPageProps) {
 
       <section className="grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
+          {props.mode === "staff" ? (
+            <StaffFilingPaymentPanel filingType="form2290" filingId={props.filingId} />
+          ) : null}
+
           <div className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>

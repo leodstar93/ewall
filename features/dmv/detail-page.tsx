@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import RequirementChecklist, {
   ChecklistAvailableDocument,
   ChecklistLinkedDocument,
@@ -627,6 +628,13 @@ export default function DmvDetailPage({
           )}
         </article>
       </section>
+
+      {mode === "staff" && currentRegistration ? (
+        <StaffFilingPaymentPanel
+          filingType="dmv-registration"
+          filingId={currentRegistration.id}
+        />
+      ) : null}
 
       {canUpdateRegistration && currentRegistration ? (
         <section className="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">

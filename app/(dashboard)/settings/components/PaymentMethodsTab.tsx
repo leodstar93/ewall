@@ -11,19 +11,28 @@ import {
   PanelCard,
   StatusBadge,
 } from "./settings-ui";
+import AchVaultSetupCard from "./AchVaultSetupCard";
 
 type PaymentMethod = {
-  id: string;
-  provider: string;
-  providerCustomerId: string;
-  providerPaymentMethodId: string;
-  brand: string;
-  last4: string;
-  expMonth: string;
-  expYear: string;
-  isDefault: boolean;
-  paypalEmail: string;
+  accountType: string | null;
+  authorizationAcceptedAt: string | null;
+  authorizationStatus: string | null;
+  authorized: boolean;
+  bankName: string | null;
+  brand: string | null;
   createdAt: string;
+  holderName: string | null;
+  id: string;
+  isDefault: boolean;
+  label: string | null;
+  last4: string | null;
+  maskedAccount: string | null;
+  maskedRouting: string | null;
+  paypalEmail: string | null;
+  provider: string;
+  status: string;
+  type: string;
+  updatedAt: string;
 };
 
 type PaymentConfig = {
@@ -59,7 +68,27 @@ function getStripePromise(publishableKey: string) {
 }
 
 function providerLabel(provider: string) {
-  return provider === "paypal" ? "PayPal" : "Stripe";
+  if (provider === "paypal") return "PayPal";
+  if (provider === "ach_vault") return "ACH vault";
+  return "Stripe";
+}
+
+function isAchMethod(method: PaymentMethod | null) {
+  return Boolean(method && (method.provider === "ach_vault" || method.type === "ach_vault"));
+}
+
+function statusTone(status: string) {
+  if (status === "active") return "green" as const;
+  if (status === "pending_authorization") return "amber" as const;
+  if (status === "revoked") return "zinc" as const;
+  return "blue" as const;
+}
+
+function statusLabel(status: string) {
+  if (status === "pending_authorization") return "Pending authorization";
+  if (status === "revoked") return "Revoked";
+  if (status === "inactive") return "Inactive";
+  return "Active";
 }
 
 function StripeCardSetupForm({
@@ -271,7 +300,7 @@ export default function PaymentMethodsTab({
       setError("");
 
       const [methodsResponse, configResponse] = await Promise.all([
-        fetch("/api/settings/payment-methods", { cache: "no-store" }),
+        fetch("/api/v1/payment-methods", { cache: "no-store" }),
         fetch("/api/settings/payment-config", { cache: "no-store" }),
       ]);
 
@@ -385,29 +414,50 @@ export default function PaymentMethodsTab({
   }, [makeDefault, onNotify, pathname, paypalFlow, paypalStatus, router, searchParams]);
 
   const handleDelete = async (id: string) => {
-    const confirmed = window.confirm("Delete this saved payment method?");
+    const method = methods.find((entry) => entry.id === id) ?? null;
+    const confirmed = window.confirm(
+      isAchMethod(method)
+        ? "Revoke this ACH payment method? History and audit records will be preserved."
+        : "Delete this saved payment method?",
+    );
     if (!confirmed) return;
 
     try {
       setDeletingId(id);
       setError("");
 
-      const response = await fetch(`/api/settings/payment-method/${id}`, {
-        method: "DELETE",
-      });
+      const response = isAchMethod(method)
+        ? await fetch(`/api/v1/payment-methods/ach/${id}/revoke`, {
+            method: "POST",
+          })
+        : await fetch(`/api/settings/payment-method/${id}`, {
+            method: "DELETE",
+          });
 
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        throw new Error(payload.error || "Failed to delete payment method.");
+        throw new Error(
+          payload.error ||
+            (isAchMethod(method)
+              ? "Failed to revoke ACH payment method."
+              : "Failed to delete payment method."),
+        );
       }
 
       await loadData();
-      onNotify({ tone: "success", message: "Payment method deleted." });
+      onNotify({
+        tone: "success",
+        message: isAchMethod(method)
+          ? "ACH payment method revoked."
+          : "Payment method deleted.",
+      });
     } catch (deleteError) {
       const message =
         deleteError instanceof Error
           ? deleteError.message
-          : "Failed to delete payment method.";
+          : isAchMethod(method)
+            ? "Failed to revoke ACH payment method."
+            : "Failed to delete payment method.";
       setError(message);
       onNotify({ tone: "error", message });
     } finally {
@@ -530,7 +580,7 @@ export default function PaymentMethodsTab({
             {!loading && methods.length === 0 ? (
               <EmptyState
                 title="No payment methods linked yet"
-                description="Link PayPal in one click or save a card with Stripe to prepare billing and filing fees."
+                description="Link PayPal, save a card with Stripe, or add an encrypted ACH vault account for staff-managed filings."
               />
             ) : null}
 
@@ -550,9 +600,32 @@ export default function PaymentMethodsTab({
                           {method.isDefault ? (
                             <StatusBadge tone="green">Default</StatusBadge>
                           ) : null}
+                          {isAchMethod(method) ? (
+                            <StatusBadge tone={statusTone(method.status)}>
+                              {statusLabel(method.status)}
+                            </StatusBadge>
+                          ) : null}
+                          {isAchMethod(method) ? (
+                            <StatusBadge tone={method.authorized ? "green" : "amber"}>
+                              {method.authorized ? "Authorized" : "Authorization required"}
+                            </StatusBadge>
+                          ) : null}
                         </div>
 
-                        <p className="mt-2 text-sm text-zinc-600">
+                        {isAchMethod(method) ? (
+                          <p className="mt-2 text-sm text-zinc-600">
+                            {[
+                              method.label || method.bankName || "ACH account",
+                              method.holderName,
+                              method.accountType || null,
+                              method.maskedAccount,
+                              method.maskedRouting ? `Routing ${method.maskedRouting}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" | ")}
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-sm text-zinc-600">
                           {method.provider === "paypal"
                             ? method.paypalEmail || "PayPal account linked"
                             : [method.brand || "Card", method.last4 ? `•••• ${method.last4}` : ""]
@@ -560,13 +633,18 @@ export default function PaymentMethodsTab({
                                 .join(" ")}
                         </p>
 
+                        )}
+
                         <p className="mt-2 text-xs text-zinc-500">
                           Saved on {new Date(method.createdAt).toLocaleDateString()}
+                          {isAchMethod(method) && method.authorizationAcceptedAt
+                            ? ` | Authorized ${new Date(method.authorizationAcceptedAt).toLocaleDateString()}`
+                            : ""}
                         </p>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        {!method.isDefault ? (
+                        {!method.isDefault && !isAchMethod(method) ? (
                           <button
                             type="button"
                             onClick={() => handleMakeDefault(method.id)}
@@ -580,9 +658,19 @@ export default function PaymentMethodsTab({
                           type="button"
                           onClick={() => handleDelete(method.id)}
                           disabled={deletingId === method.id}
-                          className="rounded-2xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                          className={`rounded-2xl border bg-white px-4 py-2 text-sm font-semibold disabled:opacity-60 ${
+                            isAchMethod(method)
+                              ? "border-amber-200 text-amber-800 hover:bg-amber-50"
+                              : "border-rose-200 text-rose-700 hover:bg-rose-50"
+                          }`}
                         >
-                          {deletingId === method.id ? "Deleting..." : "Delete"}
+                          {deletingId === method.id
+                            ? isAchMethod(method)
+                              ? "Revoking..."
+                              : "Deleting..."
+                            : isAchMethod(method)
+                              ? "Revoke"
+                              : "Delete"}
                         </button>
                       </div>
                     </div>
@@ -593,6 +681,14 @@ export default function PaymentMethodsTab({
           </div>
 
           <div className="space-y-6">
+            <AchVaultSetupCard
+              onSaved={loadData}
+              onError={(message) => {
+                setError(message);
+                onNotify({ tone: "error", message });
+              }}
+            />
+
             <div className="rounded-[24px] border border-zinc-200 bg-white p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>

@@ -139,7 +139,12 @@ function formatPaymentMethod(method: {
 export async function listPaymentMethods(userId: string): Promise<PaymentMethodRecord[]> {
   const organization = await ensureUserOrganization(userId);
   const methods = await prisma.paymentMethod.findMany({
-    where: { organizationId: organization.id },
+    where: {
+      organizationId: organization.id,
+      provider: {
+        in: ["stripe", "paypal"],
+      },
+    },
     orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
   });
 
@@ -224,6 +229,10 @@ export async function createPaymentMethod(userId: string, rawInput: unknown) {
       return tx.paymentMethod.update({
         where: { id: existing.id },
         data: {
+          accountType: null,
+          bankName: null,
+          holderName: null,
+          label: null,
           providerCustomerId,
           brand,
           last4,
@@ -231,15 +240,22 @@ export async function createPaymentMethod(userId: string, rawInput: unknown) {
           expYear,
           isDefault,
           paypalEmail,
+          status: "active",
+          type: provider === "paypal" ? "paypal" : "card",
         },
       });
     }
 
     return tx.paymentMethod.create({
       data: {
+        accountType: null,
+        bankName: null,
+        holderName: null,
+        label: null,
         userId,
         organizationId: organization.id,
         provider,
+        type: provider === "paypal" ? "paypal" : "card",
         providerCustomerId,
         providerPaymentMethodId,
         brand,
@@ -248,6 +264,7 @@ export async function createPaymentMethod(userId: string, rawInput: unknown) {
         expYear,
         isDefault,
         paypalEmail,
+        status: "active",
       },
     });
   });
@@ -266,6 +283,12 @@ export async function deletePaymentMethod(userId: string, paymentMethodId: strin
 
   if (!existing) {
     throw new SettingsValidationError("Payment method not found.");
+  }
+
+  if (existing.provider === "ach_vault") {
+    throw new SettingsValidationError(
+      "ACH vault methods cannot be deleted. Revoke the ACH authorization instead.",
+    );
   }
 
   await prisma.$transaction(async (tx) => {
@@ -298,6 +321,12 @@ export async function setDefaultPaymentMethod(userId: string, paymentMethodId: s
 
   if (!existing) {
     throw new SettingsValidationError("Payment method not found.");
+  }
+
+  if (existing.provider === "ach_vault") {
+    throw new SettingsValidationError(
+      "ACH vault methods cannot be made default for subscription billing.",
+    );
   }
 
   if (existing.isDefault) {
