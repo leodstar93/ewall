@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
+import { ensureDefaultSelfServiceRoles } from "@/lib/default-user-roles";
 import { ensureUserOrganization } from "@/lib/services/organization.service";
 
 export async function GET() {
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // Assign roles if provided
+    // Assign explicit roles when provided; otherwise default client roles apply.
     if (roleIds && roleIds.length > 0) {
       await prisma.userRole.createMany({
         data: roleIds.map((roleId: string) => ({
@@ -71,27 +72,25 @@ export async function POST(request: Request) {
           roleId,
         })),
       });
+    } else {
+      await ensureDefaultSelfServiceRoles({ userId: user.id });
+    }
 
-      // Fetch updated user with roles
-      const userWithRoles = await prisma.user.findUnique({
-        where: { id: user.id },
-        include: {
-          roles: {
-            include: {
-              role: {
-                select: { id: true, name: true },
-              },
+    const userWithRoles = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        roles: {
+          include: {
+            role: {
+              select: { id: true, name: true },
             },
           },
         },
-      });
-
-      await ensureUserOrganization(user.id);
-      return Response.json(userWithRoles, { status: 201 });
-    }
+      },
+    });
 
     await ensureUserOrganization(user.id);
-    return Response.json(user, { status: 201 });
+    return Response.json(userWithRoles, { status: 201 });
   } catch (error) {
     console.error("Error creating user:", error);
     return Response.json({ error: "Failed to create user" }, { status: 500 });

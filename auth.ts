@@ -5,11 +5,10 @@ import type { JWT } from "next-auth/jwt";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
+import { ensureDefaultSelfServiceRoles } from "@/lib/default-user-roles";
 import { sendGoogleCredentialsPasswordEmail } from "@/lib/email";
 import { generateTemporaryPassword } from "@/lib/password";
 import { ensureUserOrganization } from "@/lib/services/organization.service";
-
-const GOOGLE_DEFAULT_ROLE_NAMES = ["TRUCKER", "USER"] as const;
 
 type UserAuthSnapshot = {
   id: string;
@@ -112,50 +111,6 @@ function applySnapshotToToken(token: JWT, snapshot: UserAuthSnapshot) {
   return token;
 }
 
-async function ensureGoogleDefaultRoles(userId?: string, email?: string | null) {
-  if (!userId && !email) return;
-
-  const normalizedEmail = email ?? undefined;
-  const dbUser = userId
-    ? await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          roles: { select: { roleId: true } },
-          accounts: { select: { provider: true } },
-        },
-      })
-    : normalizedEmail
-      ? await prisma.user.findUnique({
-          where: { email: normalizedEmail },
-          select: {
-            id: true,
-            roles: { select: { roleId: true } },
-            accounts: { select: { provider: true } },
-          },
-        })
-      : null;
-
-  if (!dbUser) return;
-  if (!dbUser.accounts.some((account) => account.provider === "google")) return;
-  if (dbUser.roles.length > 0) return;
-
-  const defaultRoles = await prisma.role.findMany({
-    where: { name: { in: [...GOOGLE_DEFAULT_ROLE_NAMES] } },
-    select: { id: true },
-  });
-
-  if (defaultRoles.length === 0) return;
-
-  await prisma.userRole.createMany({
-    data: defaultRoles.map((role) => ({
-      userId: dbUser.id,
-      roleId: role.id,
-    })),
-    skipDuplicates: true,
-  });
-}
-
 async function ensureGoogleCredentialsPassword(
   userId?: string,
   email?: string | null,
@@ -244,16 +199,24 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   ],
   events: {
     async linkAccount({ user, account }) {
+      await ensureDefaultSelfServiceRoles({
+        userId: user.id,
+        email: user.email,
+      });
+
       if (account.provider === "google") {
-        await ensureGoogleDefaultRoles(user.id, user.email);
         await ensureGoogleCredentialsPassword(user.id, user.email, user.name);
       }
     },
   },
   callbacks: {
     async signIn({ user, account, profile }) {
+      await ensureDefaultSelfServiceRoles({
+        userId: typeof user.id === "string" ? user.id : undefined,
+        email: user.email,
+      });
+
       if (account?.provider === "google") {
-        await ensureGoogleDefaultRoles(user.id as string | undefined, user.email);
         await ensureGoogleCredentialsPassword(
           user.id as string | undefined,
           user.email,
@@ -364,7 +327,10 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       if (!userId) return token;
 
       if (user) {
-        await ensureGoogleDefaultRoles(userId);
+        await ensureDefaultSelfServiceRoles({
+          userId,
+          email: user.email,
+        });
       }
       if (user || trigger === "update") {
         const snapshot = await getUserAuthSnapshot(userId);
