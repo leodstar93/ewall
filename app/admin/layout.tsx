@@ -25,6 +25,7 @@ type NavItem = {
   label: string;
   permission?: string;
   moduleKey?: string;
+  allowStaff?: boolean;
 };
 
 type NavGroup = {
@@ -47,6 +48,7 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/settings/ucr-rates")) return "UCR Rates";
   if (pathname.startsWith("/admin/settings/ucr")) return "UCR Settings";
   if (pathname.startsWith("/admin/sandbox")) return "Sandbox";
+  if (pathname.startsWith("/admin/truckers")) return "Clients";
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/roles")) return "Roles";
   if (pathname.startsWith("/admin/permissions")) return "Permissions";
@@ -121,6 +123,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   const workspaceItems: NavItem[] = [
       {
+        href: "/admin/truckers",
+        label: "Clients",
+        permission: "truck:read",
+        moduleKey: "truck",
+        allowStaff: true,
+      },
+      {
         href: "/admin/features/documents",
         label: "Documents",
         permission: "documents:read",
@@ -156,8 +165,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       const hasExplicitAccess = hasPermission(permissions, roles, item.permission);
       const hasStaffFeatureAccess =
         isStaff && Boolean(item.moduleKey) && STAFF_ADMIN_FEATURE_MODULES.has(item.moduleKey);
+      const hasStaffRouteAccess = isStaff && Boolean(item.allowStaff);
 
-      return hasExplicitAccess || hasStaffFeatureAccess;
+      return hasExplicitAccess || hasStaffFeatureAccess || hasStaffRouteAccess;
     });
 
     if (workspaceItems.length > 0) {

@@ -304,6 +304,11 @@ export default async function StaffDashboardClient() {
 
   const moduleLinks = [
     {
+      title: "Clients",
+      description: "Search trucker customers, inspect profile completeness, and edit their profile data.",
+      href: "/admin/truckers",
+    },
+    {
       title: "IFTA",
       description: "Quarterly reports waiting on staff review and follow-up.",
       href: "/admin/features/ifta",

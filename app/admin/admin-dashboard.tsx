@@ -112,6 +112,13 @@ export default async function AdminPageClient() {
     tone: "blue",
   },
   {
+    title: "Client profiles",
+    desc: "Search trucker clients, review missing fields, and update profile data during support calls.",
+    icon: "TRK",
+    href: "/admin/truckers",
+    tone: "green",
+  },
+  {
     title: "Manage roles",
     desc: "Create roles and keep permissions organized.",
     icon: "🎭",

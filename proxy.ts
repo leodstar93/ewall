@@ -24,6 +24,11 @@ const RULES: Array<{
     requireRolesAny: ["ADMIN", "STAFF"],
   },
   {
+    match: (pathname) => pathname.startsWith("/admin/truckers"),
+    requireAuth: true,
+    requireRolesAny: ["ADMIN", "STAFF"],
+  },
+  {
     match: (pathname) => pathname.startsWith("/admin/users/new"),
     requireAuth: true,
     requirePerms: ["users:write"],
