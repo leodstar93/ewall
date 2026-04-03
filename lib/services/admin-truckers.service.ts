@@ -9,6 +9,12 @@ import {
   type CompanyProfileRecord,
   upsertCompanyProfile,
 } from "./company.service";
+import {
+  getEldProviderCredential,
+  type EldProviderCredentialInput,
+  type EldProviderCredentialRecord,
+  upsertEldProviderCredential,
+} from "./eld-provider.service";
 import { listPaymentMethods, type PaymentMethodRecord } from "./payment.service";
 import { SettingsValidationError } from "./settings-errors";
 import {
@@ -51,6 +57,7 @@ export type ManagedTruckerProfile = {
   id: string;
   personal: PersonalInfoRecord;
   company: CompanyProfileRecord;
+  eldProvider: EldProviderCredentialRecord;
   payments: PaymentMethodRecord[];
   billing: {
     subscriptionsEnabled: boolean;
@@ -129,6 +136,7 @@ export type ManagedTruckerProfile = {
 export type ManagedTruckerProfileUpdateInput = {
   personal?: PersonalInfoInput | null;
   company?: CompanyProfileInput | null;
+  eldProvider?: EldProviderCredentialInput | null;
 };
 
 export type ManagedTruckerTruckInput = {
@@ -439,9 +447,10 @@ export async function getManagedTruckerProfile(
   const trucker = await findManagedTrucker(userId);
   if (!trucker) return null;
 
-  const [personal, company, paymentMethods, billingOverview, trucks, documents] = await Promise.all([
+  const [personal, company, eldProvider, paymentMethods, billingOverview, trucks, documents] = await Promise.all([
     getPersonalInfo(userId),
     getCompanyProfile(userId),
+    getEldProviderCredential(userId),
     listPaymentMethods(userId),
     getCustomerBillingOverview(userId),
     prisma.truck.findMany({
@@ -500,6 +509,7 @@ export async function getManagedTruckerProfile(
     id: trucker.id,
     personal,
     company,
+    eldProvider,
     payments: paymentMethods,
     billing: {
       subscriptionsEnabled: billingOverview.settings.subscriptionsEnabled,
@@ -572,14 +582,19 @@ export async function updateManagedTruckerProfile(
 
   const hasPersonalPayload = typeof input.personal === "object" && input.personal !== null;
   const hasCompanyPayload = typeof input.company === "object" && input.company !== null;
+  const hasEldProviderPayload =
+    typeof input.eldProvider === "object" && input.eldProvider !== null;
 
-  if (!hasPersonalPayload && !hasCompanyPayload) {
+  if (!hasPersonalPayload && !hasCompanyPayload && !hasEldProviderPayload) {
     throw new SettingsValidationError("Nothing to update.");
   }
 
   await Promise.all([
     hasPersonalPayload ? updatePersonalInfo(userId, input.personal ?? {}) : Promise.resolve(),
     hasCompanyPayload ? upsertCompanyProfile(userId, input.company ?? {}) : Promise.resolve(),
+    hasEldProviderPayload
+      ? upsertEldProviderCredential(userId, input.eldProvider ?? {})
+      : Promise.resolve(),
   ]);
 
   return getManagedTruckerProfile(userId);

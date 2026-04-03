@@ -45,6 +45,7 @@ export async function PUT(
     const payload = (await request.json().catch(() => ({}))) as {
       personal?: Record<string, unknown>;
       company?: Record<string, unknown>;
+      eldProvider?: Record<string, unknown>;
     };
 
     const profile = await updateManagedTruckerProfile(id, payload);

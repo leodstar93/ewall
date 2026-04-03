@@ -8,6 +8,7 @@ import StaffRecentSubmissionsTable, {
 import CompanyTab from "./CompanyTab";
 import BillingTab from "./BillingTab";
 import DocumentsTab from "./DocumentsTab";
+import EldProviderTab from "./EldProviderTab";
 import PaymentMethodsTab from "./PaymentMethodsTab";
 import PersonalInfoTab from "./PersonalInfoTab";
 import SecurityTab from "./SecurityTab";
@@ -54,6 +55,10 @@ const tabs = [
   {
     id: "company",
     label: "Company",
+  },
+  {
+    id: "eld",
+    label: "ELD Provider",
   },
   {
     id: "payments",
@@ -230,6 +235,8 @@ export default function SettingsTabs({
       <PersonalInfoTab onNotify={notify} />
     ) : activeTab === "company" ? (
       <CompanyTab onNotify={notify} />
+    ) : activeTab === "eld" ? (
+      <EldProviderTab onNotify={notify} />
     ) : activeTab === "payments" ? (
       <PaymentMethodsTab onNotify={notify} />
     ) : billingEnabled && activeTab === "billing" ? (

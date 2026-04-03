@@ -3,7 +3,12 @@
 import Link from "next/link";
 import type { ChangeEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+import EldProviderCredentialsForm from "@/components/settings/EldProviderCredentialsForm";
 import CompanyProfileForm from "@/components/settings/company/CompanyProfileForm";
+import {
+  emptyEldProviderCredentialsState,
+  type EldProviderCredentialsFormData,
+} from "@/components/settings/eldProviderTypes";
 import {
   emptyCompanyProfileState,
   type CompanyProfileFormData,
@@ -33,6 +38,7 @@ type ManagedTruckerProfile = {
   id: string;
   personal: PersonalInfo;
   company: CompanyProfileFormData;
+  eldProvider: EldProviderCredentialsFormData;
   payments: Array<{
     id: string;
     provider: string;
@@ -135,11 +141,19 @@ const emptyPersonalState: PersonalInfo = {
   zip: "",
 };
 
-type TabId = "personal" | "company" | "payments" | "billing" | "trucks" | "documents";
+type TabId =
+  | "personal"
+  | "company"
+  | "eld"
+  | "payments"
+  | "billing"
+  | "trucks"
+  | "documents";
 
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: "personal", label: "Personal Info" },
   { id: "company", label: "Company" },
+  { id: "eld", label: "ELD Provider" },
   { id: "payments", label: "Payments" },
   { id: "billing", label: "Billing" },
   { id: "trucks", label: "Trucks and Trailers" },
@@ -270,6 +284,11 @@ export default function TruckerProfileAdminClient({
   const [company, setCompany] = useState<CompanyProfileFormData>(emptyCompanyProfileState);
   const [initialCompany, setInitialCompany] =
     useState<CompanyProfileFormData>(emptyCompanyProfileState);
+  const [eldProvider, setEldProvider] = useState<EldProviderCredentialsFormData>(
+    emptyEldProviderCredentialsState,
+  );
+  const [initialEldProvider, setInitialEldProvider] =
+    useState<EldProviderCredentialsFormData>(emptyEldProviderCredentialsState);
 
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -277,6 +296,7 @@ export default function TruckerProfileAdminClient({
 
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [savingCompany, setSavingCompany] = useState(false);
+  const [savingEldProvider, setSavingEldProvider] = useState(false);
   const [searchingSafer, setSearchingSafer] = useState(false);
 
   const [personalMessage, setPersonalMessage] = useState<{
@@ -284,6 +304,10 @@ export default function TruckerProfileAdminClient({
     message: string;
   } | null>(null);
   const [companyMessage, setCompanyMessage] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [eldProviderMessage, setEldProviderMessage] = useState<{
     tone: "success" | "error";
     message: string;
   } | null>(null);
@@ -309,6 +333,11 @@ export default function TruckerProfileAdminClient({
     [company, initialCompany],
   );
 
+  const eldProviderDirty = useMemo(
+    () => JSON.stringify(eldProvider) !== JSON.stringify(initialEldProvider),
+    [eldProvider, initialEldProvider],
+  );
+
   const availableTabs = useMemo(
     () =>
       tabs.filter(
@@ -319,12 +348,20 @@ export default function TruckerProfileAdminClient({
 
   const applyServerProfile = (
     nextProfile: ManagedTruckerProfile,
-    options?: { preservePersonal?: boolean; preserveCompany?: boolean },
+    options?: {
+      preservePersonal?: boolean;
+      preserveCompany?: boolean;
+      preserveEldProvider?: boolean;
+    },
   ) => {
     const syncedCompany = syncAddressFields({
       ...emptyCompanyProfileState,
       ...nextProfile.company,
     });
+    const syncedEldProvider = {
+      ...emptyEldProviderCredentialsState,
+      ...nextProfile.eldProvider,
+    };
 
     setProfile(nextProfile);
     if (!options?.preservePersonal) {
@@ -334,6 +371,10 @@ export default function TruckerProfileAdminClient({
     if (!options?.preserveCompany) {
       setCompany(syncedCompany);
       setInitialCompany(syncedCompany);
+    }
+    if (!options?.preserveEldProvider) {
+      setEldProvider(syncedEldProvider);
+      setInitialEldProvider(syncedEldProvider);
     }
   };
 
@@ -416,6 +457,13 @@ export default function TruckerProfileAdminClient({
     );
   };
 
+  const handleEldProviderChange = (
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = event.target;
+    setEldProvider((current) => ({ ...current, [name]: value }));
+  };
+
   const handleTruckFormChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setTruckForm((current) => ({
@@ -454,6 +502,7 @@ export default function TruckerProfileAdminClient({
 
       applyServerProfile(payload as ManagedTruckerProfile, {
         preserveCompany: companyDirty,
+        preserveEldProvider: eldProviderDirty,
       });
       setPersonalMessage({
         tone: "success",
@@ -497,6 +546,7 @@ export default function TruckerProfileAdminClient({
 
       applyServerProfile(payload as ManagedTruckerProfile, {
         preservePersonal: personalDirty,
+        preserveEldProvider: eldProviderDirty,
       });
       setCompanyMessage({
         tone: "success",
@@ -590,6 +640,50 @@ export default function TruckerProfileAdminClient({
     }
   };
 
+  const handleSaveEldProvider = async () => {
+    try {
+      setSavingEldProvider(true);
+      setEldProviderMessage(null);
+
+      const response = await fetch(`/api/v1/admin/truckers/${truckerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eldProvider }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as
+        | ManagedTruckerProfile
+        | { error?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          "error" in payload && payload.error
+            ? payload.error
+            : "Failed to save ELD provider details.",
+        );
+      }
+
+      applyServerProfile(payload as ManagedTruckerProfile, {
+        preservePersonal: personalDirty,
+        preserveCompany: companyDirty,
+      });
+      setEldProviderMessage({
+        tone: "success",
+        message: "ELD provider details updated for this client.",
+      });
+    } catch (saveError) {
+      setEldProviderMessage({
+        tone: "error",
+        message:
+          saveError instanceof Error
+            ? saveError.message
+            : "Failed to save ELD provider details.",
+      });
+    } finally {
+      setSavingEldProvider(false);
+    }
+  };
+
   const handleSaveTruck = async () => {
     try {
       setSavingTruck(true);
@@ -616,6 +710,7 @@ export default function TruckerProfileAdminClient({
       applyServerProfile(payload as ManagedTruckerProfile, {
         preservePersonal: personalDirty,
         preserveCompany: companyDirty,
+        preserveEldProvider: eldProviderDirty,
       });
       setTruckMessage({
         tone: "success",
@@ -946,6 +1041,48 @@ export default function TruckerProfileAdminClient({
                   disabled={savingCompany || searchingSafer}
                 >
                   {savingCompany ? "Saving..." : "Save company profile"}
+                </button>
+              </StickyActions>
+            ) : null}
+          </div>
+        </PanelCard>
+      ) : null}
+
+      {activeTab === "eld" ? (
+        <PanelCard
+          title="ELD provider login"
+          description="Review or update the ELD provider credentials staff use when helping this customer."
+        >
+          <div className="space-y-6">
+            {eldProviderMessage ? (
+              <InlineAlert tone={eldProviderMessage.tone} message={eldProviderMessage.message} />
+            ) : null}
+
+            <EldProviderCredentialsForm
+              form={eldProvider}
+              onChange={handleEldProviderChange}
+            />
+
+            {eldProviderDirty ? (
+              <StickyActions>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEldProvider(initialEldProvider);
+                    setEldProviderMessage(null);
+                  }}
+                  className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+                  disabled={savingEldProvider}
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveEldProvider()}
+                  className="rounded-2xl bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+                  disabled={savingEldProvider}
+                >
+                  {savingEldProvider ? "Saving..." : "Save ELD login"}
                 </button>
               </StickyActions>
             ) : null}

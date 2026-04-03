@@ -37,6 +37,7 @@ model User {
   filingPaymentUsagesActed      FilingPaymentUsage[]   @relation("FilingPaymentUsageActor")
   filingPaymentUsagesTargeted   FilingPaymentUsage[]   @relation("FilingPaymentUsageTarget")
   organizationMemberships OrganizationMember[]
+  eldProviderCredential EldProviderCredential?
 
   //IFTA
   trucks           Truck[]
@@ -107,6 +108,26 @@ model CompanyProfile {
 
   @@index([dotNumber])
   @@index([mcNumber])
+}
+
+model EldProviderCredential {
+  id                         String   @id @default(cuid())
+  userId                     String   @unique
+  providerName               String
+  loginUrl                   String?
+  usernameEncrypted          String
+  passwordEncrypted          String
+  accountIdentifierEncrypted String?
+  notesEncrypted             String?
+  encryptionVersion          Int
+  encryptionKeyId            String
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([providerName])
+  @@index([encryptionKeyId, encryptionVersion])
 }
 
 model PaymentMethod {
