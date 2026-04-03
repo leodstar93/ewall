@@ -37,6 +37,7 @@ model User {
   filingPaymentUsagesActed      FilingPaymentUsage[]   @relation("FilingPaymentUsageActor")
   filingPaymentUsagesTargeted   FilingPaymentUsage[]   @relation("FilingPaymentUsageTarget")
   organizationMemberships OrganizationMember[]
+  requestedIftaV2Filings  IftaV2Filing[] @relation("IftaV2RequestedBy")
 
   //IFTA
   trucks           Truck[]
@@ -280,6 +281,10 @@ model Organization {
   subscriptionGrants SubscriptionGrant[]
   billingCharges     BillingCharge[]
   companyProfile     CompanyProfile?
+  eldConnections     EldConnection[]
+  iftaExceptions     IftaException[]
+  iftaV2Filings      IftaV2Filing[]
+  iftaV2Snapshots    IftaV2Snapshot[]
 }
 
 model OrganizationMember {
@@ -1001,6 +1006,182 @@ model FuelPurchase {
   @@index([userId, purchaseDate])
   @@index([reportId])
   @@index([jurisdictionId])
+}
+
+model EldConnection {
+  id                String   @id @default(cuid())
+  carrierId         String
+  provider          String
+  status            String
+  externalCompanyId String?
+  accessTokenEnc    String
+  refreshTokenEnc   String
+  tokenExpiresAt    DateTime?
+  lastSyncAt        DateTime?
+  lastError         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  carrier       Organization      @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  vehicles      EldVehicle[]
+  drivers       EldDriver[]
+  trips         EldTrip[]
+  fuelPurchases EldFuelPurchase[]
+
+  @@unique([carrierId, provider])
+  @@index([carrierId, status])
+}
+
+model EldVehicle {
+  id                String   @id @default(cuid())
+  eldConnectionId   String
+  externalVehicleId String
+  vehicleNumber     String?
+  vin               String?
+  make              String?
+  model             String?
+  year              Int?
+  rawJson           Json
+  lastSyncedAt      DateTime
+
+  connection EldConnection @relation(fields: [eldConnectionId], references: [id], onDelete: Cascade)
+
+  @@unique([eldConnectionId, externalVehicleId])
+  @@index([vin])
+  @@index([vehicleNumber])
+}
+
+model EldDriver {
+  id               String   @id @default(cuid())
+  eldConnectionId  String
+  externalDriverId String
+  name             String?
+  email            String?
+  rawJson          Json
+  lastSyncedAt     DateTime
+
+  connection EldConnection @relation(fields: [eldConnectionId], references: [id], onDelete: Cascade)
+
+  @@unique([eldConnectionId, externalDriverId])
+  @@index([email])
+}
+
+model EldTrip {
+  id                String   @id @default(cuid())
+  eldConnectionId   String
+  externalTripId    String
+  provider          String
+  externalVehicleId String
+  externalDriverId  String?
+  tripDate          DateTime
+  jurisdiction      String
+  distance          Float
+  distanceUnit      String
+  startOdometer     Float?
+  endOdometer       Float?
+  fuelVolume        Float?
+  fuelUnit          String?
+  rawJson           Json
+  syncedAt          DateTime
+
+  connection  EldConnection   @relation(fields: [eldConnectionId], references: [id], onDelete: Cascade)
+  exceptions  IftaException[] @relation("IftaExceptionTrip")
+
+  @@unique([eldConnectionId, externalTripId])
+  @@index([eldConnectionId, tripDate])
+  @@index([jurisdiction, tripDate])
+  @@index([externalVehicleId])
+}
+
+model EldFuelPurchase {
+  id                String   @id @default(cuid())
+  eldConnectionId   String
+  externalFuelId    String?
+  provider          String
+  externalVehicleId String
+  externalDriverId  String?
+  purchasedAt       DateTime
+  jurisdiction      String
+  fuelType          String?
+  fuelVolume        Float
+  fuelUnit          String
+  vendor            String?
+  rawJson           Json
+  syncedAt          DateTime
+
+  connection EldConnection   @relation(fields: [eldConnectionId], references: [id], onDelete: Cascade)
+  exceptions IftaException[] @relation("IftaExceptionFuel")
+
+  @@unique([eldConnectionId, externalFuelId])
+  @@index([eldConnectionId, purchasedAt])
+  @@index([jurisdiction, purchasedAt])
+}
+
+model IftaException {
+  id         String   @id @default(cuid())
+  carrierId  String
+  type       String
+  severity   String
+  status     String
+  tripId     String?
+  fuelId     String?
+  details    Json
+  createdAt  DateTime @default(now())
+  resolvedAt DateTime?
+
+  carrier Organization      @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  trip    EldTrip?          @relation("IftaExceptionTrip", fields: [tripId], references: [id], onDelete: SetNull)
+  fuel    EldFuelPurchase?  @relation("IftaExceptionFuel", fields: [fuelId], references: [id], onDelete: SetNull)
+
+  @@index([carrierId, status, severity])
+  @@index([tripId])
+  @@index([fuelId])
+}
+
+model IftaV2Snapshot {
+  id           String   @id @default(cuid())
+  carrierId    String
+  year         Int
+  quarter      Quarter
+  startDate    DateTime
+  endDate      DateTime
+  status       String
+  summary      Json
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  carrier Organization @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+
+  @@index([carrierId, year, quarter, status])
+  @@index([approvedAt])
+}
+
+model IftaV2Filing {
+  id              String   @id @default(cuid())
+  carrierId       String
+  requestedById   String
+  year            Int
+  quarter         Quarter
+  status          String
+  notes           String?
+  reviewNotes     String?
+  requestedAt     DateTime @default(now())
+  syncTriggeredAt DateTime?
+  calculatedAt    DateTime?
+  approvedAt      DateTime?
+  latestSnapshotId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  carrier     Organization @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+  requestedBy User         @relation("IftaV2RequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+
+  @@unique([carrierId, year, quarter])
+  @@index([carrierId, status, requestedAt])
+  @@index([requestedById, requestedAt])
 }
 
 model UCRRateBracket {

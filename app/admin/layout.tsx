@@ -54,7 +54,9 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/roles")) return "Roles";
   if (pathname.startsWith("/admin/permissions")) return "Permissions";
   if (pathname.startsWith("/admin/features/documents")) return "Documents";
+  if (pathname.startsWith("/admin/features/ifta-v2")) return "IFTA v2";
   if (pathname.startsWith("/admin/features/ifta")) return "IFTA";
+  if (pathname.startsWith("/dashboard/ifta-v2")) return "IFTA v2";
   if (pathname.startsWith("/admin/features/ucr")) return "UCR";
   if (pathname.startsWith("/admin/features/dmv")) return "DMV Renewals";
   if (pathname.startsWith("/admin/features/2290")) return "Form 2290";
@@ -135,6 +137,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         label: "Documents",
         permission: "documents:read",
         moduleKey: "documents",
+      },
+      {
+        href: "/dashboard/ifta-v2",
+        label: "IFTA v2",
+        permission: "ifta:review",
+        moduleKey: "ifta",
       },
       {
         href: "/admin/features/ifta",

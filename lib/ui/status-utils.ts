@@ -23,9 +23,11 @@ export function getStatusTone(status: string): BadgeTone {
   if (
     normalized.includes("pending") ||
     normalized.includes("review") ||
-    normalized.includes("draft")
+    normalized.includes("draft") ||
+    normalized.includes("requested") ||
+    normalized.includes("ready")
   ) {
-    return normalized.includes("review") ? "info" : "warning";
+    return normalized.includes("review") || normalized.includes("ready") ? "info" : "warning";
   }
 
   if (
@@ -34,7 +36,8 @@ export function getStatusTone(status: string): BadgeTone {
     normalized.includes("expired") ||
     normalized.includes("cancel") ||
     normalized.includes("overdue") ||
-    normalized.includes("correction")
+    normalized.includes("correction") ||
+    normalized.includes("attention")
   ) {
     return "error";
   }
