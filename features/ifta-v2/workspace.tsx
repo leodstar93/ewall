@@ -134,14 +134,20 @@ function MetricTile({
 
 function FilingQueueItem({
   filing,
+  mode,
   selected,
   onSelect,
 }: {
   filing: FilingListItem;
+  mode: IftaAutomationMode;
   selected: boolean;
   onSelect: (filingId: string) => void;
 }) {
   const exceptionCount = filing._count?.exceptions ?? 0;
+  const secondaryText =
+    mode === "staff"
+      ? `${exceptionCount} exception${exceptionCount === 1 ? "" : "s"} - Last sync ${formatDateTime(filing.lastSyncedAt)}`
+      : `Last sync ${formatDateTime(filing.lastSyncedAt)}`;
 
   return (
     <button
@@ -167,8 +173,7 @@ function FilingQueueItem({
       </div>
 
       <div className={`mt-1 text-sm ${selected ? "text-gray-200" : "text-gray-600"}`}>
-        {exceptionCount} exception{exceptionCount === 1 ? "" : "s"} - Last sync{" "}
-        {formatDateTime(filing.lastSyncedAt)}
+        {secondaryText}
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -1100,7 +1105,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
                   <p className="mt-1 text-sm text-gray-600">
                     {isStaff
                       ? "Filter the queue, then open a filing to inspect detail and workflow actions."
-                      : "Choose a quarter to review miles, fuel, exceptions, and exports."}
+                      : "Choose a quarter to review miles, fuel, and exports."}
                   </p>
                 </div>
                 <Badge tone={refreshingWorkspace ? "info" : "light"}>
@@ -1152,6 +1157,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
                   <FilingQueueItem
                     key={filing.id}
                     filing={filing}
+                    mode={mode}
                     selected={selectedFilingId === filing.id}
                     onSelect={setSelectedFilingId}
                   />

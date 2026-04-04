@@ -19,6 +19,7 @@ import {
   type FilingException,
   type IftaAutomationMode,
   blockingExceptionCount,
+  canTruckerEditFilingStatus,
   filingPeriodLabel,
   filingTone,
   formatDate,
@@ -131,6 +132,11 @@ export function FilingDetailPanel({
 
     return filing.vehicles.filter((vehicle) => referencedVehicleIds.has(vehicle.id));
   }, [filing]);
+  const visibleTabs = useMemo(
+    () =>
+      detailTabs.filter((tab) => !(mode === "trucker" && tab.value === "exceptions")),
+    [mode],
+  );
 
   if (loading) {
     return (
@@ -147,7 +153,7 @@ export function FilingDetailPanel({
           message={
             mode === "staff"
               ? "Select a filing from the review queue to inspect exceptions, snapshots, and approval actions."
-              : "Create or select a filing to review synced data, open exceptions, and exports."
+              : "Create or select a filing to review synced data, fuel, and exports."
           }
         />
       </Card>
@@ -163,10 +169,7 @@ export function FilingDetailPanel({
   );
   const canSubmit =
     mode === "trucker" &&
-    !hasOpenBlockingOrError &&
-    ["DATA_READY", "NEEDS_REVIEW", "READY_FOR_REVIEW", "CHANGES_REQUESTED", "REOPENED"].includes(
-      filing.status,
-    );
+    canTruckerEditFilingStatus(filing.status);
   const canRequestChanges =
     mode === "staff" &&
     ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY"].includes(filing.status);
@@ -182,6 +185,7 @@ export function FilingDetailPanel({
     filing.status !== "APPROVED" &&
     filing.status !== "ARCHIVED";
   const canReopen = mode === "staff" && filing.status === "APPROVED";
+  const detailDescription = isStaffDescription(mode);
 
   return (
     <Card className="overflow-hidden">
@@ -191,15 +195,17 @@ export function FilingDetailPanel({
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={filingTone(filing.status)}>{statusLabel(filing.status)}</Badge>
               <Badge tone="light">{providerLabel(filing.integrationAccount?.provider)}</Badge>
-              <Badge tone={openExceptions > 0 ? "warning" : "success"}>
-                {openExceptions} open exception{openExceptions === 1 ? "" : "s"}
-              </Badge>
+              {mode === "staff" ? (
+                <Badge tone={openExceptions > 0 ? "warning" : "success"}>
+                  {openExceptions} open exception{openExceptions === 1 ? "" : "s"}
+                </Badge>
+              ) : null}
             </div>
             <h2 className="mt-3 text-2xl font-semibold text-gray-950">
               {filing.tenant?.name || "Tenant"} - {filingPeriodLabel(filing)}
             </h2>
             <p className="mt-2 max-w-3xl text-sm text-gray-600">
-              Review canonical mileage, fuel, exceptions, snapshots, and quarter approval state.
+              {detailDescription}
             </p>
           </div>
 
@@ -292,14 +298,18 @@ export function FilingDetailPanel({
           <MetricCard
             label="Net Tax"
             value={formatMoney(filing.totalNetTax)}
-            hint={blockingExceptions > 0 ? `${blockingExceptions} blocking exception(s)` : undefined}
+            hint={
+              mode === "staff" && blockingExceptions > 0
+                ? `${blockingExceptions} blocking exception(s)`
+                : undefined
+            }
           />
         </div>
       </div>
 
       <div className="border-b border-gray-200 px-4 py-3">
         <div className="flex flex-wrap gap-2">
-          {detailTabs.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.value}
               type="button"
@@ -683,4 +693,10 @@ export function FilingDetailPanel({
       </div>
     </Card>
   );
+}
+
+function isStaffDescription(mode: IftaAutomationMode) {
+  return mode === "staff"
+    ? "Review canonical mileage, fuel, exceptions, snapshots, and quarter approval state."
+    : "Review your mileage, fuel, exports, and current filing status before staff review.";
 }

@@ -25,7 +25,6 @@ import {
   formatGallons,
   formatMoney,
   formatNumber,
-  openExceptionCount,
   providerLabel,
   statusLabel,
   toNumber,
@@ -250,14 +249,6 @@ export default function IftaAutomationTruckerFilingPage({
     }));
   }, [filing]);
 
-  const openExceptions = useMemo(
-    () =>
-      filing?.exceptions.filter(
-        (exception) => exception.status === "OPEN" || exception.status === "ACKNOWLEDGED",
-      ) ?? [],
-    [filing],
-  );
-
   const canEdit = filing ? canTruckerEditFilingStatus(filing.status) : false;
   const canSubmit = filing
     ? canTruckerEditFilingStatus(filing.status)
@@ -454,9 +445,6 @@ export default function IftaAutomationTruckerFilingPage({
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <Badge tone={filingTone(filing.status)}>{statusLabel(filing.status)}</Badge>
                 <Badge tone="light">{providerLabel(filing.integrationAccount?.provider)}</Badge>
-                <Badge tone={openExceptionCount(filing) > 0 ? "warning" : "success"}>
-                  {openExceptionCount(filing)} open exception{openExceptionCount(filing) === 1 ? "" : "s"}
-                </Badge>
               </div>
               <h1 className="mt-4 text-3xl font-semibold text-gray-950">
                 {filingPeriodLabel(filing)}
@@ -691,9 +679,10 @@ export default function IftaAutomationTruckerFilingPage({
 
       <Card className="overflow-hidden">
         <div className="border-b border-gray-200 px-6 py-5">
-          <div className="text-sm font-semibold text-gray-950">Review notes</div>
+          <div className="text-sm font-semibold text-gray-950">Staff review</div>
           <p className="mt-1 text-sm text-gray-600">
-            Open exceptions must be resolved before staff can approve the filing.
+            Submit the filing when your quarter looks complete. Staff will review the backend checks,
+            tax setup, and final approval requirements.
           </p>
         </div>
 
@@ -719,31 +708,10 @@ export default function IftaAutomationTruckerFilingPage({
             </div>
           </div>
 
-          {openExceptions.length === 0 ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
-              No open exceptions right now. You can submit this filing when you are ready.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {openExceptions.map((exception) => (
-                <div
-                  key={exception.id}
-                  className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={exception.severity === "BLOCKING" || exception.severity === "ERROR" ? "error" : "warning"}>
-                      {exception.severity}
-                    </Badge>
-                    <Badge tone="light">{statusLabel(exception.status)}</Badge>
-                    <div className="text-sm font-semibold text-amber-950">{exception.title}</div>
-                  </div>
-                  {exception.description ? (
-                    <div className="mt-2 text-sm text-amber-900">{exception.description}</div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-700">
+            After submission, staff can sync the latest provider data, recalculate the filing,
+            request changes if needed, create the snapshot, and approve the final report.
+          </div>
         </div>
       </Card>
     </div>

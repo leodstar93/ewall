@@ -278,20 +278,12 @@ export class FilingWorkflowService {
   }) {
     const db = resolveDb(input.db ?? null);
     const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
-    const blockingOrError = filing.exceptions.filter(
-      (exception) =>
-        isOpenExceptionStatus(exception.status) &&
-        (
-          exception.severity === IftaExceptionSeverity.BLOCKING ||
-          exception.severity === IftaExceptionSeverity.ERROR
-        ),
-    );
 
-    if (blockingOrError.length > 0) {
+    if (!canTruckerEditFiling(filing.status)) {
       throw new IftaAutomationError(
-        "Resolve blocking IFTA exceptions before submitting for review.",
+        "This filing can no longer be submitted from its current status.",
         409,
-        "IFTA_FILING_HAS_BLOCKING_EXCEPTIONS",
+        "IFTA_FILING_SUBMIT_INVALID_STATUS",
       );
     }
 
