@@ -12,6 +12,7 @@ import {
 } from "@/components/navigation/SidebarNavIcon";
 import { useSidebarPreference } from "@/components/navigation/useSidebarPreference";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { fallbackTitleFromPath } from "@/lib/navigation/breadcrumb-title";
 import { STAFF_ADMIN_FEATURE_MODULES } from "@/lib/rbac-feature-modules";
 import { hasPermission } from "@/lib/rbac-core";
 import styles from "../console-theme.module.css";
@@ -56,12 +57,12 @@ function titleFromPath(pathname: string | null) {
   if (pathname.startsWith("/admin/features/documents")) return "Documents";
   if (pathname.startsWith("/admin/features/ifta-v2")) return "IFTA Automation";
   if (pathname.startsWith("/admin/features/ifta")) return "IFTA";
+  if (pathname.startsWith("/dashboard/ifta-v2/")) return "IFTA Filing Review";
   if (pathname.startsWith("/dashboard/ifta-v2")) return "IFTA Automation";
   if (pathname.startsWith("/admin/features/ucr")) return "UCR";
   if (pathname.startsWith("/admin/features/dmv")) return "DMV Renewals";
   if (pathname.startsWith("/admin/features/2290")) return "Form 2290";
-  const last = pathname.split("/").filter(Boolean).pop() ?? "Admin";
-  return last.charAt(0).toUpperCase() + last.slice(1);
+  return fallbackTitleFromPath(pathname, "Admin");
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
