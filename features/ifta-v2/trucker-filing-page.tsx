@@ -36,6 +36,25 @@ type Notice = {
   text: string;
 };
 
+function DownloadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      className="h-4 w-4"
+    >
+      <path
+        d="M10 3.75V11.25M10 11.25L13.25 8M10 11.25L6.75 8M4.75 13.75H15.25"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 type ManualFuelRow = {
   id: string;
   filingVehicleId: string;
@@ -115,6 +134,13 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
   return data;
 }
 
+function parseDownloadFilename(header: string | null, fallback: string) {
+  if (!header) return fallback;
+
+  const filenameMatch = /filename="([^"]+)"/i.exec(header);
+  return filenameMatch?.[1] || fallback;
+}
+
 export default function IftaAutomationTruckerFilingPage({
   filingId,
 }: {
@@ -187,6 +213,7 @@ export default function IftaAutomationTruckerFilingPage({
   const canSubmit = filing
     ? canTruckerEditFilingStatus(filing.status)
     : false;
+  const canDownloadApprovedReport = filing?.status === "APPROVED";
 
   function updateManualRow(
     rowId: string,
@@ -301,6 +328,57 @@ export default function IftaAutomationTruckerFilingPage({
     }
   }
 
+  async function handleDownloadApprovedReport() {
+    if (!filing) return;
+
+    setBusyAction("download-approved-report");
+    setNotice(null);
+
+    try {
+      const response = await fetch(
+        `/api/v1/features/ifta-v2/filings/${filing.id}/download?format=pdf`,
+        {
+          cache: "no-store",
+        },
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "Could not generate the approved IFTA report.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fallbackName = `ifta-approved-${filing.year}-q${filing.quarter}.pdf`;
+
+      link.href = url;
+      link.download = parseDownloadFilename(
+        response.headers.get("Content-Disposition"),
+        fallbackName,
+      );
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setNotice({
+        tone: "success",
+        text: "The approved IFTA report was downloaded from the frozen snapshot.",
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Could not download the approved IFTA report.",
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   if (loading) {
     return (
       <Card className="p-8">
@@ -357,6 +435,18 @@ export default function IftaAutomationTruckerFilingPage({
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {canDownloadApprovedReport ? (
+                <Button
+                  variant="outline"
+                  onClick={() => void handleDownloadApprovedReport()}
+                  disabled={busyAction === "download-approved-report"}
+                >
+                  <DownloadIcon />
+                  {busyAction === "download-approved-report"
+                    ? "Preparing report..."
+                    : "Download Approved Report"}
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 onClick={() => void handleSaveManualGallons()}
@@ -556,7 +646,9 @@ export default function IftaAutomationTruckerFilingPage({
 
             {!canEdit ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                This filing is locked because it has already been submitted for review.
+                {filing.status === "APPROVED"
+                  ? "This filing is approved and read-only. You can download the frozen report above."
+                  : "This filing is locked because it has already been submitted for review."}
               </div>
             ) : null}
           </div>

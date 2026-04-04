@@ -195,11 +195,15 @@ export class SyncOrchestrator {
       },
     );
 
-    if (syncedVehicleRecords.length > 0 && syncedTripVehicleIds.length > 0) {
+    if (
+      syncedVehicleRecords.length > 0 &&
+      ((input.mode ?? "FULL") === "FULL" || syncedTripVehicleIds.length > 0)
+    ) {
       await TruckSeedingService.syncProviderVehiclesToClientTrucks({
         tenantId: input.tenantId,
         vehicles: syncedVehicleRecords,
-        activeExternalVehicleIds: syncedTripVehicleIds,
+        activeExternalVehicleIds:
+          (input.mode ?? "FULL") === "FULL" ? null : syncedTripVehicleIds,
       });
     }
 

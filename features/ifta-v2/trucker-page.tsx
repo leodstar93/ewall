@@ -26,6 +26,25 @@ type Notice = {
   text: string;
 };
 
+function DownloadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      className="h-4 w-4"
+    >
+      <path
+        d="M10 3.75V11.25M10 11.25L13.25 8M10 11.25L6.75 8M4.75 13.75H15.25"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 type FilingSortKey =
   | "period"
   | "status"
@@ -69,6 +88,13 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
   }
 
   return data;
+}
+
+function parseDownloadFilename(header: string | null, fallback: string) {
+  if (!header) return fallback;
+
+  const filenameMatch = /filename="([^"]+)"/i.exec(header);
+  return filenameMatch?.[1] || fallback;
 }
 
 function getDefaultSortDirection(key: FilingSortKey): FilingSortDirection {
@@ -135,6 +161,7 @@ export default function IftaAutomationTruckerPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
+  const [downloadingFilingId, setDownloadingFilingId] = useState<string | null>(null);
 
   async function loadFilings() {
     setLoading(true);
@@ -296,6 +323,55 @@ export default function IftaAutomationTruckerPage() {
         text: error instanceof Error ? error.message : "Could not create the IFTA filing.",
       });
       setCreating(false);
+    }
+  }
+
+  async function handleDownloadApprovedReport(filing: FilingListItem) {
+    setDownloadingFilingId(filing.id);
+    setNotice(null);
+
+    try {
+      const response = await fetch(
+        `/api/v1/features/ifta-v2/filings/${filing.id}/download?format=pdf`,
+        {
+          cache: "no-store",
+        },
+      );
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "Could not generate the approved IFTA report.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fallbackName = `ifta-approved-${filing.year}-q${filing.quarter}.pdf`;
+
+      link.href = url;
+      link.download = parseDownloadFilename(
+        response.headers.get("Content-Disposition"),
+        fallbackName,
+      );
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setNotice({
+        tone: "success",
+        text: `Downloaded the approved report for ${filingPeriodLabel(filing)}.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Could not download the approved IFTA report.",
+      });
+    } finally {
+      setDownloadingFilingId(null);
     }
   }
 
@@ -617,7 +693,19 @@ export default function IftaAutomationTruckerPage() {
                         {formatDateTime(filing.updatedAt || filing.lastCalculatedAt)}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
+                          {filing.status === "APPROVED" ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleDownloadApprovedReport(filing)}
+                              disabled={downloadingFilingId === filing.id}
+                              className="inline-flex items-center justify-center rounded-2xl border bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                              title="Download approved report"
+                              aria-label={`Download approved report for ${filingPeriodLabel(filing)}`}
+                            >
+                              <DownloadIcon />
+                            </button>
+                          ) : null}
                           <Link
                             href={`/ifta-v2/${filing.id}`}
                             className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"

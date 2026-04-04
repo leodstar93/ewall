@@ -33,6 +33,25 @@ export type IftaExportReport = {
   lines: IftaExportLine[];
 };
 
+function toSafeFileNamePart(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  return normalized || "carrier";
+}
+
+export function buildIftaExportFileName(
+  report: Pick<IftaExportReport, "carrierName" | "year" | "quarter">,
+  fileExtension: "pdf" | "xlsx",
+) {
+  const carrierPart = toSafeFileNamePart(report.carrierName);
+  return `ifta-report-${carrierPart}-${report.year}-${report.quarter.toLowerCase()}.${fileExtension}`;
+}
+
 type GetFiledIftaReportExportInput = {
   reportId: string;
   db?: DbClient;
@@ -148,7 +167,7 @@ export async function upsertFiledIftaReportDocument(
   const { report, fileBuffer, fileExtension, contentType } = input;
   const db = input.db ?? prisma;
   const environment = input.environment ?? "production";
-  const fileName = `ifta-report-${report.id}.${fileExtension}`;
+  const fileName = buildIftaExportFileName(report, fileExtension);
   const fileUrl = getStoragePublicUrl(environment, "ifta", fileName);
   const existing = await db.document.findFirst({
     where: {

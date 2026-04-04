@@ -1,6 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import type { ProviderVehicleRecord } from "@/services/ifta-automation/adapters";
 
+type ExistingTruckSummary = {
+  id: string;
+  unitNumber: string;
+  vin: string | null;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+};
+
 function normalizeOptionalText(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
   return normalized.length > 0 ? normalized : null;
@@ -63,6 +72,7 @@ export class TruckSeedingService {
         userId: null,
         recordsRead: 0,
         recordsCreated: 0,
+        recordsUpdated: 0,
         recordsSkipped: 0,
       };
     }
@@ -70,9 +80,11 @@ export class TruckSeedingService {
     const activeExternalVehicleIds = new Set(
       (input.activeExternalVehicleIds ?? []).filter((value): value is string => Boolean(value?.trim())),
     );
+    const shouldSeedAllVehicles = input.activeExternalVehicleIds == null;
 
     const candidateVehicles = input.vehicles.filter((vehicle) => {
       if (!isVehicleActive(vehicle.status)) return false;
+      if (shouldSeedAllVehicles) return true;
       if (activeExternalVehicleIds.size === 0) return false;
       return activeExternalVehicleIds.has(vehicle.externalId);
     });
@@ -82,6 +94,7 @@ export class TruckSeedingService {
         userId: ownerMembership.userId,
         recordsRead: 0,
         recordsCreated: 0,
+        recordsUpdated: 0,
         recordsSkipped: 0,
       };
     }
@@ -94,17 +107,20 @@ export class TruckSeedingService {
         id: true,
         unitNumber: true,
         vin: true,
+        make: true,
+        model: true,
+        year: true,
       },
     });
-    const existingUserTruckVinSet = new Set(
+    const existingUserTruckByVin = new Map(
       existingUserTrucks
-        .map((truck) => normalizeOptionalText(truck.vin)?.toUpperCase())
-        .filter((vin): vin is string => Boolean(vin)),
+        .map((truck) => [normalizeOptionalText(truck.vin)?.toUpperCase() ?? null, truck] as const)
+        .filter((entry): entry is [string, ExistingTruckSummary] => Boolean(entry[0])),
     );
-    const existingUserTruckUnitSet = new Set(
+    const existingUserTruckByUnit = new Map(
       existingUserTrucks
-        .map((truck) => normalizeOptionalText(truck.unitNumber))
-        .filter((unitNumber): unitNumber is string => Boolean(unitNumber)),
+        .map((truck) => [normalizeOptionalText(truck.unitNumber) ?? null, truck] as const)
+        .filter((entry): entry is [string, ExistingTruckSummary] => Boolean(entry[0])),
     );
 
     const candidateVins = Array.from(
@@ -134,6 +150,7 @@ export class TruckSeedingService {
     );
 
     let recordsCreated = 0;
+    let recordsUpdated = 0;
     let recordsSkipped = 0;
 
     for (const vehicle of candidateVehicles) {
@@ -148,8 +165,60 @@ export class TruckSeedingService {
         continue;
       }
 
-      if (existingUserTruckUnitSet.has(unitNumber) || (vin && existingUserTruckVinSet.has(vin))) {
-        recordsSkipped += 1;
+      const existingTruck =
+        (vin ? existingUserTruckByVin.get(vin) : null) ?? existingUserTruckByUnit.get(unitNumber);
+
+      if (existingTruck) {
+        const previousUnitKey = normalizeOptionalText(existingTruck.unitNumber);
+        const previousVinKey = normalizeOptionalText(existingTruck.vin)?.toUpperCase() ?? null;
+        const nextMake = normalizeOptionalText(vehicle.make);
+        const nextModel = normalizeOptionalText(vehicle.model);
+        const nextYear = parseOptionalTruckYear(vehicle.year);
+        const shouldUpdate =
+          existingTruck.unitNumber !== unitNumber ||
+          (vin && existingTruck.vin !== vin) ||
+          (nextMake && existingTruck.make !== nextMake) ||
+          (nextModel && existingTruck.model !== nextModel) ||
+          (nextYear && existingTruck.year !== nextYear);
+
+        if (shouldUpdate) {
+          await prisma.truck.update({
+            where: { id: existingTruck.id },
+            data: {
+              unitNumber,
+              ...(vin ? { vin } : {}),
+              ...(nextMake ? { make: nextMake } : {}),
+              ...(nextModel ? { model: nextModel } : {}),
+              ...(nextYear ? { year: nextYear } : {}),
+              isActive: true,
+            },
+          });
+          recordsUpdated += 1;
+        } else {
+          recordsSkipped += 1;
+        }
+
+        const nextTruck: ExistingTruckSummary = {
+          ...existingTruck,
+          unitNumber,
+          vin: vin ?? existingTruck.vin,
+          make: nextMake ?? existingTruck.make,
+          model: nextModel ?? existingTruck.model,
+          year: nextYear ?? existingTruck.year,
+        };
+
+        if (previousUnitKey && previousUnitKey !== unitNumber) {
+          existingUserTruckByUnit.delete(previousUnitKey);
+        }
+        existingUserTruckByUnit.set(unitNumber, nextTruck);
+
+        if (previousVinKey && vin && previousVinKey !== vin) {
+          existingUserTruckByVin.delete(previousVinKey);
+        }
+        if (vin) {
+          existingUserTruckByVin.set(vin, nextTruck);
+          globallyClaimedVinSet.add(vin);
+        }
         continue;
       }
 
@@ -158,7 +227,7 @@ export class TruckSeedingService {
         continue;
       }
 
-      await prisma.truck.create({
+      const createdTruck = await prisma.truck.create({
         data: {
           userId: ownerMembership.userId,
           unitNumber,
@@ -169,12 +238,20 @@ export class TruckSeedingService {
           isActive: true,
           notes: "Imported automatically from ELD vehicle sync.",
         },
+        select: {
+          id: true,
+          unitNumber: true,
+          vin: true,
+          make: true,
+          model: true,
+          year: true,
+        },
       });
 
       recordsCreated += 1;
-      existingUserTruckUnitSet.add(unitNumber);
+      existingUserTruckByUnit.set(unitNumber, createdTruck);
       if (vin) {
-        existingUserTruckVinSet.add(vin);
+        existingUserTruckByVin.set(vin, createdTruck);
         globallyClaimedVinSet.add(vin);
       }
     }
@@ -183,6 +260,7 @@ export class TruckSeedingService {
       userId: ownerMembership.userId,
       recordsRead: candidateVehicles.length,
       recordsCreated,
+      recordsUpdated,
       recordsSkipped,
     };
   }

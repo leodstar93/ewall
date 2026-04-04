@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { TruckRecord, formatDate } from "@/features/trucks/shared";
@@ -7,6 +8,27 @@ import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
 type TrucksPayload = {
   trucks?: TruckRecord[];
+  error?: string;
+};
+
+type IntegrationAccountSummary = {
+  provider: string;
+  status: string;
+  lastSuccessfulSyncAt?: string | null;
+};
+
+type EldStatusPayload = {
+  accounts?: IntegrationAccountSummary[];
+  error?: string;
+};
+
+type ProviderTruckSyncPayload = {
+  provider?: string;
+  recordsRead?: number;
+  trucksCreated?: number;
+  trucksUpdated?: number;
+  trucksSkipped?: number;
+  message?: string;
   error?: string;
 };
 
@@ -72,6 +94,12 @@ function getUsageSummary(truck: TruckRecord) {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
+function formatProviderLabel(provider: string) {
+  const normalized = provider.trim();
+  if (!normalized) return "Provider";
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
+}
+
 export default function TrucksDashboardPage({
   integrated = false,
 }: {
@@ -89,10 +117,16 @@ export default function TrucksDashboardPage({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<TruckFormState>(emptyForm);
+  const [providerAccount, setProviderAccount] = useState<IntegrationAccountSummary | null>(null);
+  const [providerStatusLoading, setProviderStatusLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { showLoading?: boolean }) => {
+    const showLoading = options?.showLoading ?? true;
+
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       setError(null);
       const response = await fetch("/api/v1/features/ifta/trucks", {
         cache: "no-store",
@@ -105,13 +139,46 @@ export default function TrucksDashboardPage({
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load trucks.");
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  const loadProviderStatus = useCallback(async () => {
+    try {
+      setProviderStatusLoading(true);
+      const response = await fetch("/api/v1/integrations/eld/status", {
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => ({}))) as EldStatusPayload;
+
+      if (!response.ok) {
+        setProviderAccount(null);
+        return;
+      }
+
+      const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+      const connectedAccount =
+        accounts.find((account) => account.status === "CONNECTED") ||
+        accounts.find((account) => account.status === "ERROR") ||
+        null;
+
+      setProviderAccount(connectedAccount);
+    } catch {
+      setProviderAccount(null);
+    } finally {
+      setProviderStatusLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadProviderStatus();
+  }, [loadProviderStatus]);
 
   const filtered = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -165,7 +232,7 @@ export default function TrucksDashboardPage({
       setForm(emptyForm);
       setEditingId(null);
       setIsModalOpen(false);
-      await load();
+      await load({ showLoading: false });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save the truck.");
     } finally {
@@ -193,9 +260,51 @@ export default function TrucksDashboardPage({
         setForm(emptyForm);
       }
       setMessage("Truck deleted.");
-      await load();
+      await load({ showLoading: false });
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Could not delete the truck.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function syncTrucksWithProvider() {
+    if (!providerAccount?.provider) {
+      setError("Connect an ELD provider first from Settings > Integrations.");
+      setMessage(null);
+      return;
+    }
+
+    try {
+      setBusy("sync-provider");
+      setError(null);
+      setMessage(null);
+
+      const response = await fetch("/api/v1/features/ifta/trucks/sync-provider", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          provider: providerAccount.provider,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as ProviderTruckSyncPayload;
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not sync trucks with provider.");
+      }
+
+      setMessage(
+        data.message ||
+          `Synced ${data.recordsRead ?? 0} provider vehicles. Created ${data.trucksCreated ?? 0} trucks and updated ${data.trucksUpdated ?? 0}.`,
+      );
+      await Promise.all([
+        load({ showLoading: false }),
+        loadProviderStatus(),
+      ]);
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : "Could not sync trucks with provider.");
     } finally {
       setBusy(null);
     }
@@ -245,6 +354,17 @@ export default function TrucksDashboardPage({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-zinc-950">Your trucks</h3>
+              <p className="mt-1 text-sm text-zinc-500">
+                {providerStatusLoading
+                  ? "Checking ELD provider connection..."
+                  : providerAccount
+                    ? `Connected to ${formatProviderLabel(providerAccount.provider)}${
+                        providerAccount.lastSuccessfulSyncAt
+                          ? ` · Last sync ${formatDate(providerAccount.lastSuccessfulSyncAt)}`
+                          : ""
+                      }`
+                    : "Connect your ELD provider to keep your truck catalog in sync."}
+              </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <input
@@ -256,6 +376,25 @@ export default function TrucksDashboardPage({
                 placeholder="Search trucks..."
                 className="w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none ring-0 focus:border-zinc-400 sm:min-w-[280px]"
               />
+              {providerAccount ? (
+                <button
+                  type="button"
+                  onClick={() => void syncTrucksWithProvider()}
+                  disabled={busy !== null || providerStatusLoading}
+                  className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-60"
+                >
+                  {busy === "sync-provider"
+                    ? "Syncing..."
+                    : `Sync trucks with ${formatProviderLabel(providerAccount.provider)}`}
+                </button>
+              ) : (
+                <Link
+                  href="/settings?tab=integrations"
+                  className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+                >
+                  Connect provider
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => {
