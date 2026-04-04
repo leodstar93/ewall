@@ -19,6 +19,13 @@ import {
 import { CanonicalNormalizationService } from "@/services/ifta-automation/canonical-normalization.service";
 import { IftaCalculationEngine } from "@/services/ifta-automation/ifta-calculation-engine.service";
 import { IftaExceptionEngine } from "@/services/ifta-automation/ifta-exception-engine.service";
+import {
+  notifyIftaAutomationApproved,
+  notifyIftaAutomationChangesRequested,
+  notifyIftaAutomationReopened,
+  notifyIftaAutomationSubmitted,
+  notifyIftaAutomationUnderReview,
+} from "@/services/ifta-automation/notifications";
 import { SnapshotService } from "@/services/ifta-automation/snapshot.service";
 
 export class FilingWorkflowService {
@@ -304,6 +311,13 @@ export class FilingWorkflowService {
       db,
     });
 
+    await notifyIftaAutomationSubmitted(
+      await getIftaAutomationFilingOrThrow(filing.id, db),
+      {
+        actorUserId: input.actorUserId,
+      },
+    );
+
     return updated;
   }
 
@@ -359,6 +373,12 @@ export class FilingWorkflowService {
       db,
     });
 
+    if (statusChanged && nextStatus === IftaFilingStatus.IN_REVIEW) {
+      await notifyIftaAutomationUnderReview(
+        await getIftaAutomationFilingOrThrow(filing.id, db),
+      );
+    }
+
     return updated;
   }
 
@@ -384,6 +404,11 @@ export class FilingWorkflowService {
       message: input.note ?? "Staff requested changes on the filing.",
       db,
     });
+
+    await notifyIftaAutomationChangesRequested(
+      await getIftaAutomationFilingOrThrow(input.filingId, db),
+      input.note,
+    );
 
     return updated;
   }
@@ -484,6 +509,10 @@ export class FilingWorkflowService {
       db,
     });
 
+    await notifyIftaAutomationApproved(
+      await getIftaAutomationFilingOrThrow(filing.id, db),
+    );
+
     return updated;
   }
 
@@ -518,6 +547,11 @@ export class FilingWorkflowService {
       message: input.note ?? "Reopened approved filing.",
       db,
     });
+
+    await notifyIftaAutomationReopened(
+      await getIftaAutomationFilingOrThrow(filing.id, db),
+      input.note,
+    );
 
     return updated;
   }
