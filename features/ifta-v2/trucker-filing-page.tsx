@@ -38,6 +38,8 @@ type Notice = {
 
 type ManualFuelRow = {
   id: string;
+  filingVehicleId: string;
+  purchasedAt: string;
   jurisdiction: string;
   gallons: string;
 };
@@ -47,33 +49,34 @@ function buildManualRows(filing: FilingDetail | null) {
     return [
       {
         id: "row-1",
+        filingVehicleId: "",
+        purchasedAt: "",
         jurisdiction: "",
         gallons: "",
       },
     ];
   }
 
-  const totals = new Map<string, number>();
+  const manualLines = filing.fuelLines.filter((line) => line.sourceType === "MANUAL_ADJUSTMENT");
 
-  for (const line of filing.fuelLines) {
-    if (line.sourceType !== "MANUAL_ADJUSTMENT") continue;
-    totals.set(line.jurisdiction, (totals.get(line.jurisdiction) ?? 0) + toNumber(line.gallons));
-  }
-
-  if (totals.size === 0) {
+  if (manualLines.length === 0) {
     return [
       {
         id: "row-1",
+        filingVehicleId: "",
+        purchasedAt: "",
         jurisdiction: "",
         gallons: "",
       },
     ];
   }
 
-  return Array.from(totals.entries()).map(([jurisdiction, gallons], index) => ({
-    id: `row-${index + 1}`,
-    jurisdiction,
-    gallons: gallons.toFixed(3),
+  return manualLines.map((line, index) => ({
+    id: line.id || `row-${index + 1}`,
+    filingVehicleId: line.filingVehicleId || "",
+    purchasedAt: line.purchasedAt ? line.purchasedAt.slice(0, 10) : "",
+    jurisdiction: line.jurisdiction,
+    gallons: toNumber(line.gallons).toFixed(3),
   }));
 }
 
@@ -185,7 +188,11 @@ export default function IftaAutomationTruckerFilingPage({
     ? canTruckerEditFilingStatus(filing.status)
     : false;
 
-  function updateManualRow(rowId: string, field: "jurisdiction" | "gallons", value: string) {
+  function updateManualRow(
+    rowId: string,
+    field: "filingVehicleId" | "purchasedAt" | "jurisdiction" | "gallons",
+    value: string,
+  ) {
     setManualRows((current) =>
       current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)),
     );
@@ -196,6 +203,8 @@ export default function IftaAutomationTruckerFilingPage({
       ...current,
       {
         id: `row-${Date.now()}-${current.length + 1}`,
+        filingVehicleId: "",
+        purchasedAt: "",
         jurisdiction: "",
         gallons: "",
       },
@@ -210,6 +219,8 @@ export default function IftaAutomationTruckerFilingPage({
         : [
             {
               id: `row-${Date.now()}`,
+              filingVehicleId: "",
+              purchasedAt: "",
               jurisdiction: "",
               gallons: "",
             },
@@ -226,10 +237,15 @@ export default function IftaAutomationTruckerFilingPage({
     try {
       const payload = manualRows
         .map((row) => ({
+          filingVehicleId: row.filingVehicleId.trim(),
+          purchasedAt: row.purchasedAt.trim(),
           jurisdiction: row.jurisdiction.trim().toUpperCase(),
           gallons: row.gallons.trim(),
         }))
-        .filter((row) => row.jurisdiction || row.gallons);
+        .filter(
+          (row) =>
+            row.filingVehicleId || row.purchasedAt || row.jurisdiction || row.gallons,
+        );
 
       const data = await requestJson<{ filing: FilingDetail }>(
         `/api/v1/features/ifta-v2/filings/${filing.id}/manual-fuel`,
@@ -245,12 +261,12 @@ export default function IftaAutomationTruckerFilingPage({
       setManualRows(buildManualRows(data.filing));
       setNotice({
         tone: "success",
-        text: "Manual gallons were saved and the filing totals were recalculated.",
+        text: "Manual fuel purchases were saved and the filing totals were recalculated.",
       });
     } catch (error) {
       setNotice({
         tone: "error",
-        text: error instanceof Error ? error.message : "Could not save manual gallons.",
+        text: error instanceof Error ? error.message : "Could not save manual fuel purchases.",
       });
     } finally {
       setBusyAction(null);
@@ -335,8 +351,8 @@ export default function IftaAutomationTruckerFilingPage({
                 {filingPeriodLabel(filing)}
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
-                Review your quarter, add the tax-paid gallons manually by jurisdiction, and
-                submit the filing when it is ready for staff.
+                Review your quarter, add manual fuel purchases with vehicle and date details,
+                and submit the filing when it is ready for staff.
               </p>
             </div>
 
@@ -346,7 +362,7 @@ export default function IftaAutomationTruckerFilingPage({
                 onClick={() => void handleSaveManualGallons()}
                 disabled={!canEdit || busyAction === "save-manual-fuel"}
               >
-                {busyAction === "save-manual-fuel" ? "Saving..." : "Save gallons"}
+                {busyAction === "save-manual-fuel" ? "Saving..." : "Save fuel"}
               </Button>
               <Button
                 onClick={() => void handleSubmitForReview()}
@@ -434,19 +450,55 @@ export default function IftaAutomationTruckerFilingPage({
 
         <Card className="overflow-hidden">
           <div className="border-b border-gray-200 px-6 py-5">
-            <div className="text-sm font-semibold text-gray-950">Manual gallons by jurisdiction</div>
+            <div className="text-sm font-semibold text-gray-950">Manual fuel purchases</div>
             <p className="mt-1 text-sm text-gray-600">
-              Enter the tax-paid gallons for each jurisdiction. These rows are saved as manual
-              adjustments and kept when the filing is recalculated.
+              Enter the vehicle, purchase date, jurisdiction, and tax-paid gallons for each
+              manual fuel purchase. These rows are kept when the filing is recalculated.
             </p>
           </div>
 
           <div className="space-y-4 p-6">
-            {manualRows.map((row, index) => (
+            {manualRows.map((row) => (
               <div
                 key={row.id}
-                className="grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-[120px_minmax(0,1fr)_auto]"
+                className="grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_170px_120px_140px_auto]"
               >
+                <label className="space-y-2">
+                  <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
+                    Vehicle
+                  </span>
+                  <select
+                    value={row.filingVehicleId}
+                    onChange={(event) =>
+                      updateManualRow(row.id, "filingVehicleId", event.target.value)
+                    }
+                    disabled={!canEdit}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 outline-none shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 disabled:bg-gray-100"
+                  >
+                    <option value="">Select vehicle</option>
+                    {filing.vehicles.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.unitNumber ||
+                          vehicle.externalVehicle?.number ||
+                          vehicle.vin ||
+                          "Unmapped vehicle"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
+                    Date
+                  </span>
+                  <Input
+                    type="date"
+                    value={row.purchasedAt}
+                    onChange={(event) => updateManualRow(row.id, "purchasedAt", event.target.value)}
+                    disabled={!canEdit}
+                  />
+                </label>
+
                 <label className="space-y-2">
                   <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
                     Jurisdiction
@@ -492,14 +544,14 @@ export default function IftaAutomationTruckerFilingPage({
                 onClick={addManualRow}
                 disabled={!canEdit}
               >
-                Add jurisdiction
+                Add fuel row
               </Button>
-              <Button
-                onClick={() => void handleSaveManualGallons()}
-                disabled={!canEdit || busyAction === "save-manual-fuel"}
-              >
-                {busyAction === "save-manual-fuel" ? "Saving..." : "Save manual gallons"}
-              </Button>
+                <Button
+                  onClick={() => void handleSaveManualGallons()}
+                  disabled={!canEdit || busyAction === "save-manual-fuel"}
+                >
+                {busyAction === "save-manual-fuel" ? "Saving..." : "Save manual fuel"}
+                </Button>
             </div>
 
             {!canEdit ? (

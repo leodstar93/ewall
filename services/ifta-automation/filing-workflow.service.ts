@@ -12,6 +12,7 @@ import {
   hasBlockingOpenExceptions,
   isOpenExceptionStatus,
   normalizeJurisdictionCode,
+  parseOptionalDate,
   resolveDb,
   toDecimalString,
 } from "@/services/ifta-automation/shared";
@@ -113,6 +114,8 @@ export class FilingWorkflowService {
     filingId: string;
     actorUserId?: string | null;
     lines: Array<{
+      filingVehicleId?: string | null;
+      purchasedAt?: string | Date | null;
       jurisdiction: string;
       gallons: number;
     }>;
@@ -129,11 +132,20 @@ export class FilingWorkflowService {
       );
     }
 
+    const filingVehicleIds = new Set(filing.vehicles.map((vehicle) => vehicle.id));
     const mergedLines = new Map<string, number>();
+    const normalizedLines: Array<{
+      filingVehicleId: string | null;
+      purchasedAt: Date | null;
+      jurisdiction: string;
+      gallons: number;
+    }> = [];
 
     for (const line of input.lines) {
       const jurisdiction = normalizeJurisdictionCode(line.jurisdiction);
       const gallons = Number(line.gallons);
+      const filingVehicleId = line.filingVehicleId?.trim() || null;
+      const purchasedAt = parseOptionalDate(line.purchasedAt);
 
       if (!jurisdiction || jurisdiction.length < 2 || jurisdiction.length > 3) {
         throw new IftaAutomationError(
@@ -155,6 +167,45 @@ export class FilingWorkflowService {
         continue;
       }
 
+      if (!purchasedAt) {
+        throw new IftaAutomationError(
+          "Each manual fuel row needs a valid purchase date.",
+          400,
+          "INVALID_IFTA_MANUAL_PURCHASE_DATE",
+        );
+      }
+
+      if (purchasedAt < filing.periodStart || purchasedAt > filing.periodEnd) {
+        throw new IftaAutomationError(
+          "Manual fuel purchase dates must stay inside the filing quarter.",
+          400,
+          "IFTA_MANUAL_PURCHASE_OUTSIDE_PERIOD",
+        );
+      }
+
+      if (filingVehicleIds.size > 0 && !filingVehicleId) {
+        throw new IftaAutomationError(
+          "Each manual fuel row needs a vehicle selection.",
+          400,
+          "INVALID_IFTA_MANUAL_VEHICLE",
+        );
+      }
+
+      if (filingVehicleId && !filingVehicleIds.has(filingVehicleId)) {
+        throw new IftaAutomationError(
+          "Manual fuel rows must use a vehicle from this filing.",
+          400,
+          "INVALID_IFTA_MANUAL_VEHICLE",
+        );
+      }
+
+      normalizedLines.push({
+        filingVehicleId,
+        purchasedAt,
+        jurisdiction,
+        gallons,
+      });
+
       mergedLines.set(jurisdiction, (mergedLines.get(jurisdiction) ?? 0) + gallons);
     }
 
@@ -165,15 +216,15 @@ export class FilingWorkflowService {
       },
     });
 
-    if (mergedLines.size > 0) {
+    if (normalizedLines.length > 0) {
       await db.iftaFuelLine.createMany({
-        data: Array.from(mergedLines.entries()).map(([jurisdiction, gallons]) => ({
+        data: normalizedLines.map((line) => ({
           filingId: filing.id,
-          filingVehicleId: null,
-          jurisdiction,
-          purchasedAt: null,
+          filingVehicleId: line.filingVehicleId,
+          jurisdiction: line.jurisdiction,
+          purchasedAt: line.purchasedAt,
           fuelType: "diesel",
-          gallons: toDecimalString(gallons, 3),
+          gallons: toDecimalString(line.gallons, 3),
           taxPaid: true,
           sourceType: IFTA_AUTOMATION_MANUAL_SOURCE_TYPE,
           sourceRefId: null,
@@ -194,11 +245,17 @@ export class FilingWorkflowService {
       filingId: filing.id,
       actorUserId: input.actorUserId,
       action: "filing.manual_fuel.replace",
-      message: `Updated manual gallons for ${mergedLines.size} jurisdiction${mergedLines.size === 1 ? "" : "s"}.`,
+      message: `Updated ${normalizedLines.length} manual fuel purchase${normalizedLines.length === 1 ? "" : "s"}.`,
       payloadJson: {
         jurisdictions: Array.from(mergedLines.entries()).map(([jurisdiction, gallons]) => ({
           jurisdiction,
           gallons: toDecimalString(gallons, 3),
+        })),
+        purchases: normalizedLines.map((line) => ({
+          filingVehicleId: line.filingVehicleId,
+          purchasedAt: line.purchasedAt?.toISOString() ?? null,
+          jurisdiction: line.jurisdiction,
+          gallons: toDecimalString(line.gallons, 3),
         })),
       },
       db,

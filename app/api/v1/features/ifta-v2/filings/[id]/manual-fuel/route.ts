@@ -26,6 +26,8 @@ export async function PUT(
 
     const body = (await request.json()) as {
       lines?: Array<{
+        filingVehicleId?: unknown;
+        purchasedAt?: unknown;
         jurisdiction?: unknown;
         gallons?: unknown;
       }>;
@@ -36,6 +38,9 @@ export async function PUT(
       actorUserId: userId,
       lines: Array.isArray(body.lines)
         ? body.lines.map((line) => ({
+            filingVehicleId:
+              typeof line.filingVehicleId === "string" ? line.filingVehicleId : null,
+            purchasedAt: typeof line.purchasedAt === "string" ? line.purchasedAt : null,
             jurisdiction: typeof line.jurisdiction === "string" ? line.jurisdiction : "",
             gallons:
               typeof line.gallons === "number"
@@ -49,6 +54,6 @@ export async function PUT(
 
     return Response.json({ filing });
   } catch (error) {
-    return handleIftaAutomationError(error, "Failed to save manual gallons for this filing.");
+    return handleIftaAutomationError(error, "Failed to save manual fuel purchases for this filing.");
   }
 }
