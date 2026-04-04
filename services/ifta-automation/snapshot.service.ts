@@ -22,10 +22,10 @@ function buildExportReport(filing: Awaited<ReturnType<typeof getIftaAutomationFi
     userId: filing.submittedByUserId ?? filing.assignedStaffUserId ?? "system",
     carrierName: resolveCarrierName({
       tenantName: filing.tenant.name,
-      companyProfile: filing.tenant.companyProfile,
+      companyProfile: filing.tenant,
     }),
-    usdot: resolveUsdDotNumber({ companyProfile: filing.tenant.companyProfile }),
-    iftaAccount: resolveIftaAccountNumber({ companyProfile: filing.tenant.companyProfile }),
+    usdot: resolveUsdDotNumber({ companyProfile: filing.tenant }),
+    iftaAccount: resolveIftaAccountNumber({ companyProfile: filing.tenant }),
     year: filing.year,
     quarter: buildQuarterLabel(filing.quarter),
     fuelType: "DI" as const,

@@ -193,9 +193,11 @@ function parseIsoDate(value: string, label: string) {
 }
 
 export async function getCompanyProfile(userId: string): Promise<CompanyProfileRecord> {
+  const organization = await ensureUserOrganization(userId);
   const company = await prisma.companyProfile.findUnique({
-    where: { userId },
+    where: { id: organization.id },
     select: {
+      name: true,
       legalName: true,
       dbaName: true,
       companyName: true,
@@ -292,9 +294,9 @@ export async function upsertCompanyProfile(
   });
 
   await prisma.companyProfile.upsert({
-    where: { userId },
+    where: { id: organization.id },
     update: {
-      organizationId: organization.id,
+      name: companyName ?? legalName ?? dbaName,
       legalName,
       dbaName,
       companyName,
@@ -313,8 +315,9 @@ export async function upsertCompanyProfile(
       driversCount: normalizeCount(input.driversCount, "Drivers count"),
     },
     create: {
+      id: organization.id,
       userId,
-      organizationId: organization.id,
+      name: companyName ?? legalName ?? dbaName,
       legalName,
       dbaName,
       companyName,
@@ -347,7 +350,7 @@ export async function applySaferToCompanyProfile(
 
   const organization = await ensureUserOrganization(userId);
   const existingProfile = await prisma.companyProfile.findUnique({
-    where: { userId },
+    where: { id: organization.id },
     select: { companyName: true },
   });
   const company = lookupResult.company;
@@ -367,7 +370,8 @@ export async function applySaferToCompanyProfile(
   });
 
   const profileData = {
-    organizationId: organization.id,
+    name:
+      existingProfile?.companyName?.trim() || company.dbaName || company.legalName || undefined,
     dotNumber: company.usdotNumber ?? lookupResult.searchedDotNumber,
     mcNumber: company.mcNumber ?? undefined,
     legalName: company.legalName ?? undefined,
@@ -401,9 +405,10 @@ export async function applySaferToCompanyProfile(
   };
 
   await prisma.companyProfile.upsert({
-    where: { userId },
+    where: { id: organization.id },
     update: profileData,
     create: {
+      id: organization.id,
       userId,
       ...profileData,
     },

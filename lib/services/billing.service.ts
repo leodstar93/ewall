@@ -759,7 +759,7 @@ function formatModuleGrant(grant: {
   startsAt: Date | null;
   endsAt: Date | null;
   createdAt: Date;
-  organization: { id: string; name: string };
+  organization: { id: string; name: string | null };
   module: { id: string; slug: string; name: string };
 }) {
   return {
@@ -767,7 +767,10 @@ function formatModuleGrant(grant: {
     kind: "module" as const,
     source: grant.source,
     active: grant.active,
-    organization: grant.organization,
+    organization: {
+      ...grant.organization,
+      name: grant.organization.name ?? "Unnamed company",
+    },
     module: grant.module,
     startsAt: grant.startsAt?.toISOString() ?? null,
     endsAt: grant.endsAt?.toISOString() ?? null,
@@ -782,7 +785,7 @@ function formatPlanGrant(subscription: {
   currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
   createdAt: Date;
-  organization: { id: string; name: string };
+  organization: { id: string; name: string | null };
   plan: null | { id: string; code: string; name: string };
 }) {
   return {
@@ -794,7 +797,10 @@ function formatPlanGrant(subscription: {
       subscription.status === SubscriptionStatus.TRIALING ||
       subscription.status === SubscriptionStatus.PAST_DUE,
     status: subscription.status,
-    organization: subscription.organization,
+    organization: {
+      ...subscription.organization,
+      name: subscription.organization.name ?? "Unnamed company",
+    },
     plan: subscription.plan,
     giftNote: subscription.giftNote ?? "",
     startsAt: subscription.currentPeriodStart?.toISOString() ?? null,
@@ -804,7 +810,7 @@ function formatPlanGrant(subscription: {
 }
 
 export async function listOrganizationsForBilling() {
-  const organizations = await prisma.organization.findMany({
+  const organizations = await prisma.companyProfile.findMany({
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -826,7 +832,7 @@ export async function listOrganizationsForBilling() {
 
   return organizations.map((organization) => ({
     id: organization.id,
-    name: organization.name,
+    name: organization.name ?? "Unnamed company",
     members: organization.members.map((member) => ({
       id: member.user.id,
       email: member.user.email ?? "",

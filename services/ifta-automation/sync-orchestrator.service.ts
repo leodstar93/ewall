@@ -1,10 +1,11 @@
-import { IftaFilingStatus, IntegrationStatus, SyncJobStatus } from "@prisma/client";
+import { IftaFilingStatus, IntegrationStatus, Prisma, SyncJobStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   summarizeSyncResults,
   type DistanceSyncResult,
   type DriverSyncResult,
   type FuelSyncResult,
+  type ProviderIftaTripRecord,
   type ProviderVehicleRecord,
   type VehicleSyncResult,
 } from "@/services/ifta-automation/adapters";
@@ -13,6 +14,7 @@ import { IftaCalculationEngine } from "@/services/ifta-automation/ifta-calculati
 import { IftaExceptionEngine } from "@/services/ifta-automation/ifta-exception-engine.service";
 import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
 import { RawIngestionService } from "@/services/ifta-automation/raw-ingestion.service";
+import { LegacyTripSyncService } from "@/services/ifta-automation/legacy-trip-sync.service";
 import { TruckSeedingService } from "@/services/ifta-automation/truck-seeding.service";
 import {
   getCurrentQuarter,
@@ -34,6 +36,14 @@ type PhaseResult =
   | DriverSyncResult
   | DistanceSyncResult
   | FuelSyncResult
+  | {
+      phase: string;
+      recordsRead: number;
+      recordsCreated: number;
+      recordsUpdated: number;
+      recordsFailed: number;
+      summaryJson?: Prisma.InputJsonValue | null;
+    }
   | null;
 
 function buildSafeErrorMessage(error: unknown) {
@@ -54,6 +64,7 @@ export class SyncOrchestrator {
     const phaseErrors: Array<{ phase: string; errorMessage: string }> = [];
     let syncedVehicleRecords: ProviderVehicleRecord[] = [];
     let syncedTripVehicleIds: string[] = [];
+    let syncedTripRecords: ProviderIftaTripRecord[] = [];
 
     const syncJob = await prisma.integrationSyncJob.create({
       data: {
@@ -158,6 +169,7 @@ export class SyncOrchestrator {
         }),
       async (result) => {
         if (!result) return;
+        syncedTripRecords = result.trips;
         syncedTripVehicleIds = result.trips
           .map((trip) => trip.externalVehicleId ?? null)
           .filter((externalVehicleId): externalVehicleId is string => Boolean(externalVehicleId));
@@ -205,6 +217,23 @@ export class SyncOrchestrator {
         activeExternalVehicleIds:
           (input.mode ?? "FULL") === "FULL" ? null : syncedTripVehicleIds,
       });
+    }
+
+    if (syncedTripRecords.length > 0) {
+      try {
+        phaseResults.push(
+          await LegacyTripSyncService.syncProviderTripsToLegacyTables({
+            tenantId: input.tenantId,
+            provider: input.provider,
+            trips: syncedTripRecords,
+          }),
+        );
+      } catch (error) {
+        phaseErrors.push({
+          phase: "legacy_trips",
+          errorMessage: buildSafeErrorMessage(error),
+        });
+      }
     }
 
     for (const quarter of affectedQuarters) {

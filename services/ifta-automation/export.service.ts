@@ -47,10 +47,10 @@ function buildLiveExportReport(filing: Awaited<ReturnType<typeof getIftaAutomati
     userId: filing.submittedByUserId ?? filing.assignedStaffUserId ?? "system",
     carrierName: resolveCarrierName({
       tenantName: filing.tenant.name,
-      companyProfile: filing.tenant.companyProfile,
+      companyProfile: filing.tenant,
     }),
-    usdot: resolveUsdDotNumber({ companyProfile: filing.tenant.companyProfile }),
-    iftaAccount: resolveIftaAccountNumber({ companyProfile: filing.tenant.companyProfile }),
+    usdot: resolveUsdDotNumber({ companyProfile: filing.tenant }),
+    iftaAccount: resolveIftaAccountNumber({ companyProfile: filing.tenant }),
     year: filing.year,
     quarter: `Q${filing.quarter}` as "Q1" | "Q2" | "Q3" | "Q4",
     fuelType: "DI" as const,

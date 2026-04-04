@@ -541,14 +541,21 @@ async function upsertAdminUser() {
 function buildOrganizationName(user: {
   name: string | null;
   email: string | null;
-  companyProfile: { legalName: string | null; dbaName: string | null } | null;
+  companyProfile: {
+    name: string | null;
+    legalName: string | null;
+    dbaName: string | null;
+    companyName: string | null;
+  } | null;
 }) {
   return (
+    user.companyProfile?.name ??
     user.companyProfile?.legalName ??
     user.companyProfile?.dbaName ??
+    user.companyProfile?.companyName ??
     user.name ??
     user.email?.split("@")[0] ??
-    "Default Organization"
+    "Default Company"
   );
 }
 
@@ -561,9 +568,10 @@ async function ensureOrganizationsForAllUsers() {
       companyProfile: {
         select: {
           id: true,
+          name: true,
           legalName: true,
           dbaName: true,
-          organizationId: true,
+          companyName: true,
         },
       },
     },
@@ -575,45 +583,43 @@ async function ensureOrganizationsForAllUsers() {
       select: { organizationId: true },
     });
 
-    let organizationId =
-      existingMembership?.organizationId ?? user.companyProfile?.organizationId ?? null;
+    let organizationId = existingMembership?.organizationId ?? user.companyProfile?.id ?? null;
 
     if (!organizationId) {
-      const organization = await prisma.organization.create({
+      const organization = await prisma.companyProfile.create({
         data: {
+          userId: user.id,
           name: buildOrganizationName(user),
-          members: {
-            create: {
-              userId: user.id,
-              role: "OWNER",
-            },
-          },
+          companyName: buildOrganizationName(user),
         },
         select: { id: true },
       });
 
       organizationId = organization.id;
-    } else {
-      await prisma.organizationMember.upsert({
-        where: {
-          organizationId_userId: {
-            organizationId,
-            userId: user.id,
-          },
-        },
-        update: { role: "OWNER" },
-        create: {
-          organizationId,
-          userId: user.id,
-          role: "OWNER",
-        },
-      });
     }
 
-    if (user.companyProfile && user.companyProfile.organizationId !== organizationId) {
+    await prisma.organizationMember.upsert({
+      where: {
+        organizationId_userId: {
+          organizationId,
+          userId: user.id,
+        },
+      },
+      update: { role: "OWNER" },
+      create: {
+        organizationId,
+        userId: user.id,
+        role: "OWNER",
+      },
+    });
+
+    if (user.companyProfile && user.companyProfile.id === organizationId) {
       await prisma.companyProfile.update({
         where: { id: user.companyProfile.id },
-        data: { organizationId },
+        data: {
+          name: user.companyProfile.name ?? buildOrganizationName(user),
+          companyName: user.companyProfile.companyName ?? buildOrganizationName(user),
+        },
       });
     }
 

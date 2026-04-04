@@ -18,7 +18,7 @@ function filingLabel(filing: IftaAutomationFilingDetail) {
 function carrierLabel(filing: IftaAutomationFilingDetail) {
   return resolveCarrierName({
     tenantName: filing.tenant.name,
-    companyProfile: filing.tenant.companyProfile,
+    companyProfile: filing.tenant,
   });
 }
 

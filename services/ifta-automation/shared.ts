@@ -31,16 +31,12 @@ export const iftaAutomationFilingInclude = Prisma.validator<Prisma.IftaFilingInc
     select: {
       id: true,
       name: true,
-      companyProfile: {
-        select: {
-          legalName: true,
-          dbaName: true,
-          companyName: true,
-          dotNumber: true,
-          mcNumber: true,
-          ein: true,
-        },
-      },
+      legalName: true,
+      dbaName: true,
+      companyName: true,
+      dotNumber: true,
+      mcNumber: true,
+      ein: true,
     },
   },
   integrationAccount: {
@@ -331,7 +327,7 @@ export async function getIftaAutomationFilingOrThrow(
 }
 
 export function resolveCarrierName(input: {
-  tenantName: string;
+  tenantName?: string | null;
   companyProfile?: {
     legalName?: string | null;
     dbaName?: string | null;

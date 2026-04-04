@@ -63,31 +63,80 @@ type ManualFuelRow = {
   gallons: string;
 };
 
+function createBlankManualFuelRow(rowId = "row-1"): ManualFuelRow {
+  return {
+    id: rowId,
+    filingVehicleId: "",
+    purchasedAt: "",
+    jurisdiction: "",
+    gallons: "",
+  };
+}
+
+function filingVehicleLabel(filing: FilingDetail, filingVehicleId: string) {
+  const vehicle = filing.vehicles.find((candidate) => candidate.id === filingVehicleId);
+  if (!vehicle) return "Unmapped vehicle";
+
+  return (
+    vehicle.unitNumber ||
+    vehicle.externalVehicle?.number ||
+    vehicle.vin ||
+    "Unmapped vehicle"
+  );
+}
+
+function buildSeededManualRowsFromMileage(filing: FilingDetail) {
+  const groupedRows = new Map<
+    string,
+    {
+      filingVehicleId: string;
+      jurisdiction: string;
+      vehicleLabel: string;
+    }
+  >();
+
+  for (const line of filing.distanceLines) {
+    if (!line.filingVehicleId) continue;
+    const jurisdiction = line.jurisdiction.trim().toUpperCase();
+    if (!jurisdiction) continue;
+
+    const key = `${line.filingVehicleId}:${jurisdiction}`;
+    if (groupedRows.has(key)) continue;
+
+    groupedRows.set(key, {
+      filingVehicleId: line.filingVehicleId,
+      jurisdiction,
+      vehicleLabel: filingVehicleLabel(filing, line.filingVehicleId),
+    });
+  }
+
+  return Array.from(groupedRows.values())
+    .sort((left, right) => {
+      if (left.vehicleLabel !== right.vehicleLabel) {
+        return left.vehicleLabel.localeCompare(right.vehicleLabel);
+      }
+
+      return left.jurisdiction.localeCompare(right.jurisdiction);
+    })
+    .map((row, index) => ({
+      id: `seed-${index + 1}`,
+      filingVehicleId: row.filingVehicleId,
+      purchasedAt: "",
+      jurisdiction: row.jurisdiction,
+      gallons: "",
+    }));
+}
+
 function buildManualRows(filing: FilingDetail | null) {
   if (!filing) {
-    return [
-      {
-        id: "row-1",
-        filingVehicleId: "",
-        purchasedAt: "",
-        jurisdiction: "",
-        gallons: "",
-      },
-    ];
+    return [createBlankManualFuelRow()];
   }
 
   const manualLines = filing.fuelLines.filter((line) => line.sourceType === "MANUAL_ADJUSTMENT");
 
   if (manualLines.length === 0) {
-    return [
-      {
-        id: "row-1",
-        filingVehicleId: "",
-        purchasedAt: "",
-        jurisdiction: "",
-        gallons: "",
-      },
-    ];
+    const seededRows = buildSeededManualRowsFromMileage(filing);
+    return seededRows.length > 0 ? seededRows : [createBlankManualFuelRow()];
   }
 
   return manualLines.map((line, index) => ({
@@ -228,30 +277,14 @@ export default function IftaAutomationTruckerFilingPage({
   function addManualRow() {
     setManualRows((current) => [
       ...current,
-      {
-        id: `row-${Date.now()}-${current.length + 1}`,
-        filingVehicleId: "",
-        purchasedAt: "",
-        jurisdiction: "",
-        gallons: "",
-      },
+      createBlankManualFuelRow(`row-${Date.now()}-${current.length + 1}`),
     ]);
   }
 
   function removeManualRow(rowId: string) {
     setManualRows((current) => {
       const nextRows = current.filter((row) => row.id !== rowId);
-      return nextRows.length > 0
-        ? nextRows
-        : [
-            {
-              id: `row-${Date.now()}`,
-              filingVehicleId: "",
-              purchasedAt: "",
-              jurisdiction: "",
-              gallons: "",
-            },
-          ];
+      return nextRows.length > 0 ? nextRows : [createBlankManualFuelRow(`row-${Date.now()}`)];
     });
   }
 
@@ -543,7 +576,8 @@ export default function IftaAutomationTruckerFilingPage({
             <div className="text-sm font-semibold text-gray-950">Manual fuel purchases</div>
             <p className="mt-1 text-sm text-gray-600">
               Enter the vehicle, purchase date, jurisdiction, and tax-paid gallons for each
-              manual fuel purchase. These rows are kept when the filing is recalculated.
+              manual fuel purchase. Trucks with jurisdiction miles are preloaded here when
+              available, and these rows are kept when the filing is recalculated.
             </p>
           </div>
 
