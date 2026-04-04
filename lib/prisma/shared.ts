@@ -5,6 +5,26 @@ import type { AppEnvironment } from "@/lib/db/types";
 
 type PrismaGlobalKey = "__prismaProd__" | "__prismaSandbox__";
 
+function hasExpectedDelegates(client: PrismaClient) {
+  return Boolean(
+    (client as PrismaClient & {
+      eldConnection?: unknown;
+      iftaV2Snapshot?: unknown;
+      iftaV2Filing?: unknown;
+    }).eldConnection &&
+      (client as PrismaClient & {
+        eldConnection?: unknown;
+        iftaV2Snapshot?: unknown;
+        iftaV2Filing?: unknown;
+      }).iftaV2Snapshot &&
+      (client as PrismaClient & {
+        eldConnection?: unknown;
+        iftaV2Snapshot?: unknown;
+        iftaV2Filing?: unknown;
+      }).iftaV2Filing,
+  );
+}
+
 function requiredDatasourceUrl(
   envName: "DATABASE_URL" | "SANDBOX_DATABASE_URL",
   environment: AppEnvironment,
@@ -29,8 +49,12 @@ export function createPrismaClient(
   };
 
   const existing = globalForPrisma[globalKey];
-  if (existing) {
+  if (existing && hasExpectedDelegates(existing)) {
     return existing;
+  }
+
+  if (existing) {
+    void existing.$disconnect().catch(() => {});
   }
 
   const adapter = new PrismaPg({

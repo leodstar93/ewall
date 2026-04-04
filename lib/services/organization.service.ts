@@ -1,37 +1,37 @@
 import { prisma } from "@/lib/prisma";
 import { SettingsValidationError } from "@/lib/services/settings-errors";
 
-function deriveOrganizationName(user: {
+function deriveOrganizationName(input: {
   name: string | null;
   email: string | null;
-  companyProfile: { legalName: string | null; dbaName: string | null } | null;
+  companyProfile:
+    | {
+        name: string | null;
+        legalName: string | null;
+        dbaName: string | null;
+        companyName: string | null;
+      }
+    | null;
 }) {
   return (
-    user.companyProfile?.legalName ??
-    user.companyProfile?.dbaName ??
-    user.name ??
-    user.email?.split("@")[0] ??
-    "Default Organization"
+    input.companyProfile?.name?.trim() ||
+    input.companyProfile?.legalName?.trim() ||
+    input.companyProfile?.dbaName?.trim() ||
+    input.companyProfile?.companyName?.trim() ||
+    input.name?.trim() ||
+    input.email?.split("@")[0] ||
+    "Default Company"
   );
 }
 
 async function syncUserOrganizationArtifacts(userId: string, organizationId: string) {
-  await prisma.$transaction([
-    prisma.companyProfile.updateMany({
-      where: {
-        userId,
-        organizationId: null,
-      },
-      data: { organizationId },
-    }),
-    prisma.paymentMethod.updateMany({
-      where: {
-        userId,
-        organizationId: null,
-      },
-      data: { organizationId },
-    }),
-  ]);
+  await prisma.paymentMethod.updateMany({
+    where: {
+      userId,
+      organizationId: null,
+    },
+    data: { organizationId },
+  });
 }
 
 export async function ensureUserOrganization(userId: string) {
@@ -42,6 +42,9 @@ export async function ensureUserOrganization(userId: string) {
         select: {
           id: true,
           name: true,
+          legalName: true,
+          dbaName: true,
+          companyName: true,
         },
       },
     },
@@ -52,7 +55,11 @@ export async function ensureUserOrganization(userId: string) {
     await syncUserOrganizationArtifacts(userId, existingMembership.organization.id);
     return {
       id: existingMembership.organization.id,
-      name: existingMembership.organization.name,
+      name: deriveOrganizationName({
+        name: null,
+        email: null,
+        companyProfile: existingMembership.organization,
+      }),
       role: existingMembership.role,
     };
   }
@@ -66,9 +73,10 @@ export async function ensureUserOrganization(userId: string) {
       companyProfile: {
         select: {
           id: true,
-          organizationId: true,
+          name: true,
           legalName: true,
           dbaName: true,
+          companyName: true,
         },
       },
     },
@@ -78,21 +86,22 @@ export async function ensureUserOrganization(userId: string) {
     throw new SettingsValidationError("User not found.");
   }
 
-  const organizationId = user.companyProfile?.organizationId ?? null;
-
-  const organization = organizationId
-    ? await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { id: true, name: true },
-      })
-    : await prisma.organization.create({
-        data: { name: deriveOrganizationName(user) },
-        select: { id: true, name: true },
-      });
-
-  if (!organization) {
-    throw new SettingsValidationError("Could not resolve organization.");
-  }
+  const organization =
+    user.companyProfile ??
+    (await prisma.companyProfile.create({
+      data: {
+        userId,
+        name: deriveOrganizationName(user),
+        companyName: deriveOrganizationName(user),
+      },
+      select: {
+        id: true,
+        name: true,
+        legalName: true,
+        dbaName: true,
+        companyName: true,
+      },
+    }));
 
   await prisma.organizationMember.upsert({
     where: {
@@ -113,7 +122,7 @@ export async function ensureUserOrganization(userId: string) {
 
   return {
     id: organization.id,
-    name: organization.name,
+    name: deriveOrganizationName(user),
     role: "OWNER",
   };
 }
@@ -137,7 +146,11 @@ export async function getUserOrganizationContext(userId: string) {
       organizationId: true,
       organization: {
         select: {
+          id: true,
           name: true,
+          legalName: true,
+          dbaName: true,
+          companyName: true,
         },
       },
     },
@@ -145,7 +158,11 @@ export async function getUserOrganizationContext(userId: string) {
 
   return {
     organizationId: organization.id,
-    organizationName: membership?.organization.name ?? organization.name,
+    organizationName: deriveOrganizationName({
+      name: null,
+      email: null,
+      companyProfile: membership?.organization ?? null,
+    }) || organization.name,
     membershipRole: membership?.role ?? organization.role,
   };
 }

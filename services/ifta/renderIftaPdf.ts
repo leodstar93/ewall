@@ -1,9 +1,19 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import {
+  PDFDocument,
+  StandardFonts,
+  degrees,
+  rgb,
+  type PDFFont,
+  type PDFPage,
+} from "pdf-lib";
 import type { AppEnvironment } from "@/lib/db/types";
-import type { IftaExportReport } from "@/services/ifta/ensureFiledReportDocument";
+import {
+  buildIftaExportFileName,
+  type IftaExportReport,
+} from "@/services/ifta/ensureFiledReportDocument";
 
 type RenderedPdf = {
   buffer: Uint8Array;
@@ -205,32 +215,46 @@ function valueForColumn(
   }
 }
 
+async function readFirstAvailableFont(
+  candidatePaths: string[],
+) {
+  for (const candidatePath of candidatePaths) {
+    try {
+      return await readFile(candidatePath);
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 export async function renderIftaPdf(
   report: IftaExportReport,
   environment: AppEnvironment = "production",
 ): Promise<RenderedPdf> {
-  const regularFontPath = path.join(
-    process.cwd(),
-    "public",
-    "fonts",
-    "Roboto-Regular.ttf",
-  );
-
-  const boldFontPath = path.join(
-    process.cwd(),
-    "public",
-    "fonts",
-    "Roboto-Bold.ttf",
-  );
-
-  const regularFontBytes = await readFile(regularFontPath);
-  const boldFontBytes = await readFile(boldFontPath);
+  const fontsDirectory = path.join(process.cwd(), "public", "fonts");
+  const regularFontBytes = await readFirstAvailableFont([
+    path.join(fontsDirectory, "Roboto-Regular.ttf"),
+    path.join(fontsDirectory, "Roboto-regular.ttf"),
+    path.join(fontsDirectory, "Roboto-Reglar.ttf"),
+    path.join(fontsDirectory, "Roboto-reglar.ttf"),
+  ]);
+  const boldFontBytes = await readFirstAvailableFont([
+    path.join(fontsDirectory, "Roboto-Bold.ttf"),
+    path.join(fontsDirectory, "Roboto-bold.ttf"),
+    path.join(fontsDirectory, "Roboto-Bold.ttf"),
+  ]);
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
 
-  const regularFont = await pdfDoc.embedFont(regularFontBytes);
-  const boldFont = await pdfDoc.embedFont(boldFontBytes);
+  const regularFont = regularFontBytes
+    ? await pdfDoc.embedFont(regularFontBytes)
+    : await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = boldFontBytes
+    ? await pdfDoc.embedFont(boldFontBytes)
+    : await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   let page = createPage(pdfDoc);
   drawHeader(page, report, regularFont, boldFont);
@@ -324,7 +348,7 @@ export async function renderIftaPdf(
 
   return {
     buffer: pdfBytes,
-    fileName: `ifta-report-${report.id}.pdf`,
+    fileName: buildIftaExportFileName(report, "pdf"),
     contentType: "application/pdf",
   };
 }

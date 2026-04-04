@@ -12,6 +12,7 @@ import {
 } from "@/components/navigation/SidebarNavIcon";
 import { useSidebarPreference } from "@/components/navigation/useSidebarPreference";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { fallbackTitleFromPath } from "@/lib/navigation/breadcrumb-title";
 import styles from "../console-theme.module.css";
 
 type FeatureLink = {
@@ -49,8 +50,15 @@ function titleFromPath(pathname: string | null) {
   if (pathname === "/panel") return "Dashboard";
   if (pathname.startsWith("/settings")) return "Dashboard";
   if (pathname.startsWith("/users/")) return "Dashboard";
-  const last = pathname.split("/").filter(Boolean).pop() ?? "Panel";
-  return last.charAt(0).toUpperCase() + last.slice(1);
+  if (pathname === "/ifta-v2") return "IFTA Automation";
+  if (pathname.startsWith("/ifta-v2/")) return "IFTA Filing";
+  if (pathname.startsWith("/trucks")) return "Trucks";
+  if (pathname.startsWith("/documents")) return "Documents";
+  if (pathname.startsWith("/ucr")) return "UCR";
+  if (pathname.startsWith("/dmv/renewals")) return "DMV Renewals";
+  if (pathname.startsWith("/dmv")) return "DMV";
+  if (pathname.startsWith("/2290")) return "Form 2290";
+  return fallbackTitleFromPath(pathname, "Panel");
 }
 
 function normalizeFeature(item: FeatureApiItem): FeatureLink | null {

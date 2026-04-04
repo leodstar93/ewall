@@ -39,6 +39,12 @@ const PERMISSIONS = [
   // IFTA
   { key: "ifta:read", description: "Read IFTA reports" },
   { key: "ifta:write", description: "Create/update/delete IFTA reports" },
+  { key: "ifta:sync", description: "Run IFTA automation synchronization jobs" },
+  { key: "ifta:review", description: "Review IFTA automation filings and exceptions" },
+  { key: "ifta:approve", description: "Approve IFTA automation snapshots" },
+  { key: "ifta:settings", description: "Manage IFTA automation settings and provider metadata" },
+  { key: "eld:connect", description: "Create and manage ELD provider connections" },
+  { key: "eld:sync", description: "Run ELD provider synchronization jobs" },
   { key: "truck:read", description: "Read trucks" },
   { key: "truck:write", description: "Create/update trucks" },
   { key: "reports:read", description: "Read generated reports" },
@@ -144,6 +150,9 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "ach_authorization:read",
     "ifta:read",
     "ifta:write",
+    "ifta:sync",
+    "eld:connect",
+    "eld:sync",
     "truck:read",
     "truck:write",
     "reports:read",
@@ -183,6 +192,12 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "ach_authorization:read",
     "ifta:read",
     "ifta:write",
+    "ifta:sync",
+    "ifta:review",
+    "ifta:approve",
+    "ifta:settings",
+    "eld:connect",
+    "eld:sync",
     "reports:read",
     "reports:write",
     "reports:generate",
@@ -526,14 +541,21 @@ async function upsertAdminUser() {
 function buildOrganizationName(user: {
   name: string | null;
   email: string | null;
-  companyProfile: { legalName: string | null; dbaName: string | null } | null;
+  companyProfile: {
+    name: string | null;
+    legalName: string | null;
+    dbaName: string | null;
+    companyName: string | null;
+  } | null;
 }) {
   return (
+    user.companyProfile?.name ??
     user.companyProfile?.legalName ??
     user.companyProfile?.dbaName ??
+    user.companyProfile?.companyName ??
     user.name ??
     user.email?.split("@")[0] ??
-    "Default Organization"
+    "Default Company"
   );
 }
 
@@ -546,9 +568,10 @@ async function ensureOrganizationsForAllUsers() {
       companyProfile: {
         select: {
           id: true,
+          name: true,
           legalName: true,
           dbaName: true,
-          organizationId: true,
+          companyName: true,
         },
       },
     },
@@ -560,45 +583,43 @@ async function ensureOrganizationsForAllUsers() {
       select: { organizationId: true },
     });
 
-    let organizationId =
-      existingMembership?.organizationId ?? user.companyProfile?.organizationId ?? null;
+    let organizationId = existingMembership?.organizationId ?? user.companyProfile?.id ?? null;
 
     if (!organizationId) {
-      const organization = await prisma.organization.create({
+      const organization = await prisma.companyProfile.create({
         data: {
+          userId: user.id,
           name: buildOrganizationName(user),
-          members: {
-            create: {
-              userId: user.id,
-              role: "OWNER",
-            },
-          },
+          companyName: buildOrganizationName(user),
         },
         select: { id: true },
       });
 
       organizationId = organization.id;
-    } else {
-      await prisma.organizationMember.upsert({
-        where: {
-          organizationId_userId: {
-            organizationId,
-            userId: user.id,
-          },
-        },
-        update: { role: "OWNER" },
-        create: {
-          organizationId,
-          userId: user.id,
-          role: "OWNER",
-        },
-      });
     }
 
-    if (user.companyProfile && user.companyProfile.organizationId !== organizationId) {
+    await prisma.organizationMember.upsert({
+      where: {
+        organizationId_userId: {
+          organizationId,
+          userId: user.id,
+        },
+      },
+      update: { role: "OWNER" },
+      create: {
+        organizationId,
+        userId: user.id,
+        role: "OWNER",
+      },
+    });
+
+    if (user.companyProfile && user.companyProfile.id === organizationId) {
       await prisma.companyProfile.update({
         where: { id: user.companyProfile.id },
-        data: { organizationId },
+        data: {
+          name: user.companyProfile.name ?? buildOrganizationName(user),
+          companyName: user.companyProfile.companyName ?? buildOrganizationName(user),
+        },
       });
     }
 

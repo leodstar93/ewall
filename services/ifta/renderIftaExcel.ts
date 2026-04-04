@@ -1,5 +1,8 @@
 import * as XLSX from "xlsx";
-import type { IftaExportReport } from "@/services/ifta/ensureFiledReportDocument";
+import {
+  buildIftaExportFileName,
+  type IftaExportReport,
+} from "@/services/ifta/ensureFiledReportDocument";
 
 type RenderedExcel = {
   buffer: Buffer;
@@ -108,7 +111,7 @@ export function renderIftaExcel(report: IftaExportReport): RenderedExcel {
       type: "buffer",
       bookType: "xlsx",
     }) as Buffer,
-    fileName: `ifta-report-${report.id}.xlsx`,
+    fileName: buildIftaExportFileName(report, "xlsx"),
     contentType:
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   };

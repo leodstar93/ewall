@@ -71,7 +71,7 @@ model UserProfile {
 model CompanyProfile {
   id             String        @id @default(cuid())
   userId         String        @unique
-  organizationId String?       @unique
+  name           String?
   legalName      String?
   dbaName        String?
   companyName    String?
@@ -103,8 +103,15 @@ model CompanyProfile {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user                    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members                 OrganizationMember[]
+  paymentMethods          PaymentMethod[]
+  subscriptions           OrganizationSubscription[]
+  subscriptionGrants      SubscriptionGrant[]
+  billingCharges          BillingCharge[]
+  eldIntegrationAccounts  IntegrationAccount[]
+  iftaAutomationFilings   IftaFiling[]
+  ucrFilings              UCRFiling[]
 
   @@index([dotNumber])
   @@index([mcNumber])
@@ -154,7 +161,7 @@ model PaymentMethod {
   updatedAt               DateTime @updatedAt
 
   user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization      Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  organization      CompanyProfile?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   secureVault       AchSecureVault?       @relation("AchVaultPaymentMethod", fields: [secureVaultId], references: [id], onDelete: SetNull)
   authorizations    AchAuthorization[]
   financialAudits   FinancialAccessAudit[]
@@ -289,20 +296,6 @@ enum SubscriptionStatus {
   PAUSED
 }
 
-model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  members            OrganizationMember[]
-  subscriptions      OrganizationSubscription[]
-  paymentMethods     PaymentMethod[]
-  subscriptionGrants SubscriptionGrant[]
-  billingCharges     BillingCharge[]
-  companyProfile     CompanyProfile?
-}
-
 model OrganizationMember {
   id             String   @id @default(cuid())
   organizationId String
@@ -310,7 +303,7 @@ model OrganizationMember {
   role           String
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization CompanyProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId])
@@ -400,7 +393,7 @@ model OrganizationSubscription {
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization CompanyProfile    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan         SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
   paymentMethod PaymentMethod?   @relation("SubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
   charges       BillingCharge[]
@@ -429,7 +422,7 @@ model BillingCharge {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization CompanyProfile        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   subscription OrganizationSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   paymentMethod PaymentMethod?       @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
 
@@ -469,7 +462,7 @@ model SubscriptionGrant {
   endsAt         DateTime?
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization CompanyProfile @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   module       AppModule    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, active])
@@ -589,6 +582,72 @@ enum Quarter {
   Q2
   Q3
   Q4
+}
+
+enum ELDProvider {
+  MOTIVE
+  SAMSARA
+  OTHER
+}
+
+enum IntegrationStatus {
+  PENDING
+  CONNECTED
+  EXPIRED
+  REVOKED
+  ERROR
+  DISCONNECTED
+}
+
+enum SyncJobStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  PARTIAL_SUCCESS
+  FAILED
+  CANCELED
+}
+
+enum IftaFilingStatus {
+  DRAFT
+  SYNCING
+  DATA_READY
+  NEEDS_REVIEW
+  READY_FOR_REVIEW
+  IN_REVIEW
+  CHANGES_REQUESTED
+  SNAPSHOT_READY
+  APPROVED
+  REOPENED
+  ARCHIVED
+}
+
+enum IftaExceptionSeverity {
+  INFO
+  WARNING
+  ERROR
+  BLOCKING
+}
+
+enum IftaExceptionStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  IGNORED
+}
+
+enum RawRecordSource {
+  API
+  WEBHOOK
+  IMPORT
+  MANUAL
+  SYSTEM
+}
+
+enum IftaSnapshotStatus {
+  DRAFT
+  FROZEN
+  SUPERSEDED
 }
 
 enum UCRFilingStatus {
@@ -890,6 +949,343 @@ model IftaTaxRateImportRun {
   @@index([year, quarter, executedAt])
 }
 
+model IntegrationAccount {
+  id                   String             @id @default(cuid())
+  tenantId             String
+  provider             ELDProvider
+  status               IntegrationStatus  @default(PENDING)
+  externalOrgId        String?
+  externalOrgName      String?
+  accessTokenEncrypted String?
+  refreshTokenEncrypted String?
+  tokenExpiresAt       DateTime?
+  scopesJson           Json?
+  connectedAt          DateTime?
+  disconnectedAt       DateTime?
+  lastSuccessfulSyncAt DateTime?
+  lastErrorAt          DateTime?
+  lastErrorMessage     String?
+  metadataJson         Json?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  tenant            CompanyProfile             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  syncJobs          IntegrationSyncJob[]
+  webhookEvents     IntegrationWebhookEvent[]
+  vehicles          ExternalVehicle[]
+  drivers           ExternalDriver[]
+  rawTrips          RawIftaTrip[]
+  rawFuelPurchases  RawFuelPurchase[]
+  filings           IftaFiling[]
+
+  @@index([tenantId, provider])
+  @@unique([tenantId, provider])
+}
+
+model IntegrationSyncJob {
+  id                   String        @id @default(cuid())
+  integrationAccountId String
+  syncType             String
+  status               SyncJobStatus @default(QUEUED)
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  windowStart          DateTime?
+  windowEnd            DateTime?
+  recordsRead          Int           @default(0)
+  recordsCreated       Int           @default(0)
+  recordsUpdated       Int           @default(0)
+  recordsFailed        Int           @default(0)
+  errorMessage         String?
+  summaryJson          Json?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  integrationAccount IntegrationAccount @relation(fields: [integrationAccountId], references: [id], onDelete: Cascade)
+
+  @@index([integrationAccountId, status])
+  @@index([createdAt])
+}
+
+model IntegrationWebhookEvent {
+  id                   String      @id @default(cuid())
+  integrationAccountId String?
+  provider             ELDProvider
+  eventType            String
+  externalEventId      String?
+  signatureValid       Boolean?
+  processedAt          DateTime?
+  payloadJson          Json
+  errorMessage         String?
+  createdAt            DateTime    @default(now())
+
+  integrationAccount IntegrationAccount? @relation(fields: [integrationAccountId], references: [id], onDelete: SetNull)
+
+  @@index([provider, eventType])
+  @@index([createdAt])
+}
+
+model ExternalVehicle {
+  id                   String   @id @default(cuid())
+  integrationAccountId String
+  externalId           String
+  number               String?
+  vin                  String?
+  make                 String?
+  model                String?
+  year                 String?
+  metricUnits          Boolean?
+  status               String?
+  metadataJson         Json?
+  lastSyncedAt         DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  integrationAccount IntegrationAccount @relation(fields: [integrationAccountId], references: [id], onDelete: Cascade)
+  rawTrips           RawIftaTrip[]
+  rawFuelPurchases   RawFuelPurchase[]
+  filingVehicles     IftaFilingVehicle[]
+
+  @@unique([integrationAccountId, externalId])
+  @@index([integrationAccountId])
+}
+
+model ExternalDriver {
+  id                   String   @id @default(cuid())
+  integrationAccountId String
+  externalId           String
+  firstName            String?
+  lastName             String?
+  email                String?
+  status               String?
+  metadataJson         Json?
+  lastSyncedAt         DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  integrationAccount IntegrationAccount @relation(fields: [integrationAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationAccountId, externalId])
+  @@index([integrationAccountId])
+}
+
+model IftaFiling {
+  id                  String            @id @default(cuid())
+  tenantId            String
+  integrationAccountId String?
+  year                Int
+  quarter             Int
+  status              IftaFilingStatus  @default(DRAFT)
+  providerMode        String?
+  submittedByUserId   String?
+  assignedStaffUserId String?
+  periodStart         DateTime
+  periodEnd           DateTime
+  lastCalculatedAt    DateTime?
+  lastSyncedAt        DateTime?
+  approvedAt          DateTime?
+  totalDistance       Decimal?          @db.Decimal(14, 2)
+  totalFuelGallons    Decimal?          @db.Decimal(14, 3)
+  fleetMpg            Decimal?          @db.Decimal(10, 4)
+  totalTaxDue         Decimal?          @db.Decimal(14, 2)
+  totalTaxCredit      Decimal?          @db.Decimal(14, 2)
+  totalNetTax         Decimal?          @db.Decimal(14, 2)
+  notesInternal       String?
+  notesClientVisible  String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  tenant             CompanyProfile      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  integrationAccount IntegrationAccount? @relation(fields: [integrationAccountId], references: [id], onDelete: SetNull)
+  vehicles           IftaFilingVehicle[]
+  distanceLines      IftaDistanceLine[]
+  fuelLines          IftaFuelLine[]
+  jurisdictionSummaries IftaJurisdictionSummary[]
+  exceptions         IftaException[]
+  snapshots          IftaQuarterSnapshot[]
+  audits             IftaAuditLog[]
+
+  @@unique([tenantId, year, quarter])
+  @@index([tenantId, status])
+}
+
+model IftaFilingVehicle {
+  id                String   @id @default(cuid())
+  filingId          String
+  externalVehicleId String?
+  unitNumber        String?
+  vin               String?
+  included          Boolean  @default(true)
+  source            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  filing         IftaFiling      @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  externalVehicle ExternalVehicle? @relation(fields: [externalVehicleId], references: [id], onDelete: SetNull)
+  distanceLines  IftaDistanceLine[]
+  fuelLines      IftaFuelLine[]
+
+  @@unique([filingId, externalVehicleId])
+  @@index([filingId])
+}
+
+model RawIftaTrip {
+  id                   String          @id @default(cuid())
+  integrationAccountId String
+  externalTripId       String
+  externalVehicleId    String?
+  tripDate             DateTime?
+  jurisdiction         String?
+  startOdometer        Decimal?        @db.Decimal(14, 2)
+  endOdometer          Decimal?        @db.Decimal(14, 2)
+  calibratedStart      Decimal?        @db.Decimal(14, 2)
+  calibratedEnd        Decimal?        @db.Decimal(14, 2)
+  miles                Decimal?        @db.Decimal(14, 2)
+  payloadJson          Json
+  source               RawRecordSource @default(API)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  integrationAccount IntegrationAccount @relation(fields: [integrationAccountId], references: [id], onDelete: Cascade)
+  externalVehicle    ExternalVehicle?   @relation(fields: [externalVehicleId], references: [id], onDelete: SetNull)
+
+  @@unique([integrationAccountId, externalTripId, jurisdiction])
+  @@index([integrationAccountId, tripDate])
+}
+
+model RawFuelPurchase {
+  id                   String          @id @default(cuid())
+  integrationAccountId String
+  externalPurchaseId   String
+  externalVehicleId    String?
+  purchasedAt          DateTime?
+  jurisdiction         String?
+  fuelType             String?
+  gallons              Decimal?        @db.Decimal(14, 3)
+  taxPaid              Boolean?
+  amount               Decimal?        @db.Decimal(14, 2)
+  payloadJson          Json
+  source               RawRecordSource @default(API)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  integrationAccount IntegrationAccount @relation(fields: [integrationAccountId], references: [id], onDelete: Cascade)
+  externalVehicle    ExternalVehicle?   @relation(fields: [externalVehicleId], references: [id], onDelete: SetNull)
+
+  @@unique([integrationAccountId, externalPurchaseId])
+  @@index([integrationAccountId, purchasedAt])
+}
+
+model IftaDistanceLine {
+  id              String   @id @default(cuid())
+  filingId        String
+  filingVehicleId String?
+  jurisdiction    String
+  tripDate        DateTime?
+  taxableMiles    Decimal  @db.Decimal(14, 2)
+  sourceType      String
+  sourceRefId     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  filing       IftaFiling        @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  filingVehicle IftaFilingVehicle? @relation(fields: [filingVehicleId], references: [id], onDelete: SetNull)
+
+  @@index([filingId, jurisdiction])
+  @@index([filingId, filingVehicleId])
+}
+
+model IftaFuelLine {
+  id              String   @id @default(cuid())
+  filingId        String
+  filingVehicleId String?
+  jurisdiction    String
+  purchasedAt     DateTime?
+  fuelType        String?
+  gallons         Decimal  @db.Decimal(14, 3)
+  taxPaid         Boolean?
+  sourceType      String
+  sourceRefId     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  filing       IftaFiling        @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  filingVehicle IftaFilingVehicle? @relation(fields: [filingVehicleId], references: [id], onDelete: SetNull)
+
+  @@index([filingId, jurisdiction])
+  @@index([filingId, filingVehicleId])
+}
+
+model IftaJurisdictionSummary {
+  id             String   @id @default(cuid())
+  filingId       String
+  jurisdiction   String
+  totalMiles     Decimal  @db.Decimal(14, 2)
+  taxableGallons Decimal  @db.Decimal(14, 3)
+  taxPaidGallons Decimal  @db.Decimal(14, 3)
+  taxRate        Decimal  @db.Decimal(10, 5)
+  taxDue         Decimal  @db.Decimal(14, 2)
+  taxCredit      Decimal  @db.Decimal(14, 2)
+  netTax         Decimal  @db.Decimal(14, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  filing IftaFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@unique([filingId, jurisdiction])
+}
+
+model IftaQuarterSnapshot {
+  id             String             @id @default(cuid())
+  filingId       String
+  version        Int
+  status         IftaSnapshotStatus @default(DRAFT)
+  frozenAt       DateTime?
+  frozenByUserId String?
+  filingDataJson Json
+  summaryJson    Json
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  filing IftaFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@unique([filingId, version])
+}
+
+model IftaException {
+  id               String                @id @default(cuid())
+  filingId         String
+  severity         IftaExceptionSeverity
+  status           IftaExceptionStatus   @default(OPEN)
+  code             String
+  title            String
+  description      String?
+  jurisdiction     String?
+  vehicleRef       String?
+  sourceRefId      String?
+  detectedAt       DateTime              @default(now())
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  resolutionNote   String?
+
+  filing IftaFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId, status, severity])
+}
+
+model IftaAuditLog {
+  id          String   @id @default(cuid())
+  filingId    String
+  actorUserId String?
+  action      String
+  message     String?
+  payloadJson Json?
+  createdAt   DateTime @default(now())
+
+  filing IftaFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId, createdAt])
+}
+
 model IftaReport {
   id     String @id @default(cuid())
   userId String
@@ -967,6 +1363,10 @@ model Trip {
   destination String?
   totalMiles  Decimal? @db.Decimal(12, 2)
   notes       String?
+  sourceType  String?
+  sourceProvider ELDProvider?
+  externalTripId String?
+  syncSourceKey String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -975,6 +1375,7 @@ model Trip {
 
   @@index([userId, tripDate])
   @@index([reportId])
+  @@index([userId, sourceProvider, externalTripId])
 }
 
 model TripMileage {
@@ -1111,6 +1512,7 @@ model UCRFiling {
   updatedAt             DateTime        @updatedAt
 
   user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    CompanyProfile?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   pricingSnapshot UCRRateSnapshot?
   documents       UCRDocument[]
   workItems       UCRWorkItem[]
