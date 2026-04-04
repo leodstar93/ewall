@@ -118,13 +118,18 @@ export default function IftaAutomationStaffFilingPage({
     actionKey: string,
     work: () => Promise<void>,
     successText: string,
+    options?: {
+      reloadAfterSuccess?: boolean;
+    },
   ) {
     setBusyAction(actionKey);
     setNotice(null);
 
     try {
       await work();
-      await loadFiling();
+      if (options?.reloadAfterSuccess ?? true) {
+        await loadFiling();
+      }
       setNotice({
         tone: "success",
         text: successText,
@@ -277,12 +282,31 @@ export default function IftaAutomationStaffFilingPage({
     await runBusyAction(
       `exception:${action}:${exception.id}`,
       async () => {
-        await requestJson(`/api/v1/features/ifta-v2/exceptions/${exception.id}/${action}`, {
+        const data = await requestJson<{ exception: FilingException }>(
+          `/api/v1/features/ifta-v2/exceptions/${exception.id}/${action}`,
+          {
           method: "POST",
           body: action === "ack" ? undefined : JSON.stringify({ note }),
+          },
+        );
+
+        setFiling((previous) => {
+          if (!previous || previous.id !== currentFiling.id) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+            exceptions: previous.exceptions.map((candidate) =>
+              candidate.id === exception.id ? data.exception : candidate,
+            ),
+          };
         });
       },
       `Exception ${exception.code} was updated.`,
+      {
+        reloadAfterSuccess: false,
+      },
     );
   }
 

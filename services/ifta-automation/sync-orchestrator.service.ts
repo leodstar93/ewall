@@ -5,6 +5,7 @@ import {
   type DistanceSyncResult,
   type DriverSyncResult,
   type FuelSyncResult,
+  type ProviderVehicleRecord,
   type VehicleSyncResult,
 } from "@/services/ifta-automation/adapters";
 import { CanonicalNormalizationService } from "@/services/ifta-automation/canonical-normalization.service";
@@ -12,6 +13,7 @@ import { IftaCalculationEngine } from "@/services/ifta-automation/ifta-calculati
 import { IftaExceptionEngine } from "@/services/ifta-automation/ifta-exception-engine.service";
 import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
 import { RawIngestionService } from "@/services/ifta-automation/raw-ingestion.service";
+import { TruckSeedingService } from "@/services/ifta-automation/truck-seeding.service";
 import {
   getCurrentQuarter,
   getQuarterBounds,
@@ -50,6 +52,8 @@ export class SyncOrchestrator {
     const windowEnd = input.windowEnd ?? currentQuarterBounds.end;
     const phaseResults: PhaseResult[] = [];
     const phaseErrors: Array<{ phase: string; errorMessage: string }> = [];
+    let syncedVehicleRecords: ProviderVehicleRecord[] = [];
+    let syncedTripVehicleIds: string[] = [];
 
     const syncJob = await prisma.integrationSyncJob.create({
       data: {
@@ -107,6 +111,7 @@ export class SyncOrchestrator {
         }),
       async (result) => {
         if (!result) return;
+        syncedVehicleRecords = result.vehicles;
         phaseResults[phaseResults.length - 1] = {
           ...result,
           ...(await RawIngestionService.upsertVehicles({
@@ -153,6 +158,9 @@ export class SyncOrchestrator {
         }),
       async (result) => {
         if (!result) return;
+        syncedTripVehicleIds = result.trips
+          .map((trip) => trip.externalVehicleId ?? null)
+          .filter((externalVehicleId): externalVehicleId is string => Boolean(externalVehicleId));
         phaseResults[phaseResults.length - 1] = {
           ...result,
           ...(await RawIngestionService.upsertIftaTrips({
@@ -186,6 +194,14 @@ export class SyncOrchestrator {
         };
       },
     );
+
+    if (syncedVehicleRecords.length > 0 && syncedTripVehicleIds.length > 0) {
+      await TruckSeedingService.syncProviderVehiclesToClientTrucks({
+        tenantId: input.tenantId,
+        vehicles: syncedVehicleRecords,
+        activeExternalVehicleIds: syncedTripVehicleIds,
+      });
+    }
 
     for (const quarter of affectedQuarters) {
       const filing = await CanonicalNormalizationService.ensureFiling({

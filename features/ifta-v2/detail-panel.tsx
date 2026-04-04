@@ -120,6 +120,17 @@ export function FilingDetailPanel({
       ]),
     );
   }, [filing?.vehicles]);
+  const vehiclesWithDistance = useMemo(() => {
+    if (!filing) return [];
+
+    const referencedVehicleIds = new Set(
+      filing.distanceLines
+        .map((line) => line.filingVehicleId)
+        .filter((filingVehicleId): filingVehicleId is string => Boolean(filingVehicleId)),
+    );
+
+    return filing.vehicles.filter((vehicle) => referencedVehicleIds.has(vehicle.id));
+  }, [filing]);
 
   if (loading) {
     return (
@@ -429,8 +440,8 @@ export function FilingDetailPanel({
         ) : null}
 
         {activeTab === "vehicles" ? (
-          filing.vehicles.length === 0 ? (
-            <EmptyPanel message="No vehicles were linked to this filing yet." />
+          vehiclesWithDistance.length === 0 ? (
+            <EmptyPanel message="No vehicles with jurisdiction miles were linked to this filing yet." />
           ) : (
             <TableWrapper>
               <TableScroller>
@@ -444,7 +455,7 @@ export function FilingDetailPanel({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filing.vehicles.map((vehicle) => (
+                    {vehiclesWithDistance.map((vehicle) => (
                       <TableRow key={vehicle.id}>
                         <TableCell>
                           {vehicle.unitNumber || vehicle.externalVehicle?.number || "No unit number"}
