@@ -1,9 +1,13 @@
 import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/guards/require-module-access";
 import { requirePermission } from "@/lib/rbac-guard";
-import IftaAutomationClientPage from "@/features/ifta-v2/client-page";
+import IftaAutomationTruckerFilingPage from "@/features/ifta-v2/trucker-filing-page";
 
-export default async function IftaV2Page() {
+export default async function IftaV2FilingPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const permission = await requirePermission("ifta:read");
 
   if (!permission.ok) {
@@ -11,6 +15,7 @@ export default async function IftaV2Page() {
   }
 
   await requireModuleAccess("ifta");
+  const { id } = await params;
 
-  return <IftaAutomationClientPage />;
+  return <IftaAutomationTruckerFilingPage filingId={id} />;
 }

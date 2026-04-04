@@ -1,79 +1,77 @@
+import { ELDProvider } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { decodeMotiveState, exchangeMotiveAuthorizationCode, upsertMotiveConnection } from "@/services/integrations/eld/providers/motive/motive.service";
-import { MotiveClient } from "@/services/integrations/eld/providers/motive/motive.client";
+import { handleIftaAutomationError } from "@/services/ifta-automation/http";
+import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
+import { verifyEldOauthState } from "@/services/ifta-automation/security";
+import { SyncOrchestrator } from "@/services/ifta-automation/sync-orchestrator.service";
 
-function resolveReturnPath(request: NextRequest) {
-  const state = request.nextUrl.searchParams.get("state");
-  if (!state) {
-    return "/dashboard/ifta-v2";
-  }
-
-  try {
-    return decodeMotiveState(state).returnPath;
-  } catch {
-    return "/dashboard/ifta-v2";
-  }
-}
-
-function redirectWithStatus(
-  request: NextRequest,
-  returnPath: string,
-  status: string,
-  error?: string,
-) {
-  const url = new URL(returnPath, request.url);
-  url.searchParams.set("provider", "MOTIVE");
-  url.searchParams.set("status", status);
-  if (error) {
-    url.searchParams.set("error", error);
-  }
-  return NextResponse.redirect(url);
+function getPublicAppBaseUrl(request: NextRequest) {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim() ||
+    request.nextUrl.origin
+  ).replace(/\/+$/, "");
 }
 
 export async function GET(request: NextRequest) {
-  const returnPath = resolveReturnPath(request);
-  const error = request.nextUrl.searchParams.get("error");
-  if (error) {
-    return redirectWithStatus(request, returnPath, "error", error);
+  const appBaseUrl = getPublicAppBaseUrl(request);
+  const code = request.nextUrl.searchParams.get("code");
+  const state = request.nextUrl.searchParams.get("state");
+  const providerError = request.nextUrl.searchParams.get("error");
+
+  if (providerError) {
+    let returnTo = "/ifta-v2";
+    if (state) {
+      try {
+        returnTo = verifyEldOauthState(state).returnTo || returnTo;
+      } catch {
+        returnTo = "/ifta-v2";
+      }
+    }
+
+    const redirectUrl = new URL(returnTo, appBaseUrl);
+    redirectUrl.searchParams.set("eldProvider", "MOTIVE");
+    redirectUrl.searchParams.set("eldError", providerError);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (!code || !state) {
+    return Response.json({ error: "Missing code or state." }, { status: 400 });
   }
 
   try {
-    const state = request.nextUrl.searchParams.get("state");
-    if (!state) {
-      throw new Error("Missing OAuth state.");
-    }
-
-    const decodedState = decodeMotiveState(state);
-    const code = request.nextUrl.searchParams.get("code");
-
-    const payload = code
-      ? await exchangeMotiveAuthorizationCode(code)
-      : {
-          access_token: request.nextUrl.searchParams.get("access_token"),
-          refresh_token: request.nextUrl.searchParams.get("refresh_token"),
-          expires_in: request.nextUrl.searchParams.get("expires_in"),
-          company_id: request.nextUrl.searchParams.get("company_id"),
-        };
-
-    const accessToken = String(payload.access_token ?? "").trim();
-    if (!accessToken) {
-      throw new Error("Motive callback did not include an access token.");
-    }
-
-    await upsertMotiveConnection({
-      carrierId: decodedState.carrierId,
-      accessToken,
-      refreshToken:
-        typeof payload.refresh_token === "string" ? payload.refresh_token.trim() : null,
-      externalCompanyId: MotiveClient.extractExternalCompanyId(payload),
-      tokenExpiresAt: MotiveClient.extractTokenExpiry(payload.expires_in),
-      status: "ACTIVE",
+    const result = await ProviderConnectionService.handleOAuthCallback({
+      provider: ELDProvider.MOTIVE,
+      code,
+      state,
+      redirectUri: `${appBaseUrl}/api/v1/integrations/eld/callback/motive`,
     });
 
-    return redirectWithStatus(request, decodedState.returnPath, "connected");
-  } catch (caughtError) {
-    const message =
-      caughtError instanceof Error ? caughtError.message : "Motive callback failed";
-    return redirectWithStatus(request, returnPath, "error", message);
+    let syncStatus = "success";
+    let syncJobId: string | null = null;
+
+    try {
+      const syncJob = await SyncOrchestrator.runSync({
+        tenantId: result.state.tenantId,
+        provider: ELDProvider.MOTIVE,
+        actorUserId: result.state.userId,
+        mode: "FULL",
+      });
+      syncJobId = syncJob.id;
+    } catch (error) {
+      syncStatus = error instanceof Error ? error.message.slice(0, 250) : "sync_failed";
+    }
+
+    const redirectUrl = new URL(result.redirectTo || "/ifta-v2", appBaseUrl);
+    redirectUrl.searchParams.set("eldProvider", "MOTIVE");
+    redirectUrl.searchParams.set("eldConnected", "true");
+    redirectUrl.searchParams.set("eldSync", syncStatus);
+    if (syncJobId) {
+      redirectUrl.searchParams.set("eldSyncJobId", syncJobId);
+    }
+
+    return NextResponse.redirect(redirectUrl);
+  } catch (error) {
+    return handleIftaAutomationError(error, "Failed to complete Motive OAuth callback.");
   }
 }

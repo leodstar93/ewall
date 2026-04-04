@@ -52,10 +52,12 @@ const SANDBOX_PERMISSIONS = [
   { key: "ucr:read", description: "Read UCR filings" },
   { key: "ifta:read", description: "Read IFTA reports" },
   { key: "ifta:write", description: "Write IFTA reports" },
-  { key: "ifta:review", description: "Review synced IFTA v2 data" },
-  { key: "ifta:approve", description: "Approve IFTA v2 filings" },
+  { key: "ifta:sync", description: "Run IFTA automation synchronization jobs" },
+  { key: "ifta:review", description: "Review IFTA automation filings and exceptions" },
+  { key: "ifta:approve", description: "Approve IFTA automation snapshots" },
+  { key: "ifta:settings", description: "Manage IFTA automation settings and provider metadata" },
   { key: "eld:connect", description: "Connect ELD providers" },
-  { key: "eld:sync", description: "Run ELD sync jobs" },
+  { key: "eld:sync", description: "Run ELD provider sync jobs" },
   { key: "dmv:read", description: "Read DMV registrations" },
   { key: "dmv:create", description: "Create DMV registrations" },
   { key: "dmv:update", description: "Update DMV registrations" },
@@ -78,8 +80,10 @@ const SANDBOX_ROLE_PERMISSIONS: Record<string, string[]> = {
     "financial_audit:read",
     "ucr:read",
     "ifta:read",
+    "ifta:sync",
     "ifta:review",
     "ifta:approve",
+    "ifta:settings",
     "eld:connect",
     "eld:sync",
     "dmv:read",
@@ -102,6 +106,7 @@ const SANDBOX_ROLE_PERMISSIONS: Record<string, string[]> = {
     "ucr:read",
     "ifta:read",
     "ifta:write",
+    "ifta:sync",
     "eld:connect",
     "eld:sync",
     "dmv:read",
@@ -589,6 +594,21 @@ export async function clearSandboxData(db: DbClient) {
   await db.form2290Correction.deleteMany();
   await db.form2290Document.deleteMany();
   await db.form2290Filing.deleteMany();
+  await db.iftaAuditLog.deleteMany();
+  await db.iftaException.deleteMany();
+  await db.iftaQuarterSnapshot.deleteMany();
+  await db.iftaJurisdictionSummary.deleteMany();
+  await db.iftaFuelLine.deleteMany();
+  await db.iftaDistanceLine.deleteMany();
+  await db.iftaFilingVehicle.deleteMany();
+  await db.iftaFiling.deleteMany();
+  await db.rawFuelPurchase.deleteMany();
+  await db.rawIftaTrip.deleteMany();
+  await db.externalDriver.deleteMany();
+  await db.externalVehicle.deleteMany();
+  await db.integrationWebhookEvent.deleteMany();
+  await db.integrationSyncJob.deleteMany();
+  await db.integrationAccount.deleteMany();
   await db.iftaReportLine.deleteMany();
   await db.tripMileage.deleteMany();
   await db.trip.deleteMany();
