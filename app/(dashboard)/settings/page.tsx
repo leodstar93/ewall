@@ -1,12 +1,19 @@
 import { redirect } from "next/navigation";
-import { Form2290Status, ReportStatus, UCRFilingStatus } from "@prisma/client";
+import {
+  Form2290Status,
+  IftaFilingStatus,
+  ReportStatus,
+  UCRFilingStatus,
+} from "@prisma/client";
 import type { StaffRecentSubmissionRow } from "@/components/admin/StaffRecentSubmissionsTable";
+import { statusLabel as getIftaAutomationStatusLabel } from "@/features/ifta-v2/shared";
 import { dmvRenewalStatusLabel } from "@/features/dmv-renewals/shared";
 import { getForm2290StatusLabel } from "@/lib/form2290-workflow";
 import { getIftaStatusLabel } from "@/lib/ifta-workflow";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac-guard";
 import { getAuthz } from "@/lib/rbac";
+import { ensureUserOrganization } from "@/lib/services/organization.service";
 import { getUcrStatusLabel } from "@/lib/ucr-workflow";
 import { getBillingSettings } from "@/lib/services/billing-settings.service";
 import SettingsTabs from "./components/SettingsTabs";
@@ -46,6 +53,17 @@ type ClientDmvRenewalRow = {
   };
 };
 
+type ClientIftaAutomationRow = {
+  id: string;
+  year: number;
+  quarter: number;
+  status: IftaFilingStatus;
+  updatedAt: Date;
+  integrationAccount: {
+    provider: "MOTIVE" | "SAMSARA" | "OTHER";
+  } | null;
+};
+
 type ClientForm2290Row = {
   id: string;
   status: Form2290Status;
@@ -82,14 +100,17 @@ export default async function SettingsPage() {
   const isStaffOnlyView = roles.includes("STAFF") && !roles.includes("ADMIN");
   const isClientDashboard = !roles.includes("ADMIN") && !roles.includes("STAFF");
   const userId = access.session.user.id ?? "";
+  const tenant =
+    isClientDashboard && userId ? await ensureUserOrganization(userId) : null;
 
   const [
     recentIftaFilings,
+    recentIftaAutomationFilings,
     recentUcrFilings,
     recentDmvRenewals,
     recentForm2290Filings,
   ] =
-    isClientDashboard && userId
+    isClientDashboard && userId && tenant
       ? await Promise.all([
           prisma.iftaReport.findMany({
             take: 12,
@@ -115,6 +136,36 @@ export default async function SettingsPage() {
               },
             },
           }) as Promise<ClientIftaRow[]>,
+          prisma.iftaFiling.findMany({
+            take: 12,
+            where: {
+              tenantId: tenant.id,
+              status: {
+                in: [
+                  IftaFilingStatus.READY_FOR_REVIEW,
+                  IftaFilingStatus.IN_REVIEW,
+                  IftaFilingStatus.CHANGES_REQUESTED,
+                  IftaFilingStatus.SNAPSHOT_READY,
+                  IftaFilingStatus.APPROVED,
+                ],
+              },
+            },
+            orderBy: {
+              updatedAt: "desc",
+            },
+            select: {
+              id: true,
+              year: true,
+              quarter: true,
+              status: true,
+              updatedAt: true,
+              integrationAccount: {
+                select: {
+                  provider: true,
+                },
+              },
+            },
+          }) as Promise<ClientIftaAutomationRow[]>,
           prisma.uCRFiling.findMany({
             take: 12,
             where: {
@@ -199,7 +250,7 @@ export default async function SettingsPage() {
             },
           }) as Promise<ClientForm2290Row[]>,
         ])
-      : [[], [], [], []];
+      : [[], [], [], [], []];
 
   const recentClientFilings: StaffRecentSubmissionRow[] = [
     ...recentIftaFilings.map((report) => {
@@ -221,6 +272,21 @@ export default async function SettingsPage() {
         moduleHref: "/ifta",
       } satisfies StaffRecentSubmissionRow;
     }),
+    ...recentIftaAutomationFilings.map((filing) => ({
+      id: `ifta-automation-${filing.id}`,
+      module: "IFTA" as const,
+      filingTitle: `${filing.year} Q${filing.quarter}`,
+      filingMeta: filing.integrationAccount?.provider
+        ? `${filing.integrationAccount.provider} automation filing`
+        : "Automation filing",
+      customerName: "",
+      customerMeta: null,
+      status: getIftaAutomationStatusLabel(filing.status),
+      submittedAt: filing.updatedAt.toISOString(),
+      submittedAtLabel: formatDateTime(filing.updatedAt),
+      href: `/ifta-v2/${filing.id}`,
+      moduleHref: "/ifta-v2",
+    })),
     ...recentUcrFilings.map((filing) => {
       const updatedAt = filing.resubmittedAt ?? filing.submittedAt ?? filing.updatedAt;
 

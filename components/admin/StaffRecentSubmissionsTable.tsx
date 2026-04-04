@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
+import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 import { getStatusTone } from "@/lib/ui/status-utils";
 
 export type StaffRecentSubmissionModule =
@@ -27,6 +29,8 @@ export type StaffRecentSubmissionRow = {
 };
 
 type ModuleFilter = "ALL" | StaffRecentSubmissionModule;
+type SortKey = "module" | "filing" | "customer" | "status" | "submittedAt";
+type SortDirection = "asc" | "desc";
 
 const filters: ModuleFilter[] = ["ALL", "IFTA", "UCR", "DMV Renewals", "Form 2290"];
 
@@ -37,6 +41,38 @@ const moduleTone: Record<StaffRecentSubmissionModule, "info" | "warning" | "prim
     "DMV Renewals": "primary",
     "Form 2290": "success",
   };
+
+function SortHeaderButton({
+  label,
+  active,
+  direction,
+  onClick,
+  align = "left",
+}: {
+  label: string;
+  active: boolean;
+  direction: SortDirection;
+  onClick: () => void;
+  align?: "left" | "right";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 transition hover:text-zinc-900 ${
+        align === "right" ? "ml-auto" : ""
+      }`}
+    >
+      <span>{label}</span>
+      <span
+        className={`text-[10px] ${active ? "text-zinc-900" : "text-zinc-400"}`}
+        aria-hidden="true"
+      >
+        {direction === "asc" ? "^" : "v"}
+      </span>
+    </button>
+  );
+}
 
 export default function StaffRecentSubmissionsTable({
   rows,
@@ -54,6 +90,12 @@ export default function StaffRecentSubmissionsTable({
   showCustomerColumn?: boolean;
 }) {
   const [activeFilter, setActiveFilter] = useState<ModuleFilter>("ALL");
+  const [sortKey, setSortKey] = useState<SortKey>("submittedAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [page, setPage] =
+    useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
 
   const counts = useMemo(() => {
     return {
@@ -69,6 +111,61 @@ export default function StaffRecentSubmissionsTable({
     if (activeFilter === "ALL") return rows;
     return rows.filter((row) => row.module === activeFilter);
   }, [activeFilter, rows]);
+
+  const sortedRows = useMemo(() => {
+    const nextRows = [...filteredRows];
+
+    nextRows.sort((left, right) => {
+      let comparison = 0;
+
+      switch (sortKey) {
+        case "module":
+          comparison = left.module.localeCompare(right.module);
+          break;
+        case "filing":
+          comparison = `${left.filingTitle} ${left.filingMeta ?? ""}`.localeCompare(
+            `${right.filingTitle} ${right.filingMeta ?? ""}`,
+          );
+          break;
+        case "customer":
+          comparison = `${left.customerName} ${left.customerMeta ?? ""}`.localeCompare(
+            `${right.customerName} ${right.customerMeta ?? ""}`,
+          );
+          break;
+        case "status":
+          comparison = left.status.localeCompare(right.status);
+          break;
+        case "submittedAt":
+        default:
+          comparison =
+            new Date(left.submittedAt).getTime() - new Date(right.submittedAt).getTime();
+          break;
+      }
+
+      return sortDirection === "asc" ? comparison : comparison * -1;
+    });
+
+    return nextRows;
+  }, [filteredRows, sortDirection, sortKey]);
+
+  const paginatedRows = useMemo(
+    () => paginateItems(sortedRows, page, pageSize),
+    [sortedRows, page, pageSize],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter, sortDirection, sortKey, pageSize]);
+
+  function handleSortClick(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection(nextKey === "submittedAt" ? "desc" : "asc");
+  }
 
   return (
     <section className="rounded-2xl border bg-white shadow-sm">
@@ -114,21 +211,46 @@ export default function StaffRecentSubmissionsTable({
             <thead className="border-b bg-zinc-50/80 text-left">
               <tr>
                 <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Module
+                  <SortHeaderButton
+                    label="Module"
+                    active={sortKey === "module"}
+                    direction={sortKey === "module" ? sortDirection : "asc"}
+                    onClick={() => handleSortClick("module")}
+                  />
                 </th>
                 <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Filing
+                  <SortHeaderButton
+                    label="Filing"
+                    active={sortKey === "filing"}
+                    direction={sortKey === "filing" ? sortDirection : "asc"}
+                    onClick={() => handleSortClick("filing")}
+                  />
                 </th>
                 {showCustomerColumn ? (
                   <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    Customer
+                    <SortHeaderButton
+                      label="Customer"
+                      active={sortKey === "customer"}
+                      direction={sortKey === "customer" ? sortDirection : "asc"}
+                      onClick={() => handleSortClick("customer")}
+                    />
                   </th>
                 ) : null}
                 <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Status
+                  <SortHeaderButton
+                    label="Status"
+                    active={sortKey === "status"}
+                    direction={sortKey === "status" ? sortDirection : "asc"}
+                    onClick={() => handleSortClick("status")}
+                  />
                 </th>
                 <th className="px-6 py-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  {dateColumnLabel}
+                  <SortHeaderButton
+                    label={dateColumnLabel}
+                    active={sortKey === "submittedAt"}
+                    direction={sortKey === "submittedAt" ? sortDirection : "desc"}
+                    onClick={() => handleSortClick("submittedAt")}
+                  />
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wide text-zinc-500">
                   Actions
@@ -136,7 +258,7 @@ export default function StaffRecentSubmissionsTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {filteredRows.map((row) => (
+              {paginatedRows.items.map((row) => (
                 <tr key={row.id} className="transition hover:bg-zinc-50/70">
                   <td className="px-6 py-4">
                     <Link href={row.moduleHref} className="inline-flex">
@@ -171,7 +293,7 @@ export default function StaffRecentSubmissionsTable({
                   </td>
                 </tr>
               ))}
-              {filteredRows.length === 0 ? (
+              {sortedRows.length === 0 ? (
                 <tr>
                   <td
                     colSpan={showCustomerColumn ? 6 : 5}
@@ -184,6 +306,23 @@ export default function StaffRecentSubmissionsTable({
             </tbody>
           </table>
         </div>
+        <ClientPaginationControls
+          page={paginatedRows.currentPage}
+          totalPages={paginatedRows.totalPages}
+          pageSize={paginatedRows.pageSize}
+          totalItems={paginatedRows.totalItems}
+          itemLabel="filings"
+          onPageChange={setPage}
+          onPageSizeChange={(nextPageSize) =>
+            setPageSize(
+              DEFAULT_PAGE_SIZE_OPTIONS.includes(
+                nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+              )
+                ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+                : 10,
+            )
+          }
+        />
       </div>
     </section>
   );
