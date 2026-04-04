@@ -349,7 +349,7 @@ export function canTruckerEditFilingStatus(status: string | null | undefined) {
 }
 
 export function isStaffQueueFilingStatus(status: string | null | undefined) {
-  return ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY"].includes(status ?? "");
+  return ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY", "APPROVED"].includes(status ?? "");
 }
 
 export function assignedReviewerLabel(

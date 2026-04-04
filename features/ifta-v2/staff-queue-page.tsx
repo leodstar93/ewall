@@ -284,7 +284,7 @@ export default function IftaAutomationStaffQueuePage() {
       total: queueFilings.length,
       ready: queueFilings.filter((filing) => filing.status === "READY_FOR_REVIEW").length,
       inReview: queueFilings.filter((filing) => filing.status === "IN_REVIEW").length,
-      snapshotReady: queueFilings.filter((filing) => filing.status === "SNAPSHOT_READY").length,
+      approved: queueFilings.filter((filing) => filing.status === "APPROVED").length,
     }),
     [queueFilings],
   );
@@ -318,7 +318,12 @@ export default function IftaAutomationStaffQueuePage() {
     setSortDirection(safeDirection);
   }
 
-  async function handleStartReview(filing: FilingListItem) {
+  async function handleOpenQueueFiling(filing: FilingListItem) {
+    if (filing.status === "APPROVED") {
+      router.push(`/dashboard/ifta-v2/${filing.id}`);
+      return;
+    }
+
     const actionKey = `review:${filing.id}`;
     setBusyAction(actionKey);
     setNotice(null);
@@ -345,8 +350,8 @@ export default function IftaAutomationStaffQueuePage() {
             <div className="text-xs text-zinc-500">Dashboard</div>
             <h1 className="text-xl font-semibold text-zinc-900">IFTA Staff Queue</h1>
             <p className="mt-1 text-sm text-zinc-600">
-              Review submitted filings, take ownership of the current quarter, and move each
-              filing through snapshot and approval.
+              Review active filings, open approved ones, and move each quarter through
+              snapshot and approval.
             </p>
           </div>
 
@@ -371,10 +376,10 @@ export default function IftaAutomationStaffQueuePage() {
             </div>
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
               <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">
-                Snapshot Ready
+                Approved
               </div>
               <div className="mt-2 text-2xl font-semibold text-zinc-950">
-                {queueMetrics.snapshotReady.toLocaleString("en-US")}
+                {queueMetrics.approved.toLocaleString("en-US")}
               </div>
             </div>
           </div>
@@ -456,7 +461,7 @@ export default function IftaAutomationStaffQueuePage() {
             <div className="text-sm text-zinc-600">
               Showing{" "}
               <span className="font-semibold text-zinc-900">{filteredFilings.length}</span> of{" "}
-              <span className="font-semibold text-zinc-900">{queueFilings.length}</span> submitted
+              <span className="font-semibold text-zinc-900">{queueFilings.length}</span> visible
               filings.
             </div>
 
@@ -514,7 +519,7 @@ export default function IftaAutomationStaffQueuePage() {
             sortKey !== "updated" ||
             sortDirection !== "desc") ? (
             <div className="flex flex-col gap-3 rounded-2xl border bg-zinc-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-              <div className="text-sm text-zinc-700">Filters applied to the staff queue.</div>
+              <div className="text-sm text-zinc-700">Filters applied to the staff IFTA table.</div>
               <button
                 type="button"
                 onClick={() => {
@@ -536,9 +541,9 @@ export default function IftaAutomationStaffQueuePage() {
 
       <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
         <div className="border-b border-zinc-100 px-6 py-5">
-          <div className="text-sm font-semibold text-zinc-950">Submitted IFTAs</div>
+          <div className="text-sm font-semibold text-zinc-950">IFTA Filings</div>
           <p className="mt-1 text-sm text-zinc-600">
-            Click review to assign the filing to yourself and open the review workspace.
+            Click review to assign an active filing to yourself, or open an approved filing to inspect it.
           </p>
         </div>
 
@@ -552,8 +557,8 @@ export default function IftaAutomationStaffQueuePage() {
           <div className="p-6">
             <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
               {queueFilings.length === 0
-                ? "No submitted IFTA filings are waiting in the queue yet."
-                : "No submitted IFTA filings match the current filters."}
+                ? "No IFTA filings are available in the staff table yet."
+                : "No IFTA filings match the current filters."}
             </div>
           </div>
         ) : (
@@ -689,11 +694,15 @@ export default function IftaAutomationStaffQueuePage() {
                           <div className="flex justify-end">
                             <button
                               type="button"
-                              onClick={() => void handleStartReview(filing)}
+                              onClick={() => void handleOpenQueueFiling(filing)}
                               disabled={busyAction === actionKey}
                               className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60"
                             >
-                              {busyAction === actionKey ? "Opening..." : "Review"}
+                              {busyAction === actionKey
+                                ? "Opening..."
+                                : filing.status === "APPROVED"
+                                  ? "Open"
+                                  : "Review"}
                             </button>
                           </div>
                         </td>
