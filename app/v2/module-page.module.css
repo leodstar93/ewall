@@ -1,0 +1,106 @@
+.stack {
+  min-height: 100vh;
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.panel,
+.card {
+  background: var(--w);
+  border: 1px solid var(--brl);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 30px rgba(0, 40, 104, 0.08);
+}
+
+.panel {
+  padding: 24px;
+}
+
+.kicker {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: var(--r);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 0 10px;
+  color: var(--b);
+  font-size: 32px;
+  line-height: 1.05;
+}
+
+.text {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 70ch;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.primaryAction {
+  background: var(--b);
+  color: #fff;
+}
+
+.secondaryAction {
+  background: var(--off);
+  color: var(--b);
+  border: 1px solid var(--br);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.card {
+  padding: 18px;
+}
+
+.cardTitle {
+  margin: 0 0 12px;
+  color: var(--b);
+  font-size: 18px;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stack {
+    padding: 16px;
+  }
+}

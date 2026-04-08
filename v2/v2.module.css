@@ -1,0 +1,54 @@
+/* ─── USA Theme Variables ─── */
+:root {
+  --r: #B22234;
+  --rd: #8B0000;
+  --rl: #F5E6E8;
+  --b: #002868;
+  --bd: #001A45;
+  --bm: #1A3F8F;
+  --bl: #E6EAF4;
+  --w: #FFFFFF;
+  --off: #F7F8FC;
+  --br: #D0D6E8;
+  --brl: #E8EBF5;
+  --text-primary: #1a1a2e;
+  --text-secondary: #555;
+  --text-muted: #999;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--off);
+  color: var(--text-primary);
+}
+
+/* ─── Accent top bar ─── */
+.accent-bar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--b) 50%, var(--r) 50%);
+}
+
+/* ─── Badges ─── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.badge-active   { background: #F5E6E8; color: #8B0000; }
+.badge-pending  { background: var(--bl); color: var(--b); }
+.badge-done     { background: #E6F4EA; color: #1B6B35; }
+.badge-inactive { background: #F0F0F0; color: #777; }
