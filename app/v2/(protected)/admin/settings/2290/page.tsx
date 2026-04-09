@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import SettingsTabs from "@/components/settings/SettingsTabs";
-import Form2290SettingsClient from "@/components/form2290/Form2290SettingsClient";
+import SettingsTabs from "../components/SettingsTabs";
+import Form2290SettingsClient from "./Form2290SettingsClient";
 import { requireAdminSettingsAccess } from "@/lib/admin-settings-access";
 
 export default async function AdminForm2290SettingsPage() {
@@ -10,7 +10,7 @@ export default async function AdminForm2290SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsTabs />
       <Form2290SettingsClient />
     </div>

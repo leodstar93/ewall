@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Field,
-  InlineAlert,
-  PanelCard,
-  StickyActions,
-  textInputClassName,
-} from "@/app/(dashboard)/settings/components/settings-ui";
 import type { BillingSettingsRecord } from "./types";
+import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
+
+const inputStyle: React.CSSProperties = {
+  border: "1px solid var(--br)",
+  borderRadius: 8,
+  padding: "8px 12px",
+  fontSize: 13,
+  outline: "none",
+  width: "100%",
+  color: "var(--b)",
+};
 
 export function BillingSettingsForm({
   value,
@@ -27,13 +31,11 @@ export function BillingSettingsForm({
 
   if (!form) {
     return (
-      <PanelCard
-        eyebrow="Billing Control"
-        title="Global billing settings"
-        description="Control whether subscriptions are visible, required, and which providers are available."
-      >
-        <div className="text-sm text-zinc-500">Loading billing settings...</div>
-      </PanelCard>
+      <div className={tableStyles.card}>
+        <div style={{ padding: 20, fontSize: 13, color: "#aaa" }}>
+          Loading billing settings...
+        </div>
+      </div>
     );
   }
 
@@ -70,20 +72,14 @@ export function BillingSettingsForm({
       onSaved(payload);
     } catch (saveError) {
       setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Could not save billing settings.",
+        saveError instanceof Error ? saveError.message : "Could not save billing settings.",
       );
     } finally {
       setSaving(false);
     }
   };
 
-  const switches: Array<{
-    key: keyof BillingSettingsRecord;
-    title: string;
-    hint: string;
-  }> = [
+  const switches: Array<{ key: keyof BillingSettingsRecord; title: string; hint: string }> = [
     {
       key: "subscriptionsEnabled",
       title: "Enable subscriptions",
@@ -117,39 +113,75 @@ export function BillingSettingsForm({
   ];
 
   return (
-    <PanelCard
-      eyebrow="Billing Control"
-      title="Global billing settings"
-      description="Three safe states are supported: fully off, visible but optional, and required for premium access."
-    >
-      <div className="space-y-6">
-        {error ? <InlineAlert tone="error" message={error} /> : null}
+    <div className={tableStyles.card}>
+      <div className={tableStyles.header}>
+        <div>
+          <div className={tableStyles.subtitle}>Billing Control</div>
+          <div className={tableStyles.title}>Global billing settings</div>
+        </div>
+      </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+        {error ? (
+          <div
+            style={{
+              borderRadius: 10,
+              border: "1px solid #fecaca",
+              background: "#fef2f2",
+              padding: "10px 14px",
+              fontSize: 13,
+              color: "#b91c1c",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
           {switches.map((item) => (
             <label
               key={item.key}
-              className="flex items-start gap-3 rounded-[24px] border border-zinc-200 bg-zinc-50 px-5 py-4"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 10,
+                padding: "12px 14px",
+                border: "1px solid var(--brl)",
+                borderRadius: 8,
+                cursor: "pointer",
+              }}
             >
               <input
                 type="checkbox"
                 checked={Boolean(form[item.key])}
                 onChange={() => toggle(item.key)}
-                className="mt-1 h-4 w-4 rounded border-zinc-300"
+                style={{ marginTop: 2 }}
               />
               <span>
-                <span className="block text-sm font-semibold text-zinc-900">{item.title}</span>
-                <span className="mt-1 block text-sm leading-6 text-zinc-600">{item.hint}</span>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--b)" }}>
+                  {item.title}
+                </span>
+                <span style={{ display: "block", fontSize: 12, color: "#777", marginTop: 2, lineHeight: 1.5 }}>
+                  {item.hint}
+                </span>
               </span>
             </label>
           ))}
         </div>
 
-        <div className="max-w-sm">
-          <Field
-            label="Grace Period Days"
-            hint="PAST_DUE subscriptions can stay entitled for this many days after period end."
-          >
+        <div style={{ maxWidth: 280 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                color: "#aaa",
+              }}
+            >
+              Grace period days
+            </span>
             <input
               type="number"
               min={0}
@@ -158,29 +190,33 @@ export function BillingSettingsForm({
               onChange={(event) =>
                 setForm((current) =>
                   current
-                    ? {
-                        ...current,
-                        defaultGracePeriodDays: Number(event.target.value) || 0,
-                      }
+                    ? { ...current, defaultGracePeriodDays: Number(event.target.value) || 0 }
                     : current,
                 )
               }
-              className={textInputClassName()}
+              style={inputStyle}
             />
-          </Field>
+            <span style={{ fontSize: 12, color: "#aaa" }}>
+              PAST_DUE subscriptions can stay entitled for this many days after period end.
+            </span>
+          </label>
         </div>
-
-        <StickyActions>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-          >
-            {saving ? "Saving..." : "Save billing settings"}
-          </button>
-        </StickyActions>
       </div>
-    </PanelCard>
+
+      <div
+        className={tableStyles.header}
+        style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}
+      >
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
+          style={{ opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? "Saving..." : "Save billing settings"}
+        </button>
+      </div>
+    </div>
   );
 }

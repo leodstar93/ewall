@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import IftaTaxRatesSettingsClient from "@/components/ifta/IftaTaxRatesSettingsClient";
-import SettingsTabs from "@/components/settings/SettingsTabs";
+import SettingsTabs from "../components/SettingsTabs";
+import IftaTaxRatesSettingsClient from "./IftaTaxRatesSettingsClient";
 import { requireAdminSettingsAccess } from "@/lib/admin-settings-access";
 
 export default async function AdminIftaTaxRatesPage() {
@@ -10,7 +10,7 @@ export default async function AdminIftaTaxRatesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsTabs />
       <IftaTaxRatesSettingsClient />
     </div>

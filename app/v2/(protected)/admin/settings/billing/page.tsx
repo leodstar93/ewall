@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SettingsTabs from "@/components/settings/SettingsTabs";
+import SettingsTabs from "../components/SettingsTabs";
 import { requireAdminSettingsAccess } from "@/lib/admin-settings-access";
 import { BillingWorkspace } from "./components/BillingWorkspace";
 
@@ -10,7 +10,7 @@ export default async function AdminBillingSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsTabs />
       <BillingWorkspace />
     </div>

@@ -1,15 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  EmptyState,
-  Field,
-  InlineAlert,
-  PanelCard,
-  StatusBadge,
-  textInputClassName,
-} from "@/app/(dashboard)/settings/components/settings-ui";
+import { Badge } from "@/components/ui/badge";
 import type { BillingGrantsPayload } from "./types";
+import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
+
+const inputStyle: React.CSSProperties = {
+  border: "1px solid var(--br)",
+  borderRadius: 8,
+  padding: "8px 12px",
+  fontSize: 13,
+  outline: "none",
+  width: "100%",
+  color: "var(--b)",
+};
+
+const selectStyle: React.CSSProperties = { ...inputStyle, background: "#fff" };
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "#aaa" }}>
+      {children}
+    </span>
+  );
+}
 
 export function GrantsTab({
   grants,
@@ -43,19 +57,14 @@ export function GrantsTab({
 
   const refresh = async () => {
     const response = await fetch("/api/v1/admin/billing/grants", { cache: "no-store" });
-    const payload = (await response.json().catch(() => ({}))) as BillingGrantsPayload & {
-      error?: string;
-    };
-    if (!response.ok) {
-      throw new Error(payload.error || "Could not load grants.");
-    }
+    const payload = (await response.json().catch(() => ({}))) as BillingGrantsPayload & { error?: string };
+    if (!response.ok) throw new Error(payload.error || "Could not load grants.");
     onChanged(payload);
   };
 
   const createGrant = async () => {
     try {
-      setSubmitting(true);
-      setError("");
+      setSubmitting(true); setError("");
       const response = await fetch("/api/v1/admin/billing/grants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -70,29 +79,19 @@ export function GrantsTab({
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error || "Could not create grant.");
-      }
-
+      if (!response.ok) throw new Error(payload.error || "Could not create grant.");
       await refresh();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Could not create grant.");
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   };
 
   const revoke = async (id: string, kind: string) => {
     try {
       setError("");
-      const response = await fetch(`/api/v1/admin/billing/grants/${id}?kind=${kind}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(`/api/v1/admin/billing/grants/${id}?kind=${kind}`, { method: "DELETE" });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error || "Could not revoke grant.");
-      }
-
+      if (!response.ok) throw new Error(payload.error || "Could not revoke grant.");
       await refresh();
     } catch (revokeError) {
       setError(revokeError instanceof Error ? revokeError.message : "Could not revoke grant.");
@@ -100,173 +99,126 @@ export function GrantsTab({
   };
 
   return (
-    <PanelCard
-      eyebrow="Grants"
-      title="Manual entitlements"
-      description="Gift full plans or single modules. Grants bypass provider coupling and keep access centered on your entitlement engine."
-    >
-      <div className="space-y-6">
-        {error ? <InlineAlert tone="error" message={error} /> : null}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className={tableStyles.card}>
+        <div className={tableStyles.header}>
+          <div>
+            <div className={tableStyles.subtitle}>Grants</div>
+            <div className={tableStyles.title}>Manual entitlements</div>
+          </div>
+        </div>
 
-        {!grants ? <div className="text-sm text-zinc-500">Loading grants...</div> : null}
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          {error ? (
+            <div style={{ borderRadius: 10, border: "1px solid #fecaca", background: "#fef2f2", padding: "10px 14px", fontSize: 13, color: "#b91c1c" }}>{error}</div>
+          ) : null}
 
-        {grants ? (
-          <>
-            <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Field label="Organization">
-                  <select
-                    value={draft.organizationId}
-                    onChange={(event) => setDraft((current) => ({ ...current, organizationId: event.target.value }))}
-                    className={textInputClassName()}
-                  >
-                    {grants.organizations.map((organization) => (
-                      <option key={organization.id} value={organization.id}>
-                        {organization.name}
-                      </option>
+          {!grants ? <div style={{ fontSize: 13, color: "#aaa" }}>Loading grants...</div> : null}
+
+          {grants ? (
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(4, 1fr)" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <FieldLabel>Organization</FieldLabel>
+                <select value={draft.organizationId} onChange={(e) => setDraft((c) => ({ ...c, organizationId: e.target.value }))} style={selectStyle}>
+                  {grants.organizations.map((org) => (
+                    <option key={org.id} value={org.id}>{org.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <FieldLabel>Grant type</FieldLabel>
+                <select value={draft.grantKind} onChange={(e) => setDraft((c) => ({ ...c, grantKind: e.target.value }))} style={selectStyle}>
+                  <option value="module">module</option>
+                  <option value="plan">plan</option>
+                </select>
+              </label>
+              {draft.grantKind === "plan" ? (
+                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <FieldLabel>Plan</FieldLabel>
+                  <select value={draft.planId} onChange={(e) => setDraft((c) => ({ ...c, planId: e.target.value }))} style={selectStyle}>
+                    {grants.plans.map((plan) => (
+                      <option key={plan.id} value={plan.id}>{plan.name}</option>
                     ))}
                   </select>
-                </Field>
-                <Field label="Grant Type">
-                  <select
-                    value={draft.grantKind}
-                    onChange={(event) => setDraft((current) => ({ ...current, grantKind: event.target.value }))}
-                    className={textInputClassName()}
-                  >
-                    <option value="module">module</option>
-                    <option value="plan">plan</option>
+                </label>
+              ) : (
+                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <FieldLabel>Module</FieldLabel>
+                  <select value={draft.moduleId} onChange={(e) => setDraft((c) => ({ ...c, moduleId: e.target.value }))} style={selectStyle}>
+                    {grants.modules.map((module) => (
+                      <option key={module.id} value={module.id}>{module.name}</option>
+                    ))}
                   </select>
-                </Field>
-                {draft.grantKind === "plan" ? (
-                  <Field label="Plan">
-                    <select
-                      value={draft.planId}
-                      onChange={(event) => setDraft((current) => ({ ...current, planId: event.target.value }))}
-                      className={textInputClassName()}
-                    >
-                      {grants.plans.map((plan) => (
-                        <option key={plan.id} value={plan.id}>
-                          {plan.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                ) : (
-                  <Field label="Module">
-                    <select
-                      value={draft.moduleId}
-                      onChange={(event) => setDraft((current) => ({ ...current, moduleId: event.target.value }))}
-                      className={textInputClassName()}
-                    >
-                      {grants.modules.map((module) => (
-                        <option key={module.id} value={module.id}>
-                          {module.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                )}
-                <Field label={draft.grantKind === "plan" ? "Gift Note" : "Source"}>
-                  <input
-                    value={draft.grantKind === "plan" ? draft.giftNote : draft.source}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        [draft.grantKind === "plan" ? "giftNote" : "source"]: event.target.value,
-                      }))
-                    }
-                    className={textInputClassName()}
-                  />
-                </Field>
-                <Field label="Starts At">
-                  <input
-                    type="datetime-local"
-                    value={draft.startsAt}
-                    onChange={(event) => setDraft((current) => ({ ...current, startsAt: event.target.value }))}
-                    className={textInputClassName()}
-                  />
-                </Field>
-                <Field label="Ends At">
-                  <input
-                    type="datetime-local"
-                    value={draft.endsAt}
-                    onChange={(event) => setDraft((current) => ({ ...current, endsAt: event.target.value }))}
-                    className={textInputClassName()}
-                  />
-                </Field>
-              </div>
-
-              <button
-                type="button"
-                onClick={createGrant}
-                disabled={submitting}
-                className="mt-5 rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-              >
-                {submitting ? "Saving..." : `Create ${draft.grantKind} grant`}
-              </button>
+                </label>
+              )}
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <FieldLabel>{draft.grantKind === "plan" ? "Gift note" : "Source"}</FieldLabel>
+                <input
+                  value={draft.grantKind === "plan" ? draft.giftNote : draft.source}
+                  onChange={(e) => setDraft((c) => ({ ...c, [draft.grantKind === "plan" ? "giftNote" : "source"]: e.target.value }))}
+                  style={inputStyle}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <FieldLabel>Starts at</FieldLabel>
+                <input type="datetime-local" value={draft.startsAt} onChange={(e) => setDraft((c) => ({ ...c, startsAt: e.target.value }))} style={inputStyle} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <FieldLabel>Ends at</FieldLabel>
+                <input type="datetime-local" value={draft.endsAt} onChange={(e) => setDraft((c) => ({ ...c, endsAt: e.target.value }))} style={inputStyle} />
+              </label>
             </div>
+          ) : null}
+        </div>
 
-            {grants.planGrants.length === 0 && grants.moduleGrants.length === 0 ? (
-              <EmptyState
-                title="No grants yet"
-                description="Manual entitlements will appear here once you gift a full plan or override access to a specific module."
-              />
-            ) : null}
-
-            <div className="space-y-5">
-              {grants.planGrants.map((grant) => (
-                <article
-                  key={grant.id}
-                  className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-semibold text-zinc-950">
-                      {grant.organization.name} {"->"} {grant.plan?.name ?? "Deleted plan"}
-                    </h3>
-                    <StatusBadge tone={grant.active ? "green" : "amber"}>
-                      {grant.status}
-                    </StatusBadge>
-                  </div>
-                  <p className="mt-2 text-sm text-zinc-600">
-                    {grant.giftNote || "Manual gifted plan access"}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => void revoke(grant.id, "plan")}
-                    className="mt-4 rounded-2xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
-                  >
-                    Revoke plan grant
-                  </button>
-                </article>
-              ))}
-
-              {grants.moduleGrants.map((grant) => (
-                <article
-                  key={grant.id}
-                  className="rounded-[24px] border border-zinc-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-semibold text-zinc-950">
-                      {grant.organization.name} {"->"} {grant.module.name}
-                    </h3>
-                    <StatusBadge tone={grant.active ? "green" : "amber"}>
-                      {grant.active ? "Active" : "Inactive"}
-                    </StatusBadge>
-                    <StatusBadge tone="blue">{grant.source}</StatusBadge>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void revoke(grant.id, "module")}
-                    className="mt-4 rounded-2xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
-                  >
-                    Revoke module grant
-                  </button>
-                </article>
-              ))}
-            </div>
-          </>
+        {grants ? (
+          <div className={tableStyles.header} style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => void createGrant()} disabled={submitting} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`} style={{ opacity: submitting ? 0.6 : 1 }}>
+              {submitting ? "Saving..." : `Create ${draft.grantKind} grant`}
+            </button>
+          </div>
         ) : null}
       </div>
-    </PanelCard>
+
+      {grants && grants.planGrants.length === 0 && grants.moduleGrants.length === 0 ? (
+        <div style={{ fontSize: 13, color: "#aaa", padding: "8px 0" }}>
+          No grants yet. Manual entitlements will appear here once you gift a full plan or override access to a specific module.
+        </div>
+      ) : null}
+
+      {grants?.planGrants.map((grant) => (
+        <div key={grant.id} className={tableStyles.card}>
+          <div className={tableStyles.header}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div className={tableStyles.title}>{grant.organization.name} → {grant.plan?.name ?? "Deleted plan"}</div>
+              <Badge tone={grant.active ? "success" : "warning"} variant="light">{grant.status}</Badge>
+            </div>
+          </div>
+          <div style={{ padding: "12px 20px", fontSize: 13, color: "#777" }}>{grant.giftNote || "Manual gifted plan access"}</div>
+          <div className={tableStyles.header} style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => void revoke(grant.id, "plan")} style={{ height: 30, padding: "0 12px", border: "1px solid #fecaca", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: "#b91c1c" }}>
+              Revoke plan grant
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {grants?.moduleGrants.map((grant) => (
+        <div key={grant.id} className={tableStyles.card}>
+          <div className={tableStyles.header}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div className={tableStyles.title}>{grant.organization.name} → {grant.module.name}</div>
+              <Badge tone={grant.active ? "success" : "warning"} variant="light">{grant.active ? "Active" : "Inactive"}</Badge>
+              <Badge tone="info" variant="light">{grant.source}</Badge>
+            </div>
+          </div>
+          <div className={tableStyles.header} style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => void revoke(grant.id, "module")} style={{ height: 30, padding: "0 12px", border: "1px solid #fecaca", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: "#b91c1c" }}>
+              Revoke module grant
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

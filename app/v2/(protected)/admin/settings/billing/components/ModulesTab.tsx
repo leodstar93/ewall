@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  InlineAlert,
-  PanelCard,
-  StatusBadge,
-  textInputClassName,
-} from "@/app/(dashboard)/settings/components/settings-ui";
+import { Badge } from "@/components/ui/badge";
 import type { BillingModuleRecord } from "./types";
+import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
+
+const inputStyle: React.CSSProperties = {
+  border: "1px solid var(--br)",
+  borderRadius: 8,
+  padding: "8px 12px",
+  fontSize: 13,
+  outline: "none",
+  width: "100%",
+  color: "var(--b)",
+};
 
 export function ModulesTab({
   modules,
@@ -49,10 +55,7 @@ export function ModulesTab({
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error || "Could not save module.");
-      }
-
+      if (!response.ok) throw new Error(payload.error || "Could not save module.");
       await refresh();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save module.");
@@ -60,35 +63,45 @@ export function ModulesTab({
   };
 
   return (
-    <PanelCard
-      eyebrow="Modules"
-      title="Module billing catalog"
-      description="Control module activation, premium flags, and core designation. Entitlements always resolve from this catalog instead of plan names."
-    >
-      <div className="space-y-5">
-        {error ? <InlineAlert tone="error" message={error} /> : null}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {error ? (
+        <div
+          style={{
+            borderRadius: 10,
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+            padding: "10px 14px",
+            fontSize: 13,
+            color: "#b91c1c",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
 
-        {items.map((module) => (
-          <article
-            key={module.id}
-            className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5"
-          >
-            <div className="flex flex-wrap items-center gap-3">
-              <h3 className="text-lg font-semibold text-zinc-950">{module.name}</h3>
-              <StatusBadge tone={module.isActive ? "green" : "amber"}>
+      {items.map((module) => (
+        <div key={module.id} className={tableStyles.card}>
+          <div className={tableStyles.header}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div className={tableStyles.title}>{module.name}</div>
+              <Badge tone={module.isActive ? "success" : "warning"} variant="light">
                 {module.isActive ? "Active" : "Inactive"}
-              </StatusBadge>
+              </Badge>
               {module.requiresSubscription ? (
-                <StatusBadge tone="blue">Premium</StatusBadge>
+                <Badge tone="info" variant="light">Premium</Badge>
               ) : null}
-              {module.isCore ? <StatusBadge tone="zinc">Core</StatusBadge> : null}
+              {module.isCore ? (
+                <Badge tone="dark" variant="light">Core</Badge>
+              ) : null}
             </div>
+          </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-[1fr_1fr]">
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "#aaa" }}>
                   Name
-                </div>
+                </span>
                 <input
                   value={module.name}
                   onChange={(event) =>
@@ -98,36 +111,45 @@ export function ModulesTab({
                       ),
                     )
                   }
-                  className={`${textInputClassName()} mt-2`}
+                  style={inputStyle}
                 />
-              </div>
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "#aaa" }}>
                   Description
-                </div>
+                </span>
                 <input
                   value={module.description}
                   onChange={(event) =>
                     setItems((current) =>
                       current.map((item) =>
-                        item.id === module.id
-                          ? { ...item, description: event.target.value }
-                          : item,
+                        item.id === module.id ? { ...item, description: event.target.value } : item,
                       ),
                     )
                   }
-                  className={`${textInputClassName()} mt-2`}
+                  style={inputStyle}
                 />
-              </div>
+              </label>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-4">
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {[
                 ["Active", "isActive"],
                 ["Requires subscription", "requiresSubscription"],
                 ["Core module", "isCore"],
               ].map(([label, key]) => (
-                <label key={key} className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3">
+                <label
+                  key={key}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 12px",
+                    border: "1px solid var(--brl)",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={Boolean(module[key as keyof BillingModuleRecord])}
@@ -140,23 +162,27 @@ export function ModulesTab({
                         ),
                       )
                     }
-                    className="h-4 w-4 rounded border-zinc-300"
                   />
-                  <span className="text-sm font-medium text-zinc-800">{label}</span>
+                  <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>{label}</span>
                 </label>
               ))}
             </div>
+          </div>
 
+          <div
+            className={tableStyles.header}
+            style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}
+          >
             <button
               type="button"
               onClick={() => void saveModule(module)}
-              className="mt-5 rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+              className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
             >
               Save module
             </button>
-          </article>
-        ))}
-      </div>
-    </PanelCard>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

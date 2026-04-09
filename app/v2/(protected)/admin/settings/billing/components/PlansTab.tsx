@@ -1,25 +1,42 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  EmptyState,
-  Field,
-  InlineAlert,
-  PanelCard,
-  StatusBadge,
-  textInputClassName,
-} from "@/app/(dashboard)/settings/components/settings-ui";
+import { Badge } from "@/components/ui/badge";
 import type { BillingModuleRecord, BillingPlanRecord } from "./types";
+import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
 
-type EditablePlan = BillingPlanRecord & {
-  moduleIds: string[];
+const inputStyle: React.CSSProperties = {
+  border: "1px solid var(--br)",
+  borderRadius: 8,
+  padding: "8px 12px",
+  fontSize: 13,
+  outline: "none",
+  width: "100%",
+  color: "var(--b)",
 };
 
+const selectStyle: React.CSSProperties = { ...inputStyle, background: "#fff" };
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.1em",
+        color: "#aaa",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+type EditablePlan = BillingPlanRecord & { moduleIds: string[] };
+
 function toEditablePlan(plan: BillingPlanRecord): EditablePlan {
-  return {
-    ...plan,
-    moduleIds: plan.modules.map((module) => module.id),
-  };
+  return { ...plan, moduleIds: plan.modules.map((module) => module.id) };
 }
 
 export function PlansTab({
@@ -76,9 +93,7 @@ export function PlansTab({
       }),
     });
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) {
-      throw new Error(payload.error || "Could not save plan.");
-    }
+    if (!response.ok) throw new Error(payload.error || "Could not save plan.");
 
     const modulesResponse = await fetch(`/api/v1/admin/billing/plans/${plan.id}/modules`, {
       method: "PUT",
@@ -86,9 +101,7 @@ export function PlansTab({
       body: JSON.stringify({ moduleIds: plan.moduleIds }),
     });
     const modulesPayload = (await modulesResponse.json().catch(() => ({}))) as { error?: string };
-    if (!modulesResponse.ok) {
-      throw new Error(modulesPayload.error || "Could not update plan modules.");
-    }
+    if (!modulesResponse.ok) throw new Error(modulesPayload.error || "Could not update plan modules.");
 
     await refreshPlans();
   };
@@ -97,139 +110,149 @@ export function PlansTab({
     try {
       setCreating(true);
       setError("");
-
       const response = await fetch("/api/v1/admin/billing/plans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draft),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error || "Could not create plan.");
-      }
-
-      setDraft({
-        code: "",
-        name: "",
-        description: "",
-        interval: "MONTH",
-        priceCents: 4900,
-        currency: "USD",
-      });
+      if (!response.ok) throw new Error(payload.error || "Could not create plan.");
+      setDraft({ code: "", name: "", description: "", interval: "MONTH", priceCents: 4900, currency: "USD" });
       await refreshPlans();
     } catch (createError) {
-      setError(
-        createError instanceof Error ? createError.message : "Could not create plan.",
-      );
+      setError(createError instanceof Error ? createError.message : "Could not create plan.");
     } finally {
       setCreating(false);
     }
   };
 
   return (
-    <PanelCard
-      eyebrow="Plans"
-      title="Subscription plans"
-      description="Create commercial plans, toggle activation, and map SaaS modules to each plan without hardcoding access rules."
-    >
-      <div className="space-y-6">
-        {error ? <InlineAlert tone="error" message={error} /> : null}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className={tableStyles.card}>
+        <div className={tableStyles.header}>
+          <div>
+            <div className={tableStyles.subtitle}>Plans</div>
+            <div className={tableStyles.title}>Create plan</div>
+          </div>
+        </div>
 
-        <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <Field label="Code">
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          {error ? (
+            <div
+              style={{
+                borderRadius: 10,
+                border: "1px solid #fecaca",
+                background: "#fef2f2",
+                padding: "10px 14px",
+                fontSize: 13,
+                color: "#b91c1c",
+              }}
+            >
+              {error}
+            </div>
+          ) : null}
+
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <FieldLabel>Code</FieldLabel>
               <input
                 value={draft.code}
                 onChange={(event) => setDraft((current) => ({ ...current, code: event.target.value }))}
-                className={textInputClassName()}
+                style={inputStyle}
                 placeholder="starter-monthly"
               />
-            </Field>
-            <Field label="Name">
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <FieldLabel>Name</FieldLabel>
               <input
                 value={draft.name}
                 onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-                className={textInputClassName()}
+                style={inputStyle}
                 placeholder="Starter Monthly"
               />
-            </Field>
-            <Field label="Interval">
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <FieldLabel>Interval</FieldLabel>
               <select
                 value={draft.interval}
                 onChange={(event) => setDraft((current) => ({ ...current, interval: event.target.value }))}
-                className={textInputClassName()}
+                style={selectStyle}
               >
                 <option value="MONTH">MONTH</option>
                 <option value="YEAR">YEAR</option>
               </select>
-            </Field>
-            <Field label="Price Cents">
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <FieldLabel>Price cents</FieldLabel>
               <input
                 type="number"
                 min={0}
                 value={draft.priceCents}
                 onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    priceCents: Number(event.target.value) || 0,
-                  }))
+                  setDraft((current) => ({ ...current, priceCents: Number(event.target.value) || 0 }))
                 }
-                className={textInputClassName()}
+                style={inputStyle}
               />
-            </Field>
-            <Field label="Currency">
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <FieldLabel>Currency</FieldLabel>
               <input
                 value={draft.currency}
-                onChange={(event) => setDraft((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
-                className={textInputClassName()}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, currency: event.target.value.toUpperCase() }))
+                }
+                style={inputStyle}
                 maxLength={3}
               />
-            </Field>
-            <Field label="Description">
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <FieldLabel>Description</FieldLabel>
               <input
                 value={draft.description}
                 onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
-                className={textInputClassName()}
+                style={inputStyle}
                 placeholder="Optional plan summary"
               />
-            </Field>
+            </label>
           </div>
+        </div>
 
+        <div
+          className={tableStyles.header}
+          style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}
+        >
           <button
             type="button"
             onClick={createPlan}
             disabled={creating}
-            className="mt-5 rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+            className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
+            style={{ opacity: creating ? 0.6 : 1 }}
           >
             {creating ? "Creating..." : "Create plan"}
           </button>
         </div>
-
-        {items.length === 0 ? (
-          <EmptyState
-            title="No plans yet"
-            description="Create the first plan to start mapping modules and provider identifiers."
-          />
-        ) : null}
-
-        <div className="space-y-5">
-          {items.map((plan, index) => (
-            <PlanEditor
-              key={plan.id}
-              plan={plan}
-              modules={modules}
-              onChange={(nextPlan) =>
-                setItems((current) =>
-                  current.map((item) => (item.id === nextPlan.id ? nextPlan : item)),
-                )
-              }
-              onSave={savePlan}
-              accentIndex={index}
-            />
-          ))}
-        </div>
       </div>
-    </PanelCard>
+
+      {items.length === 0 ? (
+        <div style={{ fontSize: 13, color: "#aaa", padding: "8px 0" }}>
+          No plans yet. Create the first plan to start mapping modules and provider identifiers.
+        </div>
+      ) : null}
+
+      {items.map((plan) => (
+        <PlanEditor
+          key={plan.id}
+          plan={plan}
+          modules={modules}
+          onChange={(nextPlan) =>
+            setItems((current) =>
+              current.map((item) => (item.id === nextPlan.id ? nextPlan : item)),
+            )
+          }
+          onSave={savePlan}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -238,22 +261,26 @@ function PlanEditor({
   modules,
   onChange,
   onSave,
-  accentIndex,
 }: {
   plan: EditablePlan;
   modules: BillingModuleRecord[];
   onChange: (plan: EditablePlan) => void;
   onSave: (plan: EditablePlan) => Promise<void>;
-  accentIndex: number;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const palette = [
-    "from-orange-50 to-white",
-    "from-sky-50 to-white",
-    "from-emerald-50 to-white",
-  ];
+  const inputStyle: React.CSSProperties = {
+    border: "1px solid var(--br)",
+    borderRadius: 8,
+    padding: "8px 12px",
+    fontSize: 13,
+    outline: "none",
+    width: "100%",
+    color: "var(--b)",
+  };
+
+  const selectStyle: React.CSSProperties = { ...inputStyle, background: "#fff" };
 
   const toggleModule = (moduleId: string) => {
     const nextModuleIds = plan.moduleIds.includes(moduleId)
@@ -274,111 +301,177 @@ function PlanEditor({
     }
   };
 
+  const fields: Array<[string, string]> = [
+    ["Code", "code"],
+    ["Name", "name"],
+    ["Description", "description"],
+    ["Stripe Product ID", "stripeProductId"],
+    ["Stripe Price ID", "stripePriceId"],
+    ["PayPal Plan ID", "paypalPlanId"],
+  ];
+
   return (
-    <article
-      className={`rounded-[28px] border border-zinc-200 bg-gradient-to-br ${palette[accentIndex % palette.length]} p-5 shadow-sm`}
-    >
-      <div className="flex flex-wrap items-center gap-3">
-        <h3 className="text-lg font-semibold text-zinc-950">{plan.name || plan.code}</h3>
-        <StatusBadge tone={plan.isActive ? "green" : "amber"}>
-          {plan.isActive ? "Active" : "Inactive"}
-        </StatusBadge>
-      </div>
-
-      {error ? <div className="mt-4"><InlineAlert tone="error" message={error} /></div> : null}
-
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {[
-          ["Code", "code"],
-          ["Name", "name"],
-          ["Description", "description"],
-          ["Stripe Product ID", "stripeProductId"],
-          ["Stripe Price ID", "stripePriceId"],
-          ["PayPal Plan ID", "paypalPlanId"],
-        ].map(([label, key]) => (
-          <Field key={key} label={label}>
-            <input
-              value={String(plan[key as keyof EditablePlan] ?? "")}
-              onChange={(event) => onChange({ ...plan, [key]: event.target.value })}
-              className={textInputClassName()}
-            />
-          </Field>
-        ))}
-
-        <Field label="Price Cents">
-          <input
-            type="number"
-            min={0}
-            value={plan.priceCents}
-            onChange={(event) =>
-              onChange({ ...plan, priceCents: Number(event.target.value) || 0 })
-            }
-            className={textInputClassName()}
-          />
-        </Field>
-        <Field label="Currency">
-          <input
-            value={plan.currency}
-            onChange={(event) => onChange({ ...plan, currency: event.target.value.toUpperCase() })}
-            className={textInputClassName()}
-          />
-        </Field>
-        <Field label="Interval">
-          <select
-            value={plan.interval}
-            onChange={(event) => onChange({ ...plan, interval: event.target.value as "MONTH" | "YEAR" })}
-            className={textInputClassName()}
-          >
-            <option value="MONTH">MONTH</option>
-            <option value="YEAR">YEAR</option>
-          </select>
-        </Field>
-      </div>
-
-      <div className="mt-5 flex items-center gap-3">
-        <input
-          id={`plan-active-${plan.id}`}
-          type="checkbox"
-          checked={plan.isActive}
-          onChange={(event) => onChange({ ...plan, isActive: event.target.checked })}
-          className="h-4 w-4 rounded border-zinc-300"
-        />
-        <label htmlFor={`plan-active-${plan.id}`} className="text-sm font-medium text-zinc-800">
-          Plan is active
-        </label>
-      </div>
-
-      <div className="mt-5 rounded-[24px] border border-zinc-200 bg-white/80 p-4">
-        <p className="text-sm font-semibold text-zinc-900">Included modules</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {modules.map((module) => (
-            <label
-              key={module.id}
-              className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3"
-            >
-              <input
-                type="checkbox"
-                checked={plan.moduleIds.includes(module.id)}
-                onChange={() => toggleModule(module.id)}
-                className="mt-1 h-4 w-4 rounded border-zinc-300"
-              />
-              <span>
-                <span className="block text-sm font-semibold text-zinc-900">{module.name}</span>
-                <span className="mt-1 block text-xs text-zinc-500">{module.slug}</span>
-              </span>
-            </label>
-          ))}
+    <div className={tableStyles.card}>
+      <div className={tableStyles.header}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className={tableStyles.title}>{plan.name || plan.code}</div>
+          <Badge tone={plan.isActive ? "success" : "warning"} variant="light">
+            {plan.isActive ? "Active" : "Inactive"}
+          </Badge>
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving}
-        className="mt-5 rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+        {error ? (
+          <div
+            style={{
+              borderRadius: 10,
+              border: "1px solid #fecaca",
+              background: "#fef2f2",
+              padding: "10px 14px",
+              fontSize: 13,
+              color: "#b91c1c",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
+          {fields.map(([label, key]) => (
+            <label key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "#aaa" }}>
+                {label}
+              </span>
+              <input
+                value={String(plan[key as keyof EditablePlan] ?? "")}
+                onChange={(event) => onChange({ ...plan, [key]: event.target.value })}
+                style={inputStyle}
+              />
+            </label>
+          ))}
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "#aaa" }}>
+              Price cents
+            </span>
+            <input
+              type="number"
+              min={0}
+              value={plan.priceCents}
+              onChange={(event) =>
+                onChange({ ...plan, priceCents: Number(event.target.value) || 0 })
+              }
+              style={inputStyle}
+            />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "#aaa" }}>
+              Currency
+            </span>
+            <input
+              value={plan.currency}
+              onChange={(event) =>
+                onChange({ ...plan, currency: event.target.value.toUpperCase() })
+              }
+              style={inputStyle}
+            />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "#aaa" }}>
+              Interval
+            </span>
+            <select
+              value={plan.interval}
+              onChange={(event) =>
+                onChange({ ...plan, interval: event.target.value as "MONTH" | "YEAR" })
+              }
+              style={selectStyle}
+            >
+              <option value="MONTH">MONTH</option>
+              <option value="YEAR">YEAR</option>
+            </select>
+          </label>
+        </div>
+
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 12px",
+            border: "1px solid var(--brl)",
+            borderRadius: 8,
+            alignSelf: "flex-start",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={plan.isActive}
+            onChange={(event) => onChange({ ...plan, isActive: event.target.checked })}
+          />
+          <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Plan is active</span>
+        </label>
+
+        <div
+          style={{
+            padding: 16,
+            border: "1px solid var(--brl)",
+            borderRadius: 8,
+            background: "var(--off)",
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#aaa", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
+            Included modules
+          </div>
+          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr 1fr" }}>
+            {modules.map((module) => (
+              <label
+                key={module.id}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 8,
+                  padding: "8px 10px",
+                  border: "1px solid var(--brl)",
+                  borderRadius: 6,
+                  background: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={plan.moduleIds.includes(module.id)}
+                  onChange={() => toggleModule(module.id)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--b)" }}>
+                    {module.name}
+                  </span>
+                  <span style={{ display: "block", fontSize: 11, color: "#aaa" }}>
+                    {module.slug}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={tableStyles.header}
+        style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}
       >
-        {saving ? "Saving..." : "Save plan"}
-      </button>
-    </article>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
+          style={{ opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? "Saving..." : "Save plan"}
+        </button>
+      </div>
+    </div>
   );
 }

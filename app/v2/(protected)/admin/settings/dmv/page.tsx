@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import SettingsTabs from "@/components/settings/SettingsTabs";
-import DmvSettingsPage from "@/features/dmv/settings-page";
+import SettingsTabs from "../components/SettingsTabs";
+import DmvSettingsClient from "./DmvSettingsClient";
 import { requireAdminSettingsAccess } from "@/lib/admin-settings-access";
 
 export default async function AdminDmvSettingsPage() {
@@ -10,9 +10,9 @@ export default async function AdminDmvSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsTabs />
-      <DmvSettingsPage />
+      <DmvSettingsClient />
     </div>
   );
 }

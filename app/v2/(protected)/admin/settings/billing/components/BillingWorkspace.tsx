@@ -1,14 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  InlineAlert,
-  LoadingPanel,
-  StatusBadge,
-  ToastViewport,
-  type SettingsToast,
-  cx,
-} from "@/app/(dashboard)/settings/components/settings-ui";
 import { BillingSettingsForm } from "./BillingSettingsForm";
 import { CouponsTab } from "./CouponsTab";
 import { GrantsTab } from "./GrantsTab";
@@ -21,6 +13,9 @@ import type {
   BillingPlanRecord,
   BillingSettingsRecord,
 } from "./types";
+import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
+
+type Toast = { id: string; tone: "success" | "error"; message: string };
 
 const tabs = [
   { id: "control", label: "Billing Control" },
@@ -34,7 +29,7 @@ export function BillingWorkspace() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>("control");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [toasts, setToasts] = useState<SettingsToast[]>([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
   const [settings, setSettings] = useState<BillingSettingsRecord | null>(null);
   const [plans, setPlans] = useState<BillingPlanRecord[]>([]);
   const [modules, setModules] = useState<BillingModuleRecord[]>([]);
@@ -57,14 +52,19 @@ export function BillingWorkspace() {
       setLoading(true);
       setError("");
 
-      const [settingsResponse, plansResponse, modulesResponse, couponsResponse, grantsResponse] =
-        await Promise.all([
-          fetch("/api/v1/admin/billing/settings", { cache: "no-store" }),
-          fetch("/api/v1/admin/billing/plans", { cache: "no-store" }),
-          fetch("/api/v1/admin/billing/modules", { cache: "no-store" }),
-          fetch("/api/v1/admin/billing/coupons", { cache: "no-store" }),
-          fetch("/api/v1/admin/billing/grants", { cache: "no-store" }),
-        ]);
+      const [
+        settingsResponse,
+        plansResponse,
+        modulesResponse,
+        couponsResponse,
+        grantsResponse,
+      ] = await Promise.all([
+        fetch("/api/v1/admin/billing/settings", { cache: "no-store" }),
+        fetch("/api/v1/admin/billing/plans", { cache: "no-store" }),
+        fetch("/api/v1/admin/billing/modules", { cache: "no-store" }),
+        fetch("/api/v1/admin/billing/coupons", { cache: "no-store" }),
+        fetch("/api/v1/admin/billing/grants", { cache: "no-store" }),
+      ]);
 
       const settingsPayload = (await settingsResponse.json().catch(() => ({}))) as BillingSettingsRecord & { error?: string };
       const plansPayload = (await plansResponse.json().catch(() => ({}))) as BillingPlanRecord[] & { error?: string };
@@ -84,7 +84,9 @@ export function BillingWorkspace() {
       setCoupons(couponsPayload as BillingCouponRecord[]);
       setGrants(grantsPayload);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Could not load billing admin data.");
+      setError(
+        loadError instanceof Error ? loadError.message : "Could not load billing admin data.",
+      );
     } finally {
       setLoading(false);
     }
@@ -95,52 +97,76 @@ export function BillingWorkspace() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <ToastViewport toasts={toasts} />
-
-      <section className="rounded-[32px] border border-zinc-200 bg-[linear-gradient(135deg,_#fef3c7,_#ffffff_45%,_#dcfce7)] p-8 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-              Billing Admin
-            </p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-950">
-              Entitlements-first billing controls for plans, modules, discounts, and manual access.
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-600">
-              Providers update local subscription state, but permissions are always resolved from your
-              billing settings, plan-module links, and direct grants.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="green">Entitlements First</StatusBadge>
-            <StatusBadge tone="blue">Stripe + PayPal Ready</StatusBadge>
-            <StatusBadge tone="zinc">Billing Can Stay Off</StatusBadge>
-          </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {toasts.length > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            zIndex: 100,
+          }}
+        >
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              style={{
+                padding: "10px 16px",
+                borderRadius: 8,
+                fontSize: 13,
+                background: toast.tone === "success" ? "#f0fdf4" : "#fef2f2",
+                border: `1px solid ${toast.tone === "success" ? "#bbf7d0" : "#fecaca"}`,
+                color: toast.tone === "success" ? "#15803d" : "#b91c1c",
+              }}
+            >
+              {toast.message}
+            </div>
+          ))}
         </div>
-      </section>
+      )}
 
-      <div className="flex flex-wrap gap-3">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className={cx(
-              "rounded-2xl border px-4 py-2 text-sm font-medium transition",
+            className={
               activeTab === tab.id
-                ? "border-zinc-900 bg-zinc-900 text-white"
-                : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50",
-            )}
+                ? `${tableStyles.btn} ${tableStyles.btnPrimary}`
+                : tableStyles.btn
+            }
           >
             {tab.label}
           </button>
         ))}
       </div>
 
-      {error ? <InlineAlert tone="error" message={error} /> : null}
-      {loading ? <LoadingPanel /> : null}
+      {error ? (
+        <div
+          style={{
+            borderRadius: 10,
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+            padding: "10px 14px",
+            fontSize: 13,
+            color: "#b91c1c",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className={tableStyles.card}>
+          <div style={{ padding: 20, fontSize: 13, color: "#aaa" }}>
+            Loading billing data...
+          </div>
+        </div>
+      ) : null}
 
       {!loading && activeTab === "control" ? (
         <BillingSettingsForm
