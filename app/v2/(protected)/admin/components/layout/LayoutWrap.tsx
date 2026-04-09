@@ -75,7 +75,7 @@ function buildNavGroups(
       moduleKey: "documents",
     },
     {
-      href: "/v2/dashboard/ifta-v2",
+      href: "/v2/admin/features/ifta-v2",
       label: "IFTA Automation",
       permission: "ifta:review",
       moduleKey: "ifta",

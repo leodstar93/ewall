@@ -76,8 +76,10 @@ function parseDownloadFilename(header: string | null, fallback: string) {
 
 export default function IftaAutomationStaffFilingPage({
   filingId,
+  backHref = "/dashboard/ifta-v2",
 }: {
   filingId: string;
+  backHref?: string;
 }) {
   const { data: session } = useSession();
   const currentUserId = session?.user?.id ?? null;
@@ -375,7 +377,7 @@ export default function IftaAutomationStaffFilingPage({
               We could not load this filing or you no longer have access to it.
             </div>
             <Link
-              href="/dashboard/ifta-v2"
+              href={backHref}
               className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               Back to staff queue
@@ -393,7 +395,7 @@ export default function IftaAutomationStaffFilingPage({
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <Link
-                href="/dashboard/ifta-v2"
+                href={backHref}
                 className="text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 Back to staff queue
