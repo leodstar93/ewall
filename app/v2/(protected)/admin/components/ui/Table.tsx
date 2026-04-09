@@ -29,6 +29,7 @@ interface Props<T extends object> {
   actions?: TableAction[];
   searchQuery?: string;
   title?: string;
+  toolbar?: ReactNode;
   /** Keys used for full-text search. Defaults to all string columns. */
   searchKeys?: (keyof T & string)[];
 }
@@ -45,6 +46,7 @@ export default function Table<T extends object>({
   actions = [],
   searchQuery = "",
   title,
+  toolbar,
   searchKeys,
 }: Props<T>) {
   const firstKey = columns[0]?.key ?? "";
@@ -144,6 +146,8 @@ export default function Table<T extends object>({
           </div>
         )}
       </div>
+
+      {toolbar ? <div className={styles.toolbar}>{toolbar}</div> : null}
 
       {/* Table */}
       <div className={styles.tableWrap}>

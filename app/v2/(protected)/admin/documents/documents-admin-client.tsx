@@ -110,17 +110,6 @@ export default function DocumentsAdminClient({
     });
   }, [category, deferredSearch, fileType, rows]);
 
-  const summary = useMemo(() => {
-    const userIds = new Set(filteredRows.map((item) => item.userId));
-    const totalBytes = filteredRows.reduce((sum, item) => sum + item.fileSize, 0);
-
-    return {
-      documents: filteredRows.length,
-      users: userIds.size,
-      storage: formatFileSize(totalBytes),
-    };
-  }, [filteredRows]);
-
   const columns = useMemo<ColumnDef<DocumentTableRow>[]>(
     () => [
       {
@@ -241,152 +230,103 @@ export default function DocumentsAdminClient({
   );
 
   return (
-    <div className="w-full min-w-0 space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
-            Documents
-          </p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
-            {summary.documents}
-          </p>
-          <p className="mt-2 text-sm text-zinc-600">
-            Files visible with the current filters.
-          </p>
-        </div>
-
-        <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
-            Accounts
-          </p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
-            {summary.users}
-          </p>
-          <p className="mt-2 text-sm text-zinc-600">
-            Unique users with uploads in this result set.
-          </p>
-        </div>
-
-        <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
-            Storage used
-          </p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
-            {summary.storage}
-          </p>
-          <p className="mt-2 text-sm text-zinc-600">
-            Combined file size across filtered documents.
-          </p>
-        </div>
-      </div>
-
-      <div className={tableStyles.card}>
-        <div className={tableStyles.header}>
-          <div>
-            <div className={tableStyles.title}>Documents workspace</div>
-            <div className={tableStyles.subtitle}>
-              Review uploaded files by account, file type, and category.
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: "0 20px 20px",
-            display: "grid",
-            gap: 16,
-            gridTemplateColumns: "minmax(0,1.6fr) minmax(180px,0.8fr) minmax(180px,0.8fr)",
-          }}
-        >
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span
-              className={tableStyles.subtitle}
-              style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
-            >
-              Search
-            </span>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Document, file, email, company..."
-              style={{
-                border: "1px solid var(--br)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 13,
-                outline: "none",
-                width: "100%",
-                color: "var(--b)",
-              }}
-            />
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span
-              className={tableStyles.subtitle}
-              style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
-            >
-              File type
-            </span>
-            <select
-              value={fileType}
-              onChange={(event) => setFileType(event.target.value)}
-              style={{
-                border: "1px solid var(--br)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 13,
-                outline: "none",
-                width: "100%",
-                background: "#fff",
-                color: "var(--b)",
-              }}
-            >
-              <option value="all">All file types</option>
-              {data.availableFileTypes.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span
-              className={tableStyles.subtitle}
-              style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
-            >
-              Category
-            </span>
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              style={{
-                border: "1px solid var(--br)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 13,
-                outline: "none",
-                width: "100%",
-                background: "#fff",
-                color: "var(--b)",
-              }}
-            >
-              <option value="all">All categories</option>
-              {data.availableCategories.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
-
+    <div className="w-full min-w-0">
       <Table
         data={filteredRows}
         columns={columns}
         title="Uploaded documents"
+        toolbar={
+          <div
+            style={{
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns: "minmax(0,1.6fr) minmax(180px,0.8fr) minmax(180px,0.8fr)",
+            }}
+          >
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span
+                className={tableStyles.subtitle}
+                style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+              >
+                Search
+              </span>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Document, file, email, company..."
+                style={{
+                  border: "1px solid var(--br)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  width: "100%",
+                  color: "var(--b)",
+                }}
+              />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span
+                className={tableStyles.subtitle}
+                style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+              >
+                File type
+              </span>
+              <select
+                value={fileType}
+                onChange={(event) => setFileType(event.target.value)}
+                style={{
+                  border: "1px solid var(--br)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  width: "100%",
+                  background: "#fff",
+                  color: "var(--b)",
+                }}
+              >
+                <option value="all">All file types</option>
+                {data.availableFileTypes.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span
+                className={tableStyles.subtitle}
+                style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+              >
+                Category
+              </span>
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                style={{
+                  border: "1px solid var(--br)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  width: "100%",
+                  background: "#fff",
+                  color: "var(--b)",
+                }}
+              >
+                <option value="all">All categories</option>
+                {data.availableCategories.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        }
       />
     </div>
   );
