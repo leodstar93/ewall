@@ -144,7 +144,11 @@ function SortHeaderButton({
   );
 }
 
-export default function IftaAutomationTruckerPage() {
+export default function IftaAutomationTruckerPage({
+  detailHrefBase = "/ifta-v2",
+}: {
+  detailHrefBase?: string;
+}) {
   const router = useRouter();
   const currentQuarter = useMemo(() => currentQuarterInput(), []);
   const [filings, setFilings] = useState<FilingListItem[]>([]);
@@ -316,7 +320,7 @@ export default function IftaAutomationTruckerPage() {
         }),
       });
 
-      router.push(`/ifta-v2/${data.filing.id}`);
+      router.push(`${detailHrefBase}/${data.filing.id}`);
     } catch (error) {
       setNotice({
         tone: "error",
@@ -707,7 +711,7 @@ export default function IftaAutomationTruckerPage() {
                             </button>
                           ) : null}
                           <Link
-                            href={`/ifta-v2/${filing.id}`}
+                            href={`${detailHrefBase}/${filing.id}`}
                             className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
                           >
                             Open

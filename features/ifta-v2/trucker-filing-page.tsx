@@ -191,8 +191,10 @@ function parseDownloadFilename(header: string | null, fallback: string) {
 
 export default function IftaAutomationTruckerFilingPage({
   filingId,
+  backHref = "/ifta-v2",
 }: {
   filingId: string;
+  backHref?: string;
 }) {
   const [filing, setFiling] = useState<FilingDetail | null>(null);
   const [manualRows, setManualRows] = useState<ManualFuelRow[]>(() => buildManualRows(null));
@@ -422,7 +424,7 @@ export default function IftaAutomationTruckerFilingPage({
               We could not load this filing or you no longer have access to it.
             </div>
             <Link
-              href="/ifta-v2"
+              href={backHref}
               className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
             >
               Back to IFTAs
@@ -439,7 +441,7 @@ export default function IftaAutomationTruckerFilingPage({
         <div className="p-8">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div>
-              <Link href="/ifta-v2" className="text-sm font-medium text-gray-500 hover:text-gray-900">
+              <Link href={backHref} className="text-sm font-medium text-gray-500 hover:text-gray-900">
                 Back to IFTAs
               </Link>
               <div className="mt-4 flex flex-wrap items-center gap-2">

@@ -1,0 +1,31 @@
+.theme {
+  --r: #b22234;
+  --rd: #8b0000;
+  --rl: #f5e6e8;
+  --b: #002868;
+  --bd: #001a45;
+  --bm: #1a3f8f;
+  --bl: #e6eaf4;
+  --w: #ffffff;
+  --off: #f7f8fc;
+  --br: #d0d6e8;
+  --brl: #e8ebf5;
+  --text-primary: #1a1a2e;
+  --text-secondary: #555;
+  --text-muted: #999;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  min-height: 100vh;
+  background: var(--off);
+  color: var(--text-primary);
+  font-family:
+    Arial,
+    "Segoe UI",
+    sans-serif;
+}
+
+.theme,
+.theme * {
+  box-sizing: border-box;
+}
