@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import styles from "./LayoutWrap.module.css";
 import { hasPermission } from "@/lib/rbac-core";
+import { ImpersonationBanner } from "@/app/v2/components/auth/ImpersonationBanner";
 
 interface Props {
   children: ReactNode;
@@ -88,6 +89,12 @@ export default function LayoutWrap({ children }: Props) {
             searchValue={search}
             onSearch={setSearch}
           />
+          {session?.impersonation?.isActive ? (
+            <ImpersonationBanner
+              actorName={session.impersonation.actorName}
+              actorEmail={session.impersonation.actorEmail}
+            />
+          ) : null}
           {children}
         </div>
       </div>

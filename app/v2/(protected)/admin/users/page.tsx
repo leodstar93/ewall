@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ActionIcon, IconButton, iconButtonClasses } from "@/components/ui/icon-button";
 import Table, { type ColumnDef, type TableAction } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
+import { getPostLoginRedirectPath } from "@/lib/navigation/post-login";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -89,7 +90,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
     if (status === "authenticated" && !session?.user?.roles?.includes("ADMIN")) {
-      router.replace("/panel");
+      router.replace(getPostLoginRedirectPath(session?.user?.roles));
     }
   }, [status, session, router]);
 
@@ -341,8 +342,8 @@ export default function AdminUsersPage() {
       setImpersonatingUserId(user.id);
       const updatedSession = await update({ impersonation: { action: "start", targetUserId: user.id } });
       if (updatedSession?.user?.id !== user.id) throw new Error("Could not start impersonation for this user.");
-      const nextPermissions = Array.isArray(updatedSession.user.permissions) ? updatedSession.user.permissions : [];
-      const destination = getImpersonationDestination(nextPermissions);
+      const nextRoles = Array.isArray(updatedSession.user.roles) ? updatedSession.user.roles : [];
+      const destination = getPostLoginRedirectPath(nextRoles);
       setToast({ tone: "success", msg: `Now acting as ${user.name || user.email}.` });
       window.location.assign(destination);
     } catch (error) {
