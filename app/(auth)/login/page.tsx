@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getPostLoginRedirectPath } from "@/lib/navigation/post-login";
 import styles from "../auth.module.css";
 
 export default function LoginPage() {
@@ -29,20 +30,8 @@ export default function LoginPage() {
       if (result?.error) {
         setError("Invalid email or password");
       } else {
-        // Actualizar la sesión para obtener roles
         const session = await updateSession();
-
-        console.log("Session after login:", session);
-
-        // Redirigir basado en roles
-        if (
-          session?.user?.roles?.includes("ADMIN") ||
-          session?.user?.roles?.includes("STAFF")
-        ) {
-          router.push("/admin");
-        } else {
-          router.push("/settings");
-        }
+        router.replace(getPostLoginRedirectPath(session?.user?.roles));
       }
     } catch {
       setError("An error occurred. Please try again.");
@@ -54,9 +43,7 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      // signIn with callbackUrl will handle the redirect automatically
-      // No need to check result as NextAuth will redirect on success
-      await signIn("google", { callbackUrl: "/settings" });
+      await signIn("google", { callbackUrl: "/auth/post-login" });
     } catch {
       setError("Failed to sign in with Google");
       setIsLoading(false);
