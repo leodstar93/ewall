@@ -735,53 +735,43 @@ export default function TruckerProfileAdminClient({
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <PanelCard
-          eyebrow="Client profile"
-          title="Loading trucker profile"
-          description="Preparing the client profile workspace."
-        >
-          <LoadingPanel />
-        </PanelCard>
+      <div className={tableStyles.card} style={{ padding: 24 }}>
+        <div className={tableStyles.title} style={{ marginBottom: 8 }}>Loading trucker profile</div>
+        <div className={tableStyles.subtitle} style={{ marginBottom: 20 }}>Preparing the client profile workspace.</div>
+        <LoadingPanel />
       </div>
     );
   }
 
   if (notFound) {
     return (
-      <PanelCard
-        eyebrow="Client profile"
-        title="Trucker client not found"
-        description="The requested user no longer exists or does not have the TRUCKER role."
-      >
+      <div className={tableStyles.card} style={{ padding: 24 }}>
+        <div className={tableStyles.title} style={{ marginBottom: 4 }}>Trucker client not found</div>
+        <div className={tableStyles.subtitle} style={{ marginBottom: 20 }}>
+          The requested user no longer exists or does not have the TRUCKER role.
+        </div>
         <EmptyState
           title="No trucker profile available"
           description="Return to the client directory and choose a different trucker client."
         />
-        <div className="mt-6">
-          <Link
-            href="/admin/truckers"
-            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
-          >
-            Back to client directory
+        <div style={{ marginTop: 20 }}>
+          <Link href="/v2/admin/truckers" className={tableStyles.btn}>
+            ← Back to client directory
           </Link>
         </div>
-      </PanelCard>
+      </div>
     );
   }
 
   if (!profile) {
     return (
-      <PanelCard
-        eyebrow="Client profile"
-        title="Unable to load profile"
-        description="We couldn't prepare this client profile."
-      >
+      <div className={tableStyles.card} style={{ padding: 24 }}>
+        <div className={tableStyles.title} style={{ marginBottom: 16 }}>Unable to load profile</div>
         <InlineAlert
           tone="error"
           message={pageError || "Failed to load trucker profile."}
         />
-      </PanelCard>
+      </div>
     );
   }
 
@@ -1375,26 +1365,24 @@ export default function TruckerProfileAdminClient({
       ) : null}
 
       {truckModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-4xl rounded-[28px] border border-zinc-200 bg-white p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", padding: 16, backdropFilter: "blur(4px)" }}>
+          <div className={tableStyles.card} style={{ width: "100%", maxWidth: 720 }}>
+            <div className={tableStyles.header}>
               <div>
-                <h3 className="text-lg font-semibold text-zinc-950">Add truck</h3>
-                <p className="mt-1 text-sm text-zinc-600">
-                  Register a truck on behalf of this customer.
-                </p>
+                <div className={tableStyles.title}>Add truck</div>
+                <div className={tableStyles.subtitle}>Register a truck on behalf of this customer.</div>
               </div>
               <button
                 type="button"
                 onClick={resetTruckForm}
-                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+                className={tableStyles.btn}
                 disabled={savingTruck}
               >
-                Close
+                ✕
               </button>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div style={{ padding: "0 20px 20px", display: "grid", gap: 16, gridTemplateColumns: "1fr 1fr" }}>
               <Field label="Unit number">
                 <input
                   name="unitNumber"
@@ -1470,11 +1458,11 @@ export default function TruckerProfileAdminClient({
               </Field>
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8 }}>
               <button
                 type="button"
                 onClick={resetTruckForm}
-                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+                className={tableStyles.btn}
                 disabled={savingTruck}
               >
                 Cancel
@@ -1483,7 +1471,7 @@ export default function TruckerProfileAdminClient({
                 type="button"
                 onClick={() => void handleSaveTruck()}
                 disabled={savingTruck || !truckForm.unitNumber.trim()}
-                className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+                className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
               >
                 {savingTruck ? "Saving..." : "Create truck"}
               </button>

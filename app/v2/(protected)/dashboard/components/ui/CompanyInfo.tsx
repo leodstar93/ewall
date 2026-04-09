@@ -1,11 +1,13 @@
+import Link from "next/link";
 import type { CompanyInfo } from "@/lib/types";
 import styles from "./CompanyInfo.module.css";
 
 interface Props {
   data: CompanyInfo;
+  editHref?: string;
 }
 
-export default function CompanyInfoPanel({ data }: Props) {
+export default function CompanyInfoPanel({ data, editHref }: Props) {
   return (
     <div className={styles.panel}>
       <div className={styles.head}>
@@ -14,11 +16,17 @@ export default function CompanyInfoPanel({ data }: Props) {
             <rect x="1" y="3" width="12" height="9" rx="1" />
             <path d="M5 3V2a2 2 0 0 1 4 0v1" />
           </svg>
-          Company Info
+          Company Profile
         </div>
-        <button type="button" className={styles.editBtn}>
-          Editar
-        </button>
+        {editHref ? (
+          <Link href={editHref} className={styles.editBtn}>
+            Edit
+          </Link>
+        ) : (
+          <button type="button" className={styles.editBtn}>
+            Edit
+          </button>
+        )}
       </div>
 
       <div className={styles.body}>
@@ -37,23 +45,23 @@ export default function CompanyInfoPanel({ data }: Props) {
 
         <div className={styles.grid}>
           <div className={styles.field}>
-            <div className={styles.label}>Industria</div>
+            <div className={styles.label}>Entity type</div>
             <div className={styles.value}>{data.industry}</div>
           </div>
           <div className={styles.field}>
-            <div className={styles.label}>Fundada</div>
+            <div className={styles.label}>USDOT</div>
             <div className={styles.value}>{data.founded}</div>
           </div>
           <div className={styles.field}>
-            <div className={styles.label}>Empleados</div>
+            <div className={styles.label}>Drivers</div>
             <div className={`${styles.value} ${styles.blue}`}>{data.employees}</div>
           </div>
           <div className={styles.field}>
-            <div className={styles.label}>Pais</div>
+            <div className={styles.label}>State</div>
             <div className={styles.value}>{data.country}</div>
           </div>
           <div className={`${styles.field} ${styles.span2}`}>
-            <div className={styles.label}>Contacto principal</div>
+            <div className={styles.label}>Primary contact</div>
             <div className={`${styles.value} ${styles.blue}`}>{data.email}</div>
           </div>
         </div>

@@ -3,8 +3,8 @@ import styles from "./layout.module.css";
 import LayoutWrap from "./components/layout/LayoutWrap";
 
 export const metadata: Metadata = {
-  title: "Dashboard USA",
-  description: "Panel de administracion con tema USA",
+  title: "Dashboard | Truckers Unidos",
+  description: "Truckers Unidos dashboard.",
 };
 
 export default function V2Layout({

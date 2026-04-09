@@ -146,15 +146,15 @@ export default function UcrAdminQueueClient() {
       key: "customerName",
       label: "Customer",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{item.customerName}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {item.customerEmail || "No email on file"}
-          </div>
-          <div style={{ fontSize: 11, color: "#aaa" }}>
-            {item.companyName || "No company name"}
-            {item.dotNumber ? ` | USDOT ${item.dotNumber}` : ""}
-          </div>
+        <div
+          className={tableStyles.nameCell}
+          title={[
+            item.customerEmail || "No email on file",
+            item.companyName || "No company",
+            item.dotNumber ? `USDOT ${item.dotNumber}` : "",
+          ].filter(Boolean).join(" · ")}
+        >
+          {item.customerName}
         </div>
       ),
     },
@@ -162,14 +162,11 @@ export default function UcrAdminQueueClient() {
       key: "sortYear",
       label: "Filing",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>UCR {item.year}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {item.vehicleCount} vehicle(s)
-          </div>
-          <div style={{ fontSize: 11, color: "#aaa" }}>
-            Bracket {item.bracketCode || "Not set"}
-          </div>
+        <div
+          className={tableStyles.nameCell}
+          title={`${item.vehicleCount} vehicle(s) · Bracket ${item.bracketCode || "Not set"}`}
+        >
+          UCR {item.year}
         </div>
       ),
     },
@@ -177,14 +174,11 @@ export default function UcrAdminQueueClient() {
       key: "sortTotal",
       label: "Amounts",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{formatCurrency(item.totalCharged)}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            UCR {formatCurrency(item.ucrAmount)}
-          </div>
-          <div style={{ fontSize: 11, color: "#aaa" }}>
-            Service {formatCurrency(item.serviceFee)}
-          </div>
+        <div
+          className={tableStyles.nameCell}
+          title={`UCR ${formatCurrency(item.ucrAmount)} · Service ${formatCurrency(item.serviceFee)}`}
+        >
+          {formatCurrency(item.totalCharged)}
         </div>
       ),
     },
@@ -192,45 +186,32 @@ export default function UcrAdminQueueClient() {
       key: "status",
       label: "Workflow",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            <Badge
-              tone={getStatusTone(filingStatusLabel(item.status as UCRFilingStatus))}
-              variant="light"
-            >
-              {filingStatusLabel(item.status as UCRFilingStatus)}
-            </Badge>
-            <Badge
-              tone={getStatusTone(
-                customerPaymentStatusLabel(
-                  item.customerPaymentStatus as UCRCustomerPaymentStatus,
-                ),
-              )}
-              variant="light"
-            >
-              {customerPaymentStatusLabel(
-                item.customerPaymentStatus as UCRCustomerPaymentStatus,
-              )}
-            </Badge>
-            <Badge
-              tone={getStatusTone(
-                officialPaymentStatusLabel(
-                  item.officialPaymentStatus as UCROfficialPaymentStatus,
-                ),
-              )}
-              variant="light"
-            >
-              {officialPaymentStatusLabel(
-                item.officialPaymentStatus as UCROfficialPaymentStatus,
-              )}
-            </Badge>
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Staff: {item.assignedStaffName}
-          </div>
-          <div style={{ fontSize: 11, color: "#aaa" }}>
-            Receipt: {item.officialReceiptUrl ? "Uploaded" : "Missing"}
-          </div>
+        <div
+          style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
+          title={`Staff: ${item.assignedStaffName} · Receipt: ${item.officialReceiptUrl ? "Uploaded" : "Missing"}`}
+        >
+          <Badge
+            tone={getStatusTone(filingStatusLabel(item.status as UCRFilingStatus))}
+            variant="light"
+          >
+            {filingStatusLabel(item.status as UCRFilingStatus)}
+          </Badge>
+          <Badge
+            tone={getStatusTone(
+              customerPaymentStatusLabel(item.customerPaymentStatus as UCRCustomerPaymentStatus),
+            )}
+            variant="light"
+          >
+            {customerPaymentStatusLabel(item.customerPaymentStatus as UCRCustomerPaymentStatus)}
+          </Badge>
+          <Badge
+            tone={getStatusTone(
+              officialPaymentStatusLabel(item.officialPaymentStatus as UCROfficialPaymentStatus),
+            )}
+            variant="light"
+          >
+            {officialPaymentStatusLabel(item.officialPaymentStatus as UCROfficialPaymentStatus)}
+          </Badge>
         </div>
       ),
     },
@@ -238,16 +219,12 @@ export default function UcrAdminQueueClient() {
       key: "sortUpdatedAt",
       label: "Updated",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-            {formatDate(item.updatedAt)}
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Queue {formatDate(item.queuedAt)}
-          </div>
-          <div style={{ fontSize: 11, color: "#aaa" }}>
-            Paid {formatDate(item.customerPaidAt)}
-          </div>
+        <div
+          className={tableStyles.nameCell}
+          style={{ fontSize: 13 }}
+          title={`Queued ${formatDate(item.queuedAt)} · Paid ${formatDate(item.customerPaidAt)}`}
+        >
+          {formatDate(item.updatedAt)}
         </div>
       ),
     },

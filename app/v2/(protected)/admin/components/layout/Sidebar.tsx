@@ -31,7 +31,7 @@ export default function Sidebar({ collapsed, navGroups }: Props) {
             <rect x="9" y="9" width="5" height="5" rx="1" />
           </svg>
         </div>
-        <span className={styles.title}>MiApp</span>
+        <span className={styles.title}>Truckers Unidos</span>
       </div>
 
       <nav className={styles.nav}>

@@ -1,8 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { Truck, TruckStatus } from "@/lib/types";
+import type { TruckStatus } from "@/lib/types";
 import styles from "./TrucksDropdown.module.css";
+
+export type DashboardTruckRow = {
+  id: string;
+  model: string;
+  alias: string;
+  identifier: string;
+  usage: string;
+  status: TruckStatus;
+};
 
 const FILTERS: { label: string; value: TruckStatus | "all" }[] = [
   { label: "Todos", value: "all" },
@@ -27,10 +37,11 @@ const NUM_CLASS: Record<TruckStatus, string> = {
 };
 
 interface Props {
-  trucks: Truck[];
+  trucks: DashboardTruckRow[];
+  footerHref?: string;
 }
 
-export default function TrucksDropdown({ trucks }: Props) {
+export default function TrucksDropdown({ trucks, footerHref }: Props) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<TruckStatus | "all">("all");
   const [query, setQuery] = useState("");
@@ -44,8 +55,8 @@ export default function TrucksDropdown({ trucks }: Props) {
       const matchesQuery =
         !normalizedQuery ||
         truck.id.toLowerCase().includes(normalizedQuery) ||
-        truck.driver.toLowerCase().includes(normalizedQuery) ||
-        truck.location.toLowerCase().includes(normalizedQuery) ||
+        truck.alias.toLowerCase().includes(normalizedQuery) ||
+        truck.identifier.toLowerCase().includes(normalizedQuery) ||
         truck.model.toLowerCase().includes(normalizedQuery);
 
       return matchesFilter && matchesQuery;
@@ -95,7 +106,7 @@ export default function TrucksDropdown({ trucks }: Props) {
               </svg>
               <input
                 type="text"
-                placeholder="Buscar truck..."
+                placeholder="Search truck..."
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
@@ -117,9 +128,9 @@ export default function TrucksDropdown({ trucks }: Props) {
           <div className={styles.colHeaders}>
             <div />
             <div>Unidad</div>
-            <div>Conductor</div>
-            <div>Ubicacion</div>
-            <div>Carga</div>
+            <div>Alias</div>
+            <div>Plate / VIN</div>
+            <div>Activity</div>
             <div>Estado</div>
           </div>
 
@@ -137,16 +148,16 @@ export default function TrucksDropdown({ trucks }: Props) {
                     <div className={styles.truckModel}>{truck.model}</div>
                   </div>
                   <div className={styles.cell}>
-                    <span className={styles.cellLabel}>Conductor</span>
-                    {truck.driver}
+                    <span className={styles.cellLabel}>Alias</span>
+                    {truck.alias}
                   </div>
                   <div className={styles.cell}>
-                    <span className={styles.cellLabel}>Ubicacion</span>
-                    {truck.location}
+                    <span className={styles.cellLabel}>Plate / VIN</span>
+                    {truck.identifier}
                   </div>
                   <div className={styles.cell}>
-                    <span className={styles.cellLabel}>Carga</span>
-                    <strong>{truck.load}</strong>
+                    <span className={styles.cellLabel}>Activity</span>
+                    <strong>{truck.usage}</strong>
                   </div>
                   <div>
                     <span className={`${styles.tbadge} ${STATUS_CLASS[truck.status]}`}>
@@ -160,9 +171,15 @@ export default function TrucksDropdown({ trucks }: Props) {
 
           <div className={styles.footer}>
             <span className={styles.footerInfo}>
-              Mostrando {filtered.length} de {trucks.length} unidades
+              Showing {filtered.length} of {trucks.length} trucks
             </span>
-            <span className={styles.footerLink}>Ver flota completa {"->"}</span>
+            {footerHref ? (
+              <Link href={footerHref} className={styles.footerLink}>
+                Manage trucks {"->"}
+              </Link>
+            ) : (
+              <span className={styles.footerLink}>Manage trucks {"->"}</span>
+            )}
           </div>
         </div>
       )}

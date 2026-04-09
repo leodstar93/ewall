@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { AdSlide } from "@/lib/types";
 import styles from "./AdvertisingSlider.module.css";
 
@@ -19,6 +20,7 @@ export default function AdvertisingSlider({
   slides,
   autoPlayMs = 4000,
 }: Props) {
+  const router = useRouter();
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
@@ -63,7 +65,15 @@ export default function AdvertisingSlider({
                 <div className={styles.eyebrow}>{slide.eyebrow}</div>
                 <div className={styles.title}>{slide.title}</div>
                 <div className={styles.desc}>{slide.description}</div>
-                <button type="button" className={styles.cta}>
+                <button
+                  type="button"
+                  className={styles.cta}
+                  onClick={() => {
+                    if (slide.href) {
+                      router.push(slide.href);
+                    }
+                  }}
+                >
                   {slide.cta} {"->"}
                 </button>
               </div>

@@ -197,11 +197,8 @@ export default function IftaV2AdminClient() {
         key: "carrierName",
         label: "Carrier",
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div className={tableStyles.nameCell}>{item.carrierName}</div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              Tenant {item.tenantId}
-            </div>
+          <div className={tableStyles.nameCell} title={`Tenant ${item.tenantId}`}>
+            {item.carrierName}
           </div>
         ),
       },
@@ -209,11 +206,8 @@ export default function IftaV2AdminClient() {
         key: "sortPeriod",
         label: "Period",
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div className={tableStyles.nameCell}>{filingPeriodLabel(item)}</div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              {item.year} / Q{item.quarter}
-            </div>
+          <div className={tableStyles.nameCell} title={`${item.year} / Q${item.quarter}`}>
+            {filingPeriodLabel(item)}
           </div>
         ),
       },
@@ -221,15 +215,13 @@ export default function IftaV2AdminClient() {
         key: "status",
         label: "Status",
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              <Badge tone={filingTone(item.status)} variant="light">
-                {statusLabel(item.status)}
-              </Badge>
-              <Badge tone="light" variant="light">
-                {providerLabel(item.integrationAccount?.provider)}
-              </Badge>
-            </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <Badge tone={filingTone(item.status)} variant="light">
+              {statusLabel(item.status)}
+            </Badge>
+            <Badge tone="light" variant="light">
+              {providerLabel(item.integrationAccount?.provider)}
+            </Badge>
           </div>
         ),
       },
@@ -237,13 +229,11 @@ export default function IftaV2AdminClient() {
         key: "assignedStaffUserId",
         label: "Reviewer",
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div className={tableStyles.nameCell}>
-              {assignedReviewerLabel(item.assignedStaffUserId, currentUserId)}
-            </div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              {item.assignedStaffUserId || "No staff assignment yet"}
-            </div>
+          <div
+            className={tableStyles.nameCell}
+            title={item.assignedStaffUserId || "No staff assignment yet"}
+          >
+            {assignedReviewerLabel(item.assignedStaffUserId, currentUserId)}
           </div>
         ),
       },
@@ -251,13 +241,11 @@ export default function IftaV2AdminClient() {
         key: "sortExceptions",
         label: "Exceptions",
         render: (_, item) => (
-          <div>
-            <div className={tableStyles.nameCell}>
-              {(item._count?.exceptions ?? 0).toLocaleString("en-US")}
-            </div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              Snapshot(s): {item._count?.snapshots ?? 0}
-            </div>
+          <div
+            className={tableStyles.nameCell}
+            title={`Snapshots: ${item._count?.snapshots ?? 0}`}
+          >
+            {(item._count?.exceptions ?? 0).toLocaleString("en-US")}
           </div>
         ),
       },
@@ -265,13 +253,12 @@ export default function IftaV2AdminClient() {
         key: "sortUpdatedAt",
         label: "Updated",
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-              {formatDateTime(item.updatedAt || item.lastCalculatedAt)}
-            </div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              Last sync {formatDateTime(item.lastSyncedAt)}
-            </div>
+          <div
+            className={tableStyles.nameCell}
+            style={{ fontSize: 13 }}
+            title={`Last sync ${formatDateTime(item.lastSyncedAt)}`}
+          >
+            {formatDateTime(item.updatedAt || item.lastCalculatedAt)}
           </div>
         ),
       },

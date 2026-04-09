@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
-import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 
@@ -121,8 +120,9 @@ export default function TruckerDirectoryClient() {
         label: "Client",
         render: (_, item) => {
           const letter = (item.name[0] || item.email[0] || "T").toUpperCase();
+          const tip = [item.email || "No email", item.phone || "No phone", item.state].filter(Boolean).join(" · ");
           return (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }} title={tip}>
               <div
                 style={{
                   width: 34,
@@ -140,15 +140,7 @@ export default function TruckerDirectoryClient() {
               >
                 {letter}
               </div>
-              <div style={{ minWidth: 0 }}>
-                <div className={tableStyles.nameCell}>{item.name || "No name"}</div>
-                <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-                  {item.email || "No email on file"}
-                </div>
-                <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>
-                  {item.phone || "No phone"}{item.state ? ` · ${item.state}` : ""}
-                </div>
-              </div>
+              <div className={tableStyles.nameCell}>{item.name || "No name"}</div>
             </div>
           );
         },
@@ -157,48 +149,51 @@ export default function TruckerDirectoryClient() {
         key: "companyName",
         label: "Company",
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <div className={tableStyles.nameCell}>
-              {item.companyName || "No company name"}
-            </div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              USDOT: {item.dotNumber || "Not set"}
-            </div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              MC: {item.mcNumber || "Not set"}
-            </div>
+          <div
+            className={tableStyles.nameCell}
+            title={`USDOT: ${item.dotNumber || "Not set"} · MC: ${item.mcNumber || "Not set"}`}
+          >
+            {item.companyName || "No company name"}
           </div>
         ),
       },
-      /*{
+      {
         key: "_profile",
         label: "Profile",
         sortable: false,
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {item.needsReview && <Badge tone="warning" variant="light">Needs review</Badge>}
-              {item.missingPersonal && <Badge tone="default" variant="light">Missing personal</Badge>}
-              {item.missingCompany && <Badge tone="default" variant="light">Missing company</Badge>}
-              {item.ready && <Badge tone="success" variant="light">Ready</Badge>}
-            </div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              {item.trucksCount} truck(s) · {item.filingCount} filing(s)
-            </div>
+          <div
+            style={{ display: "flex", flexWrap: "wrap", gap: 4 }}
+            title={`${item.trucksCount} truck(s) · ${item.filingCount} filing(s)`}
+          >
+            {item.needsReview && (
+              <span style={{ background: "#fef3c7", color: "#92400e", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>Needs review</span>
+            )}
+            {item.missingPersonal && (
+              <span style={{ background: "var(--off)", color: "#555", border: "1px solid var(--brl)", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>Missing personal</span>
+            )}
+            {item.missingCompany && (
+              <span style={{ background: "var(--off)", color: "#555", border: "1px solid var(--brl)", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>Missing company</span>
+            )}
+            {item.ready && (
+              <span style={{ background: "#d1fae5", color: "#065f46", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>Ready</span>
+            )}
+            {!item.needsReview && !item.missingPersonal && !item.missingCompany && !item.ready && (
+              <span className={tableStyles.muteCell} style={{ fontSize: 12 }}>—</span>
+            )}
           </div>
         ),
-      },*/
+      },
       {
         key: "updatedAt",
         label: "Updated",
         render: (_, item) => (
-          <div>
-            <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-              {formatDate(item.updatedAt)}
-            </div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              Joined {formatDate(item.createdAt)}
-            </div>
+          <div
+            className={tableStyles.nameCell}
+            style={{ fontSize: 13 }}
+            title={`Joined ${formatDate(item.createdAt)}`}
+          >
+            {formatDate(item.updatedAt)}
           </div>
         ),
       },

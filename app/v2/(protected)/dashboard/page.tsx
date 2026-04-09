@@ -1,30 +1,37 @@
-"use client";
+import { redirect } from "next/navigation";
+import DashboardOverviewClient from "./dashboard-overview-client";
+import { requirePermission } from "@/lib/rbac-guard";
+import { getCompanyProfile } from "@/lib/services/company.service";
 
-import { useState } from "react";
-import AdvertisingSlider from "./components/advertising/AdvertisingSlider";
-import Sidebar from "./components/layout/Sidebar";
-import Topbar from "./components/layout/Topbar";
-import TrucksDropdown from "./components/trucks/TrucksDropdown";
-import CompanyInfoPanel from "./components/ui/CompanyInfo";
-import DataTable from "./components/ui/DataTable";
-import { adSlides, companyInfo, tableData, trucksData } from "../../data";
-import styles from "./page.module.css";
+export default async function DashboardPage() {
+  const permission = await requirePermission("dashboard:access");
 
-export default function DashboardPage() {
-  const [collapsed, setCollapsed] = useState(false);
-  const [search, setSearch] = useState("");
+  if (!permission.ok) {
+    redirect(permission.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
+  }
+
+  const userId = permission.session.user.id ?? "";
+  const profile = userId ? await getCompanyProfile(userId) : null;
 
   return (
-    
-          <div className={styles.content}>
-            <div className={styles.topPanels}>
-              <CompanyInfoPanel data={companyInfo} />
-              <AdvertisingSlider slides={adSlides} />
-            </div>
-
-            <TrucksDropdown trucks={trucksData} />
-            <DataTable data={tableData} searchQuery={search} />
-          </div>
-        
+    <DashboardOverviewClient
+      companyInfo={{
+        name:
+          profile?.companyName ||
+          profile?.legalName ||
+          profile?.dbaName ||
+          permission.session.user.name ||
+          "Your company",
+        tagline: profile?.businessPhone
+          ? `Business phone ${profile.businessPhone}`
+          : "Compliance workspace",
+        plan: profile?.saferOperatingStatus || "Workspace",
+        industry: profile?.saferEntityType || "Transportation",
+        founded: profile?.dotNumber || "Not set",
+        employees: profile?.driversCount || "0",
+        country: profile?.state || "US",
+        email: permission.session.user.email || "",
+      }}
+    />
   );
 }
