@@ -97,6 +97,7 @@ CREATE TABLE "UserProfile" (
 CREATE TABLE "CompanyProfile" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
+    "owner" TEXT,
     "legalName" TEXT,
     "dbaName" TEXT,
     "dotNumber" TEXT,

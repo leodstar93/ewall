@@ -346,7 +346,7 @@ export default async function SettingsPage() {
     <SettingsTabs
       billingEnabled={billingSettings.subscriptionsEnabled}
       trucksEnabled={trucksAccess.ok}
-      visibleTabs={isStaffOnlyView ? ["personal", "security"] : undefined}
+      visibleTabs={isStaffOnlyView ? ["company", "security"] : undefined}
       recentClientFilings={recentClientFilings}
     />
   );

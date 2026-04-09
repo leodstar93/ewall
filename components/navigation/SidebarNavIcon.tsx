@@ -45,7 +45,13 @@ export function resolveSidebarIcon(
   if (text.includes("chart") || text.includes("analytics")) return "chart";
   if (text.includes("table")) return "table";
   if (text.includes("layout")) return "layout";
-  if (text.includes("user") || text.includes("customer")) return "users";
+  if (
+    text.includes("user") ||
+    text.includes("customer") ||
+    text.includes("profile")
+  ) {
+    return "users";
+  }
   if (text.includes("role") || text.includes("staff") || text.includes("team")) {
     return "users";
   }
@@ -57,6 +63,7 @@ export function resolveSidebarIcon(
     return "shield";
   }
   if (text.includes("setting") || text.includes("config")) return "settings";
+  if (text.includes("payment") || text.includes("billing")) return "receipt";
   if (
     text.includes("document") ||
     text.includes("invoice") ||

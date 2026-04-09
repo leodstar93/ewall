@@ -10,7 +10,6 @@ import BillingTab from "./BillingTab";
 import DocumentsTab from "./DocumentsTab";
 import IntegrationsTab from "./IntegrationsTab";
 import PaymentMethodsTab from "./PaymentMethodsTab";
-import PersonalInfoTab from "./PersonalInfoTab";
 import SecurityTab from "./SecurityTab";
 import TrucksDashboardPage from "@/features/trucks/dashboard-page";
 import {
@@ -24,17 +23,8 @@ type NotifyInput = {
   message: string;
 };
 
-type PersonalSummary = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-};
-
 type CompanySummary = {
+  owner: string;
   legalName: string;
   dbaName: string;
   dotNumber: string;
@@ -48,10 +38,6 @@ type CompanySummary = {
 };
 
 const tabs = [
-  {
-    id: "personal",
-    label: "Personal Info",
-  },
   {
     id: "company",
     label: "Company",
@@ -99,7 +85,6 @@ export default function SettingsTabs({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [toasts, setToasts] = useState<SettingsToast[]>([]);
-  const [personalSummary, setPersonalSummary] = useState<PersonalSummary | null>(null);
   const [companySummary, setCompanySummary] = useState<CompanySummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const visibleTabSet = visibleTabs?.length ? new Set(visibleTabs) : null;
@@ -120,24 +105,16 @@ export default function SettingsTabs({
   });
   const requestedTab = searchParams.get("tab");
   const activeTab = availableTabs.find((tab) => tab.id === requestedTab)?.id ?? null;
-  const showPersonalSummary = availableTabs.some((tab) => tab.id === "personal");
   const showCompanySummary = availableTabs.some((tab) => tab.id === "company");
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
 
     try {
-      const [personalResponse, companyResponse] = await Promise.all([
-        fetch("/api/settings/personal", { cache: "no-store" }),
-        fetch("/api/settings/company", { cache: "no-store" }),
-      ]);
-
-      const personalPayload = (await personalResponse.json().catch(() => ({}))) as PersonalSummary;
+      const companyResponse = await fetch("/api/settings/company", {
+        cache: "no-store",
+      });
       const companyPayload = (await companyResponse.json().catch(() => ({}))) as CompanySummary;
-
-      if (personalResponse.ok) {
-        setPersonalSummary(personalPayload);
-      }
 
       if (companyResponse.ok) {
         setCompanySummary(companyPayload);
@@ -199,19 +176,12 @@ export default function SettingsTabs({
 
     const run = async () => {
       try {
-        const [personalResponse, companyResponse] = await Promise.all([
-          fetch("/api/settings/personal", { cache: "no-store" }),
-          fetch("/api/settings/company", { cache: "no-store" }),
-        ]);
-
-        const personalPayload = (await personalResponse.json().catch(() => ({}))) as PersonalSummary;
+        const companyResponse = await fetch("/api/settings/company", {
+          cache: "no-store",
+        });
         const companyPayload = (await companyResponse.json().catch(() => ({}))) as CompanySummary;
 
         if (!active) return;
-
-        if (personalResponse.ok) {
-          setPersonalSummary(personalPayload);
-        }
 
         if (companyResponse.ok) {
           setCompanySummary(companyPayload);
@@ -231,9 +201,7 @@ export default function SettingsTabs({
   }, []);
 
   const activeContent =
-    activeTab === "personal" ? (
-      <PersonalInfoTab onNotify={notify} />
-    ) : activeTab === "company" ? (
+    activeTab === "company" ? (
       <CompanyTab onNotify={notify} />
     ) : activeTab === "integrations" ? (
       <IntegrationsTab onNotify={notify} />
@@ -268,12 +236,9 @@ export default function SettingsTabs({
               <div
                 className={cx(
                   "grid gap-4",
-                  showCompanySummary ? "lg:grid-cols-2" : "lg:grid-cols-1",
+                  showCompanySummary ? "lg:grid-cols-1" : "lg:grid-cols-1",
                 )}
               >
-                {showPersonalSummary ? (
-                  <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
-                ) : null}
                 {showCompanySummary ? (
                   <div className="h-36 rounded-[24px] border border-zinc-200 bg-white/80 animate-pulse" />
                 ) : null}
@@ -282,53 +247,9 @@ export default function SettingsTabs({
               <div
                 className={cx(
                   "grid gap-4",
-                  showCompanySummary ? "lg:grid-cols-2" : "lg:grid-cols-1",
+                  showCompanySummary ? "lg:grid-cols-1" : "lg:grid-cols-1",
                 )}
               >
-                {showPersonalSummary ? (
-                  <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                      Personal
-                    </p>
-                    <h3 className="mt-3 text-lg font-semibold text-zinc-950">
-                      {personalSummary?.name || "No personal info yet"}
-                    </h3>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
-                          Email
-                        </p>
-                        <p className="mt-1 text-sm text-zinc-800">
-                          {personalSummary?.email || "Not set"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
-                          Phone
-                        </p>
-                        <p className="mt-1 text-sm text-zinc-800">
-                          {personalSummary?.phone || "Not set"}
-                        </p>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
-                          Address
-                        </p>
-                        <p className="mt-1 text-sm text-zinc-800">
-                          {[
-                            personalSummary?.address,
-                            personalSummary?.city,
-                            personalSummary?.state,
-                            personalSummary?.zip,
-                          ]
-                            .filter(Boolean)
-                            .join(", ") || "Not set"}
-                        </p>
-                      </div>
-                    </div>
-                  </article>
-                ) : null}
-
                 {showCompanySummary ? (
                   <article className="rounded-[24px] border border-zinc-200 bg-white/90 p-5">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
@@ -340,6 +261,14 @@ export default function SettingsTabs({
                         "No company info yet"}
                     </h3>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                          Owner
+                        </p>
+                        <p className="mt-1 text-sm text-zinc-800">
+                          {companySummary?.owner || "Not set"}
+                        </p>
+                      </div>
                       <div>
                         <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
                           USDOT

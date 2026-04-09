@@ -71,6 +71,7 @@ model UserProfile {
 model CompanyProfile {
   id             String        @id @default(cuid())
   userId         String        @unique
+  owner          String?
   name           String?
   legalName      String?
   dbaName        String?

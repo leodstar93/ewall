@@ -33,8 +33,20 @@ function buildNavGroups(
 ): NavGroup[] {
   const groups: NavGroup[] = [
     {
-      heading: "Overview",
-      items: [{ href: "/v2/dashboard", label: "Dashboard" }],
+      heading: "Principal",
+      items: [
+        { href: "/v2/dashboard", label: "Dashboard" },
+        {
+          href: "/v2/dashboard/profile",
+          label: "Profile",
+          permission: "settings:read",
+        },
+        {
+          href: "/v2/dashboard/payments",
+          label: "Payments",
+          permission: "billing:manage",
+        },
+      ],
     },
   ];
 

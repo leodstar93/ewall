@@ -13,6 +13,15 @@ export default function CompanyProfileForm({
 }) {
   return (
     <div className="grid gap-5 md:grid-cols-2">
+      <Field label="Owner" hint="Primary account owner name.">
+        <input
+          name="owner"
+          value={form.owner}
+          onChange={onChange}
+          className={textInputClassName()}
+        />
+      </Field>
+
       <Field label="Legal name">
         <input
           name="legalName"

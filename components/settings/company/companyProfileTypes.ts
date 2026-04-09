@@ -1,4 +1,5 @@
 export type CompanyProfileFormData = {
+  owner: string;
   legalName: string;
   dbaName: string;
   companyName: string;
@@ -27,6 +28,7 @@ export type CompanyProfileFormData = {
 };
 
 export const emptyCompanyProfileState: CompanyProfileFormData = {
+  owner: "",
   legalName: "",
   dbaName: "",
   companyName: "",

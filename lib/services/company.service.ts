@@ -5,6 +5,7 @@ import { ensureUserOrganization } from "./organization.service";
 import { SettingsValidationError } from "./settings-errors";
 
 export type CompanyProfileRecord = {
+  owner: string;
   legalName: string;
   dbaName: string;
   companyName: string;
@@ -33,6 +34,7 @@ export type CompanyProfileRecord = {
 };
 
 export type CompanyProfileInput = {
+  owner?: unknown;
   legalName?: unknown;
   dbaName?: unknown;
   companyName?: unknown;
@@ -193,10 +195,17 @@ function parseIsoDate(value: string, label: string) {
 }
 
 export async function getCompanyProfile(userId: string): Promise<CompanyProfileRecord> {
-  const organization = await ensureUserOrganization(userId);
+  const [organization, user] = await Promise.all([
+    ensureUserOrganization(userId),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    }),
+  ]);
   const company = await prisma.companyProfile.findUnique({
     where: { id: organization.id },
     select: {
+      owner: true,
       name: true,
       legalName: true,
       dbaName: true,
@@ -228,6 +237,7 @@ export async function getCompanyProfile(userId: string): Promise<CompanyProfileR
   });
 
   return {
+    owner: company?.owner ?? user?.name ?? "",
     legalName: company?.legalName ?? "",
     dbaName: company?.dbaName ?? "",
     companyName: company?.companyName ?? "",
@@ -268,8 +278,15 @@ export async function upsertCompanyProfile(
   userId: string,
   input: CompanyProfileInput,
 ): Promise<CompanyProfileRecord> {
-  const organization = await ensureUserOrganization(userId);
+  const [organization, user] = await Promise.all([
+    ensureUserOrganization(userId),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    }),
+  ]);
 
+  const owner = normalizeOptionalString(input.owner, "Owner", 140);
   const legalName = normalizeOptionalString(input.legalName, "Legal name", 140);
   const dbaName = normalizeOptionalString(input.dbaName, "DBA name", 140);
   const companyName =
@@ -284,6 +301,7 @@ export async function upsertCompanyProfile(
   const city = normalizeOptionalString(input.city, "City", 120);
   const state = normalizeState(input.state);
   const zipCode = normalizeZipCode(input.zipCode);
+  const ownerName = owner ?? user?.name ?? null;
   const address = buildLegacyAddress({
     address: addressFallback,
     addressLine1,
@@ -293,48 +311,65 @@ export async function upsertCompanyProfile(
     zipCode,
   });
 
-  await prisma.companyProfile.upsert({
-    where: { id: organization.id },
-    update: {
-      name: companyName ?? legalName ?? dbaName,
-      legalName,
-      dbaName,
-      companyName,
-      dotNumber: normalizeDotNumber(input.dotNumber),
-      mcNumber: normalizeMcNumber(input.mcNumber),
-      ein: normalizeEin(input.ein),
-      phone: businessPhone,
-      businessPhone,
-      address,
-      addressLine1,
-      addressLine2,
-      city,
-      state,
-      zipCode,
-      trucksCount: normalizeCount(input.trucksCount, "Trucks count"),
-      driversCount: normalizeCount(input.driversCount, "Drivers count"),
-    },
-    create: {
-      id: organization.id,
-      userId,
-      name: companyName ?? legalName ?? dbaName,
-      legalName,
-      dbaName,
-      companyName,
-      dotNumber: normalizeDotNumber(input.dotNumber),
-      mcNumber: normalizeMcNumber(input.mcNumber),
-      ein: normalizeEin(input.ein),
-      phone: businessPhone,
-      businessPhone,
-      address,
-      addressLine1,
-      addressLine2,
-      city,
-      state,
-      zipCode,
-      trucksCount: normalizeCount(input.trucksCount, "Trucks count"),
-      driversCount: normalizeCount(input.driversCount, "Drivers count"),
-    },
+  const dotNumber = normalizeDotNumber(input.dotNumber);
+  const mcNumber = normalizeMcNumber(input.mcNumber);
+  const ein = normalizeEin(input.ein);
+  const trucksCount = normalizeCount(input.trucksCount, "Trucks count");
+  const driversCount = normalizeCount(input.driversCount, "Drivers count");
+
+  await prisma.$transaction(async (tx) => {
+    if (owner && owner !== user?.name) {
+      await tx.user.update({
+        where: { id: userId },
+        data: { name: owner },
+      });
+    }
+
+    await tx.companyProfile.upsert({
+      where: { id: organization.id },
+      update: {
+        owner: ownerName,
+        name: companyName ?? legalName ?? dbaName,
+        legalName,
+        dbaName,
+        companyName,
+        dotNumber,
+        mcNumber,
+        ein,
+        phone: businessPhone,
+        businessPhone,
+        address,
+        addressLine1,
+        addressLine2,
+        city,
+        state,
+        zipCode,
+        trucksCount,
+        driversCount,
+      },
+      create: {
+        id: organization.id,
+        userId,
+        owner: ownerName,
+        name: companyName ?? legalName ?? dbaName,
+        legalName,
+        dbaName,
+        companyName,
+        dotNumber,
+        mcNumber,
+        ein,
+        phone: businessPhone,
+        businessPhone,
+        address,
+        addressLine1,
+        addressLine2,
+        city,
+        state,
+        zipCode,
+        trucksCount,
+        driversCount,
+      },
+    });
   });
 
   return getCompanyProfile(userId);
@@ -351,7 +386,11 @@ export async function applySaferToCompanyProfile(
   const organization = await ensureUserOrganization(userId);
   const existingProfile = await prisma.companyProfile.findUnique({
     where: { id: organization.id },
-    select: { companyName: true },
+    select: { companyName: true, owner: true },
+  });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true },
   });
   const company = lookupResult.company;
   const saferDate = parseIsoDate(lookupResult.fetchedAt, "Fetched date");
@@ -370,6 +409,7 @@ export async function applySaferToCompanyProfile(
   });
 
   const profileData = {
+    owner: existingProfile?.owner?.trim() || user?.name || undefined,
     name:
       existingProfile?.companyName?.trim() || company.dbaName || company.legalName || undefined,
     dotNumber: company.usdotNumber ?? lookupResult.searchedDotNumber,
