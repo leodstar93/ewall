@@ -69,7 +69,7 @@ function buildNavGroups(
       allowStaff: true,
     },
     {
-      href: "/v2/admin/features/documents",
+      href: "/v2/admin/documents",
       label: "Documents",
       permission: "documents:read",
       moduleKey: "documents",
