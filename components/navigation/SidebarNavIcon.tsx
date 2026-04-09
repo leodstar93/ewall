@@ -63,6 +63,7 @@ export function resolveSidebarIcon(
     return "shield";
   }
   if (text.includes("setting") || text.includes("config")) return "settings";
+  if (text.includes("integration") || text.includes("eld")) return "cube";
   if (text.includes("payment") || text.includes("billing")) return "receipt";
   if (
     text.includes("document") ||

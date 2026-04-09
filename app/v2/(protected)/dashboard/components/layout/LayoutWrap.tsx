@@ -46,6 +46,11 @@ function buildNavGroups(
           label: "Payments",
           permission: "billing:manage",
         },
+        {
+          href: "/v2/dashboard/integrations",
+          label: "ELD Integrations",
+          permission: "eld:connect",
+        },
       ],
     },
   ];
