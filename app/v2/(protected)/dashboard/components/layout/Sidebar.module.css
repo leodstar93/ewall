@@ -139,3 +139,25 @@
   font-size: 11px;
   color: rgba(255, 255, 255, 0.5);
 }
+
+.logoutButton {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background 0.15s, color 0.15s;
+}
+
+.logoutButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.logoutButton svg {
+  width: 16px;
+  height: 16px;
+}

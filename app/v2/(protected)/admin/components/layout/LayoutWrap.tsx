@@ -81,28 +81,10 @@ function buildNavGroups(
       moduleKey: "ifta",
     },
     {
-      href: "/v2/admin/features/ifta",
-      label: "IFTA",
-      permission: "ifta:read",
-      moduleKey: "ifta",
-    },
-    {
       href: "/v2/admin/features/ucr",
       label: "UCR",
       permission: "ucr:read",
       moduleKey: "ucr",
-    },
-    {
-      href: "/v2/admin/features/dmv/renewals",
-      label: "DMV Renewals",
-      permission: "dmv:read",
-      moduleKey: "dmv",
-    },
-    {
-      href: "/v2/admin/features/2290",
-      label: "Form 2290",
-      permission: "compliance2290:view",
-      moduleKey: "compliance2290",
     },
   ].filter((item) => {
     if (!item.permission) return true;

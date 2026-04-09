@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   SidebarNavIcon,
   resolveSidebarIcon,
@@ -16,6 +17,20 @@ interface Props {
 
 export default function Sidebar({ collapsed, navGroups }: Props) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
+  const displayName =
+    session?.user?.name?.trim() ||
+    session?.user?.email?.split("@")[0] ||
+    "User";
+  const displayRole = roles.includes("ADMIN")
+    ? "Administrador"
+    : roles.includes("STAFF")
+      ? "Staff"
+      : roles.includes("TRUCKER")
+        ? "Trucker"
+        : "Usuario";
+  const avatarLabel = (displayName[0] || "U").toUpperCase();
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/admin" && pathname?.startsWith(href));
@@ -62,11 +77,23 @@ export default function Sidebar({ collapsed, navGroups }: Props) {
       </nav>
 
       <div className={styles.footer}>
-        <div className={styles.avatar}>A</div>
+        <div className={styles.avatar}>{avatarLabel}</div>
         <div className={styles.userInfo}>
-          <div className={styles.userName}>Admin</div>
-          <div className={styles.userRole}>Administrador</div>
+          <div className={styles.userName}>{displayName}</div>
+          <div className={styles.userRole}>{displayRole}</div>
         </div>
+        <Link
+          href="/logout"
+          className={styles.logoutButton}
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M8 4H5.75A1.75 1.75 0 0 0 4 5.75v8.5C4 15.216 4.784 16 5.75 16H8" />
+            <path d="M11 6l4 4-4 4" />
+            <path d="M7 10h8" />
+          </svg>
+        </Link>
       </div>
     </aside>
   );
