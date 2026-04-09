@@ -8,15 +8,9 @@ import {
 } from "@stripe/react-stripe-js";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
-import { ACH_CONSENT_TEXT, ACH_CONSENT_VERSION } from "@/lib/ach/consent";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Table, { type ColumnDef } from "../components/ui/Table";
+import tableStyles from "../components/ui/DataTable.module.css";
 import styles from "./page.module.css";
 
 type MessageTone = "success" | "error" | "info";
@@ -52,11 +46,10 @@ type PaymentConfig = {
   paypalConfigured: boolean;
 };
 
-type FieldErrors = {
-  accountNumber?: string;
-  confirmAccountNumber?: string;
-  consent?: string;
-  routingNumber?: string;
+type PaymentTableRow = PaymentMethod & {
+  searchText: string;
+  sortCreatedAt: number;
+  sortProvider: string;
 };
 
 const cardElementOptions = {
@@ -100,38 +93,6 @@ function statusLabel(status: string) {
   return "Active";
 }
 
-function normalizeDigits(value: string) {
-  return value.replace(/[\s-]/g, "");
-}
-
-function validateRoutingNumber(value: string) {
-  const digits = normalizeDigits(value);
-  if (!/^\d{9}$/.test(digits)) {
-    return "Routing number must contain exactly 9 digits.";
-  }
-
-  const parts = digits.split("").map((digit) => Number(digit));
-  const checksum =
-    3 * (parts[0] + parts[3] + parts[6]) +
-    7 * (parts[1] + parts[4] + parts[7]) +
-    (parts[2] + parts[5] + parts[8]);
-
-  if (checksum % 10 !== 0) {
-    return "Routing number failed ABA checksum validation.";
-  }
-
-  return "";
-}
-
-function validateAccountNumber(value: string) {
-  const digits = normalizeDigits(value);
-  if (!/^\d{4,17}$/.test(digits)) {
-    return "Account number must contain between 4 and 17 digits.";
-  }
-
-  return "";
-}
-
 function formatMethodDetails(method: PaymentMethod) {
   if (isAchMethod(method)) {
     return [
@@ -152,6 +113,21 @@ function formatMethodDetails(method: PaymentMethod) {
   return [method.brand || "Card", method.last4 ? `ending in ${method.last4}` : null]
     .filter(Boolean)
     .join(" ");
+}
+
+function buildRows(methods: PaymentMethod[]): PaymentTableRow[] {
+  return methods.map((method) => ({
+    ...method,
+    searchText: [
+      providerLabel(method.provider),
+      formatMethodDetails(method),
+      method.status,
+    ]
+      .join(" ")
+      .toLowerCase(),
+    sortCreatedAt: -new Date(method.createdAt).getTime(),
+    sortProvider: providerLabel(method.provider),
+  }));
 }
 
 function Banner({ tone, message }: InlineMessage) {
@@ -190,12 +166,10 @@ function Badge({
 }
 
 function StripeCardSetupForm({
-  enabled,
   makeDefault,
   onSaved,
   onError,
 }: {
-  enabled: boolean;
   makeDefault: boolean;
   onSaved: () => Promise<void>;
   onError: (message: string) => void;
@@ -212,11 +186,6 @@ function StripeCardSetupForm({
     let active = true;
 
     const run = async () => {
-      if (!enabled) {
-        if (active) setLoadingIntent(false);
-        return;
-      }
-
       try {
         if (active) {
           setLoadingIntent(true);
@@ -254,11 +223,9 @@ function StripeCardSetupForm({
     return () => {
       active = false;
     };
-  }, [enabled, onError]);
+  }, [onError]);
 
   const handleSaveCard = async () => {
-    if (!enabled) return;
-
     if (!stripe || !elements || !clientSecret) {
       const message = "Stripe card form is still loading.";
       setLocalError(message);
@@ -302,21 +269,6 @@ function StripeCardSetupForm({
         throw new Error(payload.error || "Stripe card could not be saved.");
       }
 
-      const refreshResponse = await fetch("/api/settings/payment-method/stripe/setup-intent", {
-        method: "POST",
-      });
-      const refreshPayload = (await refreshResponse.json().catch(() => ({}))) as {
-        clientSecret?: string;
-        error?: string;
-      };
-
-      if (!refreshResponse.ok || !refreshPayload.clientSecret) {
-        throw new Error(
-          refreshPayload.error || "Could not prepare another Stripe card setup.",
-        );
-      }
-
-      setClientSecret(refreshPayload.clientSecret);
       setCardElementKey((current) => current + 1);
       await onSaved();
     } catch (error) {
@@ -329,32 +281,11 @@ function StripeCardSetupForm({
     }
   };
 
-  if (!enabled) {
-    return (
-      <section className={styles.panel}>
-        <div className={styles.panelHeader}>
-          <p className={styles.sectionEyebrow}>Stripe</p>
-          <h3 className={styles.panelTitle}>Save card</h3>
-        </div>
-        <Banner
-          tone="info"
-          message="Stripe is not configured yet. Add STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to enable saved cards."
-        />
-      </section>
-    );
-  }
-
   return (
     <section className={styles.panel}>
-      <div className={styles.panelHeaderRow}>
-        <div className={styles.panelHeader}>
-          <p className={styles.sectionEyebrow}>Stripe</p>
-          <h3 className={styles.panelTitle}>Save card</h3>
-          <p className={styles.sectionText}>
-            Enter the card once. Stripe stores it securely and we only keep the reference.
-          </p>
-        </div>
-        <Badge label="Secure" tone="success" />
+      <div className={styles.panelHeader}>
+        <p className={styles.sectionEyebrow}>Stripe</p>
+        <h3 className={styles.panelTitle}>Save card</h3>
       </div>
 
       <div className={styles.cardFrame}>
@@ -367,292 +298,14 @@ function StripeCardSetupForm({
 
       {localError ? <Banner tone="error" message={localError} /> : null}
 
-      <div className={styles.formActions}>
-        <button
-          type="button"
-          onClick={handleSaveCard}
-          className={styles.primaryButton}
-          disabled={loadingIntent || saving}
-        >
-          {saving ? "Saving card..." : "Save card with Stripe"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function StripeUnavailablePanel() {
-  return (
-    <section className={styles.panel}>
-      <div className={styles.panelHeader}>
-        <p className={styles.sectionEyebrow}>Stripe</p>
-        <h3 className={styles.panelTitle}>Save card</h3>
-      </div>
-      <Banner
-        tone="info"
-        message="Stripe is not configured yet. Add STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to enable saved cards."
-      />
-    </section>
-  );
-}
-
-function AchSetupPanel({
-  onSaved,
-  onError,
-}: {
-  onSaved: () => Promise<void>;
-  onError: (message: string) => void;
-}) {
-  const formRef = useRef<HTMLFormElement | null>(null);
-  const routingInputRef = useRef<HTMLInputElement | null>(null);
-  const accountInputRef = useRef<HTMLInputElement | null>(null);
-  const confirmAccountInputRef = useRef<HTMLInputElement | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [consentChecked, setConsentChecked] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [localError, setLocalError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-
-  const consentSummary = useMemo(
-    () =>
-      `Consent version ${ACH_CONSENT_VERSION} records your authorization with timestamp, IP address, and user agent.`,
-    [],
-  );
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!formRef.current) return;
-
-    const formData = new FormData(formRef.current);
-    const routingNumber = String(formData.get("routingNumber") ?? "");
-    const accountNumber = String(formData.get("accountNumber") ?? "");
-    const confirmAccountNumber = String(formData.get("confirmAccountNumber") ?? "");
-    const nextErrors: FieldErrors = {};
-
-    const routingError = validateRoutingNumber(routingNumber);
-    if (routingError) nextErrors.routingNumber = routingError;
-
-    const accountError = validateAccountNumber(accountNumber);
-    if (accountError) nextErrors.accountNumber = accountError;
-
-    const confirmError = validateAccountNumber(confirmAccountNumber);
-    if (confirmError) {
-      nextErrors.confirmAccountNumber = confirmError;
-    } else if (normalizeDigits(accountNumber) !== normalizeDigits(confirmAccountNumber)) {
-      nextErrors.confirmAccountNumber = "Account number confirmation does not match.";
-    }
-
-    if (!consentChecked) {
-      nextErrors.consent = "You must accept the ACH authorization before saving the account.";
-    }
-
-    if (Object.keys(nextErrors).length > 0) {
-      setFieldErrors(nextErrors);
-      const message =
-        nextErrors.routingNumber ||
-        nextErrors.accountNumber ||
-        nextErrors.confirmAccountNumber ||
-        nextErrors.consent ||
-        "Please review the ACH form.";
-      setLocalError(message);
-      onError(message);
-      return;
-    }
-
-    setSaving(true);
-    setFieldErrors({});
-    setLocalError("");
-    setSuccessMessage("");
-
-    try {
-      const createResponse = await fetch("/api/v1/payment-methods/ach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accountNumber,
-          accountType: formData.get("accountType"),
-          bankName: formData.get("bankName"),
-          confirmAccountNumber,
-          holderName: formData.get("holderName"),
-          label: formData.get("label"),
-          routingNumber,
-        }),
-      });
-
-      const created = (await createResponse.json().catch(() => ({}))) as {
-        error?: string;
-        id?: string;
-      };
-
-      if (!createResponse.ok || !created.id) {
-        throw new Error(created.error || "Could not save the ACH account.");
-      }
-
-      if (routingInputRef.current) routingInputRef.current.value = "";
-      if (accountInputRef.current) accountInputRef.current.value = "";
-      if (confirmAccountInputRef.current) confirmAccountInputRef.current.value = "";
-
-      const authorizeResponse = await fetch(`/api/v1/payment-methods/ach/${created.id}/authorize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          consentText: ACH_CONSENT_TEXT,
-          consentVersion: ACH_CONSENT_VERSION,
-        }),
-      });
-
-      const authorized = (await authorizeResponse.json().catch(() => ({}))) as {
-        error?: string;
-      };
-
-      if (!authorizeResponse.ok) {
-        throw new Error(
-          authorized.error ||
-            "The ACH account was saved, but authorization could not be completed.",
-        );
-      }
-
-      formRef.current.reset();
-      setConsentChecked(false);
-      setSuccessMessage("ACH account saved and authorized.");
-      await onSaved();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not save the ACH account.";
-      setLocalError(message);
-      onError(message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <section className={styles.panel}>
-      <div className={styles.panelHeaderRow}>
-        <div className={styles.panelHeader}>
-          <p className={styles.sectionEyebrow}>ACH Vault</p>
-          <h3 className={styles.panelTitle}>Add ACH account</h3>
-          <p className={styles.sectionText}>
-            Save business banking details in the encrypted ACH custody vault for manual IRS,
-            UCR, DMV, and registration payments handled by authorized staff.
-          </p>
-        </div>
-        <Badge label="AES-256-GCM" tone="info" />
-      </div>
-
-      <form ref={formRef} onSubmit={handleSubmit} className={styles.formStack}>
-        <div className={styles.fieldsGrid}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Account holder name</span>
-            <input name="holderName" autoComplete="off" className={styles.input} maxLength={120} />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Bank name</span>
-            <input name="bankName" autoComplete="off" className={styles.input} maxLength={120} />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Account type</span>
-            <select name="accountType" defaultValue="checking" className={styles.input}>
-              <option value="checking">Checking</option>
-              <option value="savings">Savings</option>
-            </select>
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Label</span>
-            <input
-              name="label"
-              autoComplete="off"
-              className={styles.input}
-              maxLength={120}
-              placeholder="Main business account"
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Routing number</span>
-            <input
-              ref={routingInputRef}
-              name="routingNumber"
-              autoComplete="off"
-              className={`${styles.input} ${fieldErrors.routingNumber ? styles.inputError : ""}`}
-              inputMode="numeric"
-              maxLength={9}
-              spellCheck={false}
-              type="password"
-            />
-            <span className={styles.fieldHint}>
-              {fieldErrors.routingNumber || "9 digits, validated with the ABA checksum."}
-            </span>
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Account number</span>
-            <input
-              ref={accountInputRef}
-              name="accountNumber"
-              autoComplete="off"
-              className={`${styles.input} ${fieldErrors.accountNumber ? styles.inputError : ""}`}
-              inputMode="numeric"
-              maxLength={17}
-              spellCheck={false}
-              type="password"
-            />
-            <span className={styles.fieldHint}>
-              {fieldErrors.accountNumber || "4 to 17 digits. Stored only on the server."}
-            </span>
-          </label>
-
-          <label className={`${styles.field} ${styles.fieldFull}`}>
-            <span className={styles.fieldLabel}>Confirm account number</span>
-            <input
-              ref={confirmAccountInputRef}
-              name="confirmAccountNumber"
-              autoComplete="off"
-              className={`${styles.input} ${
-                fieldErrors.confirmAccountNumber ? styles.inputError : ""
-              }`}
-              inputMode="numeric"
-              maxLength={17}
-              spellCheck={false}
-              type="password"
-            />
-            <span className={styles.fieldHint}>{fieldErrors.confirmAccountNumber || " "}</span>
-          </label>
-        </div>
-
-        <div className={styles.noticeCard}>
-          <p className={styles.fieldLabel}>ACH Authorization</p>
-          <p className={styles.noticeText}>{ACH_CONSENT_TEXT}</p>
-          <p className={styles.noticeMeta}>{consentSummary}</p>
-
-          <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              checked={consentChecked}
-              onChange={(event) => setConsentChecked(event.target.checked)}
-              className={styles.checkbox}
-            />
-            <span className={styles.checkboxText}>
-              I authorize secure storage and staff-initiated manual ACH use for eligible filings
-              and registrations.
-            </span>
-          </label>
-
-          {fieldErrors.consent ? <p className={styles.errorText}>{fieldErrors.consent}</p> : null}
-        </div>
-
-        {localError ? <Banner tone="error" message={localError} /> : null}
-        {successMessage ? <Banner tone="success" message={successMessage} /> : null}
-
-        <div className={styles.formActions}>
-          <button type="submit" className={styles.primaryButton} disabled={saving}>
-            {saving ? "Saving ACH account..." : "Save ACH account"}
-          </button>
-        </div>
-      </form>
+      <button
+        type="button"
+        onClick={handleSaveCard}
+        className={styles.primaryButton}
+        disabled={loadingIntent || saving}
+      >
+        {saving ? "Saving card..." : "Save card"}
+      </button>
     </section>
   );
 }
@@ -911,6 +564,7 @@ export default function PaymentsPageClient() {
     setBanner({ tone: "error", message });
   }, []);
 
+  const rows = buildRows(methods);
   const stripePromise =
     config?.stripeConfigured && config.stripePublishableKey
       ? getStripePromise(config.stripePublishableKey)
@@ -918,186 +572,203 @@ export default function PaymentsPageClient() {
   const paypalMethods = methods.filter((method) => method.provider === "paypal");
   const primaryPayPalMethod =
     paypalMethods.find((method) => method.isDefault) ?? paypalMethods[0] ?? null;
-  const hasLinkedPayPal = Boolean(primaryPayPalMethod);
+
+  const columns: ColumnDef<PaymentTableRow>[] = [
+    {
+      key: "sortProvider",
+      label: "Method",
+      render: (_, item) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div className={tableStyles.nameCell}>{providerLabel(item.provider)}</div>
+          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
+            {item.isDefault ? "Default method" : "Saved method"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "label",
+      label: "Details",
+      sortable: false,
+      render: (_, item) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
+            {formatMethodDetails(item)}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {item.isDefault ? <Badge label="Default" tone="success" /> : null}
+            {isAchMethod(item) ? (
+              <Badge label={statusLabel(item.status)} tone="neutral" />
+            ) : (
+              <Badge label="Active" tone="info" />
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "sortCreatedAt",
+      label: "Saved",
+      render: (_, item) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
+            {new Date(item.createdAt).toLocaleDateString()}
+          </div>
+          {item.authorizationAcceptedAt ? (
+            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
+              Authorized {new Date(item.authorizationAcceptedAt).toLocaleDateString()}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "_actions",
+      label: "Actions",
+      sortable: false,
+      render: (_, item) => (
+        <div className={styles.tableActionRow}>
+          {!item.isDefault && !isAchMethod(item) ? (
+            <button
+              type="button"
+              onClick={() => void handleMakeDefault(item.id)}
+              disabled={defaultingId === item.id}
+              className={styles.secondaryButton}
+            >
+              {defaultingId === item.id ? "Updating..." : "Set default"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void handleDelete(item.id)}
+            disabled={deletingId === item.id}
+            className={isAchMethod(item) ? styles.warningButton : styles.dangerButton}
+          >
+            {deletingId === item.id
+              ? isAchMethod(item)
+                ? "Revoking..."
+                : "Deleting..."
+              : "Delete"}
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className={styles.page}>
       {banner ? <Banner tone={banner.tone} message={banner.message} /> : null}
 
       <section className={styles.shell}>
-        <div className={styles.preferenceCard}>
-          <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              checked={makeDefault}
-              onChange={(event) => setMakeDefault(event.target.checked)}
-              className={styles.checkbox}
-            />
-            <span>
-              <span className={styles.preferenceTitle}>Make newly linked methods default</span>
-              <span className={styles.preferenceText}>
-                This applies to both PayPal and Stripe flows.
-              </span>
-            </span>
-          </label>
-        </div>
+        <div className={styles.topGrid}>
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <p className={styles.sectionEyebrow}>PayPal</p>
+              <h3 className={styles.panelTitle}>Link account</h3>
+              {primaryPayPalMethod ? (
+                <p className={styles.sectionText}>
+                  Linked account: <strong>{primaryPayPalMethod.paypalEmail || "PayPal"}</strong>
+                </p>
+              ) : (
+                <p className={styles.sectionText}>Connect PayPal as a saved payment method.</p>
+              )}
+            </div>
 
-        <div className={styles.layoutGrid}>
-          <div className={styles.column}>
+            <label className={styles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={makeDefault}
+                onChange={(event) => setMakeDefault(event.target.checked)}
+                className={styles.checkbox}
+              />
+              <span className={styles.checkboxText}>Make new PayPal and Stripe methods default</span>
+            </label>
+
+            {!config?.paypalConfigured ? (
+              <Banner
+                tone="info"
+                message="PayPal is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to enable linking."
+              />
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => void handlePayPalStart()}
+              className={styles.paypalButton}
+              disabled={!config?.paypalConfigured || startingPayPal || savingPayPal}
+            >
+              {startingPayPal
+                ? "Redirecting to PayPal..."
+                : primaryPayPalMethod
+                  ? "Link another PayPal account"
+                  : "Link PayPal"}
+            </button>
+          </section>
+
+          {stripePromise ? (
+            <Elements stripe={stripePromise}>
+              <StripeCardSetupForm
+                makeDefault={makeDefault}
+                onSaved={handleStripeSaved}
+                onError={handleStripeError}
+              />
+            </Elements>
+          ) : (
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
-                <p className={styles.sectionEyebrow}>Saved methods</p>
-                <h3 className={styles.panelTitle}>Payment methods</h3>
-                <p className={styles.sectionText}>
-                  Manage the payment methods already linked to your account.
-                </p>
+                <p className={styles.sectionEyebrow}>Stripe</p>
+                <h3 className={styles.panelTitle}>Save card</h3>
               </div>
-
-              {loading ? (
-                <div className={styles.loadingCard}>
-                  <div className={styles.loadingLine} />
-                  <div className={styles.loadingLineShort} />
-                  <div className={styles.loadingStack}>
-                    {Array.from({ length: 3 }).map((_, index) => (
-                      <div key={index} className={styles.loadingMethod} />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {!loading && methods.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <p className={styles.emptyTitle}>No payment methods linked yet</p>
-                  <p className={styles.emptyText}>
-                    Link PayPal, save a card with Stripe, or add an encrypted ACH vault account
-                    for staff-managed filings.
-                  </p>
-                </div>
-              ) : null}
-
-              {!loading && methods.length > 0 ? (
-                <div className={styles.methodsList}>
-                  {methods.map((method) => (
-                    <article key={method.id} className={styles.methodCard}>
-                      <div className={styles.methodRow}>
-                        <div className={styles.methodMeta}>
-                          <div className={styles.methodTitleRow}>
-                            <p className={styles.methodTitle}>{providerLabel(method.provider)}</p>
-                            {method.isDefault ? <Badge label="Default" tone="success" /> : null}
-                            {isAchMethod(method) ? (
-                              <Badge label={statusLabel(method.status)} tone="neutral" />
-                            ) : null}
-                            {isAchMethod(method) ? (
-                              <Badge
-                                label={method.authorized ? "Authorized" : "Authorization required"}
-                                tone={method.authorized ? "success" : "warning"}
-                              />
-                            ) : null}
-                          </div>
-
-                          <p className={styles.methodDescription}>{formatMethodDetails(method)}</p>
-
-                          <p className={styles.methodDate}>
-                            Saved on {new Date(method.createdAt).toLocaleDateString()}
-                            {isAchMethod(method) && method.authorizationAcceptedAt
-                              ? ` | Authorized ${new Date(method.authorizationAcceptedAt).toLocaleDateString()}`
-                              : ""}
-                          </p>
-                        </div>
-
-                        <div className={styles.methodActions}>
-                          {!method.isDefault && !isAchMethod(method) ? (
-                            <button
-                              type="button"
-                              onClick={() => void handleMakeDefault(method.id)}
-                              disabled={defaultingId === method.id}
-                              className={styles.secondaryButton}
-                            >
-                              {defaultingId === method.id ? "Updating..." : "Make default"}
-                            </button>
-                          ) : null}
-
-                          <button
-                            type="button"
-                            onClick={() => void handleDelete(method.id)}
-                            disabled={deletingId === method.id}
-                            className={
-                              isAchMethod(method) ? styles.warningButton : styles.dangerButton
-                            }
-                          >
-                            {deletingId === method.id
-                              ? isAchMethod(method)
-                                ? "Revoking..."
-                                : "Deleting..."
-                              : isAchMethod(method)
-                                ? "Revoke"
-                                : "Delete"}
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
+              <Banner
+                tone="info"
+                message="Stripe is not configured yet. Add STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to enable saved cards."
+              />
             </section>
-          </div>
-
-          <div className={styles.column}>
-            <section className={styles.panel}>
-              <div className={styles.panelHeaderRow}>
-                <div className={styles.panelHeader}>
-                  <p className={styles.sectionEyebrow}>PayPal</p>
-                  <h3 className={styles.panelTitle}>
-                    {hasLinkedPayPal ? "PayPal account linked" : "Link PayPal"}
-                  </h3>
-                </div>
-                <Badge label={hasLinkedPayPal ? "Linked" : "Redirect"} tone="info" />
-              </div>
-
-              {hasLinkedPayPal ? (
-                <div className={styles.paypalSummary}>
-                  Linked PayPal account:{" "}
-                  <strong>{primaryPayPalMethod?.paypalEmail || "PayPal"}</strong>
-                </div>
-              ) : null}
-
-              {!config?.paypalConfigured ? (
-                <Banner
-                  tone="info"
-                  message="PayPal is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to enable linking."
-                />
-              ) : null}
-
-              <div className={styles.formActions}>
-                <button
-                  type="button"
-                  onClick={() => void handlePayPalStart()}
-                  className={styles.paypalButton}
-                  disabled={!config?.paypalConfigured || startingPayPal || savingPayPal}
-                >
-                  {startingPayPal
-                    ? "Redirecting to PayPal..."
-                    : hasLinkedPayPal
-                      ? "Link another PayPal account"
-                      : "Link PayPal"}
-                </button>
-              </div>
-            </section>
-
-            {stripePromise ? (
-              <Elements stripe={stripePromise}>
-                <StripeCardSetupForm
-                  enabled={Boolean(config?.stripeConfigured)}
-                  makeDefault={makeDefault}
-                  onSaved={handleStripeSaved}
-                  onError={handleStripeError}
-                />
-              </Elements>
-            ) : (
-              <StripeUnavailablePanel />
-            )}
-          </div>
+          )}
         </div>
+
+        {loading ? (
+          <div className={tableStyles.card} style={{ padding: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  style={{
+                    height: 64,
+                    borderRadius: 12,
+                    border: "1px solid var(--brl)",
+                    background: "var(--off)",
+                    animation: "pulse 1.5s ease-in-out infinite",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ) : rows.length === 0 ? (
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <p className={styles.sectionEyebrow}>Registered</p>
+              <h3 className={styles.panelTitle}>Payments</h3>
+              <p className={styles.sectionText}>
+                No payment methods have been registered yet.
+              </p>
+            </div>
+          </section>
+        ) : (
+          <Table
+            data={rows}
+            columns={columns}
+            title="Registered payments"
+            searchQuery=""
+            searchKeys={["searchText"]}
+            actions={[
+              {
+                label: "Refresh",
+                onClick: () => void loadData(),
+              },
+            ]}
+          />
+        )}
       </section>
     </div>
   );

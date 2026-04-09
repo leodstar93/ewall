@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ interface Role {
 }
 
 type Toast = { id: string; type: "success" | "error" | "info"; title: string; message?: string };
+type AssignmentFilter = "all" | "assigned" | "unassigned";
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -47,8 +48,13 @@ export default function AdminPermissionsPage() {
   const [formData, setFormData] = useState({ key: "", description: "" });
   const [formError, setFormError] = useState("");
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [search, setSearch] = useState("");
+  const [moduleFilter, setModuleFilter] = useState("all");
+  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>("all");
+  const [roleFilter, setRoleFilter] = useState("all");
 
   const isAdmin = useMemo(() => !!session?.user?.roles?.includes("ADMIN"), [session]);
+  const deferredSearch = useDeferredValue(search);
 
   // ─── Toast helpers ─────────────────────────────────────────────────────────
 
@@ -290,6 +296,39 @@ export default function AdminPermissionsPage() {
 
   // ─── Loading / guard ───────────────────────────────────────────────────────
 
+  const moduleOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        permissions.map((permission) => {
+          const [moduleName] = permission.key.split(":");
+          return moduleName?.trim() || "other";
+        }),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+  }, [permissions]);
+
+  const filteredPermissions = useMemo(() => {
+    const query = deferredSearch.trim().toLowerCase();
+
+    return permissions.filter((permission) => {
+      const roleCount = permission._count?.roles ?? permission.roles?.length ?? 0;
+      const permissionModule = permission.key.split(":")[0]?.trim() || "other";
+      const matchesSearch =
+        !query ||
+        permission.key.toLowerCase().includes(query) ||
+        (permission.description ?? "").toLowerCase().includes(query);
+      const matchesModule = moduleFilter === "all" || permissionModule === moduleFilter;
+      const matchesAssignment =
+        assignmentFilter === "all" ||
+        (assignmentFilter === "assigned" ? roleCount > 0 : roleCount === 0);
+      const matchesRole =
+        roleFilter === "all" ||
+        Boolean(permission.roles?.some((entry) => entry.role.id === roleFilter));
+
+      return matchesSearch && matchesModule && matchesAssignment && matchesRole;
+    });
+  }, [assignmentFilter, deferredSearch, moduleFilter, permissions, roleFilter]);
+
   if (status === "loading" || loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -330,11 +369,131 @@ export default function AdminPermissionsPage() {
 
       {/* Table */}
       <Table
-        data={permissions}
+        data={filteredPermissions}
         columns={columns}
         actions={tableActions}
-        searchKeys={["key", "description"]}
+        searchQuery={deferredSearch}
         title="Permissions"
+        toolbar={
+          <div
+            style={{
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns:
+                "minmax(0,1.5fr) minmax(160px,0.7fr) minmax(160px,0.7fr) minmax(180px,0.9fr)",
+            }}
+          >
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span
+                className={tableStyles.subtitle}
+                style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+              >
+                Search
+              </span>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Permission key or description..."
+                style={{
+                  border: "1px solid var(--br)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  width: "100%",
+                  color: "var(--b)",
+                }}
+              />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span
+                className={tableStyles.subtitle}
+                style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+              >
+                Module
+              </span>
+              <select
+                value={moduleFilter}
+                onChange={(event) => setModuleFilter(event.target.value)}
+                style={{
+                  border: "1px solid var(--br)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  width: "100%",
+                  color: "var(--b)",
+                  background: "#fff",
+                }}
+              >
+                <option value="all">All modules</option>
+                {moduleOptions.map((moduleName) => (
+                  <option key={moduleName} value={moduleName}>
+                    {moduleName}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span
+                className={tableStyles.subtitle}
+                style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+              >
+                Assigned
+              </span>
+              <select
+                value={assignmentFilter}
+                onChange={(event) => setAssignmentFilter(event.target.value as AssignmentFilter)}
+                style={{
+                  border: "1px solid var(--br)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  width: "100%",
+                  color: "var(--b)",
+                  background: "#fff",
+                }}
+              >
+                <option value="all">All</option>
+                <option value="assigned">Assigned</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span
+                className={tableStyles.subtitle}
+                style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+              >
+                Role
+              </span>
+              <select
+                value={roleFilter}
+                onChange={(event) => setRoleFilter(event.target.value)}
+                style={{
+                  border: "1px solid var(--br)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  outline: "none",
+                  width: "100%",
+                  color: "var(--b)",
+                  background: "#fff",
+                }}
+              >
+                <option value="all">All roles</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        }
       />
 
       {/* Modal */}

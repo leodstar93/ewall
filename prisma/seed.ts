@@ -137,6 +137,7 @@ const PERMISSIONS = [
 const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
   ADMIN: PERMISSIONS.map((p) => p.key), // todo
   TRUCKER: [
+    "documents:read",
     "settings:read",
     "settings:update",
     "billing:read",
