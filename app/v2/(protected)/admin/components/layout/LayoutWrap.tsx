@@ -36,7 +36,7 @@ function buildNavGroups(
   const groups: NavGroup[] = [
     {
       heading: "Overview",
-      items: [{ href: "/admin", label: "Dashboard" }],
+      items: [{ href: "/v2/admin", label: "Dashboard" }],
     },
   ];
 
@@ -44,63 +44,77 @@ function buildNavGroups(
     groups.push({
       heading: "Access Control",
       items: [
-        { href: "/admin/settings", label: "Settings", permission: "settings:read" },
-        { href: "/admin/users", label: "Users", permission: "users:read" },
-        { href: "/admin/roles", label: "Roles", permission: "roles:read" },
-        { href: "/admin/permissions", label: "Permissions", permission: "permissions:read" },
+        {
+          href: "/v2/admin/settings",
+          label: "Settings",
+          permission: "settings:read",
+        },
+        { href: "/v2/admin/users", label: "Users", permission: "users:read" },
+        { href: "/v2/admin/roles", label: "Roles", permission: "roles:read" },
+        {
+          href: "/v2/admin/permissions",
+          label: "Permissions",
+          permission: "permissions:read",
+        },
       ],
     });
   }
 
   const workspaceItems: NavItem[] = [
     {
-      href: "/admin/truckers",
+      href: "/v2/admin/truckers",
       label: "Clients",
       permission: "truck:read",
       moduleKey: "truck",
       allowStaff: true,
     },
     {
-      href: "/admin/features/documents",
+      href: "/v2/admin/features/documents",
       label: "Documents",
       permission: "documents:read",
       moduleKey: "documents",
     },
     {
-      href: "/dashboard/ifta-v2",
+      href: "/v2/dashboard/ifta-v2",
       label: "IFTA Automation",
       permission: "ifta:review",
       moduleKey: "ifta",
     },
     {
-      href: "/admin/features/ifta",
+      href: "/v2/admin/features/ifta",
       label: "IFTA",
       permission: "ifta:read",
       moduleKey: "ifta",
     },
     {
-      href: "/admin/features/ucr",
+      href: "/v2/admin/features/ucr",
       label: "UCR",
       permission: "ucr:read",
       moduleKey: "ucr",
     },
     {
-      href: "/admin/features/dmv/renewals",
+      href: "/v2/admin/features/dmv/renewals",
       label: "DMV Renewals",
       permission: "dmv:read",
       moduleKey: "dmv",
     },
     {
-      href: "/admin/features/2290",
+      href: "/v2/admin/features/2290",
       label: "Form 2290",
       permission: "compliance2290:view",
       moduleKey: "compliance2290",
     },
   ].filter((item) => {
     if (!item.permission) return true;
-    const hasExplicitAccess = hasPermission(permissions, roles, item.permission);
+    const hasExplicitAccess = hasPermission(
+      permissions,
+      roles,
+      item.permission,
+    );
     const hasStaffFeatureAccess =
-      isStaff && Boolean(item.moduleKey) && STAFF_ADMIN_FEATURE_MODULES.has(item.moduleKey);
+      isStaff &&
+      Boolean(item.moduleKey) &&
+      STAFF_ADMIN_FEATURE_MODULES.has(item.moduleKey);
     const hasStaffRouteAccess = isStaff && Boolean(item.allowStaff);
     return hasExplicitAccess || hasStaffFeatureAccess || hasStaffRouteAccess;
   });
@@ -116,7 +130,7 @@ function buildNavGroups(
     (hasPermission(permissions, roles, "sandbox:access") ||
       hasPermission(permissions, roles, "sandbox:manage"))
   ) {
-    sandboxItems.push({ href: "/admin/sandbox", label: "Sandbox" });
+    sandboxItems.push({ href: "/v2/admin/sandbox", label: "Sandbox" });
   }
 
   if (sandboxItems.length > 0) {
