@@ -339,34 +339,34 @@ export default function AdminPermissionsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-xl">
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.4)" }}>
+          <div className={tableStyles.card} style={{ width: "100%", maxWidth: 440, boxShadow: "0 20px 40px rgba(0,0,0,0.12)" }}>
 
             {/* Add */}
             {modalType === "add" && (
               <>
-                <div className="flex items-start justify-between gap-4">
+                <div className={tableStyles.header}>
                   <div>
-                    <h3 className="text-base font-semibold text-zinc-900">Create permission</h3>
-                    <p className="mt-1 text-sm text-zinc-600">Use <span className="font-mono">resource:action</span>. Stored in lowercase.</p>
+                    <div className={tableStyles.title}>Create permission</div>
+                    <div className={tableStyles.subtitle}>Use <code>resource:action</code>. Stored in lowercase.</div>
                   </div>
-                  <button onClick={() => setShowModal(false)} className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50" aria-label="Close">x</button>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
                 </div>
-                <div className="mt-5 space-y-4">
+                <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 12 }}>
                   <div>
-                    <label className="block text-sm font-medium text-zinc-800">Permission key</label>
-                    <input type="text" value={formData.key} onChange={(e) => setFormData({ ...formData, key: e.target.value })} placeholder="e.g., users:read" className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 font-mono text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/10" />
-                    <p className="mt-1 text-xs text-zinc-500">Tip: add <span className="font-mono">:manage</span> for admins of a module.</p>
+                    <div className={tableStyles.subtitle} style={{ marginBottom: 4 }}>Permission key</div>
+                    <input type="text" value={formData.key} onChange={(e) => setFormData({ ...formData, key: e.target.value })} placeholder="e.g., users:read" style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "monospace", outline: "none", boxSizing: "border-box" }} />
+                    <div className={tableStyles.subtitle} style={{ marginTop: 4 }}>Tip: add <code>:manage</code> for admins of a module.</div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-zinc-800">Description (optional)</label>
-                    <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Describe what this permission allows..." rows={3} className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 focus:ring-4 focus:ring-zinc-900/10" />
+                    <div className={tableStyles.subtitle} style={{ marginBottom: 4 }}>Description (optional)</div>
+                    <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Describe what this permission allows..." rows={3} style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                   </div>
-                  {formError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</div>}
+                  {formError && <div style={{ background: "#fff0f0", border: "1px solid #fca5a5", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#c00" }}>{formError}</div>}
                 </div>
-                <div className="mt-6 flex gap-3">
-                  <button onClick={() => setShowModal(false)} className="flex-1 rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50">Cancel</button>
-                  <button onClick={handleAddPermission} className="flex-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800">Create</button>
+                <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn}>Cancel</button>
+                  <button type="button" onClick={handleAddPermission} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}>Create</button>
                 </div>
               </>
             )}
@@ -374,33 +374,33 @@ export default function AdminPermissionsPage() {
             {/* Assign roles */}
             {modalType === "assignRoles" && selectedPermission && (
               <>
-                <div className="flex items-start justify-between gap-4">
+                <div className={tableStyles.header}>
                   <div>
-                    <h3 className="text-base font-semibold text-zinc-900">Assign roles</h3>
-                    <p className="mt-1 text-sm text-zinc-600">Permission: <span className="font-mono font-semibold text-zinc-900">{selectedPermission.key}</span></p>
+                    <div className={tableStyles.title}>Assign roles</div>
+                    <div className={tableStyles.subtitle}>Permission: <code>{selectedPermission.key}</code></div>
                   </div>
-                  <button onClick={() => setShowModal(false)} className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50" aria-label="Close">x</button>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
                 </div>
-                <div className="mt-5 max-h-72 space-y-3 overflow-y-auto pr-1">
+                <div style={{ maxHeight: 280, overflowY: "auto", padding: "8px 0" }}>
                   {roles.map((role) => {
                     const checked = selectedRoles.includes(role.id);
                     return (
-                      <label key={role.id} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition hover:bg-zinc-50 ${checked ? "ring-2 ring-zinc-200" : ""}`}>
-                        <input type="checkbox" checked={checked} onChange={(e) => { if (e.target.checked) setSelectedRoles((prev) => [...prev, role.id]); else setSelectedRoles((prev) => prev.filter((r) => r !== role.id)); }} className="mt-1 h-4 w-4 rounded border-zinc-300 text-zinc-900" />
+                      <label key={role.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 16px", cursor: "pointer", borderBottom: "1px solid var(--brl)", background: checked ? "var(--bl)" : "transparent" }}>
+                        <input type="checkbox" checked={checked} onChange={(e) => { if (e.target.checked) setSelectedRoles((prev) => [...prev, role.id]); else setSelectedRoles((prev) => prev.filter((r) => r !== role.id)); }} style={{ marginTop: 2, width: 14, height: 14, cursor: "pointer", flexShrink: 0 }} />
                         <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-zinc-900">{role.name}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span className={tableStyles.nameCell}>{role.name}</span>
                             {checked && <Badge tone="light">Selected</Badge>}
                           </div>
-                          {role.description && <p className="mt-1 text-sm text-zinc-600">{role.description}</p>}
+                          {role.description && <div className={tableStyles.subtitle} style={{ marginTop: 2 }}>{role.description}</div>}
                         </div>
                       </label>
                     );
                   })}
                 </div>
-                <div className="mt-6 flex gap-3">
-                  <button onClick={() => setShowModal(false)} className="flex-1 rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50">Cancel</button>
-                  <button onClick={handleSaveRoles} className="flex-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800">Save</button>
+                <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn}>Cancel</button>
+                  <button type="button" onClick={handleSaveRoles} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}>Save</button>
                 </div>
               </>
             )}
@@ -408,19 +408,19 @@ export default function AdminPermissionsPage() {
             {/* Delete */}
             {modalType === "delete" && selectedPermission && (
               <>
-                <div className="flex items-start justify-between gap-4">
+                <div className={tableStyles.header}>
                   <div>
-                    <h3 className="text-base font-semibold text-zinc-900">Delete permission</h3>
-                    <p className="mt-1 text-sm text-zinc-600">This cannot be undone.</p>
+                    <div className={tableStyles.title}>Delete permission</div>
+                    <div className={tableStyles.subtitle}>This cannot be undone.</div>
                   </div>
-                  <button onClick={() => setShowModal(false)} className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50" aria-label="Close">x</button>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
                 </div>
-                <div className="mt-5 rounded-2xl border bg-zinc-50 p-4">
-                  <p className="text-sm text-zinc-700">You're about to delete <span className="font-mono font-semibold text-zinc-900">{selectedPermission.key}</span>.</p>
+                <div style={{ padding: "16px", background: "var(--off)", borderBottom: "1px solid var(--brl)", fontSize: 13, color: "#555" }}>
+                  You're about to delete <code style={{ fontWeight: 600, color: "var(--b)" }}>{selectedPermission.key}</code>.
                 </div>
-                <div className="mt-6 flex gap-3">
-                  <button onClick={() => setShowModal(false)} className="flex-1 rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50">Cancel</button>
-                  <button onClick={handleDeletePermission} className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700">Delete</button>
+                <div className={tableStyles.header} style={{ borderTop: "none", borderBottom: "none", justifyContent: "flex-end", gap: 8 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn}>Cancel</button>
+                  <button type="button" onClick={handleDeletePermission} className={tableStyles.btn} style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }}>Delete</button>
                 </div>
               </>
             )}

@@ -521,184 +521,168 @@ export default function AdminUsersPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          <div ref={modalRef} className="relative w-full max-w-md rounded-2xl border bg-white shadow-xl">
-            <div className="p-6">
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }} onClick={() => setShowModal(false)}>
+          <div ref={modalRef} className={tableStyles.card} style={{ width: "100%", maxWidth: 440, boxShadow: "0 20px 40px rgba(0,0,0,0.12)", position: "relative" }} onClick={(e) => e.stopPropagation()}>
 
-              {/* Roles */}
-              {modalType === "roles" && selectedUser && (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs text-zinc-500">Edit roles</div>
-                      <h3 className="text-base font-semibold text-zinc-900">{selectedUser.name || selectedUser.email}</h3>
-                      <p className="mt-1 text-sm text-zinc-600">Select roles for this user.</p>
-                    </div>
-                    <button className="rounded-xl p-2 hover:bg-zinc-100 text-zinc-600" onClick={() => setShowModal(false)}>✕</button>
+            {/* Roles */}
+            {modalType === "roles" && selectedUser && (
+              <>
+                <div className={tableStyles.header}>
+                  <div>
+                    <div className={tableStyles.title}>{selectedUser.name || selectedUser.email}</div>
+                    <div className={tableStyles.subtitle}>Select roles for this user.</div>
                   </div>
-                  <div className="mt-6 max-h-64 overflow-y-auto rounded-2xl border bg-white">
-                    <div className="divide-y">
-                      {roles.map((role) => {
-                        const checked = selectedRoles.includes(role.id);
-                        return (
-                          <label key={role.id} className="flex items-start gap-3 px-4 py-3 hover:bg-zinc-50 cursor-pointer">
-                            <input type="checkbox" checked={checked} onChange={(e) => { if (e.target.checked) setSelectedRoles([...selectedRoles, role.id]); else setSelectedRoles(selectedRoles.filter((r) => r !== role.id)); }} className="mt-1 h-4 w-4 rounded border-zinc-300" />
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-zinc-900">{role.name}</div>
-                              {role.description && <div className="text-sm text-zinc-600">{role.description}</div>}
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="mt-6 flex items-center justify-end gap-3">
-                    <button onClick={() => setShowModal(false)} className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition" disabled={busy}>Cancel</button>
-                    <button onClick={handleSaveRoles} className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition disabled:opacity-50" disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-                  </div>
-                </>
-              )}
-
-              {/* Delete */}
-              {modalType === "delete" && selectedUser && (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs text-zinc-500">Danger zone</div>
-                      <h3 className="text-base font-semibold text-zinc-900">Delete user</h3>
-                      <p className="mt-1 text-sm text-zinc-600">Type the user email to confirm deletion.</p>
-                    </div>
-                    <button className="rounded-xl p-2 hover:bg-zinc-100 text-zinc-600" onClick={() => setShowModal(false)}>✕</button>
-                  </div>
-                  <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                    You are deleting <span className="font-semibold">{selectedUser.email}</span>. This cannot be undone.
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-xs font-medium text-zinc-600 mb-2">Confirm email</label>
-                    <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={selectedUser.email} className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10" />
-                  </div>
-                  {formError && <div className="mt-4"><Alert tone="error">{formError}</Alert></div>}
-                  <div className="mt-6 flex items-center justify-end gap-3">
-                    <button onClick={() => setShowModal(false)} className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition" disabled={busy}>Cancel</button>
-                    <button onClick={handleConfirmDelete} className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 transition disabled:opacity-50" disabled={busy}>{busy ? "Deleting…" : "Delete"}</button>
-                  </div>
-                </>
-              )}
-
-              {/* Add */}
-              {modalType === "add" && (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs text-zinc-500">Create</div>
-                      <h3 className="text-base font-semibold text-zinc-900">New user</h3>
-                      <p className="mt-1 text-sm text-zinc-600">Create a user and optionally assign roles.</p>
-                    </div>
-                    <button className="rounded-xl p-2 hover:bg-zinc-100 text-zinc-600" onClick={() => setShowModal(false)}>✕</button>
-                  </div>
-                  <div className="mt-6 space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-600 mb-2">Email *</label>
-                      <input type="email" value={newUserForm.email} onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })} placeholder="user@example.com" className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-600 mb-2">Name</label>
-                      <input type="text" value={newUserForm.name} onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })} placeholder="Full name" className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-600 mb-2">Password *</label>
-                      <input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} placeholder="Enter password" className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-600 mb-2">Roles</label>
-                      <div className="max-h-36 overflow-y-auto rounded-2xl border bg-white">
-                        <div className="divide-y">
-                          {roles.map((role) => {
-                            const checked = newUserForm.roles.includes(role.id);
-                            return (
-                              <label key={role.id} className="flex items-start gap-3 px-4 py-3 hover:bg-zinc-50 cursor-pointer">
-                                <input type="checkbox" checked={checked} onChange={(e) => { if (e.target.checked) setNewUserForm({ ...newUserForm, roles: [...newUserForm.roles, role.id] }); else setNewUserForm({ ...newUserForm, roles: newUserForm.roles.filter((r) => r !== role.id) }); }} className="mt-1 h-4 w-4 rounded border-zinc-300" />
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium text-zinc-900">{role.name}</div>
-                                  {role.description && <div className="text-sm text-zinc-600">{role.description}</div>}
-                                </div>
-                              </label>
-                            );
-                          })}
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
+                </div>
+                <div style={{ maxHeight: 260, overflowY: "auto" }}>
+                  {roles.map((role) => {
+                    const checked = selectedRoles.includes(role.id);
+                    return (
+                      <label key={role.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 16px", cursor: "pointer", borderBottom: "1px solid var(--brl)", background: checked ? "var(--bl)" : "transparent" }}>
+                        <input type="checkbox" checked={checked} onChange={(e) => { if (e.target.checked) setSelectedRoles([...selectedRoles, role.id]); else setSelectedRoles(selectedRoles.filter((r) => r !== role.id)); }} style={{ marginTop: 2, width: 14, height: 14, cursor: "pointer", flexShrink: 0 }} />
+                        <div>
+                          <div className={tableStyles.nameCell}>{role.name}</div>
+                          {role.description && <div className={tableStyles.subtitle} style={{ marginTop: 2 }}>{role.description}</div>}
                         </div>
-                      </div>
-                    </div>
-                    {formError && <Alert tone="error">{formError}</Alert>}
-                  </div>
-                  <div className="mt-6 flex items-center justify-end gap-3">
-                    <button onClick={() => setShowModal(false)} className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition" disabled={busy}>Cancel</button>
-                    <button onClick={handleCreateUser} className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition disabled:opacity-50" disabled={busy}>{busy ? "Creating…" : "Create"}</button>
-                  </div>
-                </>
-              )}
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} disabled={busy}>Cancel</button>
+                  <button type="button" onClick={handleSaveRoles} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+                </div>
+              </>
+            )}
 
-              {/* Bulk roles */}
-              {modalType === "bulkRoles" && (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs text-zinc-500">Bulk action</div>
-                      <h3 className="text-base font-semibold text-zinc-900">Assign roles</h3>
-                      <p className="mt-1 text-sm text-zinc-600">This will set the selected roles for <span className="font-semibold">{selectedCount}</span> users.</p>
-                    </div>
-                    <button className="rounded-xl p-2 hover:bg-zinc-100 text-zinc-600" onClick={() => setShowModal(false)}>✕</button>
+            {/* Delete */}
+            {modalType === "delete" && selectedUser && (
+              <>
+                <div className={tableStyles.header}>
+                  <div>
+                    <div className={tableStyles.title}>Delete user</div>
+                    <div className={tableStyles.subtitle}>Type the user email to confirm deletion.</div>
                   </div>
-                  <div className="mt-6 max-h-64 overflow-y-auto rounded-2xl border bg-white">
-                    <div className="divide-y">
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
+                </div>
+                <div style={{ padding: "12px 16px", background: "#fff0f0", borderBottom: "1px solid #fca5a5", fontSize: 13, color: "#c00" }}>
+                  You are deleting <strong>{selectedUser.email}</strong>. This cannot be undone.
+                </div>
+                <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className={tableStyles.subtitle}>Confirm email</div>
+                  <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={selectedUser.email} style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                  {formError && <div style={{ background: "#fff0f0", border: "1px solid #fca5a5", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#c00" }}>{formError}</div>}
+                </div>
+                <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} disabled={busy}>Cancel</button>
+                  <button type="button" onClick={handleConfirmDelete} className={tableStyles.btn} style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }} disabled={busy}>{busy ? "Deleting…" : "Delete"}</button>
+                </div>
+              </>
+            )}
+
+            {/* Add */}
+            {modalType === "add" && (
+              <>
+                <div className={tableStyles.header}>
+                  <div>
+                    <div className={tableStyles.title}>New user</div>
+                    <div className={tableStyles.subtitle}>Create a user and optionally assign roles.</div>
+                  </div>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
+                </div>
+                <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 12 }}>
+                  {[
+                    { label: "Email *", type: "email", value: newUserForm.email, onChange: (v: string) => setNewUserForm({ ...newUserForm, email: v }), placeholder: "user@example.com" },
+                    { label: "Name", type: "text", value: newUserForm.name, onChange: (v: string) => setNewUserForm({ ...newUserForm, name: v }), placeholder: "Full name" },
+                    { label: "Password *", type: "password", value: newUserForm.password, onChange: (v: string) => setNewUserForm({ ...newUserForm, password: v }), placeholder: "Enter password" },
+                  ].map(({ label, type, value, onChange, placeholder }) => (
+                    <div key={label}>
+                      <div className={tableStyles.subtitle} style={{ marginBottom: 4 }}>{label}</div>
+                      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                  ))}
+                  <div>
+                    <div className={tableStyles.subtitle} style={{ marginBottom: 4 }}>Roles</div>
+                    <div style={{ maxHeight: 140, overflowY: "auto", border: "1px solid var(--brl)", borderRadius: 6 }}>
                       {roles.map((role) => {
-                        const checked = selectedRoles.includes(role.id);
+                        const checked = newUserForm.roles.includes(role.id);
                         return (
-                          <label key={role.id} className="flex items-start gap-3 px-4 py-3 hover:bg-zinc-50 cursor-pointer">
-                            <input type="checkbox" checked={checked} onChange={(e) => { if (e.target.checked) setSelectedRoles([...selectedRoles, role.id]); else setSelectedRoles(selectedRoles.filter((r) => r !== role.id)); }} className="mt-1 h-4 w-4 rounded border-zinc-300" />
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-zinc-900">{role.name}</div>
-                              {role.description && <div className="text-sm text-zinc-600">{role.description}</div>}
+                          <label key={role.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 12px", cursor: "pointer", borderBottom: "1px solid var(--brl)", background: checked ? "var(--bl)" : "transparent" }}>
+                            <input type="checkbox" checked={checked} onChange={(e) => { if (e.target.checked) setNewUserForm({ ...newUserForm, roles: [...newUserForm.roles, role.id] }); else setNewUserForm({ ...newUserForm, roles: newUserForm.roles.filter((r) => r !== role.id) }); }} style={{ marginTop: 2, width: 14, height: 14, cursor: "pointer", flexShrink: 0 }} />
+                            <div>
+                              <div className={tableStyles.nameCell}>{role.name}</div>
+                              {role.description && <div className={tableStyles.subtitle} style={{ marginTop: 2 }}>{role.description}</div>}
                             </div>
                           </label>
                         );
                       })}
                     </div>
                   </div>
-                  <div className="mt-6 flex items-center justify-end gap-3">
-                    <button onClick={() => setShowModal(false)} className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition" disabled={busy}>Cancel</button>
-                    <button onClick={handleBulkAssignRoles} className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition disabled:opacity-50" disabled={busy || selectedRoles.length === 0}>{busy ? "Applying…" : "Apply roles"}</button>
-                  </div>
-                </>
-              )}
+                  {formError && <div style={{ background: "#fff0f0", border: "1px solid #fca5a5", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#c00" }}>{formError}</div>}
+                </div>
+                <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} disabled={busy}>Cancel</button>
+                  <button type="button" onClick={handleCreateUser} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`} disabled={busy}>{busy ? "Creating…" : "Create"}</button>
+                </div>
+              </>
+            )}
 
-              {/* Bulk delete */}
-              {modalType === "bulkDelete" && (
-                <>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs text-zinc-500">Bulk action</div>
-                      <h3 className="text-base font-semibold text-zinc-900">Delete selected users</h3>
-                      <p className="mt-1 text-sm text-zinc-600">This will delete <span className="font-semibold">{selectedCount}</span> users.</p>
-                    </div>
-                    <button className="rounded-xl p-2 hover:bg-zinc-100 text-zinc-600" onClick={() => setShowModal(false)}>✕</button>
+            {/* Bulk roles */}
+            {modalType === "bulkRoles" && (
+              <>
+                <div className={tableStyles.header}>
+                  <div>
+                    <div className={tableStyles.title}>Assign roles</div>
+                    <div className={tableStyles.subtitle}>This will set the selected roles for <strong>{selectedCount}</strong> users.</div>
                   </div>
-                  <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                    Type <span className="font-semibold">DELETE</span> to confirm.
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-xs font-medium text-zinc-600 mb-2">Confirm</label>
-                    <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="DELETE" className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10" />
-                  </div>
-                  {formError && <div className="mt-4"><Alert tone="error">{formError}</Alert></div>}
-                  <div className="mt-6 flex items-center justify-end gap-3">
-                    <button onClick={() => setShowModal(false)} className="rounded-2xl border bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition" disabled={busy}>Cancel</button>
-                    <button onClick={handleBulkDelete} className="rounded-2xl bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 transition disabled:opacity-50" disabled={busy}>{busy ? "Deleting…" : "Delete"}</button>
-                  </div>
-                </>
-              )}
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
+                </div>
+                <div style={{ maxHeight: 260, overflowY: "auto" }}>
+                  {roles.map((role) => {
+                    const checked = selectedRoles.includes(role.id);
+                    return (
+                      <label key={role.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 16px", cursor: "pointer", borderBottom: "1px solid var(--brl)", background: checked ? "var(--bl)" : "transparent" }}>
+                        <input type="checkbox" checked={checked} onChange={(e) => { if (e.target.checked) setSelectedRoles([...selectedRoles, role.id]); else setSelectedRoles(selectedRoles.filter((r) => r !== role.id)); }} style={{ marginTop: 2, width: 14, height: 14, cursor: "pointer", flexShrink: 0 }} />
+                        <div>
+                          <div className={tableStyles.nameCell}>{role.name}</div>
+                          {role.description && <div className={tableStyles.subtitle} style={{ marginTop: 2 }}>{role.description}</div>}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} disabled={busy}>Cancel</button>
+                  <button type="button" onClick={handleBulkAssignRoles} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`} disabled={busy || selectedRoles.length === 0}>{busy ? "Applying…" : "Apply roles"}</button>
+                </div>
+              </>
+            )}
 
-            </div>
+            {/* Bulk delete */}
+            {modalType === "bulkDelete" && (
+              <>
+                <div className={tableStyles.header}>
+                  <div>
+                    <div className={tableStyles.title}>Delete selected users</div>
+                    <div className={tableStyles.subtitle}>This will delete <strong>{selectedCount}</strong> users.</div>
+                  </div>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
+                </div>
+                <div style={{ padding: "12px 16px", background: "#fff0f0", borderBottom: "1px solid #fca5a5", fontSize: 13, color: "#c00" }}>
+                  Type <strong>DELETE</strong> to confirm.
+                </div>
+                <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className={tableStyles.subtitle}>Confirm</div>
+                  <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="DELETE" style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                  {formError && <div style={{ background: "#fff0f0", border: "1px solid #fca5a5", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#c00" }}>{formError}</div>}
+                </div>
+                <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} disabled={busy}>Cancel</button>
+                  <button type="button" onClick={handleBulkDelete} className={tableStyles.btn} style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }} disabled={busy}>{busy ? "Deleting…" : "Delete"}</button>
+                </div>
+              </>
+            )}
+
           </div>
         </div>
       )}
