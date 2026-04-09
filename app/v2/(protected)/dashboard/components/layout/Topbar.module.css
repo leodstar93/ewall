@@ -1,0 +1,75 @@
+.topbar {
+  height: 54px;
+  border-bottom: 1px solid var(--brl);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+  flex-shrink: 0;
+  background: var(--w);
+}
+
+.toggleBtn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--br);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #666;
+  flex-shrink: 0;
+}
+.toggleBtn:hover { background: var(--off); }
+.toggleBtn svg { width: 14px; height: 14px; }
+
+.titleWrap { flex: 1; min-width: 0; }
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--b);
+}
+
+.breadcrumb {
+  font-size: 11px;
+  color: #999;
+}
+
+.sep { margin: 0 3px; }
+
+.current {
+  color: var(--r);
+  font-weight: 500;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--br);
+  border-radius: 6px;
+  padding: 0 10px;
+  height: 32px;
+  background: var(--off);
+  width: 200px;
+}
+
+.searchBox svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+.searchBox input {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  width: 100%;
+}
+
+.searchBox input::placeholder { color: #bbb; }
+
+@media (max-width: 700px) {
+  .searchBox { width: 140px; }
+}
