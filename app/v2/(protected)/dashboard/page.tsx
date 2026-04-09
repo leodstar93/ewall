@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import DashboardOverviewClient from "./dashboard-overview-client";
 import { requirePermission } from "@/lib/rbac-guard";
 import { getCompanyProfile } from "@/lib/services/company.service";
+import { emptyCompanyProfileState } from "@/components/settings/company/companyProfileTypes";
 
 export default async function DashboardPage() {
   const permission = await requirePermission("dashboard:access");
@@ -15,21 +16,10 @@ export default async function DashboardPage() {
 
   return (
     <DashboardOverviewClient
-      companyInfo={{
-        name:
-          profile?.companyName ||
-          profile?.legalName ||
-          profile?.dbaName ||
-          permission.session.user.name ||
-          "Your company",
-        tagline: profile?.businessPhone
-          ? `Business phone ${profile.businessPhone}`
-          : "Compliance workspace",
-        plan: profile?.saferOperatingStatus || "Workspace",
-        industry: profile?.saferEntityType || "Transportation",
-        founded: profile?.dotNumber || "Not set",
-        employees: profile?.driversCount || "0",
-        country: profile?.state || "US",
+      companyProfile={{
+        ...emptyCompanyProfileState,
+        ...(profile ?? {}),
+        owner: profile?.owner || permission.session.user.name || "",
         email: permission.session.user.email || "",
       }}
     />

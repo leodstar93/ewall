@@ -6,11 +6,12 @@ import TrucksDropdown, { type DashboardTruckRow } from "./components/trucks/Truc
 import CompanyInfoPanel from "./components/ui/CompanyInfo";
 import DataTable from "./components/ui/DataTable";
 import styles from "./page.module.css";
-import type { CompanyInfo, Item, ItemStatus } from "@/lib/types";
+import type { Item, ItemStatus } from "@/lib/types";
 import type { TruckRecord } from "@/features/trucks/shared";
 import type { UcrFiling } from "@/features/ucr/shared";
 import { workflowStageForFiling } from "@/features/ucr/shared";
 import type { FilingListItem } from "@/features/ifta-v2/shared";
+import type { CompanyProfileFormData } from "@/components/settings/company/companyProfileTypes";
 
 type DocumentItem = {
   id: string;
@@ -21,7 +22,7 @@ type DocumentItem = {
 };
 
 type Props = {
-  companyInfo: CompanyInfo;
+  companyProfile: CompanyProfileFormData & { email: string };
 };
 
 type OverviewActivity = {
@@ -82,7 +83,7 @@ function getTruckUsage(truck: TruckRecord) {
   return parts.join(" | ") || "No activity yet";
 }
 
-export default function DashboardOverviewClient({ companyInfo }: Props) {
+export default function DashboardOverviewClient({ companyProfile }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [trucks, setTrucks] = useState<TruckRecord[]>([]);
@@ -263,7 +264,7 @@ export default function DashboardOverviewClient({ companyInfo }: Props) {
       ) : null}
 
       <div className={styles.topPanels}>
-        <CompanyInfoPanel data={companyInfo} editHref="/settings?tab=company" />
+        <CompanyInfoPanel data={companyProfile} />
         <AdvertisingSlider slides={slides} />
       </div>
 
