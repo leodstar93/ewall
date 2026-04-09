@@ -6,7 +6,8 @@ import styles from "./DataTable.module.css";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type ColumnDef<T> = {
-  key: keyof T & string;
+  /** Unique column identifier. Also used as data accessor key when it matches a field in T. */
+  key: string;
   label: string;
   sortable?: boolean;
   /** Custom cell renderer. Receives the raw value and the full row. */
