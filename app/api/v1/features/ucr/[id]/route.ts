@@ -2,6 +2,7 @@ import { UCREntityType } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
+import { canEditUcrFiling, canResubmitUcrFiling, canSubmitUcrFiling } from "@/lib/ucr-workflow";
 import { updateUcrFiling } from "@/services/ucr/updateUcrFiling";
 import {
   normalizeOptionalText,
@@ -225,8 +226,9 @@ export async function GET(
       permissions: {
         isOwner,
         canManageAll,
-        canEdit: isOwner && ["DRAFT", "AWAITING_CUSTOMER_PAYMENT"].includes(filing.status),
-        canSubmit: isOwner && filing.status === "DRAFT",
+        canEdit: isOwner && canEditUcrFiling(filing.status),
+        canSubmit: isOwner && canSubmitUcrFiling(filing.status),
+        canResubmit: isOwner && canResubmitUcrFiling(filing.status),
         canCheckout:
           isOwner &&
           ["AWAITING_CUSTOMER_PAYMENT", "CUSTOMER_PAYMENT_PENDING"].includes(filing.status) &&

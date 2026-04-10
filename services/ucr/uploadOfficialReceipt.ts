@@ -3,8 +3,10 @@ import { UCRDocumentType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { AppEnvironment, DbClient, DbTransactionClient } from "@/lib/db/types";
 import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
+import { createStoredDocument } from "@/services/documents/create-stored-document";
 import {
   buildUcrAutoDocumentName,
+  getUcrDocumentCategory,
   UcrServiceError,
   validateOfficialReceiptFile,
 } from "@/services/ucr/shared";
@@ -27,6 +29,7 @@ export async function uploadOfficialReceipt(input: UploadOfficialReceiptInput) {
     where: { id: input.filingId },
     select: {
       id: true,
+      userId: true,
       legalName: true,
       dbaName: true,
       user: {
@@ -94,6 +97,16 @@ export async function uploadOfficialReceipt(input: UploadOfficialReceiptInput) {
       type: "OFFICIAL_RECEIPT",
       uploadedBy: input.actorUserId,
     },
+  });
+
+  await createStoredDocument({
+    db,
+    environment,
+    userId: filing.userId,
+    file: input.file,
+    name: documentName,
+    category: getUcrDocumentCategory(UCRDocumentType.OFFICIAL_RECEIPT),
+    fileName: receiptDownloadName,
   });
 
   return db.uCRFiling.update({

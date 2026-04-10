@@ -49,7 +49,8 @@ export function canEditUcrFiling(status: UCRFilingStatus) {
   return (
     status === UCRFilingStatus.DRAFT ||
     status === UCRFilingStatus.AWAITING_CUSTOMER_PAYMENT ||
-    status === UCRFilingStatus.CORRECTION_REQUESTED
+    status === UCRFilingStatus.CORRECTION_REQUESTED ||
+    status === UCRFilingStatus.NEEDS_ATTENTION
   );
 }
 
@@ -61,7 +62,10 @@ export function canSubmitUcrFiling(status: UCRFilingStatus) {
 }
 
 export function canResubmitUcrFiling(status: UCRFilingStatus) {
-  return status === UCRFilingStatus.CORRECTION_REQUESTED;
+  return (
+    status === UCRFilingStatus.CORRECTION_REQUESTED ||
+    status === UCRFilingStatus.NEEDS_ATTENTION
+  );
 }
 
 export function canStartUcrReview(status: UCRFilingStatus) {

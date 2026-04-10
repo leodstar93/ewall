@@ -169,7 +169,11 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
     }
   }
 
-  const canSubmit = props.currentStatus !== "AWAITING_CUSTOMER_PAYMENT";
+  const canSubmit =
+    props.currentStatus === null ||
+    typeof props.currentStatus === "undefined" ||
+    props.currentStatus === "DRAFT" ||
+    props.currentStatus === "CORRECTION_REQUESTED";
 
   return (
     <div className="space-y-5 rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">

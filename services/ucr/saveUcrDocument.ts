@@ -3,8 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { UCRDocumentType } from "@prisma/client";
 import type { AppEnvironment, DbClient } from "@/lib/db/types";
 import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
+import { createStoredDocument } from "@/services/documents/create-stored-document";
 import {
   buildUcrAutoDocumentName,
+  getUcrDocumentCategory,
   type UcrDocumentActorRole,
   UcrServiceError,
 } from "@/services/ucr/shared";
@@ -32,6 +34,7 @@ export async function saveUcrDocument(input: SaveUcrDocumentInput) {
     where: { id: input.filingId },
     select: {
       id: true,
+      userId: true,
       legalName: true,
       dbaName: true,
       user: {
@@ -78,8 +81,23 @@ export async function saveUcrDocument(input: SaveUcrDocumentInput) {
       filing.user.name ||
       null,
   });
+  const downloadFileName = buildUcrAutoDocumentName({
+    type: input.type,
+    actorRole: input.uploadedByRole,
+    originalFileName: input.file.name,
+    companyName:
+      filing.user.companyProfile?.legalName ||
+      filing.user.companyProfile?.companyName ||
+      filing.user.companyProfile?.dbaName ||
+      filing.user.companyProfile?.name ||
+      filing.legalName ||
+      filing.dbaName ||
+      filing.user.name ||
+      null,
+    includeExtension: true,
+  });
 
-  return db.uCRDocument.create({
+  const document = await db.uCRDocument.create({
     data: {
       ucrFilingId: input.filingId,
       name: documentName,
@@ -91,4 +109,17 @@ export async function saveUcrDocument(input: SaveUcrDocumentInput) {
       uploadedBy: input.uploadedBy,
     },
   });
+
+  await createStoredDocument({
+    db,
+    environment,
+    userId: filing.userId,
+    file: input.file,
+    name: documentName,
+    description: input.description?.trim() || null,
+    category: getUcrDocumentCategory(input.type),
+    fileName: downloadFileName,
+  });
+
+  return document;
 }

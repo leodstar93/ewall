@@ -30,6 +30,7 @@ type DetailPayload = {
     canManageAll: boolean;
     canEdit: boolean;
     canSubmit: boolean;
+    canResubmit: boolean;
     canCheckout: boolean;
     canViewReceipt: boolean;
   };
@@ -272,6 +273,31 @@ export default function UcrDetailClient({ filingId }: Props) {
     }
   };
 
+  const resubmitFiling = async () => {
+    try {
+      setBusy(true);
+      setError(null);
+
+      const response = await fetch(`/api/v1/features/ucr/${filingId}/resubmit`, {
+        method: "POST",
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not re-submit the filing.");
+      }
+
+      setEditing(false);
+      await load();
+    } catch (resubmitError) {
+      setError(
+        resubmitError instanceof Error ? resubmitError.message : "Could not re-submit the filing.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const sendChatMessage = async () => {
     try {
       setChatBusy(true);
@@ -397,9 +423,20 @@ export default function UcrDetailClient({ filingId }: Props) {
                 <button
                   type="button"
                   className={styles.secondaryButton}
+                  disabled={busy}
                   onClick={() => setEditing((current) => !current)}
                 >
                   {editing ? "Hide edit" : "Edit filing"}
+                </button>
+              ) : null}
+              {permissions.canResubmit ? (
+                <button
+                  type="button"
+                  onClick={() => void resubmitFiling()}
+                  disabled={busy}
+                  className={styles.primaryButton}
+                >
+                  {busy ? "Working..." : "Re-submit"}
                 </button>
               ) : null}
               {permissions.canCheckout ? (

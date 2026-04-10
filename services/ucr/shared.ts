@@ -33,6 +33,7 @@ export const UCR_EDITABLE_STATUSES: UCRFilingStatus[] = [
   UCRFilingStatus.DRAFT,
   UCRFilingStatus.AWAITING_CUSTOMER_PAYMENT,
   UCRFilingStatus.CORRECTION_REQUESTED,
+  UCRFilingStatus.NEEDS_ATTENTION,
 ];
 
 export const UCR_FINAL_STATUSES = new Set<UCRFilingStatus>([
@@ -141,6 +142,10 @@ function getUcrDocumentTypeSlug(type: UCRDocumentType) {
     default:
       return "document";
   }
+}
+
+export function getUcrDocumentCategory(type: UCRDocumentType) {
+  return `ucr-${getUcrDocumentTypeSlug(type)}`;
 }
 
 function getSafeFileExtension(fileName: string) {
