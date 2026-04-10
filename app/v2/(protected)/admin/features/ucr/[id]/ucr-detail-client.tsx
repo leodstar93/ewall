@@ -349,6 +349,8 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
   const companyState = companyProfile?.state || filing?.baseState || "-";
   const assignedStaffLabel =
     filing?.assignedStaff?.name?.trim() || filing?.assignedStaff?.email || "Unassigned";
+  const customerBalanceDue = Number(filing?.customerBalanceDue ?? 0);
+  const customerCreditAmount = Number(filing?.customerCreditAmount ?? 0);
 
   const detailRows = useMemo<KeyValueRow[]>(() => {
     if (!filing) return [];
@@ -385,6 +387,9 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
       { label: "Service fee", value: formatCurrency(filing.serviceFee) },
       { label: "Processing fee", value: formatCurrency(filing.processingFee) },
       { label: "Total charged", value: formatCurrency(filing.totalCharged) },
+      { label: "Paid by customer", value: formatCurrency(filing.customerPaidAmount) },
+      { label: "Balance due", value: formatCurrency(filing.customerBalanceDue) },
+      { label: "Credit to review", value: formatCurrency(filing.customerCreditAmount) },
     ];
   }, [filing]);
 
@@ -498,6 +503,20 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
         </div>
 
         {error ? <div className={styles.alertError}>{error}</div> : null}
+
+        {customerBalanceDue > 0 ? (
+          <div className={styles.alertInfo}>
+            Customer still owes {formatCurrency(customerBalanceDue)} before staff can continue this
+            filing.
+          </div>
+        ) : null}
+
+        {customerCreditAmount > 0 ? (
+          <div className={styles.alertInfo}>
+            This filing is overpaid by {formatCurrency(customerCreditAmount)}. Review the credit
+            before closing the case.
+          </div>
+        ) : null}
 
         {permissions.canEdit && editing ? (
           <div className={styles.section}>

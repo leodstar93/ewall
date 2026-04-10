@@ -1475,6 +1475,9 @@ model UCRFiling {
   serviceFee            Decimal         @default(0) @db.Decimal(10, 2)
   processingFee         Decimal         @default(0) @db.Decimal(10, 2)
   totalCharged          Decimal         @default(0) @db.Decimal(10, 2)
+  customerPaidAmount    Decimal         @default(0) @db.Decimal(10, 2)
+  customerBalanceDue    Decimal         @default(0) @db.Decimal(10, 2)
+  customerCreditAmount  Decimal         @default(0) @db.Decimal(10, 2)
   fleetSize             Int
   bracketLabel          String?
   feeAmount             Decimal         @db.Decimal(10, 2)

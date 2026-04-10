@@ -14,7 +14,7 @@ import { createPricingSnapshot } from "@/services/ucr/createPricingSnapshot";
 import { finalizeCustomerPayment } from "@/services/ucr/finalizeCustomerPayment";
 import { logUcrEvent } from "@/services/ucr/logUcrEvent";
 import { transitionUcrStatus } from "@/services/ucr/transitionUcrStatus";
-import { UcrServiceError } from "@/services/ucr/shared";
+import { getUcrChargeAmount, UcrServiceError } from "@/services/ucr/shared";
 
 function toErrorResponse(error: unknown, fallback: string) {
   if (error instanceof UcrServiceError) {
@@ -47,6 +47,11 @@ export async function POST(
     const filing = await prisma.uCRFiling.findUnique({
       where: { id },
       include: {
+        pricingSnapshot: {
+          select: {
+            total: true,
+          },
+        },
         user: {
           select: {
             id: true,
@@ -71,13 +76,6 @@ export async function POST(
     ) {
       return Response.json(
         { error: "This filing is not ready for checkout." },
-        { status: 409 },
-      );
-    }
-
-    if (filing.customerPaymentStatus === UCRCustomerPaymentStatus.SUCCEEDED) {
-      return Response.json(
-        { error: "This filing has already been paid by the customer." },
         { status: 409 },
       );
     }
@@ -107,9 +105,46 @@ export async function POST(
     }, {
       filingId: filing.id,
     });
+    const pricedFiling = await prisma.uCRFiling.findUnique({
+      where: { id: filing.id },
+      include: {
+        pricingSnapshot: {
+          select: {
+            total: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!pricedFiling) {
+      return Response.json({ error: "UCR filing not found" }, { status: 404 });
+    }
+
+    const chargeAmount = getUcrChargeAmount({
+      totalCharged: pricedFiling.totalCharged,
+      customerPaymentStatus: pricedFiling.customerPaymentStatus,
+      customerPaidAmount: pricedFiling.customerPaidAmount,
+      pricingSnapshotTotal: pricedFiling.pricingSnapshot?.total,
+    });
+    const isAdditionalPayment =
+      chargeAmount > 0 && chargeAmount < Number(pricedFiling.totalCharged);
+
+    if (chargeAmount <= 0) {
+      return Response.json(
+        { error: "This filing has already been paid by the customer." },
+        { status: 409 },
+      );
+    }
 
     const organizationId =
-      filing.organizationId ?? (await ensureUserOrganization(filing.userId)).id;
+      pricedFiling.organizationId ?? (await ensureUserOrganization(pricedFiling.userId)).id;
     const defaultPaymentMethod = await prisma.paymentMethod.findFirst({
       where: {
         organizationId,
@@ -128,12 +163,14 @@ export async function POST(
     ) {
       const order = await createPayPalTokenOrder({
         paymentTokenId: defaultPaymentMethod.providerPaymentMethodId,
-        amountCents: Math.round(Number(filing.totalCharged) * 100),
+        amountCents: Math.round(chargeAmount * 100),
         currency: "usd",
-        referenceId: filing.id,
+        referenceId: pricedFiling.id,
         customId: organizationId,
-        description: `UCR ${filing.year} filing`,
-        invoiceId: `${filing.id}-${Date.now()}`,
+        description: isAdditionalPayment
+          ? `Additional UCR balance for ${pricedFiling.year} filing`
+          : `UCR ${pricedFiling.year} filing`,
+        invoiceId: `${pricedFiling.id}-${Date.now()}`,
       });
       const completedOrder =
         order.status === "COMPLETED" ? order : await capturePayPalOrder(order.id);
@@ -148,13 +185,16 @@ export async function POST(
       }
 
       const result = await finalizeCustomerPayment({
-        filingId: filing.id,
+        filingId: pricedFiling.id,
         actorUserId: guard.session.user.id ?? null,
         provider: "paypal",
         source: "paypal_saved_method",
+        chargedAmount: chargeAmount.toFixed(2),
         externalOrderId: completedOrder.id,
         externalPaymentId: captureId,
-        successMessage: "Customer payment was confirmed using the saved default PayPal payment method.",
+        successMessage: isAdditionalPayment
+          ? "Additional customer payment was confirmed using the saved default PayPal payment method."
+          : "Customer payment was confirmed using the saved default PayPal payment method.",
       });
 
       return Response.json({
@@ -173,27 +213,31 @@ export async function POST(
         const paymentIntent = await chargeStripePaymentMethod({
           customerId: defaultPaymentMethod.providerCustomerId,
           paymentMethodId: defaultPaymentMethod.providerPaymentMethodId,
-          amountCents: Math.round(Number(filing.totalCharged) * 100),
+          amountCents: Math.round(chargeAmount * 100),
           currency: "usd",
-          receiptEmail: filing.user.email ?? null,
+          receiptEmail: pricedFiling.user.email ?? null,
           metadata: {
-            filingId: filing.id,
+            filingId: pricedFiling.id,
             filingType: "UCR",
-            userId: filing.userId,
-            year: String(filing.year),
+            userId: pricedFiling.userId,
+            year: String(pricedFiling.year),
             organizationId,
+            chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
           },
         });
 
         if (paymentIntent.status === "succeeded") {
           const result = await finalizeCustomerPayment({
-            filingId: filing.id,
+            filingId: pricedFiling.id,
             actorUserId: guard.session.user.id ?? null,
             provider: "stripe",
             source: "stripe_saved_method",
+            chargedAmount: chargeAmount.toFixed(2),
             stripePaymentIntentId: paymentIntent.id,
             stripeChargeId: getStripeChargeId(paymentIntent),
-            successMessage: "Customer payment was confirmed using the saved default Stripe payment method.",
+            successMessage: isAdditionalPayment
+              ? "Additional customer payment was confirmed using the saved default Stripe payment method."
+              : "Customer payment was confirmed using the saved default Stripe payment method.",
           });
 
           return Response.json({
@@ -213,15 +257,15 @@ export async function POST(
     }
 
     const session = await createCheckoutSession({
-      filingId: filing.id,
-      userId: filing.userId,
-      userEmail: filing.user.email,
-      userName: filing.user.name,
+      filingId: pricedFiling.id,
+      userId: pricedFiling.userId,
+      userEmail: pricedFiling.user.email,
+      userName: pricedFiling.user.name,
     });
 
     await prisma.$transaction(async (tx) => {
       await tx.uCRFiling.update({
-        where: { id: filing.id },
+        where: { id: pricedFiling.id },
         data: {
           stripeCheckoutSessionId: session.id,
           customerPaymentStatus: UCRCustomerPaymentStatus.PENDING,
@@ -229,7 +273,7 @@ export async function POST(
       });
 
       await transitionUcrStatus({ db: tx }, {
-        filingId: filing.id,
+        filingId: pricedFiling.id,
         toStatus: UCRFilingStatus.CUSTOMER_PAYMENT_PENDING,
         actorUserId: guard.session.user.id ?? null,
         eventType: "ucr.customer_payment.pending",
@@ -237,20 +281,22 @@ export async function POST(
       });
 
       await logUcrEvent({ db: tx }, {
-        filingId: filing.id,
+        filingId: pricedFiling.id,
         actorUserId: guard.session.user.id ?? null,
         eventType: "ucr.checkout.session_created",
         message: "Stripe Checkout session created.",
         metaJson: {
           stripeCheckoutSessionId: session.id,
           amountTotal: session.amount_total,
+          chargeAmount: chargeAmount.toFixed(2),
+          chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
           fallbackReason: stripeFallbackReason,
         },
       });
 
       if (stripeFallbackReason) {
         await logUcrEvent({ db: tx }, {
-          filingId: filing.id,
+          filingId: pricedFiling.id,
           actorUserId: guard.session.user.id ?? null,
           eventType: "ucr.customer_payment.hosted_fallback",
           message: "Saved Stripe payment method could not be charged automatically. Falling back to Stripe Checkout.",

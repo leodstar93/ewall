@@ -5,6 +5,7 @@ import { requireApiPermission } from "@/lib/rbac-api";
 import { canEditUcrFiling, canResubmitUcrFiling, canSubmitUcrFiling } from "@/lib/ucr-workflow";
 import { updateUcrFiling } from "@/services/ucr/updateUcrFiling";
 import {
+  getUcrChargeAmount,
   normalizeOptionalText,
   parseFilingYear,
   parseNonNegativeInt,
@@ -232,7 +233,12 @@ export async function GET(
         canCheckout:
           isOwner &&
           ["AWAITING_CUSTOMER_PAYMENT", "CUSTOMER_PAYMENT_PENDING"].includes(filing.status) &&
-          filing.customerPaymentStatus !== "SUCCEEDED",
+          getUcrChargeAmount({
+            totalCharged: filing.totalCharged,
+            customerPaymentStatus: filing.customerPaymentStatus,
+            customerPaidAmount: filing.customerPaidAmount,
+            pricingSnapshotTotal: filing.pricingSnapshot?.total,
+          }) > 0,
         canViewReceipt:
           (isOwner || canManageAll) &&
           Boolean(filing.officialReceiptUrl) &&

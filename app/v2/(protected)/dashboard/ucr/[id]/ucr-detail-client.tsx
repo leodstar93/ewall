@@ -338,6 +338,8 @@ export default function UcrDetailClient({ filingId }: Props) {
   const companyMc = companyProfile?.mcNumber || filing?.mcNumber || "-";
   const companyEin = companyProfile?.ein || filing?.fein || "-";
   const companyState = companyProfile?.state || filing?.baseState || "-";
+  const customerBalanceDue = Number(filing?.customerBalanceDue ?? 0);
+  const customerCreditAmount = Number(filing?.customerCreditAmount ?? 0);
 
   const detailRows = useMemo<KeyValueRow[]>(() => {
     if (!filing) return [];
@@ -364,6 +366,9 @@ export default function UcrDetailClient({ filingId }: Props) {
       { label: "Service fee", value: formatCurrency(filing.serviceFee) },
       { label: "Processing fee", value: formatCurrency(filing.processingFee) },
       { label: "Total charged", value: formatCurrency(filing.totalCharged) },
+      { label: "Paid by customer", value: formatCurrency(filing.customerPaidAmount) },
+      { label: "Balance due", value: formatCurrency(filing.customerBalanceDue) },
+      { label: "Credit to review", value: formatCurrency(filing.customerCreditAmount) },
     ];
   }, [filing]);
 
@@ -474,6 +479,20 @@ export default function UcrDetailClient({ filingId }: Props) {
         </div>
 
         {error ? <div className={styles.alertError}>{error}</div> : null}
+
+        {customerBalanceDue > 0 ? (
+          <div className={styles.alertInfo}>
+            Additional payment due: {formatCurrency(customerBalanceDue)}. Save your changes, then use
+            {" "}Re-submit so the filing returns to checkout.
+          </div>
+        ) : null}
+
+        {customerCreditAmount > 0 ? (
+          <div className={styles.alertInfo}>
+            This filing is currently overpaid by {formatCurrency(customerCreditAmount)}. Staff can
+            continue the filing, but the credit should be reviewed.
+          </div>
+        ) : null}
 
         {permissions.canEdit && editing ? (
           <div className={styles.section}>

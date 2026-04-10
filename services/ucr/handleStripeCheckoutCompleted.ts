@@ -29,6 +29,7 @@ export async function handleStripeCheckoutCompleted(session: Stripe.Checkout.Ses
     actorUserId: null,
     provider: "stripe",
     source: "stripe_checkout",
+    chargedAmount: Number((session.amount_total ?? 0) / 100).toFixed(2),
     stripeCheckoutSessionId: session.id,
     stripePaymentIntentId: getPaymentIntentId(session.payment_intent),
     stripeChargeId: getChargeId(session.payment_intent),

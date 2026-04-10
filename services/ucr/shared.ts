@@ -1,5 +1,6 @@
 import {
   Prisma,
+  UCRCustomerPaymentStatus,
   UCRDocumentType,
   UCREntityType,
   UCRFilingStatus,
@@ -199,6 +200,102 @@ export function moneyToString(value: number | string | Prisma.Decimal) {
 
 export function decimalFromMoney(value: number | string | Prisma.Decimal) {
   return new Prisma.Decimal(moneyToString(value));
+}
+
+function toRoundedMoneyNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return 0;
+  return Number(parsed.toFixed(2));
+}
+
+const MONEY_EPSILON = 0.005;
+
+export function resolveUcrCustomerPaidAmount(input: {
+  customerPaymentStatus?: UCRCustomerPaymentStatus | string | null;
+  customerPaidAmount?: unknown;
+  pricingSnapshotTotal?: unknown;
+  totalCharged?: unknown;
+}) {
+  const storedPaidAmount = toRoundedMoneyNumber(input.customerPaidAmount);
+  if (storedPaidAmount > MONEY_EPSILON) {
+    return storedPaidAmount;
+  }
+
+  if (input.customerPaymentStatus === UCRCustomerPaymentStatus.SUCCEEDED) {
+    return toRoundedMoneyNumber(input.pricingSnapshotTotal ?? input.totalCharged);
+  }
+
+  return 0;
+}
+
+export function getUcrPaymentAccounting(input: {
+  totalCharged: unknown;
+  customerPaymentStatus?: UCRCustomerPaymentStatus | string | null;
+  customerPaidAmount?: unknown;
+  pricingSnapshotTotal?: unknown;
+}) {
+  const totalAmount = toRoundedMoneyNumber(input.totalCharged);
+  const paidAmount = resolveUcrCustomerPaidAmount(input);
+  const balanceDue = Number(Math.max(totalAmount - paidAmount, 0).toFixed(2));
+  const creditAmount = Number(Math.max(paidAmount - totalAmount, 0).toFixed(2));
+
+  return {
+    totalAmount,
+    paidAmount,
+    balanceDue,
+    creditAmount,
+    hasAnyPayment: paidAmount > MONEY_EPSILON,
+    isSettled: balanceDue <= MONEY_EPSILON,
+  };
+}
+
+export function buildUcrPaymentAccountingUpdate(input: {
+  totalCharged: unknown;
+  customerPaymentStatus?: UCRCustomerPaymentStatus | string | null;
+  customerPaidAmount?: unknown;
+  pricingSnapshotTotal?: unknown;
+}) {
+  const accounting = getUcrPaymentAccounting(input);
+  const fallbackStatus =
+    (input.customerPaymentStatus as UCRCustomerPaymentStatus | null | undefined) ??
+    UCRCustomerPaymentStatus.NOT_STARTED;
+
+  const customerPaymentStatus =
+    accounting.hasAnyPayment || fallbackStatus === UCRCustomerPaymentStatus.SUCCEEDED
+      ? accounting.isSettled
+        ? UCRCustomerPaymentStatus.SUCCEEDED
+        : UCRCustomerPaymentStatus.PENDING
+      : fallbackStatus;
+
+  return {
+    ...accounting,
+    customerPaymentStatus,
+    data: {
+      customerPaidAmount: decimalFromMoney(accounting.paidAmount),
+      customerBalanceDue: decimalFromMoney(accounting.balanceDue),
+      customerCreditAmount: decimalFromMoney(accounting.creditAmount),
+      customerPaymentStatus,
+    },
+  };
+}
+
+export function getUcrChargeAmount(input: {
+  totalCharged: unknown;
+  customerPaymentStatus?: UCRCustomerPaymentStatus | string | null;
+  customerPaidAmount?: unknown;
+  pricingSnapshotTotal?: unknown;
+}) {
+  const accounting = getUcrPaymentAccounting(input);
+
+  if (accounting.balanceDue > MONEY_EPSILON) {
+    return accounting.balanceDue;
+  }
+
+  if (accounting.hasAnyPayment) {
+    return 0;
+  }
+
+  return accounting.totalAmount;
 }
 
 export function parseNonNegativeInt(value: unknown) {

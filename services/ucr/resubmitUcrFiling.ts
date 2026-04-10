@@ -4,7 +4,10 @@ import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/typ
 import { canResubmitUcrFiling } from "@/lib/ucr-workflow";
 import { notifyUcrSubmitted } from "@/services/ucr/notifications";
 import { getUcrRateForFleet } from "@/services/ucr/getUcrRateForFleet";
+import { transitionUcrStatus } from "@/services/ucr/transitionUcrStatus";
 import {
+  decimalFromMoney,
+  getUcrPaymentAccounting,
   UcrServiceError,
   ucrFilingInclude,
   validateFilingCompleteness,
@@ -74,18 +77,49 @@ export async function resubmitUcrFiling(
     );
   }
 
-  const updated = await db.uCRFiling.update({
+  const paymentAccounting = getUcrPaymentAccounting({
+    totalCharged: filing.totalCharged,
+    customerPaymentStatus: filing.customerPaymentStatus,
+    customerPaidAmount: filing.customerPaidAmount,
+    pricingSnapshotTotal: filing.pricingSnapshot?.total,
+  });
+  const needsAdditionalPayment = paymentAccounting.balanceDue > 0;
+
+  await db.uCRFiling.update({
     where: { id: input.filingId },
     data: {
-      status: UCRFilingStatus.RESUBMITTED,
-      resubmittedAt: new Date(),
       bracketLabel: rate.bracketLabel,
       feeAmount: new Prisma.Decimal(rate.feeAmount),
+      customerBalanceDue: decimalFromMoney(paymentAccounting.balanceDue),
+      customerCreditAmount: decimalFromMoney(paymentAccounting.creditAmount),
     },
+  });
+
+  await transitionUcrStatus({ db }, {
+    filingId: input.filingId,
+    toStatus: needsAdditionalPayment
+      ? UCRFilingStatus.AWAITING_CUSTOMER_PAYMENT
+      : UCRFilingStatus.RESUBMITTED,
+    actorUserId: input.actorUserId,
+    eventType: needsAdditionalPayment
+      ? "ucr.customer_payment.additional_required"
+      : "ucr.filing.resubmitted",
+    message: needsAdditionalPayment
+      ? "An additional customer payment is required before staff can continue the filing."
+      : "Filing was re-submitted to staff.",
+    data: needsAdditionalPayment
+      ? undefined
+      : {
+          resubmittedAt: new Date(),
+        },
+  });
+
+  const updated = await db.uCRFiling.findUniqueOrThrow({
+    where: { id: input.filingId },
     include: ucrFilingInclude,
   });
 
-  if (db === prisma) {
+  if (db === prisma && !needsAdditionalPayment) {
     await notifyUcrSubmitted(updated, { resubmitted: true });
   }
   return updated;

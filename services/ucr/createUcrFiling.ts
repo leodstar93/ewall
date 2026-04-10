@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/types";
 import { calculateUcrPricing } from "@/services/ucr/calculateUcrPricing";
 import {
+  buildUcrPaymentAccountingUpdate,
   UcrServiceError,
   decimalFromMoney,
   sanitizeStateCode,
@@ -86,6 +87,9 @@ export async function createUcrFiling(
     year: normalizedYear,
     vehicleCount: normalizedVehicleCount,
   });
+  const paymentAccounting = buildUcrPaymentAccountingUpdate({
+    totalCharged: pricing.total,
+  });
 
   try {
     return await db.uCRFiling.create({
@@ -111,6 +115,7 @@ export async function createUcrFiling(
         serviceFee: decimalFromMoney(pricing.serviceFee),
         processingFee: decimalFromMoney(pricing.processingFee),
         totalCharged: decimalFromMoney(pricing.total),
+        ...paymentAccounting.data,
         feeAmount: decimalFromMoney(pricing.ucrAmount),
         status: UCRFilingStatus.DRAFT,
         clientNotes: input.clientNotes?.trim() || null,

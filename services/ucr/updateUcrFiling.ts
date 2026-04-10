@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/types";
 import { calculateUcrPricing } from "@/services/ucr/calculateUcrPricing";
 import {
+  buildUcrPaymentAccountingUpdate,
   UcrServiceError,
   decimalFromMoney,
   isCustomerEditableStatus,
@@ -70,14 +71,6 @@ export async function updateUcrFiling(
     );
   }
 
-  if (existing.customerPaymentStatus === "SUCCEEDED") {
-    throw new UcrServiceError(
-      "Pricing and filing identity fields are frozen after payment.",
-      409,
-      "FILING_PRICING_FROZEN",
-    );
-  }
-
   const year = input.year ?? input.filingYear ?? existing.year;
   const vehicleCount =
     input.vehicleCount ?? input.fleetSize ?? existing.vehicleCount ?? existing.fleetSize;
@@ -91,6 +84,12 @@ export async function updateUcrFiling(
   }
 
   const pricing = await calculateUcrPricing({ db }, { year, vehicleCount });
+  const paymentAccounting = buildUcrPaymentAccountingUpdate({
+    totalCharged: pricing.total,
+    customerPaymentStatus: existing.customerPaymentStatus,
+    customerPaidAmount: existing.customerPaidAmount,
+    pricingSnapshotTotal: existing.pricingSnapshot?.total,
+  });
 
   try {
     return await db.uCRFiling.update({
@@ -141,7 +140,12 @@ export async function updateUcrFiling(
         serviceFee: decimalFromMoney(pricing.serviceFee),
         processingFee: decimalFromMoney(pricing.processingFee),
         totalCharged: decimalFromMoney(pricing.total),
+        ...paymentAccounting.data,
         feeAmount: decimalFromMoney(pricing.ucrAmount),
+        pricingLockedAt:
+          existing.customerPaymentStatus === "SUCCEEDED" && !paymentAccounting.isSettled
+            ? null
+            : undefined,
         clientNotes:
           typeof input.clientNotes === "undefined"
             ? undefined

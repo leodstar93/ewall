@@ -2,7 +2,11 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateStripeCustomer, getStripe } from "@/lib/payments/stripe";
 import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/types";
-import { getUcrAppBaseUrl, UcrServiceError } from "@/services/ucr/shared";
+import {
+  getUcrAppBaseUrl,
+  getUcrChargeAmount,
+  UcrServiceError,
+} from "@/services/ucr/shared";
 
 type CreateCheckoutSessionInput = {
   filingId: string;
@@ -44,6 +48,13 @@ export async function createCheckoutSession(
       serviceFee: true,
       processingFee: true,
       totalCharged: true,
+      customerPaymentStatus: true,
+      customerPaidAmount: true,
+      pricingSnapshot: {
+        select: {
+          total: true,
+        },
+      },
       stripeCheckoutSessionId: true,
     },
   });
@@ -63,6 +74,21 @@ export async function createCheckoutSession(
     email: input.userEmail ?? null,
     name: input.userName ?? null,
   });
+  const chargeAmount = getUcrChargeAmount({
+    totalCharged: filing.totalCharged,
+    customerPaymentStatus: filing.customerPaymentStatus,
+    customerPaidAmount: filing.customerPaidAmount,
+    pricingSnapshotTotal: filing.pricingSnapshot?.total,
+  });
+  const isAdditionalPayment = chargeAmount > 0 && chargeAmount < Number(filing.totalCharged);
+
+  if (chargeAmount <= 0) {
+    throw new UcrServiceError(
+      "This filing does not have any customer balance due.",
+      409,
+      "NO_CUSTOMER_BALANCE_DUE",
+    );
+  }
 
   return stripe.checkout.sessions.create({
     mode: "payment",
@@ -76,20 +102,23 @@ export async function createCheckoutSession(
       userId: filing.userId,
       year: String(filing.year),
       organizationId: filing.organizationId ?? "",
+      chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
     },
     line_items: [
       {
         quantity: 1,
         price_data: {
           currency: "usd",
-          unit_amount: Math.round(Number(filing.ucrAmount) * 100),
+          unit_amount: Math.round(
+            Number(isAdditionalPayment ? chargeAmount : filing.ucrAmount) * 100,
+          ),
           product_data: {
-            name: `UCR ${filing.year} filing`,
-            description: `${filing.legalName} • ${filing.vehicleCount ?? 0} vehicles`,
+            name: isAdditionalPayment ? "Additional UCR balance" : `UCR ${filing.year} filing`,
+            description: `${filing.legalName} | ${filing.vehicleCount ?? 0} vehicles`,
           },
         },
       },
-      ...(Number(filing.serviceFee) > 0
+      ...(!isAdditionalPayment && Number(filing.serviceFee) > 0
         ? [
             {
               quantity: 1,
@@ -103,7 +132,7 @@ export async function createCheckoutSession(
             },
           ]
         : []),
-      ...(Number(filing.processingFee) > 0
+      ...(!isAdditionalPayment && Number(filing.processingFee) > 0
         ? [
             {
               quantity: 1,
@@ -125,6 +154,7 @@ export async function createCheckoutSession(
         filingType: "UCR",
         userId: filing.userId,
         year: String(filing.year),
+        chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
       },
     },
   });

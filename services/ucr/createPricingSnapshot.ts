@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import type { DbClient, DbTransactionClient, ServiceContext } from "@/lib/db/types";
 import { calculateUcrPricing } from "@/services/ucr/calculateUcrPricing";
-import { decimalFromMoney, UcrServiceError } from "@/services/ucr/shared";
+import {
+  buildUcrPaymentAccountingUpdate,
+  decimalFromMoney,
+  UcrServiceError,
+} from "@/services/ucr/shared";
 
 type CreatePricingSnapshotInput = {
   filingId: string;
@@ -33,6 +37,14 @@ export async function createPricingSnapshot(
       id: true,
       year: true,
       vehicleCount: true,
+      customerPaymentStatus: true,
+      customerPaidAmount: true,
+      pricingLockedAt: true,
+      pricingSnapshot: {
+        select: {
+          total: true,
+        },
+      },
     },
   });
 
@@ -52,6 +64,12 @@ export async function createPricingSnapshot(
     year: filing.year,
     vehicleCount: filing.vehicleCount,
   });
+  const paymentAccounting = buildUcrPaymentAccountingUpdate({
+    totalCharged: pricing.total,
+    customerPaymentStatus: filing.customerPaymentStatus,
+    customerPaidAmount: filing.customerPaidAmount,
+    pricingSnapshotTotal: filing.pricingSnapshot?.total,
+  });
 
   await db.uCRFiling.update({
     where: { id: filing.id },
@@ -64,7 +82,12 @@ export async function createPricingSnapshot(
       serviceFee: decimalFromMoney(pricing.serviceFee),
       processingFee: decimalFromMoney(pricing.processingFee),
       totalCharged: decimalFromMoney(pricing.total),
+      ...paymentAccounting.data,
       feeAmount: decimalFromMoney(pricing.ucrAmount),
+      pricingLockedAt:
+        filing.customerPaymentStatus === "SUCCEEDED" && !paymentAccounting.isSettled
+          ? null
+          : undefined,
     },
   });
 

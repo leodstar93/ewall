@@ -328,6 +328,17 @@
   line-height: 1.5;
 }
 
+.alertInfo {
+  margin: 0 18px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 40, 104, 0.16);
+  background: rgba(0, 40, 104, 0.06);
+  color: var(--b);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .tableLink {
   color: var(--b);
   font-weight: 600;

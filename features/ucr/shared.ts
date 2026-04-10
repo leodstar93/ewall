@@ -101,6 +101,9 @@ export type UcrFiling = {
   serviceFee: string;
   processingFee: string;
   totalCharged: string;
+  customerPaidAmount: string;
+  customerBalanceDue: string;
+  customerCreditAmount: string;
   feeAmount: string;
   status: UCRFilingStatus;
   customerPaymentStatus: UCRCustomerPaymentStatus;
