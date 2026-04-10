@@ -148,15 +148,33 @@ function getSafeFileExtension(fileName: string) {
   return match?.[1]?.toLowerCase() || "";
 }
 
+function slugifySegment(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase() || "";
+  return normalized
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
 export function buildUcrAutoDocumentName(input: {
   type: UCRDocumentType;
   actorRole: UcrDocumentActorRole;
   originalFileName: string;
+  companyName?: string | null;
   createdAt?: Date;
   includeExtension?: boolean;
 }) {
   const dateStamp = (input.createdAt ?? new Date()).toISOString().slice(0, 10);
-  const baseName = `ucr-${getUcrDocumentTypeSlug(input.type)}-${input.actorRole}-${dateStamp}`;
+  const companySlug = slugifySegment(input.companyName);
+  const baseName = [
+    "ucr",
+    getUcrDocumentTypeSlug(input.type),
+    companySlug,
+    input.actorRole,
+    dateStamp,
+  ]
+    .filter(Boolean)
+    .join("-");
 
   if (!input.includeExtension) {
     return baseName;

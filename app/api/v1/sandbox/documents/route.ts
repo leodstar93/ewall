@@ -3,11 +3,38 @@ import { NextRequest } from "next/server";
 import { buildSandboxServiceContext, getSandboxErrorStatus } from "@/lib/sandbox/server";
 import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
 import { createSandboxAuditFromContext } from "@/services/sandbox/createSandboxAudit";
+import { autoClassifyDocument } from "@/services/documents/auto-classify";
 
 function normalizeOptionalText(value: FormDataEntryValue | null) {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   return normalized.length ? normalized : null;
+}
+
+async function resolveDocumentCompanyName(userId: string, db: Awaited<ReturnType<typeof buildSandboxServiceContext>>["ctx"]["db"]) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      name: true,
+      companyProfile: {
+        select: {
+          legalName: true,
+          companyName: true,
+          dbaName: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  return (
+    user?.companyProfile?.legalName ||
+    user?.companyProfile?.companyName ||
+    user?.companyProfile?.dbaName ||
+    user?.companyProfile?.name ||
+    user?.name ||
+    null
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -23,9 +50,15 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!name || name.trim().length === 0) {
-      return Response.json({ error: "Document name is required" }, { status: 400 });
-    }
+    const companyName = await resolveDocumentCompanyName(ctx.actorUserId, ctx.db);
+    const classification = autoClassifyDocument({
+      originalFileName: file.name,
+      mimeType: file.type,
+      providedCategory: category,
+      providedName: typeof name === "string" ? name : null,
+      companyName,
+      uploaderRole: "staff",
+    });
 
     const timestamp = Date.now();
     const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
@@ -40,10 +73,10 @@ export async function POST(request: NextRequest) {
 
     const document = await ctx.db.document.create({
       data: {
-        name: name.trim(),
+        name: classification.displayName,
         description: description || null,
-        category,
-        fileName: file.name,
+        category: classification.category,
+        fileName: classification.storedFileName,
         fileUrl: getStoragePublicUrl("sandbox", uniqueFileName),
         fileSize: file.size,
         fileType: file.type,
@@ -56,7 +89,7 @@ export async function POST(request: NextRequest) {
       entityType: "Document",
       entityId: document.id,
       metadataJson: {
-        category,
+        category: classification.category,
         name: document.name,
       },
     });

@@ -32,6 +32,21 @@ export async function saveUcrDocument(input: SaveUcrDocumentInput) {
     where: { id: input.filingId },
     select: {
       id: true,
+      legalName: true,
+      dbaName: true,
+      user: {
+        select: {
+          name: true,
+          companyProfile: {
+            select: {
+              legalName: true,
+              companyName: true,
+              dbaName: true,
+              name: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -53,6 +68,15 @@ export async function saveUcrDocument(input: SaveUcrDocumentInput) {
     type: input.type,
     actorRole: input.uploadedByRole,
     originalFileName: input.file.name,
+    companyName:
+      filing.user.companyProfile?.legalName ||
+      filing.user.companyProfile?.companyName ||
+      filing.user.companyProfile?.dbaName ||
+      filing.user.companyProfile?.name ||
+      filing.legalName ||
+      filing.dbaName ||
+      filing.user.name ||
+      null,
   });
 
   return db.uCRDocument.create({

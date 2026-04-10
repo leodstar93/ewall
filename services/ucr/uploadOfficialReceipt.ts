@@ -27,6 +27,21 @@ export async function uploadOfficialReceipt(input: UploadOfficialReceiptInput) {
     where: { id: input.filingId },
     select: {
       id: true,
+      legalName: true,
+      dbaName: true,
+      user: {
+        select: {
+          name: true,
+          companyProfile: {
+            select: {
+              legalName: true,
+              companyName: true,
+              dbaName: true,
+              name: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -46,15 +61,26 @@ export async function uploadOfficialReceipt(input: UploadOfficialReceiptInput) {
   await writeFile(filePath, Buffer.from(fileBuffer));
 
   const publicUrl = getStoragePublicUrl(environment, "ucr", uniqueFileName);
+  const companyName =
+    filing.user.companyProfile?.legalName ||
+    filing.user.companyProfile?.companyName ||
+    filing.user.companyProfile?.dbaName ||
+    filing.user.companyProfile?.name ||
+    filing.legalName ||
+    filing.dbaName ||
+    filing.user.name ||
+    null;
   const documentName = buildUcrAutoDocumentName({
     type: UCRDocumentType.OFFICIAL_RECEIPT,
     actorRole: "staff",
     originalFileName: input.file.name,
+    companyName,
   });
   const receiptDownloadName = buildUcrAutoDocumentName({
     type: UCRDocumentType.OFFICIAL_RECEIPT,
     actorRole: "staff",
     originalFileName: input.file.name,
+    companyName,
     includeExtension: true,
   });
 

@@ -3,11 +3,38 @@ import { auth } from "@/auth";
 import { NextRequest } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
+import { autoClassifyDocument } from "@/services/documents/auto-classify";
 
 function normalizeOptionalText(value: FormDataEntryValue | null) {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   return normalized.length ? normalized : null;
+}
+
+async function resolveDocumentCompanyName(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      name: true,
+      companyProfile: {
+        select: {
+          legalName: true,
+          companyName: true,
+          dbaName: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  return (
+    user?.companyProfile?.legalName ||
+    user?.companyProfile?.companyName ||
+    user?.companyProfile?.dbaName ||
+    user?.companyProfile?.name ||
+    user?.name ||
+    null
+  );
 }
 
 // POST - Upload a new document
@@ -29,12 +56,22 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!name || name.trim().length === 0) {
-      return Response.json(
-        { error: "Document name is required" },
-        { status: 400 },
-      );
-    }
+    const uploaderRole = session.user.roles?.includes("ADMIN")
+      ? "admin"
+      : session.user.roles?.includes("STAFF")
+        ? "staff"
+        : session.user.roles?.includes("TRUCKER")
+          ? "client"
+          : "user";
+    const companyName = await resolveDocumentCompanyName(session.user.id);
+    const classification = autoClassifyDocument({
+      originalFileName: file.name,
+      mimeType: file.type,
+      providedCategory: category,
+      providedName: typeof name === "string" ? name : null,
+      companyName,
+      uploaderRole,
+    });
 
     // In a real app, you would upload the file to cloud storage (S3, Cloudinary, etc.)
     // Generate unique filename
@@ -59,10 +96,10 @@ export async function POST(request: NextRequest) {
     // Create document record in database
     const document = await prisma.document.create({
       data: {
-        name: name.trim(),
+        name: classification.displayName,
         description: description || null,
-        category,
-        fileName: file.name,
+        category: classification.category,
+        fileName: classification.storedFileName,
         fileUrl: getStoragePublicUrl("production", uniqueFileName),
         fileSize: file.size,
         fileType: file.type,
