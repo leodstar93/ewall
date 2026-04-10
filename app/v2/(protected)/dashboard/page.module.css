@@ -36,6 +36,10 @@
   gap: 16px;
 }
 
+.content > * {
+  flex-shrink: 0;
+}
+
 .topPanels {
   display: grid;
   grid-template-columns: 1fr 1fr;

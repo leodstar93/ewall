@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import Table, { type ColumnDef } from "../ui/Table";
+import tableStyles from "../ui/DataTable.module.css";
 import type { TruckStatus } from "@/lib/types";
 import styles from "./TrucksDropdown.module.css";
 
@@ -12,6 +14,15 @@ export type DashboardTruckRow = {
   identifier: string;
   usage: string;
   status: TruckStatus;
+};
+
+type TruckTableRow = DashboardTruckRow & {
+  unitBadge: string;
+  searchText: string;
+  sortId: string;
+  sortAlias: string;
+  sortIdentifier: string;
+  sortStatus: string;
 };
 
 const FILTERS: { label: string; value: TruckStatus | "all" }[] = [
@@ -41,6 +52,27 @@ interface Props {
   footerHref?: string;
 }
 
+function buildRows(trucks: DashboardTruckRow[]): TruckTableRow[] {
+  return trucks.map((truck) => ({
+    ...truck,
+    unitBadge: truck.id.split("-")[1] || truck.id,
+    searchText: [
+      truck.id,
+      truck.model,
+      truck.alias,
+      truck.identifier,
+      truck.usage,
+      truck.status,
+    ]
+      .join(" ")
+      .toLowerCase(),
+    sortId: truck.id,
+    sortAlias: truck.alias,
+    sortIdentifier: truck.identifier,
+    sortStatus: truck.status,
+  }));
+}
+
 export default function TrucksDropdown({ trucks, footerHref }: Props) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<TruckStatus | "all">("all");
@@ -49,19 +81,67 @@ export default function TrucksDropdown({ trucks, footerHref }: Props) {
   const activeCount = trucks.filter((truck) => truck.status === "Activo").length;
 
   const filtered = useMemo(() => {
-    return trucks.filter((truck) => {
-      const matchesFilter = filter === "all" || truck.status === filter;
-      const normalizedQuery = query.toLowerCase();
-      const matchesQuery =
-        !normalizedQuery ||
-        truck.id.toLowerCase().includes(normalizedQuery) ||
-        truck.alias.toLowerCase().includes(normalizedQuery) ||
-        truck.identifier.toLowerCase().includes(normalizedQuery) ||
-        truck.model.toLowerCase().includes(normalizedQuery);
+    return trucks.filter((truck) => filter === "all" || truck.status === filter);
+  }, [trucks, filter]);
 
-      return matchesFilter && matchesQuery;
-    });
-  }, [trucks, filter, query]);
+  const rows = useMemo(() => buildRows(filtered), [filtered]);
+
+  const columns: ColumnDef<TruckTableRow>[] = [
+    {
+      key: "unitBadge",
+      label: "#",
+      render: (_, truck) => (
+        <div className={`${styles.num} ${NUM_CLASS[truck.status]}`}>{truck.unitBadge}</div>
+      ),
+    },
+    {
+      key: "sortId",
+      label: "Unit",
+      render: (_, truck) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div className={tableStyles.nameCell}>{truck.id}</div>
+          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
+            {truck.model}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "sortAlias",
+      label: "Alias",
+      render: (_, truck) => (
+        <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
+          {truck.alias}
+        </div>
+      ),
+    },
+    {
+      key: "sortIdentifier",
+      label: "Plate / VIN",
+      render: (_, truck) => (
+        <div className={tableStyles.muteCell} style={{ fontSize: 13 }}>
+          {truck.identifier}
+        </div>
+      ),
+    },
+    {
+      key: "usage",
+      label: "Activity",
+      sortable: false,
+      render: (_, truck) => (
+        <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
+          {truck.usage}
+        </div>
+      ),
+    },
+    {
+      key: "sortStatus",
+      label: "Status",
+      render: (_, truck) => (
+        <span className={`${styles.tbadge} ${STATUS_CLASS[truck.status]}`}>{truck.status}</span>
+      ),
+    },
+  ];
 
   return (
     <div className={`${styles.container} ${open ? styles.open : ""}`}>
@@ -79,7 +159,7 @@ export default function TrucksDropdown({ trucks, footerHref }: Props) {
               <circle cx="18.5" cy="18.5" r="2.5" />
             </svg>
           </div>
-          <span className={styles.triggerLabel}>Trucks</span>
+          <span className={styles.triggerLabel}>Trucks and Trails</span>
           <span className={styles.triggerCount}>({trucks.length} unidades)</span>
         </div>
         <div className={styles.triggerRight}>
@@ -96,93 +176,50 @@ export default function TrucksDropdown({ trucks, footerHref }: Props) {
         </div>
       </button>
 
-      {open && (
+      {open ? (
         <div className={styles.body}>
-          <div className={styles.toolbar}>
-            <div className={styles.searchBox}>
-              <svg viewBox="0 0 14 14" fill="none" stroke="#bbb" strokeWidth="2">
-                <circle cx="6" cy="6" r="4" />
-                <line x1="9" y1="9" x2="13" y2="13" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search truck..."
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </div>
-            <div className={styles.pills}>
-              {FILTERS.map((filterOption) => (
-                <button
-                  type="button"
-                  key={filterOption.value}
-                  className={`${styles.pill} ${filter === filterOption.value ? styles.pillActive : ""}`}
-                  onClick={() => setFilter(filterOption.value)}
-                >
-                  {filterOption.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className={styles.colHeaders}>
-            <div />
-            <div>Unidad</div>
-            <div>Alias</div>
-            <div>Plate / VIN</div>
-            <div>Activity</div>
-            <div>Estado</div>
-          </div>
-
-          <div className={styles.list}>
-            {filtered.length === 0 ? (
-              <div className={styles.empty}>Sin resultados</div>
-            ) : (
-              filtered.map((truck) => (
-                <div key={truck.id} className={styles.row}>
-                  <div className={`${styles.num} ${NUM_CLASS[truck.status]}`}>
-                    {truck.id.split("-")[1]}
-                  </div>
-                  <div>
-                    <div className={styles.truckId}>{truck.id}</div>
-                    <div className={styles.truckModel}>{truck.model}</div>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.cellLabel}>Alias</span>
-                    {truck.alias}
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.cellLabel}>Plate / VIN</span>
-                    {truck.identifier}
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.cellLabel}>Activity</span>
-                    <strong>{truck.usage}</strong>
-                  </div>
-                  <div>
-                    <span className={`${styles.tbadge} ${STATUS_CLASS[truck.status]}`}>
-                      {truck.status}
-                    </span>
-                  </div>
+          <Table
+            data={rows}
+            columns={columns}
+            title="Trucks and Trails"
+            searchQuery={query}
+            searchKeys={["searchText"]}
+            toolbar={
+              <div className={styles.toolbar}>
+                <div className={styles.searchBox}>
+                  <svg viewBox="0 0 14 14" fill="none" stroke="#bbb" strokeWidth="2">
+                    <circle cx="6" cy="6" r="4" />
+                    <line x1="9" y1="9" x2="13" y2="13" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search truck..."
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
                 </div>
-              ))
-            )}
-          </div>
-
-          <div className={styles.footer}>
-            <span className={styles.footerInfo}>
-              Showing {filtered.length} of {trucks.length} trucks
-            </span>
-            {footerHref ? (
-              <Link href={footerHref} className={styles.footerLink}>
-                Manage trucks {"->"}
-              </Link>
-            ) : (
-              <span className={styles.footerLink}>Manage trucks {"->"}</span>
-            )}
-          </div>
+                <div className={styles.pills}>
+                  {FILTERS.map((filterOption) => (
+                    <button
+                      type="button"
+                      key={filterOption.value}
+                      className={`${styles.pill} ${filter === filterOption.value ? styles.pillActive : ""}`}
+                      onClick={() => setFilter(filterOption.value)}
+                    >
+                      {filterOption.label}
+                    </button>
+                  ))}
+                </div>
+                {footerHref ? (
+                  <Link href={footerHref} className={styles.footerLink}>
+                    Manage trucks {"->"}
+                  </Link>
+                ) : null}
+              </div>
+            }
+          />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

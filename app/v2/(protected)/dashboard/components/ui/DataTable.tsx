@@ -50,29 +50,7 @@ interface Props {
 }
 
 export default function DataTable({ data, searchQuery }: Props) {
-  const actions: TableAction[] = [
-    {
-      label: "Exportar",
-      onClick: () => exportCSV(data),
-      icon: (
-        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M7 1v8M4 6l3 3 3-3" />
-          <path d="M2 11h10" />
-        </svg>
-      ),
-    },
-    {
-      label: "Nuevo item",
-      variant: "primary",
-      onClick: () => {},
-      icon: (
-        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="7" y1="1" x2="7" y2="13" />
-          <line x1="1" y1="7" x2="13" y2="7" />
-        </svg>
-      ),
-    },
-  ];
+  const actions: TableAction[] = [];
 
   return (
     <Table
@@ -80,7 +58,7 @@ export default function DataTable({ data, searchQuery }: Props) {
       columns={columns}
       actions={actions}
       searchQuery={searchQuery}
-      title="Listado de items"
+      title="Mys Fillings"
     />
   );
 }
