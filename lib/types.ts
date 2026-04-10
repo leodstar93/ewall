@@ -7,6 +7,7 @@ export interface Item {
   status: ItemStatus;
   date: string;
   amount: number;
+  href?: string;
 }
 
 export type TruckStatus =

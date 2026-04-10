@@ -32,6 +32,7 @@ type OverviewActivity = {
   date: string;
   amount: number;
   sortDate: number;
+  href: string;
 };
 
 async function fetchJson<T>(url: string) {
@@ -221,6 +222,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
         date: new Date(filing.updatedAt).toLocaleDateString("en-US"),
         amount: Number(filing.totalCharged ?? 0),
         sortDate: new Date(filing.updatedAt).getTime(),
+        href: `/v2/dashboard/ucr/${filing.id}`,
       })),
       ...iftaFilings.map((filing) => ({
         name: `IFTA ${filing.year} Q${filing.quarter}`,
@@ -231,6 +233,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
         ),
         amount: Number(filing.totalNetTax ?? 0),
         sortDate: new Date(filing.updatedAt || filing.lastCalculatedAt || 0).getTime(),
+        href: `/v2/dashboard/ifta-v2/${filing.id}`,
       })),
     ]
       .sort((left, right) => right.sortDate - left.sortDate)
@@ -243,6 +246,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
       status: item.status,
       date: item.date,
       amount: item.amount,
+      href: item.href,
     }));
   }, [iftaFilings, ucrFilings]);
 

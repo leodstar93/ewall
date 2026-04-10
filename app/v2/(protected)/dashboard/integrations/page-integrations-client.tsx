@@ -370,11 +370,11 @@ export default function IntegrationsPageClient() {
       key: "sortProvider",
       label: "Provider",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{item.providerLabel}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {item.notes[0] || `Code: ${item.provider}`}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={item.notes[0] || `Code: ${item.provider}`}
+        >
+          {item.providerLabel}
         </div>
       ),
     },
@@ -382,13 +382,12 @@ export default function IntegrationsPageClient() {
       key: "sortOrganization",
       label: "Linked Company",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-            {item.organizationName}
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Last sync: {item.syncLabel}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          style={{ fontSize: 13 }}
+          title={`Last sync: ${item.syncLabel}`}
+        >
+          {item.organizationName}
         </div>
       ),
     },
@@ -412,17 +411,15 @@ export default function IntegrationsPageClient() {
       key: "sortConnectedAt",
       label: "Connected",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-            {item.connectedAtLabel}
-          </div>
-          {item.lastErrorMessage ? (
-            <div className={styles.rowError}>{item.lastErrorMessage}</div>
-          ) : (
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              {item.hasAccount ? "Connection available" : "No active connection"}
-            </div>
-          )}
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          style={{ fontSize: 13 }}
+          title={
+            item.lastErrorMessage ||
+            (item.hasAccount ? "Connection available" : "No active connection")
+          }
+        >
+          {item.connectedAtLabel}
         </div>
       ),
     },

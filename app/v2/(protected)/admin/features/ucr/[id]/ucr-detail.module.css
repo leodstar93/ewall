@@ -1,0 +1,392 @@
+.page {
+  padding: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(0, 40, 104, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 248, 252, 1));
+}
+
+.container,
+.loadingCard {
+  border: 1px solid var(--br);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 32px rgba(0, 26, 69, 0.08);
+}
+
+.container {
+  overflow: hidden;
+}
+
+.loadingCard {
+  padding: 18px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.headerBlock,
+.section {
+  padding: 18px;
+}
+
+.section {
+  border-top: 1px solid var(--br);
+}
+
+.headerTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--r);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  color: var(--b);
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.headerActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.primaryButton,
+.secondaryButton,
+.warningButton,
+.dangerButton {
+  min-height: 40px;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.primaryButton {
+  border: 1px solid var(--b);
+  background: var(--b);
+  color: #fff;
+}
+
+.secondaryButton {
+  border: 1px solid var(--br);
+  background: #fff;
+  color: var(--text-primary);
+}
+
+.warningButton {
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.dangerButton {
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #b42318;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.warningButton:disabled,
+.dangerButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.statusRow {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sectionHeader {
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--b);
+  font-size: 20px;
+}
+
+.twoUp,
+.modalGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.subsection {
+  min-width: 0;
+}
+
+.fieldBlock {
+  display: grid;
+  gap: 8px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--text-primary);
+  background: #fff;
+  outline: none;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 116px;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--b);
+}
+
+.chatThread {
+  display: grid;
+  gap: 12px;
+}
+
+.chatEmpty {
+  border: 1px dashed var(--br);
+  border-radius: 14px;
+  background: var(--off);
+  padding: 18px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.chatMessage {
+  max-width: min(720px, 100%);
+  border: 1px solid var(--br);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.chatMessageStaff {
+  justify-self: end;
+  background: linear-gradient(180deg, rgba(0, 40, 104, 0.08), rgba(255, 255, 255, 0.98));
+  border-color: rgba(0, 40, 104, 0.16);
+}
+
+.chatMessageClient {
+  justify-self: start;
+  background: linear-gradient(180deg, rgba(191, 10, 48, 0.06), rgba(255, 255, 255, 0.98));
+  border-color: rgba(191, 10, 48, 0.12);
+}
+
+.chatMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.chatBody {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.chatComposer {
+  margin-top: 16px;
+  border-top: 1px solid var(--br);
+  padding-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.noteActions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 26, 69, 0.32);
+  backdrop-filter: blur(6px);
+}
+
+.modalCard {
+  width: 100%;
+  max-width: 540px;
+  border: 1px solid var(--br);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 40px rgba(0, 26, 69, 0.18);
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.modalHelp {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.modalNote {
+  border: 1px solid var(--br);
+  border-radius: 14px;
+  background: var(--off);
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.alertError {
+  margin: 0 18px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #b42318;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tableLink {
+  color: var(--b);
+  font-weight: 600;
+}
+
+.tableLink:hover {
+  color: var(--r);
+}
+
+.emptyCell {
+  text-align: center;
+  padding: 24px;
+  color: #aaa;
+}
+
+@media (max-width: 900px) {
+  .twoUp,
+  .modalGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .headerTop {
+    flex-direction: column;
+  }
+
+  .headerActions {
+    justify-content: flex-start;
+  }
+
+  .chatMessage {
+    max-width: 100%;
+  }
+
+  .chatMeta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 700px) {
+  .page {
+    padding: 12px;
+  }
+
+  .headerBlock,
+  .section,
+  .loadingCard {
+    padding: 16px;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .warningButton,
+  .dangerButton {
+    width: 100%;
+  }
+
+  .modalActions,
+  .modalHeader {
+    flex-direction: column;
+  }
+}

@@ -5,6 +5,8 @@ import {
   UCRFilingStatus,
 } from "@prisma/client";
 
+export type UcrDocumentActorRole = "client" | "staff";
+
 export class UcrServiceError extends Error {
   status: number;
   code: string;
@@ -122,6 +124,46 @@ export function getUcrDocumentFileName(name: string, filePath: string) {
   }
 
   return `${sanitizedName}${extension}`;
+}
+
+function getUcrDocumentTypeSlug(type: UCRDocumentType) {
+  switch (type) {
+    case UCRDocumentType.OFFICIAL_RECEIPT:
+    case UCRDocumentType.PAYMENT_RECEIPT:
+      return "receipt";
+    case UCRDocumentType.REGISTRATION_PROOF:
+      return "registration-proof";
+    case UCRDocumentType.SUPPORTING_DOCUMENT:
+      return "supporting-document";
+    case UCRDocumentType.CORRECTION_ATTACHMENT:
+      return "correction-attachment";
+    case UCRDocumentType.OTHER:
+    default:
+      return "document";
+  }
+}
+
+function getSafeFileExtension(fileName: string) {
+  const match = /(\.[A-Za-z0-9]+)$/.exec(fileName.trim());
+  return match?.[1]?.toLowerCase() || "";
+}
+
+export function buildUcrAutoDocumentName(input: {
+  type: UCRDocumentType;
+  actorRole: UcrDocumentActorRole;
+  originalFileName: string;
+  createdAt?: Date;
+  includeExtension?: boolean;
+}) {
+  const dateStamp = (input.createdAt ?? new Date()).toISOString().slice(0, 10);
+  const baseName = `ucr-${getUcrDocumentTypeSlug(input.type)}-${input.actorRole}-${dateStamp}`;
+
+  if (!input.includeExtension) {
+    return baseName;
+  }
+
+  const extension = getSafeFileExtension(input.originalFileName);
+  return extension ? `${baseName}${extension}` : baseName;
 }
 
 export function moneyToString(value: number | string | Prisma.Decimal) {
@@ -273,9 +315,6 @@ export function getCompletionValidationIssues(filing: {
   }
   if (!filing.officialPaidAt) {
     issues.push("Official paid date is required.");
-  }
-  if (!filing.officialReceiptNumber && !filing.officialConfirmation) {
-    issues.push("Official receipt number or confirmation is required.");
   }
 
   return issues;

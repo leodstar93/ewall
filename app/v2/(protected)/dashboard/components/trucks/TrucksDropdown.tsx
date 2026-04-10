@@ -98,11 +98,11 @@ export default function TrucksDropdown({ trucks, footerHref }: Props) {
       key: "sortId",
       label: "Unit",
       render: (_, truck) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <div className={tableStyles.nameCell}>{truck.id}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {truck.model}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={`${truck.id} · ${truck.model}`}
+        >
+          {truck.id}
         </div>
       ),
     },

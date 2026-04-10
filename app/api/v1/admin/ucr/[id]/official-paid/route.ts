@@ -42,13 +42,6 @@ export async function POST(
     const officialConfirmation = normalizeOptionalText(body.officialConfirmation);
     const officialPaidAt = parseOptionalIsoDate(body.officialPaidAt) ?? new Date();
 
-    if (!officialReceiptNumber && !officialConfirmation) {
-      return Response.json(
-        { error: "officialReceiptNumber or officialConfirmation is required" },
-        { status: 400 },
-      );
-    }
-
     const updated = await prisma.$transaction(async (tx) => {
       const filing = await tx.uCRFiling.findUnique({
         where: { id },

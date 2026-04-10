@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
@@ -16,9 +17,11 @@ import {
   workflowStageForFiling,
   workflowStageLabel,
   type UcrFiling,
+  type UCRCustomerPaymentStatus,
+  type UCROfficialPaymentStatus,
   type UcrWorkflowStage,
 } from "@/features/ucr/shared";
-import { getStatusTone } from "@/lib/ui/status-utils";
+import type { BadgeTone } from "@/lib/ui/status-utils";
 
 type UcrTableRow = UcrFiling & {
   workflowStage: UcrWorkflowStage;
@@ -68,6 +71,53 @@ function buildRows(items: UcrFiling[]): UcrTableRow[] {
     sortUpdatedAt: -new Date(item.updatedAt).getTime(),
     sortTotal: Number(item.totalCharged ?? 0),
   }));
+}
+
+function workflowTone(stage: UcrWorkflowStage): BadgeTone {
+  switch (stage) {
+    case "COMPLETED":
+      return "success";
+    case "NEEDS_ATTENTION":
+    case "CANCELLED":
+      return "error";
+    case "REQUEST_PAY_CLIENT":
+      return "warning";
+    case "COMPLETE_BY_STAFF":
+      return "info";
+    case "CREATE_AND_SUBMIT":
+    default:
+      return "primary";
+  }
+}
+
+function customerPaymentTone(status: UCRCustomerPaymentStatus): BadgeTone {
+  switch (status) {
+    case "SUCCEEDED":
+      return "success";
+    case "PENDING":
+      return "warning";
+    case "FAILED":
+    case "REFUNDED":
+    case "PARTIALLY_REFUNDED":
+      return "error";
+    case "NOT_STARTED":
+    default:
+      return "light";
+  }
+}
+
+function officialPaymentTone(status: UCROfficialPaymentStatus): BadgeTone {
+  switch (status) {
+    case "PAID":
+      return "success";
+    case "PENDING":
+      return "info";
+    case "FAILED":
+      return "error";
+    case "NOT_STARTED":
+    default:
+      return "light";
+  }
 }
 
 export default function UcrDashboardClient() {
@@ -163,14 +213,11 @@ export default function UcrDashboardClient() {
       key: "sortYear",
       label: "Filing",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>UCR {item.year}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {item.legalName}
-          </div>
-          <div style={{ fontSize: 11, color: "#888" }}>
-            USDOT {item.dotNumber || "Not on file"}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={[item.legalName, `USDOT ${item.dotNumber || "Not on file"}`].join(" · ")}
+        >
+          UCR {item.year}
         </div>
       ),
     },
@@ -178,16 +225,14 @@ export default function UcrDashboardClient() {
       key: "vehicleCount",
       label: "Registration",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>
-            {(item.vehicleCount ?? item.fleetSize ?? 0).toLocaleString("en-US")} vehicle(s)
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Bracket {item.bracketCode || "Pending"}
-          </div>
-          <div style={{ fontSize: 11, color: "#888" }}>
-            Base state {item.baseState || "Not set"}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={[
+            `Bracket ${item.bracketCode || "Pending"}`,
+            `Base state ${item.baseState || "Not set"}`,
+          ].join(" · ")}
+        >
+          {(item.vehicleCount ?? item.fleetSize ?? 0).toLocaleString("en-US")} vehicle(s)
         </div>
       ),
     },
@@ -195,14 +240,14 @@ export default function UcrDashboardClient() {
       key: "sortTotal",
       label: "Amounts",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{formatCurrency(item.totalCharged)}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            UCR {formatCurrency(item.ucrAmount)}
-          </div>
-          <div style={{ fontSize: 11, color: "#888" }}>
-            Fees {formatCurrency(Number(item.serviceFee) + Number(item.processingFee))}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={[
+            `UCR ${formatCurrency(item.ucrAmount)}`,
+            `Fees ${formatCurrency(Number(item.serviceFee) + Number(item.processingFee))}`,
+          ].join(" · ")}
+        >
+          {formatCurrency(item.totalCharged)}
         </div>
       ),
     },
@@ -210,21 +255,25 @@ export default function UcrDashboardClient() {
       key: "workflowStage",
       label: "Workflow",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            <Badge tone={getStatusTone(workflowStageLabel(item.workflowStage))} variant="light">
-              {workflowStageLabel(item.workflowStage)}
-            </Badge>
-            <Badge tone={getStatusTone(filingStatusLabel(item.status))} variant="light">
-              {filingStatusLabel(item.status)}
-            </Badge>
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Customer pay: {customerPaymentStatusLabel(item.customerPaymentStatus)}
-          </div>
-          <div style={{ fontSize: 11, color: "#888" }}>
-            Official pay: {officialPaymentStatusLabel(item.officialPaymentStatus)}
-          </div>
+        <div
+          style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
+          title={filingStatusLabel(item.status)}
+        >
+          <Badge tone={workflowTone(item.workflowStage)} variant="light">
+            {workflowStageLabel(item.workflowStage)}
+          </Badge>
+          <Badge
+            tone={customerPaymentTone(item.customerPaymentStatus)}
+            variant="light"
+          >
+            Customer: {customerPaymentStatusLabel(item.customerPaymentStatus)}
+          </Badge>
+          <Badge
+            tone={officialPaymentTone(item.officialPaymentStatus)}
+            variant="light"
+          >
+            Official: {officialPaymentStatusLabel(item.officialPaymentStatus)}
+          </Badge>
         </div>
       ),
     },
@@ -232,13 +281,12 @@ export default function UcrDashboardClient() {
       key: "sortUpdatedAt",
       label: "Updated",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-            {formatDate(item.updatedAt)}
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Created {formatDate(item.createdAt)}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          style={{ fontSize: 13 }}
+          title={`Created ${formatDate(item.createdAt)}`}
+        >
+          {formatDate(item.updatedAt)}
         </div>
       ),
     },
@@ -250,36 +298,29 @@ export default function UcrDashboardClient() {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <Link
             href={`/v2/dashboard/ucr/${item.id}`}
-            style={{
-              border: "1px solid var(--br)",
-              background: "#fff",
-              color: "var(--b)",
-              borderRadius: 8,
-              padding: "8px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              textDecoration: "none",
-            }}
+            aria-label={customerActionLabel(item)}
+            title={customerActionLabel(item)}
+            className={iconButtonClasses({ variant: "default" })}
           >
-            {customerActionLabel(item)}
+            <ActionIcon name="view" />
           </Link>
           {item.status === "DRAFT" ? (
             <button
               type="button"
               onClick={() => void submitDraft(item.id)}
               disabled={busyId === item.id}
-              style={{
-                border: "1px solid var(--b)",
-                background: "var(--b)",
-                color: "#fff",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
+              aria-label={busyId === item.id ? "Submitting filing" : "Submit filing"}
+              title={busyId === item.id ? "Submitting filing" : "Submit filing"}
+              className={iconButtonClasses({
+                variant: "brand",
+                className: busyId === item.id ? "opacity-60" : undefined,
+              })}
             >
-              {busyId === item.id ? "Submitting..." : "Submit"}
+              {busyId === item.id ? (
+                <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+              ) : (
+                <ActionIcon name="login" />
+              )}
             </button>
           ) : null}
         </div>

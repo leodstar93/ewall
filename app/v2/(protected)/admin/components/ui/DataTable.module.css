@@ -83,7 +83,7 @@
 .sorted .sortIcon { opacity: 1; }
 
 .table td {
-  padding: 9px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--brl);
   vertical-align: middle;
 }
@@ -95,6 +95,13 @@
 .nameCell   { font-weight: 500; color: var(--text-primary); }
 .muteCell   { color: #777; }
 .amountCell { font-weight: 500; color: var(--b); font-variant-numeric: tabular-nums; }
+.compactCell {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 
 /* Badges */
 .badge {

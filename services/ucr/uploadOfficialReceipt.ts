@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "fs/promises";
+import { UCRDocumentType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { AppEnvironment, DbClient, DbTransactionClient } from "@/lib/db/types";
 import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
 import {
+  buildUcrAutoDocumentName,
   UcrServiceError,
   validateOfficialReceiptFile,
 } from "@/services/ucr/shared";
@@ -44,11 +46,22 @@ export async function uploadOfficialReceipt(input: UploadOfficialReceiptInput) {
   await writeFile(filePath, Buffer.from(fileBuffer));
 
   const publicUrl = getStoragePublicUrl(environment, "ucr", uniqueFileName);
+  const documentName = buildUcrAutoDocumentName({
+    type: UCRDocumentType.OFFICIAL_RECEIPT,
+    actorRole: "staff",
+    originalFileName: input.file.name,
+  });
+  const receiptDownloadName = buildUcrAutoDocumentName({
+    type: UCRDocumentType.OFFICIAL_RECEIPT,
+    actorRole: "staff",
+    originalFileName: input.file.name,
+    includeExtension: true,
+  });
 
   await db.uCRDocument.create({
     data: {
       ucrFilingId: input.filingId,
-      name: input.file.name,
+      name: documentName,
       filePath: publicUrl,
       mimeType: input.file.type || null,
       size: input.file.size,
@@ -61,7 +74,7 @@ export async function uploadOfficialReceipt(input: UploadOfficialReceiptInput) {
     where: { id: input.filingId },
     data: {
       officialReceiptUrl: publicUrl,
-      officialReceiptName: input.file.name,
+      officialReceiptName: receiptDownloadName,
       officialReceiptMimeType: input.file.type || null,
       officialReceiptSize: input.file.size,
     },

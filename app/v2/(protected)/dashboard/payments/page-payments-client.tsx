@@ -578,11 +578,11 @@ export default function PaymentsPageClient() {
       key: "sortProvider",
       label: "Method",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{providerLabel(item.provider)}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {item.isDefault ? "Default method" : "Saved method"}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={item.isDefault ? "Default method" : "Saved method"}
+        >
+          {providerLabel(item.provider)}
         </div>
       ),
     },
@@ -591,18 +591,15 @@ export default function PaymentsPageClient() {
       label: "Details",
       sortable: false,
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-            {formatMethodDetails(item)}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {item.isDefault ? <Badge label="Default" tone="success" /> : null}
-            {isAchMethod(item) ? (
-              <Badge label={statusLabel(item.status)} tone="neutral" />
-            ) : (
-              <Badge label="Active" tone="info" />
-            )}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          style={{ fontSize: 13 }}
+          title={[
+            item.isDefault ? "Default" : null,
+            isAchMethod(item) ? statusLabel(item.status) : "Active",
+          ].filter(Boolean).join(" · ")}
+        >
+          {formatMethodDetails(item)}
         </div>
       ),
     },
@@ -610,15 +607,16 @@ export default function PaymentsPageClient() {
       key: "sortCreatedAt",
       label: "Saved",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-            {new Date(item.createdAt).toLocaleDateString()}
-          </div>
-          {item.authorizationAcceptedAt ? (
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              Authorized {new Date(item.authorizationAcceptedAt).toLocaleDateString()}
-            </div>
-          ) : null}
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          style={{ fontSize: 13 }}
+          title={
+            item.authorizationAcceptedAt
+              ? `Authorized ${new Date(item.authorizationAcceptedAt).toLocaleDateString()}`
+              : undefined
+          }
+        >
+          {new Date(item.createdAt).toLocaleDateString()}
         </div>
       ),
     },

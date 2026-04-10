@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthz } from "@/lib/rbac";
-import UcrDetailPage from "@/features/ucr/detail-page";
+import UcrAdminDetailClient from "./ucr-detail-client";
 
 export default async function AdminUcrDetailPage({
   params,
@@ -16,12 +16,5 @@ export default async function AdminUcrDetailPage({
 
   const { id } = await params;
 
-  return (
-    <UcrDetailPage
-      filingId={id}
-      mode="staff"
-      backHref="/v2/admin/features/ucr"
-      detailHrefBase="/v2/admin/features/ucr"
-    />
-  );
+  return <UcrAdminDetailClient filingId={id} />;
 }

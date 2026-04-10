@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import type { Item, ItemStatus } from "@/lib/types";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import Table, { type ColumnDef, type TableAction } from "./Table";
 import styles from "./DataTable.module.css";
 
@@ -30,6 +32,24 @@ const columns: ColumnDef<Item>[] = [
     label: "Monto",
     cellClass: styles.amountCell,
     render: (value) => `$${(value as number).toLocaleString()}`,
+  },
+  {
+    key: "href",
+    label: "Actions",
+    sortable: false,
+    render: (value) =>
+      typeof value === "string" && value ? (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Link
+            href={value}
+            aria-label="Open filing"
+            title="Open filing"
+            className={iconButtonClasses({ variant: "dark" })}
+          >
+            <ActionIcon name="view" />
+          </Link>
+        </div>
+      ) : null,
   },
 ];
 

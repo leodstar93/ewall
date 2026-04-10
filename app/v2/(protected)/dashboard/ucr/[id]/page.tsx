@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireModuleAccess } from "@/lib/guards/require-module-access";
 import { requirePermission } from "@/lib/rbac-guard";
-import UcrDetailPage from "@/features/ucr/detail-page";
+import UcrDetailClient from "./ucr-detail-client";
 
 export default async function V2DashboardUcrDetailPage({
   params,
@@ -17,12 +17,5 @@ export default async function V2DashboardUcrDetailPage({
   await requireModuleAccess("ucr");
   const { id } = await params;
 
-  return (
-    <UcrDetailPage
-      filingId={id}
-      mode="driver"
-      backHref="/v2/dashboard/ucr"
-      detailHrefBase="/v2/dashboard/ucr"
-    />
-  );
+  return <UcrDetailClient filingId={id} />;
 }

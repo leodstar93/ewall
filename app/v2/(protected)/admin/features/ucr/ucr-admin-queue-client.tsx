@@ -17,7 +17,7 @@ import {
   type UCRFilingStatus,
   type UCROfficialPaymentStatus,
 } from "@/features/ucr/shared";
-import { getStatusTone } from "@/lib/ui/status-utils";
+import type { BadgeTone } from "@/lib/ui/status-utils";
 
 type UcrQueueFilterStatus =
   | "all"
@@ -44,6 +44,65 @@ function buildRows(items: AdminUcrQueueItem[]): UcrTableRow[] {
     sortUpdatedAt: new Date(item.updatedAt).getTime(),
     sortTotal: Number(item.totalCharged ?? 0),
   }));
+}
+
+function filingStatusTone(status: UCRFilingStatus): BadgeTone {
+  switch (status) {
+    case "COMPLETED":
+    case "COMPLIANT":
+    case "OFFICIAL_PAID":
+      return "success";
+    case "QUEUED_FOR_PROCESSING":
+    case "IN_PROCESS":
+    case "OFFICIAL_PAYMENT_PENDING":
+      return "info";
+    case "AWAITING_CUSTOMER_PAYMENT":
+    case "CUSTOMER_PAYMENT_PENDING":
+    case "CUSTOMER_PAID":
+    case "DRAFT":
+    case "SUBMITTED":
+    case "UNDER_REVIEW":
+    case "RESUBMITTED":
+    case "PENDING_PROOF":
+      return "warning";
+    case "NEEDS_ATTENTION":
+    case "CANCELLED":
+    case "REJECTED":
+    case "CORRECTION_REQUESTED":
+      return "error";
+    default:
+      return "light";
+  }
+}
+
+function customerPaymentTone(status: UCRCustomerPaymentStatus): BadgeTone {
+  switch (status) {
+    case "SUCCEEDED":
+      return "success";
+    case "PENDING":
+      return "warning";
+    case "FAILED":
+    case "REFUNDED":
+    case "PARTIALLY_REFUNDED":
+      return "error";
+    case "NOT_STARTED":
+    default:
+      return "light";
+  }
+}
+
+function officialPaymentTone(status: UCROfficialPaymentStatus): BadgeTone {
+  switch (status) {
+    case "PAID":
+      return "success";
+    case "PENDING":
+      return "info";
+    case "FAILED":
+      return "error";
+    case "NOT_STARTED":
+    default:
+      return "light";
+  }
 }
 
 export default function UcrAdminQueueClient() {
@@ -191,25 +250,23 @@ export default function UcrAdminQueueClient() {
           title={`Staff: ${item.assignedStaffName} · Receipt: ${item.officialReceiptUrl ? "Uploaded" : "Missing"}`}
         >
           <Badge
-            tone={getStatusTone(filingStatusLabel(item.status as UCRFilingStatus))}
+            tone={filingStatusTone(item.status as UCRFilingStatus)}
             variant="light"
           >
             {filingStatusLabel(item.status as UCRFilingStatus)}
           </Badge>
           <Badge
-            tone={getStatusTone(
-              customerPaymentStatusLabel(item.customerPaymentStatus as UCRCustomerPaymentStatus),
-            )}
+            tone={customerPaymentTone(item.customerPaymentStatus as UCRCustomerPaymentStatus)}
             variant="light"
           >
+            Customer:{" "}
             {customerPaymentStatusLabel(item.customerPaymentStatus as UCRCustomerPaymentStatus)}
           </Badge>
           <Badge
-            tone={getStatusTone(
-              officialPaymentStatusLabel(item.officialPaymentStatus as UCROfficialPaymentStatus),
-            )}
+            tone={officialPaymentTone(item.officialPaymentStatus as UCROfficialPaymentStatus)}
             variant="light"
           >
+            Official:{" "}
             {officialPaymentStatusLabel(item.officialPaymentStatus as UCROfficialPaymentStatus)}
           </Badge>
         </div>

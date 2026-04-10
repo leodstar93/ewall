@@ -45,16 +45,11 @@ export async function POST(
 
     const formData = await request.formData();
     const file = formData.get("file");
-    const name = formData.get("name");
     const description = formData.get("description");
     const type = parseDocumentType(formData.get("type"));
 
     if (!(file instanceof File)) {
       return Response.json({ error: "file is required" }, { status: 400 });
-    }
-
-    if (typeof name !== "string" || !name.trim()) {
-      return Response.json({ error: "name is required" }, { status: 400 });
     }
 
     if (!type) {
@@ -64,8 +59,8 @@ export async function POST(
     const document = await saveUcrDocument({
       filingId: id,
       uploadedBy: guard.session.user.id ?? "",
+      uploadedByRole: isOwner && !guard.isAdmin ? "client" : "staff",
       file,
-      name,
       description: typeof description === "string" ? description : null,
       type,
     });

@@ -181,21 +181,15 @@ export default function DocumentsDashboardClient() {
       key: "sortCreatedAt",
       label: "Document",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className={tableStyles.nameCell}>{item.name}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {item.description || item.fileName}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            <Badge tone={fileTone(item.fileType)} variant="light">
-              {item.fileType || "file"}
-            </Badge>
-            {item.category ? (
-              <Badge tone="light" variant="light">
-                {item.category}
-              </Badge>
-            ) : null}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={[
+            item.description || item.fileName,
+            item.fileType || "file",
+            item.category || "",
+          ].filter(Boolean).join(" · ")}
+        >
+          {item.name}
         </div>
       ),
     },
@@ -203,11 +197,11 @@ export default function DocumentsDashboardClient() {
       key: "fileName",
       label: "File",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{item.fileName}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {formatFileSize(item.fileSize)}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={formatFileSize(item.fileSize)}
+        >
+          {item.fileName}
         </div>
       ),
     },
@@ -215,13 +209,12 @@ export default function DocumentsDashboardClient() {
       key: "createdAt",
       label: "Uploaded",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-            {formatDateTime(item.createdAt)}
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Stored securely in your workspace
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          style={{ fontSize: 13 }}
+          title="Stored securely in your workspace"
+        >
+          {formatDateTime(item.createdAt)}
         </div>
       ),
     },

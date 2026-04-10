@@ -1,6 +1,6 @@
 .page {
   flex: 1;
-  overflow-y: auto;
+  overflow: visible;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -8,6 +8,10 @@
   background:
     radial-gradient(circle at top right, rgba(0, 40, 104, 0.08), transparent 28%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 248, 252, 1));
+}
+
+.page > * {
+  flex-shrink: 0;
 }
 
 .shell {

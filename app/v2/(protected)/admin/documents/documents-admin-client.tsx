@@ -116,21 +116,15 @@ export default function DocumentsAdminClient({
         key: "sortOrder",
         label: "Document",
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div className={tableStyles.nameCell}>{item.name}</div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              {item.description || item.fileName}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              <Badge tone={fileTone(item.fileType)} variant="light">
-                {item.fileType || "file"}
-              </Badge>
-              {item.category ? (
-                <Badge tone="light" variant="light">
-                  {item.category}
-                </Badge>
-              ) : null}
-            </div>
+          <div
+            className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+            title={[
+              item.description || item.fileName,
+              item.fileType || "file",
+              item.category || "",
+            ].filter(Boolean).join(" · ")}
+          >
+            {item.name}
           </div>
         ),
       },
@@ -160,17 +154,15 @@ export default function DocumentsAdminClient({
             <div style={{ minWidth: 0 }}>
               <Link
                 href={`/v2/admin/users/${item.userId}`}
-                className={tableStyles.nameCell}
+                className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
                 style={{ textDecoration: "none" }}
+                title={[
+                  item.userEmail || "No email on file",
+                  item.userCompanyName || "No company on file",
+                ].join(" · ")}
               >
                 {item.userName}
               </Link>
-              <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-                {item.userEmail || "No email on file"}
-              </div>
-              <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>
-                {item.userCompanyName || "No company on file"}
-              </div>
             </div>
           </div>
         ),
@@ -179,11 +171,11 @@ export default function DocumentsAdminClient({
         key: "fileName",
         label: "File",
         render: (_, item) => (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <div className={tableStyles.nameCell}>{item.fileName}</div>
-            <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-              {formatFileSize(item.fileSize)}
-            </div>
+          <div
+            className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+            title={formatFileSize(item.fileSize)}
+          >
+            {item.fileName}
           </div>
         ),
       },

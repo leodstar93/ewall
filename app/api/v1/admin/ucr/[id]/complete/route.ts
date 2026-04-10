@@ -83,14 +83,6 @@ export async function POST(
       }
 
       if (existing.officialPaymentStatus !== "PAID") {
-        if (!officialReceiptNumber && !officialConfirmation) {
-          throw new UcrServiceError(
-            "Official receipt number or confirmation is required to complete the filing.",
-            400,
-            "OFFICIAL_CONFIRMATION_REQUIRED",
-          );
-        }
-
         const officialPaidAt = existing.officialPaidAt ?? requestedOfficialPaidAt;
 
         await tx.uCRFiling.update({

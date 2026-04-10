@@ -231,11 +231,11 @@ export default function IftaV2DashboardClient() {
       key: "sortPeriod",
       label: "Period",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{filingPeriodLabel(item)}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {providerLabel(item.integrationAccount?.provider)}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={providerLabel(item.integrationAccount?.provider)}
+        >
+          {filingPeriodLabel(item)}
         </div>
       ),
     },
@@ -243,18 +243,16 @@ export default function IftaV2DashboardClient() {
       key: "status",
       label: "Status",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            <Badge tone={filingTone(item.status)} variant="light">
-              {statusLabel(item.status)}
-            </Badge>
-            <Badge tone="light" variant="light">
-              {item._count?.exceptions ?? 0} exception(s)
-            </Badge>
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Distance lines: {item._count?.distanceLines ?? 0}
-          </div>
+        <div
+          style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
+          title={`Distance lines: ${item._count?.distanceLines ?? 0}`}
+        >
+          <Badge tone={filingTone(item.status)} variant="light">
+            {statusLabel(item.status)}
+          </Badge>
+          <Badge tone="light" variant="light">
+            {item._count?.exceptions ?? 0} exception(s)
+          </Badge>
         </div>
       ),
     },
@@ -262,14 +260,14 @@ export default function IftaV2DashboardClient() {
       key: "totalDistance",
       label: "Totals",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{formatNumber(item.totalDistance)} mi</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            {formatGallons(item.totalFuelGallons)} gal
-          </div>
-          <div style={{ fontSize: 11, color: "#888" }}>
-            MPG {formatNumber(item.fleetMpg, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={[
+            `${formatGallons(item.totalFuelGallons)} gal`,
+            `MPG ${formatNumber(item.fleetMpg, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          ].join(" · ")}
+        >
+          {formatNumber(item.totalDistance)} mi
         </div>
       ),
     },
@@ -277,14 +275,14 @@ export default function IftaV2DashboardClient() {
       key: "sortNetTax",
       label: "Net tax",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell}>{formatMoney(item.totalNetTax)}</div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Due {formatMoney(item.totalTaxDue)}
-          </div>
-          <div style={{ fontSize: 11, color: "#888" }}>
-            Credit {formatMoney(item.totalTaxCredit)}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          title={[
+            `Due ${formatMoney(item.totalTaxDue)}`,
+            `Credit ${formatMoney(item.totalTaxCredit)}`,
+          ].join(" · ")}
+        >
+          {formatMoney(item.totalNetTax)}
         </div>
       ),
     },
@@ -292,13 +290,12 @@ export default function IftaV2DashboardClient() {
       key: "sortUpdatedAt",
       label: "Updated",
       render: (_, item) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-            {formatDateTime(item.updatedAt || item.lastCalculatedAt)}
-          </div>
-          <div className={tableStyles.muteCell} style={{ fontSize: 12 }}>
-            Last sync {formatDateTime(item.lastSyncedAt)}
-          </div>
+        <div
+          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
+          style={{ fontSize: 13 }}
+          title={`Last sync ${formatDateTime(item.lastSyncedAt)}`}
+        >
+          {formatDateTime(item.updatedAt || item.lastCalculatedAt)}
         </div>
       ),
     },

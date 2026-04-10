@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   border-radius: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .accentBar {
@@ -15,7 +15,7 @@
 .body {
   display: flex;
   flex: 1;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .main {
@@ -23,17 +23,21 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   background: var(--off);
 }
 
 .content {
   flex: 1;
-  overflow-y: auto;
+  overflow: visible;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.content > * {
+  flex-shrink: 0;
 }
 
 .topPanels {
