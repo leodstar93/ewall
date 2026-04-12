@@ -1,19 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import DashboardTable, {
+  type ColumnDef,
+} from "@/app/v2/(protected)/dashboard/components/ui/Table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableScroller,
-  TableWrapper,
-} from "@/components/ui/table";
 import {
   type FilingDetail,
   type FilingException,
@@ -54,7 +47,60 @@ type FilingDetailPanelProps = {
   ) => void;
 };
 
-type DetailTab = "overview" | "vehicles" | "miles" | "fuel" | "exceptions" | "exports";
+type DetailTab =
+  | "overview"
+  | "vehicles"
+  | "miles"
+  | "fuel"
+  | "exceptions"
+  | "exports";
+
+type JurisdictionSummaryRow = {
+  id: string;
+  jurisdiction: string;
+  totalMiles: string;
+  taxableGallons: string;
+  taxPaidGallons: string;
+  taxRate: string;
+  netTax: string;
+};
+
+type VehicleTableRow = {
+  id: string;
+  unit: string;
+  vin: string;
+  source: string;
+  status: boolean;
+};
+
+type DistanceTableRow = {
+  id: string;
+  date: string;
+  jurisdiction: string;
+  vehicle: string;
+  taxableMiles: string;
+  source: string;
+};
+
+type FuelTableRow = {
+  id: string;
+  jurisdiction: string;
+  fuelType: string;
+  gallons: string;
+  taxPaid: boolean | null;
+};
+
+type ExceptionTableRow = {
+  id: string;
+  severity: string;
+  status: string;
+  code: string;
+  issueTitle: string;
+  issueDescription: string | null;
+  detected: string;
+  resolution: string | null;
+  exception: FilingException;
+};
 
 const detailTabs: Array<{ value: DetailTab; label: string }> = [
   { value: "overview", label: "Overview" },
@@ -76,7 +122,9 @@ function MetricCard({
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-      <div className="text-xs uppercase tracking-[0.18em] text-gray-500">{label}</div>
+      <div className="text-xs uppercase tracking-[0.18em] text-gray-500">
+        {label}
+      </div>
       <div className="mt-3 text-xl font-semibold text-gray-950">{value}</div>
       {hint ? <div className="mt-2 text-xs text-gray-500">{hint}</div> : null}
     </div>
@@ -117,7 +165,10 @@ export function FilingDetailPanel({
     return new Map(
       (filing?.vehicles ?? []).map((vehicle) => [
         vehicle.id,
-        vehicle.unitNumber || vehicle.externalVehicle?.number || vehicle.vin || "Unmapped vehicle",
+        vehicle.unitNumber ||
+          vehicle.externalVehicle?.number ||
+          vehicle.vin ||
+          "Unmapped vehicle",
       ]),
     );
   }, [filing?.vehicles]);
@@ -127,14 +178,20 @@ export function FilingDetailPanel({
     const referencedVehicleIds = new Set(
       filing.distanceLines
         .map((line) => line.filingVehicleId)
-        .filter((filingVehicleId): filingVehicleId is string => Boolean(filingVehicleId)),
+        .filter((filingVehicleId): filingVehicleId is string =>
+          Boolean(filingVehicleId),
+        ),
     );
 
-    return filing.vehicles.filter((vehicle) => referencedVehicleIds.has(vehicle.id));
+    return filing.vehicles.filter((vehicle) =>
+      referencedVehicleIds.has(vehicle.id),
+    );
   }, [filing]);
   const visibleTabs = useMemo(
     () =>
-      detailTabs.filter((tab) => !(mode === "trucker" && tab.value === "exceptions")),
+      detailTabs.filter(
+        (tab) => !(mode === "trucker" && tab.value === "exceptions"),
+      ),
     [mode],
   );
 
@@ -168,17 +225,22 @@ export function FilingDetailPanel({
       (exception.severity === "BLOCKING" || exception.severity === "ERROR"),
   );
   const canSubmit =
-    mode === "trucker" &&
-    canTruckerEditFilingStatus(filing.status);
+    mode === "trucker" && canTruckerEditFilingStatus(filing.status);
   const canRequestChanges =
     mode === "staff" &&
     ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY"].includes(filing.status);
   const canRebuild = mode !== "staff";
   const canCreateSnapshot =
     mode === "staff" &&
-    ["DATA_READY", "NEEDS_REVIEW", "READY_FOR_REVIEW", "IN_REVIEW", "CHANGES_REQUESTED", "REOPENED", "SNAPSHOT_READY"].includes(
-      filing.status,
-    );
+    [
+      "DATA_READY",
+      "NEEDS_REVIEW",
+      "READY_FOR_REVIEW",
+      "IN_REVIEW",
+      "CHANGES_REQUESTED",
+      "REOPENED",
+      "SNAPSHOT_READY",
+    ].includes(filing.status);
   const canApprove =
     mode === "staff" &&
     !hasOpenBlockingOrError &&
@@ -186,6 +248,218 @@ export function FilingDetailPanel({
     filing.status !== "ARCHIVED";
   const canReopen = mode === "staff" && filing.status === "APPROVED";
   const detailDescription = isStaffDescription(mode);
+  const jurisdictionSummaryRows: JurisdictionSummaryRow[] =
+    filing.jurisdictionSummaries.map((summary) => ({
+      id: summary.id,
+      jurisdiction: summary.jurisdiction,
+      totalMiles: formatNumber(summary.totalMiles),
+      taxableGallons: formatGallons(summary.taxableGallons),
+      taxPaidGallons: formatGallons(summary.taxPaidGallons),
+      taxRate: formatNumber(summary.taxRate, { maximumFractionDigits: 5 }),
+      netTax: formatMoney(summary.netTax),
+    }));
+  const jurisdictionSummaryColumns: ColumnDef<JurisdictionSummaryRow>[] = [
+    {
+      key: "jurisdiction",
+      label: "Jurisdiction",
+      render: (value) => (
+        <span className="font-semibold text-zinc-900">
+          {String(value ?? "")}
+        </span>
+      ),
+    },
+    { key: "totalMiles", label: "Total Miles", sortable: false },
+    { key: "taxableGallons", label: "Taxable Gallons", sortable: false },
+    { key: "taxPaidGallons", label: "Tax-Paid Gallons", sortable: false },
+    { key: "taxRate", label: "Tax Rate", sortable: false },
+    { key: "netTax", label: "Net Tax", sortable: false },
+  ];
+  const vehicleRows: VehicleTableRow[] = vehiclesWithDistance.map(
+    (vehicle) => ({
+      id: vehicle.id,
+      unit:
+        vehicle.unitNumber ||
+        vehicle.externalVehicle?.number ||
+        "No unit number",
+      vin: vehicle.vin || vehicle.externalVehicle?.vin || "No VIN",
+      source: vehicle.source || "Unknown",
+      status: vehicle.included,
+    }),
+  );
+  const vehicleColumns: ColumnDef<VehicleTableRow>[] = [
+    {
+      key: "unit",
+      label: "Unit",
+      render: (value) => (
+        <span className="font-semibold text-zinc-900">
+          {String(value ?? "")}
+        </span>
+      ),
+    },
+    { key: "vin", label: "VIN", sortable: false },
+    { key: "source", label: "Source", sortable: false },
+    {
+      key: "status",
+      label: "Status",
+      sortable: false,
+      render: (value) => (
+        <Badge tone={value ? "success" : "warning"}>
+          {value ? "Included" : "Excluded"}
+        </Badge>
+      ),
+    },
+  ];
+  const distanceRows: DistanceTableRow[] = filing.distanceLines.map((line) => ({
+    id: line.id,
+    date: formatDate(line.tripDate),
+    jurisdiction: line.jurisdiction,
+    vehicle: line.filingVehicleId
+      ? vehicleLabelById.get(line.filingVehicleId) || "Mapped vehicle"
+      : "Unmapped vehicle",
+    taxableMiles: formatNumber(line.taxableMiles),
+    source: statusLabel(line.sourceType),
+  }));
+  const distanceColumns: ColumnDef<DistanceTableRow>[] = [
+    { key: "date", label: "Date" },
+    {
+      key: "jurisdiction",
+      label: "Jurisdiction",
+      render: (value) => (
+        <span className="font-semibold text-zinc-900">
+          {String(value ?? "")}
+        </span>
+      ),
+    },
+    { key: "vehicle", label: "Vehicle", sortable: false },
+    { key: "taxableMiles", label: "Taxable Miles", sortable: false },
+    { key: "source", label: "Source", sortable: false },
+  ];
+  const fuelRows: FuelTableRow[] = filing.fuelLines.map((line) => ({
+    id: line.id,
+    jurisdiction: line.jurisdiction,
+    fuelType: line.fuelType || "diesel",
+    gallons: formatGallons(line.gallons),
+    taxPaid: line.taxPaid,
+  }));
+  const fuelColumns: ColumnDef<FuelTableRow>[] = [
+    {
+      key: "jurisdiction",
+      label: "Jurisdiction",
+      render: (value) => (
+        <span className="font-semibold text-zinc-900">
+          {String(value ?? "")}
+        </span>
+      ),
+    },
+    { key: "fuelType", label: "Fuel Type", sortable: false },
+    { key: "gallons", label: "Gallons", sortable: false },
+    {
+      key: "taxPaid",
+      label: "Tax Paid",
+      sortable: false,
+      render: (value) => (
+        <Badge tone={value ? "success" : value === false ? "warning" : "light"}>
+          {value ? "Yes" : value === false ? "No" : "Unknown"}
+        </Badge>
+      ),
+    },
+  ];
+  const exceptionRows: ExceptionTableRow[] = filing.exceptions.map(
+    (exception) => ({
+      id: exception.id,
+      severity: exception.severity,
+      status: exception.status,
+      code: exception.code,
+      issueTitle: exception.title,
+      issueDescription: exception.description,
+      detected: formatDateTime(exception.detectedAt),
+      resolution: exception.resolutionNote,
+      exception,
+    }),
+  );
+  const exceptionColumns: ColumnDef<ExceptionTableRow>[] = [
+    {
+      key: "severity",
+      label: "Severity",
+      sortable: false,
+      render: (value) => (
+        <Badge tone={severityTone(String(value ?? ""))}>
+          {String(value ?? "")}
+        </Badge>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: false,
+      render: (value) => (
+        <Badge tone={filingTone(String(value ?? ""))}>
+          {statusLabel(String(value ?? ""))}
+        </Badge>
+      ),
+    },
+    { key: "code", label: "Code", sortable: false },
+    {
+      key: "issueTitle",
+      label: "Issue",
+      sortable: false,
+      render: (_value, row) => (
+        <div>
+          <div className="font-medium text-zinc-900">{row.issueTitle}</div>
+          {row.issueDescription ? (
+            <div className="mt-1 text-xs text-zinc-500">
+              {row.issueDescription}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    { key: "detected", label: "Detected", sortable: false },
+    {
+      key: "resolution",
+      label: "Resolution",
+      sortable: false,
+      render: (value) =>
+        value ? (
+          <span className="text-sm text-zinc-700">{String(value)}</span>
+        ) : (
+          <span className="text-zinc-400">Not resolved</span>
+        ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      sortable: false,
+      render: (_value, row) => (
+        <div className="flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onExceptionAction(filing, row.exception, "ack")}
+            disabled={busyAction === `exception:ack:${row.exception.id}`}
+          >
+            Ack
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onExceptionAction(filing, row.exception, "resolve")}
+            disabled={busyAction === `exception:resolve:${row.exception.id}`}
+          >
+            Resolve
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onExceptionAction(filing, row.exception, "ignore")}
+            disabled={busyAction === `exception:ignore:${row.exception.id}`}
+          >
+            Ignore
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <Card className="overflow-hidden">
@@ -193,11 +467,16 @@ export function FilingDetailPanel({
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={filingTone(filing.status)}>{statusLabel(filing.status)}</Badge>
-              <Badge tone="light">{providerLabel(filing.integrationAccount?.provider)}</Badge>
+              <Badge tone={filingTone(filing.status)}>
+                {statusLabel(filing.status)}
+              </Badge>
+              <Badge tone="light">
+                {providerLabel(filing.integrationAccount?.provider)}
+              </Badge>
               {mode === "staff" ? (
                 <Badge tone={openExceptions > 0 ? "warning" : "success"}>
-                  {openExceptions} open exception{openExceptions === 1 ? "" : "s"}
+                  {openExceptions} open exception
+                  {openExceptions === 1 ? "" : "s"}
                 </Badge>
               ) : null}
             </div>
@@ -217,7 +496,9 @@ export function FilingDetailPanel({
                 onClick={() => onSyncLatest(filing)}
                 disabled={busyAction === `sync:${filing.id}`}
               >
-                {busyAction === `sync:${filing.id}` ? "Syncing..." : "Sync Latest"}
+                {busyAction === `sync:${filing.id}`
+                  ? "Syncing..."
+                  : "Sync Latest"}
               </Button>
             ) : null}
             {canRebuild ? (
@@ -227,7 +508,9 @@ export function FilingDetailPanel({
                 onClick={() => onRebuild(filing)}
                 disabled={busyAction === `rebuild:${filing.id}`}
               >
-                {busyAction === `rebuild:${filing.id}` ? "Rebuilding..." : "Rebuild"}
+                {busyAction === `rebuild:${filing.id}`
+                  ? "Rebuilding..."
+                  : "Rebuild"}
               </Button>
             ) : null}
             <Button
@@ -236,7 +519,9 @@ export function FilingDetailPanel({
               onClick={() => onRecalculate(filing)}
               disabled={busyAction === `recalculate:${filing.id}`}
             >
-              {busyAction === `recalculate:${filing.id}` ? "Calculating..." : "Recalculate"}
+              {busyAction === `recalculate:${filing.id}`
+                ? "Calculating..."
+                : "Recalculate"}
             </Button>
             {canSubmit ? (
               <Button
@@ -244,7 +529,9 @@ export function FilingDetailPanel({
                 onClick={() => onSubmit(filing)}
                 disabled={busyAction === `submit:${filing.id}`}
               >
-                {busyAction === `submit:${filing.id}` ? "Submitting..." : "Submit For Review"}
+                {busyAction === `submit:${filing.id}`
+                  ? "Submitting..."
+                  : "Submit For Review"}
               </Button>
             ) : null}
             {canRequestChanges ? (
@@ -254,7 +541,9 @@ export function FilingDetailPanel({
                 onClick={() => onRequestChanges(filing)}
                 disabled={busyAction === `request-changes:${filing.id}`}
               >
-                {busyAction === `request-changes:${filing.id}` ? "Saving..." : "Request Changes"}
+                {busyAction === `request-changes:${filing.id}`
+                  ? "Saving..."
+                  : "Request Changes"}
               </Button>
             ) : null}
             {canCreateSnapshot ? (
@@ -264,7 +553,9 @@ export function FilingDetailPanel({
                 onClick={() => onCreateSnapshot(filing)}
                 disabled={busyAction === `snapshot:${filing.id}`}
               >
-                {busyAction === `snapshot:${filing.id}` ? "Creating..." : "Create Snapshot"}
+                {busyAction === `snapshot:${filing.id}`
+                  ? "Creating..."
+                  : "Create Snapshot"}
               </Button>
             ) : null}
             {canApprove ? (
@@ -273,7 +564,9 @@ export function FilingDetailPanel({
                 onClick={() => onApprove(filing)}
                 disabled={busyAction === `approve:${filing.id}`}
               >
-                {busyAction === `approve:${filing.id}` ? "Approving..." : "Approve Filing"}
+                {busyAction === `approve:${filing.id}`
+                  ? "Approving..."
+                  : "Approve Filing"}
               </Button>
             ) : null}
             {canReopen ? (
@@ -283,18 +576,32 @@ export function FilingDetailPanel({
                 onClick={() => onReopen(filing)}
                 disabled={busyAction === `reopen:${filing.id}`}
               >
-                {busyAction === `reopen:${filing.id}` ? "Reopening..." : "Reopen"}
+                {busyAction === `reopen:${filing.id}`
+                  ? "Reopening..."
+                  : "Reopen"}
               </Button>
             ) : null}
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-          <MetricCard label="Total Miles" value={formatNumber(filing.totalDistance)} />
-          <MetricCard label="Tax-Paid Gallons" value={formatGallons(filing.totalFuelGallons)} />
-          <MetricCard label="Fleet MPG" value={formatNumber(filing.fleetMpg, { maximumFractionDigits: 4 })} />
+          <MetricCard
+            label="Total Miles"
+            value={formatNumber(filing.totalDistance)}
+          />
+          <MetricCard
+            label="Tax-Paid Gallons"
+            value={formatGallons(filing.totalFuelGallons)}
+          />
+          <MetricCard
+            label="Fleet MPG"
+            value={formatNumber(filing.fleetMpg, { maximumFractionDigits: 4 })}
+          />
           <MetricCard label="Tax Due" value={formatMoney(filing.totalTaxDue)} />
-          <MetricCard label="Tax Credit" value={formatMoney(filing.totalTaxCredit)} />
+          <MetricCard
+            label="Tax Credit"
+            value={formatMoney(filing.totalTaxCredit)}
+          />
           <MetricCard
             label="Net Tax"
             value={formatMoney(filing.totalNetTax)}
@@ -329,121 +636,15 @@ export function FilingDetailPanel({
       <div className="p-6">
         {activeTab === "overview" ? (
           <div className="space-y-6">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="p-5">
-                <div className="text-sm font-semibold text-gray-900">Quarter Timeline</div>
-                <dl className="mt-4 space-y-3 text-sm">
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-gray-500">Period</dt>
-                    <dd className="text-right text-gray-900">
-                      {formatDate(filing.periodStart)} to {formatDate(filing.periodEnd)}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-gray-500">Last Sync</dt>
-                    <dd className="text-right text-gray-900">{formatDateTime(filing.lastSyncedAt)}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-gray-500">Last Calculation</dt>
-                    <dd className="text-right text-gray-900">
-                      {formatDateTime(filing.lastCalculatedAt)}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-gray-500">Approved</dt>
-                    <dd className="text-right text-gray-900">{formatDateTime(filing.approvedAt)}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-gray-500">Provider</dt>
-                    <dd className="text-right text-gray-900">
-                      {providerLabel(filing.integrationAccount?.provider)}
-                    </dd>
-                  </div>
-                </dl>
-              </Card>
-
-              <Card className="p-5">
-                <div className="text-sm font-semibold text-gray-900">Notes & Audit</div>
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.16em] text-gray-500">
-                      Client Visible
-                    </div>
-                    <p className="mt-2 text-sm text-gray-700">
-                      {filing.notesClientVisible || "No client-facing note yet."}
-                    </p>
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.16em] text-gray-500">
-                      Internal
-                    </div>
-                    <p className="mt-2 text-sm text-gray-700">
-                      {filing.notesInternal || "No internal note yet."}
-                    </p>
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.16em] text-gray-500">
-                      Latest audit events
-                    </div>
-                    <div className="mt-2 space-y-2">
-                      {filing.audits.slice(0, 5).map((audit) => (
-                        <div
-                          key={audit.id}
-                          className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2"
-                        >
-                          <div className="text-sm font-medium text-gray-900">{audit.action}</div>
-                          <div className="mt-1 text-xs text-gray-500">{formatDateTime(audit.createdAt)}</div>
-                          {audit.message ? (
-                            <div className="mt-1 text-sm text-gray-600">{audit.message}</div>
-                          ) : null}
-                        </div>
-                      ))}
-                      {filing.audits.length === 0 ? (
-                        <div className="text-sm text-gray-500">No audit events yet.</div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </div>
-
             <Card className="p-5">
-              <div className="text-sm font-semibold text-gray-900">Jurisdiction Summary</div>
               {filing.jurisdictionSummaries.length === 0 ? (
-                <div className="mt-4">
-                  <EmptyPanel message="No jurisdiction summary has been calculated for this filing yet." />
-                </div>
+                <EmptyPanel message="No jurisdiction summary has been calculated for this filing yet." />
               ) : (
-                <div className="mt-4">
-                  <TableWrapper>
-                    <TableScroller>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Jurisdiction</TableHead>
-                            <TableHead>Total Miles</TableHead>
-                            <TableHead>Taxable Gallons</TableHead>
-                            <TableHead>Tax-Paid Gallons</TableHead>
-                            <TableHead>Tax Rate</TableHead>
-                            <TableHead>Net Tax</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filing.jurisdictionSummaries.map((summary) => (
-                            <TableRow key={summary.id}>
-                              <TableCell>{summary.jurisdiction}</TableCell>
-                              <TableCell>{formatNumber(summary.totalMiles)}</TableCell>
-                              <TableCell>{formatGallons(summary.taxableGallons)}</TableCell>
-                              <TableCell>{formatGallons(summary.taxPaidGallons)}</TableCell>
-                              <TableCell>{formatNumber(summary.taxRate, { maximumFractionDigits: 5 })}</TableCell>
-                              <TableCell>{formatMoney(summary.netTax)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableScroller>
-                  </TableWrapper>
-                </div>
+                <DashboardTable
+                  data={jurisdictionSummaryRows}
+                  columns={jurisdictionSummaryColumns}
+                  title="Jurisdiction Summary"
+                />
               )}
             </Card>
           </div>
@@ -453,36 +654,11 @@ export function FilingDetailPanel({
           vehiclesWithDistance.length === 0 ? (
             <EmptyPanel message="No vehicles with jurisdiction miles were linked to this filing yet." />
           ) : (
-            <TableWrapper>
-              <TableScroller>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>VIN</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {vehiclesWithDistance.map((vehicle) => (
-                      <TableRow key={vehicle.id}>
-                        <TableCell>
-                          {vehicle.unitNumber || vehicle.externalVehicle?.number || "No unit number"}
-                        </TableCell>
-                        <TableCell>{vehicle.vin || vehicle.externalVehicle?.vin || "No VIN"}</TableCell>
-                        <TableCell>{vehicle.source || "Unknown"}</TableCell>
-                        <TableCell>
-                          <Badge tone={vehicle.included ? "success" : "warning"}>
-                            {vehicle.included ? "Included" : "Excluded"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableScroller>
-            </TableWrapper>
+            <DashboardTable
+              data={vehicleRows}
+              columns={vehicleColumns}
+              title="Vehicles"
+            />
           )
         ) : null}
 
@@ -490,36 +666,11 @@ export function FilingDetailPanel({
           filing.distanceLines.length === 0 ? (
             <EmptyPanel message="No canonical distance lines are available for this filing." />
           ) : (
-            <TableWrapper>
-              <TableScroller>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Jurisdiction</TableHead>
-                      <TableHead>Vehicle</TableHead>
-                      <TableHead>Taxable Miles</TableHead>
-                      <TableHead>Source</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filing.distanceLines.map((line) => (
-                      <TableRow key={line.id}>
-                        <TableCell>{formatDate(line.tripDate)}</TableCell>
-                        <TableCell>{line.jurisdiction}</TableCell>
-                        <TableCell>
-                          {line.filingVehicleId
-                            ? vehicleLabelById.get(line.filingVehicleId) || "Mapped vehicle"
-                            : "Unmapped vehicle"}
-                        </TableCell>
-                        <TableCell>{formatNumber(line.taxableMiles)}</TableCell>
-                        <TableCell>{statusLabel(line.sourceType)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableScroller>
-            </TableWrapper>
+            <DashboardTable
+              data={distanceRows}
+              columns={distanceColumns}
+              title="Jurisdiction Miles"
+            />
           )
         ) : null}
 
@@ -527,42 +678,11 @@ export function FilingDetailPanel({
           filing.fuelLines.length === 0 ? (
             <EmptyPanel message="No canonical fuel lines are available for this filing." />
           ) : (
-            <TableWrapper>
-              <TableScroller>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Jurisdiction</TableHead>
-                      <TableHead>Vehicle</TableHead>
-                      <TableHead>Fuel Type</TableHead>
-                      <TableHead>Gallons</TableHead>
-                      <TableHead>Tax Paid</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filing.fuelLines.map((line) => (
-                      <TableRow key={line.id}>
-                        <TableCell>{formatDate(line.purchasedAt)}</TableCell>
-                        <TableCell>{line.jurisdiction}</TableCell>
-                        <TableCell>
-                          {line.filingVehicleId
-                            ? vehicleLabelById.get(line.filingVehicleId) || "Mapped vehicle"
-                            : "Unmapped vehicle"}
-                        </TableCell>
-                        <TableCell>{line.fuelType || "diesel"}</TableCell>
-                        <TableCell>{formatGallons(line.gallons)}</TableCell>
-                        <TableCell>
-                          <Badge tone={line.taxPaid ? "success" : line.taxPaid === false ? "warning" : "light"}>
-                            {line.taxPaid ? "Yes" : line.taxPaid === false ? "No" : "Unknown"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableScroller>
-            </TableWrapper>
+            <DashboardTable
+              data={fuelRows}
+              columns={fuelColumns}
+              title="Fuel Purchases"
+            />
           )
         ) : null}
 
@@ -570,80 +690,11 @@ export function FilingDetailPanel({
           filing.exceptions.length === 0 ? (
             <EmptyPanel message="No exceptions are attached to this filing." />
           ) : (
-            <TableWrapper>
-              <TableScroller>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Severity</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Issue</TableHead>
-                      <TableHead>Detected</TableHead>
-                      <TableHead>Resolution</TableHead>
-                      {mode === "staff" ? <TableHead className="text-right">Actions</TableHead> : null}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filing.exceptions.map((exception) => (
-                      <TableRow key={exception.id}>
-                        <TableCell>
-                          <Badge tone={severityTone(exception.severity)}>{exception.severity}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge tone={filingTone(exception.status)}>{statusLabel(exception.status)}</Badge>
-                        </TableCell>
-                        <TableCell>{exception.code}</TableCell>
-                        <TableCell>
-                          <div className="font-medium text-gray-900">{exception.title}</div>
-                          {exception.description ? (
-                            <div className="mt-1 text-xs text-gray-500">{exception.description}</div>
-                          ) : null}
-                        </TableCell>
-                        <TableCell>{formatDateTime(exception.detectedAt)}</TableCell>
-                        <TableCell>
-                          {exception.resolutionNote ? (
-                            <div className="text-sm text-gray-700">{exception.resolutionNote}</div>
-                          ) : (
-                            <span className="text-gray-400">Not resolved</span>
-                          )}
-                        </TableCell>
-                        {mode === "staff" ? (
-                          <TableCell>
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => onExceptionAction(filing, exception, "ack")}
-                                disabled={busyAction === `exception:ack:${exception.id}`}
-                              >
-                                Ack
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onExceptionAction(filing, exception, "resolve")}
-                                disabled={busyAction === `exception:resolve:${exception.id}`}
-                              >
-                                Resolve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onExceptionAction(filing, exception, "ignore")}
-                                disabled={busyAction === `exception:ignore:${exception.id}`}
-                              >
-                                Ignore
-                              </Button>
-                            </div>
-                          </TableCell>
-                        ) : null}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableScroller>
-            </TableWrapper>
+            <DashboardTable
+              data={exceptionRows}
+              columns={exceptionColumns}
+              title="Exceptions"
+            />
           )
         ) : null}
 
@@ -654,19 +705,25 @@ export function FilingDetailPanel({
                 onClick={() => onDownload(filing, "pdf")}
                 disabled={busyAction === `download:pdf:${filing.id}`}
               >
-                {busyAction === `download:pdf:${filing.id}` ? "Preparing..." : "Download PDF"}
+                {busyAction === `download:pdf:${filing.id}`
+                  ? "Preparing..."
+                  : "Download PDF"}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => onDownload(filing, "excel")}
                 disabled={busyAction === `download:excel:${filing.id}`}
               >
-                {busyAction === `download:excel:${filing.id}` ? "Preparing..." : "Download Excel"}
+                {busyAction === `download:excel:${filing.id}`
+                  ? "Preparing..."
+                  : "Download Excel"}
               </Button>
             </div>
 
             <Card className="p-5">
-              <div className="text-sm font-semibold text-gray-900">Snapshots</div>
+              <div className="text-sm font-semibold text-gray-900">
+                Snapshots
+              </div>
               <div className="mt-4 space-y-3">
                 {filing.snapshots.map((snapshot) => (
                   <div
@@ -674,13 +731,19 @@ export function FilingDetailPanel({
                     className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 md:flex-row md:items-center md:justify-between"
                   >
                     <div>
-                      <div className="font-medium text-gray-900">Version {snapshot.version}</div>
+                      <div className="font-medium text-gray-900">
+                        Version {snapshot.version}
+                      </div>
                       <div className="mt-1 text-xs text-gray-500">
                         Created {formatDateTime(snapshot.createdAt)}
-                        {snapshot.frozenAt ? ` - Frozen ${formatDateTime(snapshot.frozenAt)}` : ""}
+                        {snapshot.frozenAt
+                          ? ` - Frozen ${formatDateTime(snapshot.frozenAt)}`
+                          : ""}
                       </div>
                     </div>
-                    <Badge tone={filingTone(snapshot.status)}>{statusLabel(snapshot.status)}</Badge>
+                    <Badge tone={filingTone(snapshot.status)}>
+                      {statusLabel(snapshot.status)}
+                    </Badge>
                   </div>
                 ))}
                 {filing.snapshots.length === 0 ? (

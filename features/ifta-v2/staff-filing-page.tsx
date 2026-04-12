@@ -2,18 +2,16 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { FilingDetailPanel } from "@/features/ifta-v2/detail-panel";
 import {
-  assignedReviewerLabel,
   type FilingDetail,
   type FilingException,
   filingPeriodLabel,
   filingTone,
   formatDate,
-  formatDateTime,
   openExceptionCount,
   providerLabel,
   statusLabel,
@@ -110,11 +108,6 @@ export default function IftaAutomationStaffFilingPage({
   useEffect(() => {
     void loadFiling();
   }, [filingId]);
-
-  const reviewOwnerLabel = useMemo(
-    () => assignedReviewerLabel(filing?.assignedStaffUserId, currentUserId),
-    [currentUserId, filing?.assignedStaffUserId],
-  );
 
   async function runBusyAction(
     actionKey: string,
@@ -421,34 +414,6 @@ export default function IftaAutomationStaffFilingPage({
       </Card>
 
       <NoticeBanner notice={notice} />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Review Owner</div>
-          <div className="mt-3 text-2xl font-semibold text-gray-950">{reviewOwnerLabel}</div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Period</div>
-          <div className="mt-3 text-sm font-semibold text-gray-950">
-            {formatDate(filing.periodStart)} to {formatDate(filing.periodEnd)}
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Last Sync</div>
-          <div className="mt-3 text-sm font-semibold text-gray-950">
-            {formatDateTime(filing.lastSyncedAt)}
-          </div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Snapshot State</div>
-          <div className="mt-3 text-sm font-semibold text-gray-950">
-            {filing.snapshots[0]
-              ? `Version ${filing.snapshots[0].version} - ${statusLabel(filing.snapshots[0].status)}`
-              : "No snapshot yet"}
-          </div>
-        </Card>
-      </div>
-
       <FilingDetailPanel
         mode="staff"
         filing={filing}
