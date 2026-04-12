@@ -172,6 +172,9 @@
 .chatThread {
   display: grid;
   gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 .chatEmpty {

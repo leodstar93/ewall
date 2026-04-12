@@ -5,6 +5,7 @@ import {
 } from "@prisma/client";
 import {
   buildExceptionKey,
+  IFTA_AUTOMATION_MANUAL_SOURCE_TYPE,
   chooseReadyStatus,
   decimalToNumber,
   getIftaAutomationFilingOrThrow,
@@ -131,6 +132,10 @@ export class IftaExceptionEngine {
     }
 
     for (const line of filing.distanceLines) {
+      if (line.sourceType === IFTA_AUTOMATION_MANUAL_SOURCE_TYPE) {
+        continue;
+      }
+
       if (!line.filingVehicleId && decimalToNumber(line.taxableMiles) > 0) {
         detected.push({
           severity: IftaExceptionSeverity.BLOCKING,
@@ -257,6 +262,10 @@ export class IftaExceptionEngine {
         .map((vehicle) => vehicle.id),
     );
     for (const line of filing.distanceLines) {
+      if (line.sourceType === IFTA_AUTOMATION_MANUAL_SOURCE_TYPE) {
+        continue;
+      }
+
       if (line.filingVehicleId && excludedVehicleIds.has(line.filingVehicleId)) {
         detected.push({
           severity: IftaExceptionSeverity.WARNING,

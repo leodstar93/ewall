@@ -139,7 +139,6 @@ export class FilingWorkflowService {
       );
     }
 
-    const filingVehicleIds = new Set(filing.vehicles.map((vehicle) => vehicle.id));
     const mergedLines = new Map<string, number>();
     const normalizedLines: Array<{
       filingVehicleId: string | null;
@@ -174,35 +173,11 @@ export class FilingWorkflowService {
         continue;
       }
 
-      if (!purchasedAt) {
-        throw new IftaAutomationError(
-          "Each manual fuel row needs a valid purchase date.",
-          400,
-          "INVALID_IFTA_MANUAL_PURCHASE_DATE",
-        );
-      }
-
-      if (purchasedAt < filing.periodStart || purchasedAt > filing.periodEnd) {
+      if (purchasedAt && (purchasedAt < filing.periodStart || purchasedAt > filing.periodEnd)) {
         throw new IftaAutomationError(
           "Manual fuel purchase dates must stay inside the filing quarter.",
           400,
           "IFTA_MANUAL_PURCHASE_OUTSIDE_PERIOD",
-        );
-      }
-
-      if (filingVehicleIds.size > 0 && !filingVehicleId) {
-        throw new IftaAutomationError(
-          "Each manual fuel row needs a vehicle selection.",
-          400,
-          "INVALID_IFTA_MANUAL_VEHICLE",
-        );
-      }
-
-      if (filingVehicleId && !filingVehicleIds.has(filingVehicleId)) {
-        throw new IftaAutomationError(
-          "Manual fuel rows must use a vehicle from this filing.",
-          400,
-          "INVALID_IFTA_MANUAL_VEHICLE",
         );
       }
 
@@ -252,7 +227,7 @@ export class FilingWorkflowService {
       filingId: filing.id,
       actorUserId: input.actorUserId,
       action: "filing.manual_fuel.replace",
-      message: `Updated ${normalizedLines.length} manual fuel purchase${normalizedLines.length === 1 ? "" : "s"}.`,
+      message: `Updated ${normalizedLines.length} manual fuel row${normalizedLines.length === 1 ? "" : "s"}.`,
       payloadJson: {
         jurisdictions: Array.from(mergedLines.entries()).map(([jurisdiction, gallons]) => ({
           jurisdiction,
@@ -263,6 +238,110 @@ export class FilingWorkflowService {
           purchasedAt: line.purchasedAt?.toISOString() ?? null,
           jurisdiction: line.jurisdiction,
           gallons: toDecimalString(line.gallons, 3),
+        })),
+      },
+      db,
+    });
+
+    return getIftaAutomationFilingOrThrow(filing.id, db);
+  }
+
+  static async replaceManualDistanceAdjustments(input: {
+    filingId: string;
+    actorUserId?: string | null;
+    lines: Array<{
+      jurisdiction: string;
+      taxableMiles: number;
+    }>;
+    db?: DbLike;
+  }) {
+    const db = resolveDb(input.db ?? null);
+    const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
+
+    if (!canTruckerEditFiling(filing.status)) {
+      throw new IftaAutomationError(
+        "Submitted filings cannot be edited unless staff sends them back for changes.",
+        409,
+        "IFTA_FILING_EDIT_BLOCKED",
+      );
+    }
+
+    const mergedLines = new Map<string, number>();
+    const normalizedLines: Array<{
+      jurisdiction: string;
+      taxableMiles: number;
+    }> = [];
+
+    for (const line of input.lines) {
+      const jurisdiction = normalizeJurisdictionCode(line.jurisdiction);
+      const taxableMiles = Number(line.taxableMiles);
+
+      if (!jurisdiction || jurisdiction.length < 2 || jurisdiction.length > 3) {
+        throw new IftaAutomationError(
+          "Each manual miles row needs a valid jurisdiction code.",
+          400,
+          "INVALID_IFTA_MANUAL_DISTANCE_JURISDICTION",
+        );
+      }
+
+      if (!Number.isFinite(taxableMiles) || taxableMiles < 0) {
+        throw new IftaAutomationError(
+          "Manual miles must be zero or greater.",
+          400,
+          "INVALID_IFTA_MANUAL_DISTANCE",
+        );
+      }
+
+      if (taxableMiles === 0) {
+        continue;
+      }
+
+      normalizedLines.push({
+        jurisdiction,
+        taxableMiles,
+      });
+      mergedLines.set(jurisdiction, (mergedLines.get(jurisdiction) ?? 0) + taxableMiles);
+    }
+
+    await db.iftaDistanceLine.deleteMany({
+      where: {
+        filingId: filing.id,
+        sourceType: IFTA_AUTOMATION_MANUAL_SOURCE_TYPE,
+      },
+    });
+
+    if (normalizedLines.length > 0) {
+      await db.iftaDistanceLine.createMany({
+        data: normalizedLines.map((line) => ({
+          filingId: filing.id,
+          filingVehicleId: null,
+          jurisdiction: line.jurisdiction,
+          tripDate: null,
+          taxableMiles: toDecimalString(line.taxableMiles, 2),
+          sourceType: IFTA_AUTOMATION_MANUAL_SOURCE_TYPE,
+          sourceRefId: null,
+        })),
+      });
+    }
+
+    await IftaCalculationEngine.calculateFiling({
+      filingId: filing.id,
+      db,
+    });
+    await IftaExceptionEngine.evaluateFiling({
+      filingId: filing.id,
+      db,
+    });
+
+    await this.logAudit({
+      filingId: filing.id,
+      actorUserId: input.actorUserId,
+      action: "filing.manual_distance.replace",
+      message: `Updated ${normalizedLines.length} manual distance row${normalizedLines.length === 1 ? "" : "s"}.`,
+      payloadJson: {
+        jurisdictions: Array.from(mergedLines.entries()).map(([jurisdiction, taxableMiles]) => ({
+          jurisdiction,
+          taxableMiles: toDecimalString(taxableMiles, 2),
         })),
       },
       db,

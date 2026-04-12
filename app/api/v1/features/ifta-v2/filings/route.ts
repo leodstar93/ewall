@@ -4,6 +4,7 @@ import { buildFilingWhere, canReviewAllIfta, getActorTenant } from "@/services/i
 import { CanonicalNormalizationService } from "@/services/ifta-automation/canonical-normalization.service";
 import { getCurrentQuarter } from "@/services/ifta-automation/shared";
 import { handleIftaAutomationError, parseProvider } from "@/services/ifta-automation/http";
+import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
 
 export async function GET() {
   const guard = await requireApiPermission("ifta:read");
@@ -82,17 +83,11 @@ export async function POST(request: Request) {
         : currentQuarter.quarter;
     const provider = typeof body.provider === "undefined" ? null : parseProvider(body.provider);
     const tenant = await getActorTenant(userId);
-    const integrationAccount = provider
-      ? await prisma.integrationAccount.findUnique({
-          where: {
-            tenantId_provider: {
-              tenantId: tenant.id,
-              provider,
-            },
-          },
-          select: { id: true },
-        })
-      : null;
+    const integrationAccount = await ProviderConnectionService.findPreferredAccountForTenant({
+      tenantId: tenant.id,
+      provider,
+      db: prisma,
+    });
     const filing = await CanonicalNormalizationService.ensureFiling({
       tenantId: tenant.id,
       integrationAccountId: integrationAccount?.id ?? null,

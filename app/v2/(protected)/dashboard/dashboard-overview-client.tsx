@@ -92,6 +92,12 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
   const [ucrFilings, setUcrFilings] = useState<UcrFiling[]>([]);
   const [iftaFilings, setIftaFilings] = useState<FilingListItem[]>([]);
 
+  function handleTruckUpdated(updatedTruck: TruckRecord) {
+    setTrucks((current) =>
+      current.map((truck) => (truck.id === updatedTruck.id ? updatedTruck : truck)),
+    );
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -203,12 +209,20 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
   const truckRows = useMemo<DashboardTruckRow[]>(
     () =>
       trucks.map((truck) => ({
-        id: truck.unitNumber,
-        model: [truck.year, truck.make, truck.model].filter(Boolean).join(" ") || "Truck",
+        truckId: truck.id,
+        unitNumber: truck.unitNumber,
+        vehicleLabel: [truck.year, truck.make, truck.model].filter(Boolean).join(" ") || "Truck",
         alias: truck.nickname || "No nickname",
         identifier: truck.plateNumber || truck.vin || "No plate or VIN",
         usage: getTruckUsage(truck),
         status: toTruckStatus(truck),
+        nickname: truck.nickname ?? "",
+        plateNumber: truck.plateNumber ?? "",
+        vin: truck.vin ?? "",
+        make: truck.make ?? "",
+        modelName: truck.model ?? "",
+        year: truck.year?.toString() ?? "",
+        grossWeight: truck.grossWeight?.toString() ?? "",
       })),
     [trucks],
   );
@@ -272,7 +286,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
         <AdvertisingSlider slides={slides} />
       </div>
 
-      <TrucksDropdown trucks={truckRows} footerHref="/settings?tab=trucks" />
+      <TrucksDropdown trucks={truckRows} onTruckUpdated={handleTruckUpdated} />
 
       <DataTable
         data={

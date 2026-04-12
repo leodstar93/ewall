@@ -45,6 +45,34 @@ function ensureConnectedStatus(status: IntegrationStatus) {
 }
 
 export class ProviderConnectionService {
+  static async findPreferredAccountForTenant(input: {
+    tenantId: string;
+    provider?: ELDProvider | null;
+    db?: DbLike;
+  }) {
+    const db = input.db ?? prisma;
+
+    return db.integrationAccount.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        ...(input.provider ? { provider: input.provider } : {}),
+        status: {
+          in: [IntegrationStatus.CONNECTED, IntegrationStatus.ERROR],
+        },
+      },
+      select: {
+        id: true,
+        provider: true,
+        status: true,
+      },
+      orderBy: [
+        { lastSuccessfulSyncAt: "desc" },
+        { connectedAt: "desc" },
+        { provider: "asc" },
+      ],
+    });
+  }
+
   static listProviders() {
     return [
       {

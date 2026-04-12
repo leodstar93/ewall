@@ -66,15 +66,6 @@
   flex-shrink: 0;
 }
 
-.activeBadge {
-  background: var(--r);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 20px;
-}
-
 .chevron {
   width: 16px;
   height: 16px;
@@ -162,13 +153,14 @@
 }
 
 .num {
-  width: 36px;
+  min-width: 42px;
   height: 36px;
   border-radius: 8px;
   background: var(--bl);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 10px;
   font-size: 11px;
   font-weight: 700;
   color: var(--b);
@@ -183,6 +175,13 @@
 .numGray {
   background: #f0f0f0;
   color: #777;
+}
+
+.unitCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .tbadge {
@@ -214,16 +213,262 @@
   color: #777;
 }
 
-.footerLink {
-  font-size: 11px;
-  color: var(--b);
+.actionButton {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #c8d5f2;
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, #ffffff 0%, #eef4ff 55%, #ffe8ea 100%);
+  color: #002868;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  font-weight: 500;
-  white-space: nowrap;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+  box-shadow: 0 6px 18px rgba(0, 40, 104, 0.08);
 }
 
-.footerLink:hover {
-  color: var(--r);
+.actionButton:hover {
+  transform: translateY(-1px);
+  border-color: #b22234;
+  box-shadow: 0 10px 24px rgba(178, 34, 52, 0.15);
+}
+
+.actionButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 15, 36, 0.54);
+  backdrop-filter: blur(10px);
+}
+
+.modalCard {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background:
+    linear-gradient(180deg, #f7faff 0%, #ffffff 18%, #fff9f9 100%);
+  box-shadow:
+    0 28px 60px rgba(5, 15, 41, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.modalHero {
+  position: relative;
+  padding: 28px 28px 22px;
+  color: #fff;
+  background:
+    linear-gradient(135deg, #002868 0%, #0e4aa8 52%, #b22234 100%);
+  overflow: hidden;
+}
+
+.modalHero::after {
+  content: "";
+  position: absolute;
+  inset: auto -12% -42px auto;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.modalBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.closeButton {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.closeButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.modalEyebrow {
+  margin: 18px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.05;
+  font-weight: 800;
+}
+
+.modalText {
+  margin: 10px 0 0;
+  max-width: 520px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.flagRow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.flagRow span {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.flagRow span:nth-child(2),
+.flagRow span:nth-child(4) {
+  background: #ffd7dc;
+}
+
+.modalBody {
+  padding: 24px 28px 28px;
+}
+
+.modalError {
+  margin-bottom: 16px;
+  border: 1px solid #fecaca;
+  border-radius: 16px;
+  background: #fff1f2;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #b42318;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #29426b;
+}
+
+.field input {
+  width: 100%;
+  height: 48px;
+  border: 1px solid #d7deec;
+  border-radius: 16px;
+  background: #fff;
+  padding: 0 14px;
+  font-size: 14px;
+  color: #172033;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.field input:focus {
+  border-color: #0e4aa8;
+  box-shadow: 0 0 0 4px rgba(14, 74, 168, 0.12);
+  background: #fcfdff;
+}
+
+.uppercaseInput {
+  text-transform: uppercase;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.secondaryButton,
+.primaryButton {
+  min-width: 140px;
+  height: 46px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.secondaryButton {
+  border: 1px solid #d7deec;
+  background: #fff;
+  color: #29426b;
+}
+
+.primaryButton {
+  border: 1px solid #0e4aa8;
+  background: linear-gradient(135deg, #002868 0%, #0e4aa8 54%, #b22234 100%);
+  color: #fff;
+  box-shadow: 0 12px 22px rgba(0, 40, 104, 0.22);
+}
+
+.secondaryButton:hover,
+.primaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 @media (max-width: 700px) {
@@ -238,5 +483,32 @@
   .searchBox {
     min-width: 100%;
     max-width: none;
+  }
+
+  .modalBackdrop {
+    padding: 12px;
+  }
+
+  .modalHero,
+  .modalBody {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .modalTitle {
+    font-size: 24px;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .modalActions {
+    flex-direction: column-reverse;
+  }
+
+  .secondaryButton,
+  .primaryButton {
+    width: 100%;
   }
 }

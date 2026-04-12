@@ -74,6 +74,12 @@ export type FilingListItem = {
   tenant?: {
     id: string;
     name: string;
+    legalName?: string | null;
+    dbaName?: string | null;
+    companyName?: string | null;
+    dotNumber?: string | null;
+    mcNumber?: string | null;
+    ein?: string | null;
   } | null;
   integrationAccount?: {
     id: string;
@@ -179,6 +185,12 @@ export type FilingDetail = FilingListItem & {
   tenant: {
     id: string;
     name: string;
+    legalName?: string | null;
+    dbaName?: string | null;
+    companyName?: string | null;
+    dotNumber?: string | null;
+    mcNumber?: string | null;
+    ein?: string | null;
     companyProfile?: {
       legalName: string | null;
       dbaName: string | null;

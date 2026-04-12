@@ -1,29 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import DashboardTable, {
+  type ColumnDef,
+  type TableAction,
+} from "@/app/v2/(protected)/dashboard/components/ui/Table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableScroller,
-  TableWrapper,
-} from "@/components/ui/table";
-import {
   canTruckerEditFilingStatus,
+  type FilingAudit,
   type FilingDetail,
   filingPeriodLabel,
-  filingTone,
   formatDate,
-  formatGallons,
-  formatMoney,
   formatNumber,
   providerLabel,
   statusLabel,
@@ -35,116 +27,101 @@ type Notice = {
   text: string;
 };
 
-function DownloadIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 20 20"
-      fill="none"
-      className="h-4 w-4"
-    >
-      <path
-        d="M10 3.75V11.25M10 11.25L13.25 8M10 11.25L6.75 8M4.75 13.75H15.25"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-type ManualFuelRow = {
+type JurisdictionEditorRow = {
   id: string;
-  filingVehicleId: string;
-  purchasedAt: string;
   jurisdiction: string;
+  miles: string;
   gallons: string;
+  hasManualMiles: boolean;
 };
 
-function createBlankManualFuelRow(rowId = "row-1"): ManualFuelRow {
-  return {
-    id: rowId,
-    filingVehicleId: "",
-    purchasedAt: "",
-    jurisdiction: "",
-    gallons: "",
-  };
+type ConversationMessage = {
+  id: string;
+  authorRole: "CLIENT" | "STAFF";
+  authorName: string;
+  body: string;
+  createdAt: string;
+};
+
+type AuditRow = {
+  id: string;
+  event: string;
+  detail: string;
+  createdAt: string;
+};
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
-function filingVehicleLabel(filing: FilingDetail, filingVehicleId: string) {
-  const vehicle = filing.vehicles.find((candidate) => candidate.id === filingVehicleId);
-  if (!vehicle) return "Unmapped vehicle";
+function buildJurisdictionRows(filing: FilingDetail | null) {
+  if (!filing) {
+    return [] as JurisdictionEditorRow[];
+  }
 
-  return (
-    vehicle.unitNumber ||
-    vehicle.externalVehicle?.number ||
-    vehicle.vin ||
-    "Unmapped vehicle"
-  );
-}
+  const summaryMiles = new Map<string, number>();
+  for (const summary of filing.jurisdictionSummaries) {
+    const jurisdiction = summary.jurisdiction.trim().toUpperCase();
+    if (!jurisdiction) continue;
+    summaryMiles.set(jurisdiction, toNumber(summary.totalMiles));
+  }
 
-function buildSeededManualRowsFromMileage(filing: FilingDetail) {
-  const groupedRows = new Map<
-    string,
-    {
-      filingVehicleId: string;
-      jurisdiction: string;
-      vehicleLabel: string;
-    }
-  >();
-
+  const milesByJurisdiction = new Map<string, number>();
   for (const line of filing.distanceLines) {
-    if (!line.filingVehicleId) continue;
+    const jurisdiction = line.jurisdiction.trim().toUpperCase();
+    if (!jurisdiction) continue;
+    milesByJurisdiction.set(
+      jurisdiction,
+      (milesByJurisdiction.get(jurisdiction) ?? 0) + toNumber(line.taxableMiles),
+    );
+  }
+
+  const manualGallonsByJurisdiction = new Map<string, number>();
+  const manualMilesByJurisdiction = new Map<string, number>();
+  for (const line of filing.fuelLines) {
+    if (line.sourceType !== "MANUAL_ADJUSTMENT") continue;
+
     const jurisdiction = line.jurisdiction.trim().toUpperCase();
     if (!jurisdiction) continue;
 
-    const key = `${line.filingVehicleId}:${jurisdiction}`;
-    if (groupedRows.has(key)) continue;
-
-    groupedRows.set(key, {
-      filingVehicleId: line.filingVehicleId,
+    manualGallonsByJurisdiction.set(
       jurisdiction,
-      vehicleLabel: filingVehicleLabel(filing, line.filingVehicleId),
-    });
+      (manualGallonsByJurisdiction.get(jurisdiction) ?? 0) + toNumber(line.gallons),
+    );
+  }
+  for (const line of filing.distanceLines) {
+    if (line.sourceType !== "MANUAL_ADJUSTMENT") continue;
+
+    const jurisdiction = line.jurisdiction.trim().toUpperCase();
+    if (!jurisdiction) continue;
+
+    manualMilesByJurisdiction.set(
+      jurisdiction,
+      (manualMilesByJurisdiction.get(jurisdiction) ?? 0) + toNumber(line.taxableMiles),
+    );
   }
 
-  return Array.from(groupedRows.values())
-    .sort((left, right) => {
-      if (left.vehicleLabel !== right.vehicleLabel) {
-        return left.vehicleLabel.localeCompare(right.vehicleLabel);
-      }
+  const jurisdictions = new Set<string>([
+    ...summaryMiles.keys(),
+    ...milesByJurisdiction.keys(),
+    ...manualGallonsByJurisdiction.keys(),
+  ]);
 
-      return left.jurisdiction.localeCompare(right.jurisdiction);
-    })
-    .map((row, index) => ({
-      id: `seed-${index + 1}`,
-      filingVehicleId: row.filingVehicleId,
-      purchasedAt: "",
-      jurisdiction: row.jurisdiction,
-      gallons: "",
+  return Array.from(jurisdictions)
+    .sort((left, right) => left.localeCompare(right))
+    .map((jurisdiction, index) => ({
+      id: `jurisdiction-${index + 1}`,
+      jurisdiction,
+      miles: (summaryMiles.get(jurisdiction) ?? milesByJurisdiction.get(jurisdiction) ?? 0).toFixed(2),
+      gallons: manualGallonsByJurisdiction.has(jurisdiction)
+        ? manualGallonsByJurisdiction.get(jurisdiction)!.toFixed(3)
+        : "",
+      hasManualMiles: manualMilesByJurisdiction.has(jurisdiction),
     }));
-}
-
-function buildManualRows(filing: FilingDetail | null) {
-  if (!filing) {
-    return [createBlankManualFuelRow()];
-  }
-
-  const manualLines = filing.fuelLines.filter((line) => line.sourceType === "MANUAL_ADJUSTMENT");
-
-  if (manualLines.length === 0) {
-    const seededRows = buildSeededManualRowsFromMileage(filing);
-    return seededRows.length > 0 ? seededRows : [createBlankManualFuelRow()];
-  }
-
-  return manualLines.map((line, index) => ({
-    id: line.id || `row-${index + 1}`,
-    filingVehicleId: line.filingVehicleId || "",
-    purchasedAt: line.purchasedAt ? line.purchasedAt.slice(0, 10) : "",
-    jurisdiction: line.jurisdiction,
-    gallons: toNumber(line.gallons).toFixed(3),
-  }));
 }
 
 function NoticeBanner({ notice }: { notice: Notice | null }) {
@@ -162,6 +139,49 @@ function NoticeBanner({ notice }: { notice: Notice | null }) {
       {notice.text}
     </div>
   );
+}
+
+function buildConversation(filing: FilingDetail | null) {
+  if (!filing) {
+    return [] as ConversationMessage[];
+  }
+
+  return filing.audits
+    .filter((audit) => audit.action === "filing.client_message" && audit.message?.trim())
+    .map((audit) => ({
+      id: audit.id,
+      authorRole: "CLIENT" as const,
+      authorName: "You",
+      body: audit.message?.trim() ?? "",
+      createdAt: audit.createdAt,
+    }))
+    .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime());
+}
+
+function formatAuditAction(action: string) {
+  return action
+    .replace(/^filing\./, "")
+    .replace(/^exception\./, "exception ")
+    .replace(/^snapshot\./, "snapshot ")
+    .replace(/[._]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildAuditRows(filing: FilingDetail | null) {
+  if (!filing) {
+    return [] as AuditRow[];
+  }
+
+  return [...filing.audits]
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .map((audit) => ({
+      id: audit.id,
+      event: formatAuditAction(audit.action),
+      detail: audit.message?.trim() || "No additional details.",
+      createdAt: audit.createdAt,
+    }));
 }
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
@@ -182,13 +202,6 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
   return data;
 }
 
-function parseDownloadFilename(header: string | null, fallback: string) {
-  if (!header) return fallback;
-
-  const filenameMatch = /filename="([^"]+)"/i.exec(header);
-  return filenameMatch?.[1] || fallback;
-}
-
 export default function IftaAutomationTruckerFilingPage({
   filingId,
   backHref = "/ifta-v2",
@@ -196,11 +209,17 @@ export default function IftaAutomationTruckerFilingPage({
   filingId: string;
   backHref?: string;
 }) {
+  const { data: session } = useSession();
   const [filing, setFiling] = useState<FilingDetail | null>(null);
-  const [manualRows, setManualRows] = useState<ManualFuelRow[]>(() => buildManualRows(null));
+  const [jurisdictionRows, setJurisdictionRows] = useState<JurisdictionEditorRow[]>(() =>
+    buildJurisdictionRows(null),
+  );
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
 
   async function loadFiling() {
     setLoading(true);
@@ -210,13 +229,16 @@ export default function IftaAutomationTruckerFilingPage({
         `/api/v1/features/ifta-v2/filings/${filingId}`,
       );
       setFiling(data.filing);
-      setManualRows(buildManualRows(data.filing));
+      setJurisdictionRows(buildJurisdictionRows(data.filing));
+      setEditingRowId(null);
     } catch (error) {
       setNotice({
         tone: "error",
         text: error instanceof Error ? error.message : "Could not load this IFTA filing.",
       });
       setFiling(null);
+      setJurisdictionRows([]);
+      setEditingRowId(null);
     } finally {
       setLoading(false);
     }
@@ -226,104 +248,112 @@ export default function IftaAutomationTruckerFilingPage({
     void loadFiling();
   }, [filingId]);
 
-  const jurisdictions = useMemo(() => {
-    const fromSummary = filing?.jurisdictionSummaries.map((summary) => ({
-      jurisdiction: summary.jurisdiction,
-      miles: toNumber(summary.totalMiles),
-      gallons: toNumber(summary.taxPaidGallons),
-      netTax: toNumber(summary.netTax),
-    })) ?? [];
-
-    if (fromSummary.length > 0) {
-      return fromSummary;
-    }
-
-    const totals = new Map<string, number>();
-    for (const line of filing?.distanceLines ?? []) {
-      totals.set(line.jurisdiction, (totals.get(line.jurisdiction) ?? 0) + toNumber(line.taxableMiles));
-    }
-
-    return Array.from(totals.entries()).map(([jurisdiction, miles]) => ({
-      jurisdiction,
-      miles,
-      gallons: 0,
-      netTax: 0,
-    }));
-  }, [filing]);
-
-  const canEdit = filing ? canTruckerEditFilingStatus(filing.status) : false;
-  const canSubmit = filing
-    ? canTruckerEditFilingStatus(filing.status)
-    : false;
-  const canDownloadApprovedReport = filing?.status === "APPROVED";
-
-  function updateManualRow(
-    rowId: string,
-    field: "filingVehicleId" | "purchasedAt" | "jurisdiction" | "gallons",
-    value: string,
-  ) {
-    setManualRows((current) =>
-      current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)),
+  function updateJurisdictionRow(rowId: string, value: string) {
+    setJurisdictionRows((current) =>
+      current.map((row) => (row.id === rowId ? { ...row, gallons: value } : row)),
     );
   }
 
-  function addManualRow() {
-    setManualRows((current) => [
-      ...current,
-      createBlankManualFuelRow(`row-${Date.now()}-${current.length + 1}`),
-    ]);
+  function updateJurisdictionMiles(rowId: string, value: string) {
+    setJurisdictionRows((current) =>
+      current.map((row) => (row.id === rowId ? { ...row, miles: value, hasManualMiles: true } : row)),
+    );
   }
 
-  function removeManualRow(rowId: string) {
-    setManualRows((current) => {
-      const nextRows = current.filter((row) => row.id !== rowId);
-      return nextRows.length > 0 ? nextRows : [createBlankManualFuelRow(`row-${Date.now()}`)];
-    });
-  }
+  async function persistManualDistance(options?: { quiet?: boolean }) {
+    if (!filing) return null;
 
-  async function handleSaveManualGallons() {
-    if (!filing) return;
+    const payload = jurisdictionRows
+      .filter((row) => row.hasManualMiles)
+      .map((row) => ({
+        jurisdiction: row.jurisdiction.trim().toUpperCase(),
+        taxableMiles: row.miles.trim(),
+      }));
 
-    setBusyAction("save-manual-fuel");
-    setNotice(null);
+    const data = await requestJson<{ filing: FilingDetail }>(
+      `/api/v1/features/ifta-v2/filings/${filing.id}/manual-distance`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          lines: payload,
+        }),
+      },
+    );
 
-    try {
-      const payload = manualRows
-        .map((row) => ({
-          filingVehicleId: row.filingVehicleId.trim(),
-          purchasedAt: row.purchasedAt.trim(),
-          jurisdiction: row.jurisdiction.trim().toUpperCase(),
-          gallons: row.gallons.trim(),
-        }))
-        .filter(
-          (row) =>
-            row.filingVehicleId || row.purchasedAt || row.jurisdiction || row.gallons,
-        );
+    setFiling(data.filing);
+    setJurisdictionRows(buildJurisdictionRows(data.filing));
 
-      const data = await requestJson<{ filing: FilingDetail }>(
-        `/api/v1/features/ifta-v2/filings/${filing.id}/manual-fuel`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            lines: payload,
-          }),
-        },
-      );
-
-      setFiling(data.filing);
-      setManualRows(buildManualRows(data.filing));
+    if (!options?.quiet) {
       setNotice({
         tone: "success",
-        text: "Manual fuel purchases were saved and the filing totals were recalculated.",
+        text: "Jurisdiction miles were updated.",
       });
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Could not save manual fuel purchases.",
-      });
-    } finally {
-      setBusyAction(null);
     }
+
+    return data.filing;
+  }
+
+  async function persistManualGallons(options?: { quiet?: boolean }) {
+    if (!filing) return null;
+
+    const payload = jurisdictionRows
+      .map((row) => ({
+        jurisdiction: row.jurisdiction.trim().toUpperCase(),
+        gallons: row.gallons.trim(),
+      }))
+      .filter((row) => row.jurisdiction || row.gallons);
+
+    const data = await requestJson<{ filing: FilingDetail }>(
+      `/api/v1/features/ifta-v2/filings/${filing.id}/manual-fuel`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          lines: payload,
+        }),
+      },
+    );
+
+    setFiling(data.filing);
+    setJurisdictionRows(buildJurisdictionRows(data.filing));
+
+    if (!options?.quiet) {
+      setNotice({
+        tone: "success",
+        text: "Jurisdiction gallons were updated.",
+      });
+    }
+
+    return data.filing;
+  }
+
+  async function handleToggleRowEdit(rowId: string) {
+    if (!canTruckerEditFilingStatus(filing?.status ?? "")) return;
+
+    if (editingRowId === rowId) {
+      setBusyAction("save-manual-fuel");
+      setNotice(null);
+
+      try {
+        await persistManualDistance({ quiet: true });
+        await persistManualGallons({ quiet: true });
+        setEditingRowId(null);
+        setNotice({
+          tone: "success",
+          text: "Gallons updated for the selected jurisdiction.",
+        });
+      } catch (error) {
+        setNotice({
+          tone: "error",
+          text: getErrorMessage(error, "Could not save jurisdiction gallons."),
+        });
+      } finally {
+        setBusyAction(null);
+      }
+
+      return;
+    }
+
+    setEditingRowId(rowId);
   }
 
   async function handleSubmitForReview() {
@@ -333,6 +363,8 @@ export default function IftaAutomationTruckerFilingPage({
     setNotice(null);
 
     try {
+      await persistManualDistance({ quiet: true });
+      await persistManualGallons({ quiet: true });
       await requestJson(`/api/v1/features/ifta-v2/filings/${filing.id}/submit`, {
         method: "POST",
       });
@@ -344,64 +376,91 @@ export default function IftaAutomationTruckerFilingPage({
     } catch (error) {
       setNotice({
         tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Could not submit this filing for review.",
+        text: getErrorMessage(error, "Could not submit this filing for review."),
       });
     } finally {
       setBusyAction(null);
     }
   }
 
-  async function handleDownloadApprovedReport() {
+  async function handleSyncLatest() {
     if (!filing) return;
 
-    setBusyAction("download-approved-report");
+    const provider = filing.integrationAccount?.provider;
+    if (!provider) {
+      setNotice({
+        tone: "error",
+        text: "This filing does not have an ELD provider connected for sync.",
+      });
+      return;
+    }
+
+    setBusyAction("sync-quarter");
     setNotice(null);
 
     try {
-      const response = await fetch(
-        `/api/v1/features/ifta-v2/filings/${filing.id}/download?format=pdf`,
-        {
-          cache: "no-store",
-        },
-      );
+      await requestJson("/api/v1/features/ifta-v2/integrations/sync", {
+        method: "POST",
+        body: JSON.stringify({
+          provider,
+          mode: "INCREMENTAL",
+          tenantId: filing.tenantId,
+          windowStart: filing.periodStart,
+          windowEnd: filing.periodEnd,
+        }),
+      });
 
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error || "Could not generate the approved IFTA report.");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const fallbackName = `ifta-approved-${filing.year}-q${filing.quarter}.pdf`;
-
-      link.href = url;
-      link.download = parseDownloadFilename(
-        response.headers.get("Content-Disposition"),
-        fallbackName,
-      );
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
+      await loadFiling();
       setNotice({
         tone: "success",
-        text: "The approved IFTA report was downloaded from the frozen snapshot.",
+        text: `ELD sync requested for ${filingPeriodLabel(filing)}.`,
       });
     } catch (error) {
       setNotice({
         tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Could not download the approved IFTA report.",
+        text: getErrorMessage(error, "Could not start the ELD sync for this filing."),
       });
     } finally {
       setBusyAction(null);
+    }
+  }
+
+  async function sendChatMessage() {
+    if (!filing || !chatDraft.trim()) return;
+
+    setChatBusy(true);
+    setNotice(null);
+
+    try {
+      const data = await requestJson<{ ok: boolean; audit: FilingAudit }>(
+        `/api/v1/features/ifta-v2/filings/${filing.id}`,
+        {
+        method: "PATCH",
+        body: JSON.stringify({
+          chatMessage: chatDraft,
+        }),
+        },
+      );
+      setChatDraft("");
+      setFiling((current) =>
+        current
+          ? {
+              ...current,
+              audits: [data.audit, ...current.audits],
+            }
+          : current,
+      );
+      setNotice({
+        tone: "success",
+        text: "Message sent to the staff team.",
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: getErrorMessage(error, "Could not send your message."),
+      });
+    } finally {
+      setChatBusy(false);
     }
   }
 
@@ -435,287 +494,264 @@ export default function IftaAutomationTruckerFilingPage({
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-gray-200 bg-gradient-to-br from-white via-gray-50 to-amber-50">
-        <div className="p-8">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <Link href={backHref} className="text-sm font-medium text-gray-500 hover:text-gray-900">
-                Back to IFTAs
-              </Link>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <Badge tone={filingTone(filing.status)}>{statusLabel(filing.status)}</Badge>
-                <Badge tone="light">{providerLabel(filing.integrationAccount?.provider)}</Badge>
-              </div>
-              <h1 className="mt-4 text-3xl font-semibold text-gray-950">
-                {filingPeriodLabel(filing)}
-              </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
-                Review your quarter, add manual fuel purchases with vehicle and date details,
-                and submit the filing when it is ready for staff.
-              </p>
-            </div>
+  const canEdit = canTruckerEditFilingStatus(filing.status);
+  const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
+  const canViewAudit = roles.includes("STAFF");
+  const conversation = buildConversation(filing);
+  const auditRows = buildAuditRows(filing);
+  const companyName =
+    filing.tenant.legalName ||
+    filing.tenant.companyName ||
+    filing.tenant.dbaName ||
+    filing.tenant.companyProfile?.legalName ||
+    filing.tenant.companyProfile?.companyName ||
+    filing.tenant.companyProfile?.dbaName ||
+    "Company profile pending";
+  const serviceLabel = `${filingPeriodLabel(filing)} - IFTA Service`;
+  const tableColumns: ColumnDef<JurisdictionEditorRow>[] = [
+    {
+      key: "jurisdiction",
+      label: "Jurisdiction",
+      render: (value) => <span className="font-semibold text-zinc-900">{String(value ?? "")}</span>,
+    },
+    {
+      key: "miles",
+      label: "Summary Miles",
+      sortable: false,
+      render: (value, row) =>
+        editingRowId === row.id ? (
+          <Input
+            value={row.miles}
+            onChange={(event) => updateJurisdictionMiles(row.id, event.target.value)}
+            inputMode="decimal"
+            placeholder="0.00"
+            disabled={!canEdit}
+            className="max-w-[180px] rounded-2xl border-zinc-300 text-right font-semibold text-zinc-950 focus:border-zinc-400 focus:ring-zinc-500/10"
+          />
+        ) : (
+          <span className="text-zinc-700">{formatNumber(Number(value ?? 0))}</span>
+        ),
+    },
+    {
+      key: "gallons",
+      label: "Gallons",
+      sortable: false,
+      render: (value, row) =>
+        editingRowId === row.id ? (
+          <Input
+            value={row.gallons}
+            onChange={(event) => updateJurisdictionRow(row.id, event.target.value)}
+            inputMode="decimal"
+            placeholder="0.000"
+            disabled={!canEdit}
+            className="max-w-[180px] rounded-2xl border-zinc-300 text-right font-semibold text-zinc-950 focus:border-zinc-400 focus:ring-zinc-500/10"
+          />
+        ) : (
+          <span className="text-sm font-medium text-zinc-700">{String(value ?? "").trim() || "-"}</span>
+        ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      sortable: false,
+      render: (_value, row) => {
+        const isEditing = editingRowId === row.id;
 
-            <div className="flex flex-wrap gap-2">
-              {canDownloadApprovedReport ? (
-                <Button
-                  variant="outline"
-                  onClick={() => void handleDownloadApprovedReport()}
-                  disabled={busyAction === "download-approved-report"}
-                >
-                  <DownloadIcon />
-                  {busyAction === "download-approved-report"
-                    ? "Preparing report..."
-                    : "Download Approved Report"}
-                </Button>
-              ) : null}
-              <Button
-                variant="outline"
-                onClick={() => void handleSaveManualGallons()}
-                disabled={!canEdit || busyAction === "save-manual-fuel"}
-              >
-                {busyAction === "save-manual-fuel" ? "Saving..." : "Save fuel"}
-              </Button>
-              <Button
-                onClick={() => void handleSubmitForReview()}
-                disabled={!canSubmit || busyAction === "submit"}
-              >
-                {busyAction === "submit" ? "Submitting..." : "Submit For Review"}
-              </Button>
-            </div>
-          </div>
+        return (
+          <Button
+            variant={isEditing ? "primary" : "outline"}
+            size="sm"
+            className="rounded-2xl"
+            onClick={() => void handleToggleRowEdit(row.id)}
+            disabled={!canEdit || busyAction === "submit" || busyAction === "sync-quarter"}
+          >
+            {busyAction === "save-manual-fuel" && isEditing
+              ? "Saving..."
+              : isEditing
+                ? "Done"
+                : "Edit"}
+          </Button>
+        );
+      },
+    },
+  ];
+  const tableActions: TableAction[] = [
+    {
+      label: busyAction === "sync-quarter" ? "Syncing..." : "Sync ELD Quarter",
+      onClick: () => {
+        void handleSyncLatest();
+      },
+    },
+    {
+      label: busyAction === "submit" ? "Submitting..." : "Submit For Review",
+      onClick: () => {
+        void handleSubmitForReview();
+      },
+      variant: "primary",
+    },
+  ];
+  const auditColumns: ColumnDef<AuditRow>[] = [
+    {
+      key: "event",
+      label: "Event",
+      render: (value) => <span className="font-semibold text-zinc-900">{String(value ?? "")}</span>,
+    },
+    {
+      key: "detail",
+      label: "Details",
+      sortable: false,
+      render: (value) => <span className="text-sm text-zinc-600">{String(value ?? "")}</span>,
+    },
+    {
+      key: "createdAt",
+      label: "Date",
+      render: (value) => <span className="text-sm text-zinc-600">{formatDate(String(value ?? ""))}</span>,
+    },
+  ];
+
+  return (
+    <section className="space-y-4 rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">{companyName}</h1>
+          <p className="mt-1 text-sm font-medium text-zinc-500">{serviceLabel}</p>
         </div>
-      </Card>
+      </div>
 
       <NoticeBanner notice={notice} />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Total Miles</div>
-          <div className="mt-3 text-2xl font-semibold text-gray-950">
-            {formatNumber(filing.totalDistance)}
+      <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-5">
+        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+          IFTA Resume
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              Status
+            </div>
+            <div className="mt-2 text-sm font-semibold text-zinc-900">{statusLabel(filing.status)}</div>
           </div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Tax-Paid Gallons</div>
-          <div className="mt-3 text-2xl font-semibold text-gray-950">
-            {formatGallons(filing.totalFuelGallons)}
+          <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              Provider
+            </div>
+            <div className="mt-2 text-sm font-semibold text-zinc-900">
+              {providerLabel(filing.integrationAccount?.provider)}
+            </div>
           </div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Fleet MPG</div>
-          <div className="mt-3 text-2xl font-semibold text-gray-950">
-            {formatNumber(filing.fleetMpg, { maximumFractionDigits: 4 })}
+          <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              Quarter Window
+            </div>
+            <div className="mt-2 text-sm font-semibold text-zinc-900">
+              {formatDate(filing.periodStart)} - {formatDate(filing.periodEnd)}
+            </div>
           </div>
-        </Card>
-        <Card className="p-5">
-          <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Net Tax</div>
-          <div className="mt-3 text-2xl font-semibold text-gray-950">
-            {formatMoney(filing.totalNetTax)}
+          <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              Jurisdictions
+            </div>
+            <div className="mt-2 text-sm font-semibold text-zinc-900">
+              {jurisdictionRows.length} active row{jurisdictionRows.length === 1 ? "" : "s"}
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <Card className="overflow-hidden">
-          <div className="border-b border-gray-200 px-6 py-5">
-            <div className="text-sm font-semibold text-gray-950">Jurisdiction summary</div>
-            <p className="mt-1 text-sm text-gray-600">
-              Use the mileage by jurisdiction as reference when entering your gallons.
-            </p>
-          </div>
+      {jurisdictionRows.length === 0 ? (
+        <div className="rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-600">
+          No jurisdiction activity is available yet. If your ELD is connected, run
+          <span className="font-medium text-zinc-900"> Sync ELD Quarter</span> first.
+        </div>
+      ) : (
+        <DashboardTable
+          data={jurisdictionRows}
+          columns={tableColumns}
+          actions={tableActions}
+          title="Jurisdiction Summary"
+        />
+      )}
 
-          <div className="p-6">
-            {jurisdictions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
-                No jurisdiction mileage is available yet. If you connected an ELD, sync it from
-                <span className="font-medium"> Settings &gt; Integrations</span>.
-              </div>
-            ) : (
-              <TableWrapper>
-                <TableScroller>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Jurisdiction</TableHead>
-                        <TableHead>Miles</TableHead>
-                        <TableHead>Tax-Paid Gallons</TableHead>
-                        <TableHead>Net Tax</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {jurisdictions.map((row) => (
-                        <TableRow key={row.jurisdiction}>
-                          <TableCell className="font-medium text-gray-900">{row.jurisdiction}</TableCell>
-                          <TableCell>{formatNumber(row.miles)}</TableCell>
-                          <TableCell>{formatGallons(row.gallons)}</TableCell>
-                          <TableCell>{formatMoney(row.netTax)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableScroller>
-              </TableWrapper>
-            )}
-          </div>
-        </Card>
+      {!canEdit ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+          This filing is locked because it has already been submitted for review.
+        </div>
+      ) : null}
 
-        <Card className="overflow-hidden">
-          <div className="border-b border-gray-200 px-6 py-5">
-            <div className="text-sm font-semibold text-gray-950">Manual fuel purchases</div>
-            <p className="mt-1 text-sm text-gray-600">
-              Enter the vehicle, purchase date, jurisdiction, and tax-paid gallons for each
-              manual fuel purchase. Trucks with jurisdiction miles are preloaded here when
-              available, and these rows are kept when the filing is recalculated.
-            </p>
-          </div>
+      <div className="rounded-[24px] border border-zinc-200 bg-white p-5">
+        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+          Conversation
+        </div>
+        <h3 className="mt-2 text-lg font-semibold text-zinc-950">Client and staff chat</h3>
 
-          <div className="space-y-4 p-6">
-            {manualRows.map((row) => (
-              <div
-                key={row.id}
-                className="grid gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_170px_120px_140px_auto]"
+        <div className="mt-5 grid max-h-[420px] gap-3 overflow-y-auto pr-1">
+          {conversation.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-center text-sm text-zinc-600">
+              No messages yet. Start the conversation with your staff team here.
+            </div>
+          ) : (
+            conversation.map((message) => (
+              <article
+                key={message.id}
+                className="ml-auto grid max-w-[720px] gap-2 rounded-2xl border border-[rgba(0,40,104,0.16)] bg-[linear-gradient(180deg,rgba(0,40,104,0.08),rgba(255,255,255,0.98))] px-4 py-3"
               >
-                <label className="space-y-2">
-                  <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
-                    Vehicle
-                  </span>
-                  <select
-                    value={row.filingVehicleId}
-                    onChange={(event) =>
-                      updateManualRow(row.id, "filingVehicleId", event.target.value)
-                    }
-                    disabled={!canEdit}
-                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 outline-none shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 disabled:bg-gray-100"
-                  >
-                    <option value="">Select vehicle</option>
-                    {filing.vehicles.map((vehicle) => (
-                      <option key={vehicle.id} value={vehicle.id}>
-                        {vehicle.unitNumber ||
-                          vehicle.externalVehicle?.number ||
-                          vehicle.vin ||
-                          "Unmapped vehicle"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="space-y-2">
-                  <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
-                    Date
-                  </span>
-                  <Input
-                    type="date"
-                    value={row.purchasedAt}
-                    onChange={(event) => updateManualRow(row.id, "purchasedAt", event.target.value)}
-                    disabled={!canEdit}
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
-                    Jurisdiction
-                  </span>
-                  <Input
-                    value={row.jurisdiction}
-                    onChange={(event) => updateManualRow(row.id, "jurisdiction", event.target.value.toUpperCase())}
-                    maxLength={3}
-                    placeholder="NV"
-                    disabled={!canEdit}
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
-                    Gallons
-                  </span>
-                  <Input
-                    value={row.gallons}
-                    onChange={(event) => updateManualRow(row.id, "gallons", event.target.value)}
-                    inputMode="decimal"
-                    placeholder="0.000"
-                    disabled={!canEdit}
-                  />
-                </label>
-
-                <div className="flex items-end justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeManualRow(row.id)}
-                    disabled={!canEdit || manualRows.length === 1}
-                  >
-                    Remove
-                  </Button>
+                <div className="flex items-center justify-between gap-3 text-[11px] text-zinc-500">
+                  <strong>{message.authorName}</strong>
+                  <span>{formatDate(message.createdAt)}</span>
                 </div>
-              </div>
-            ))}
+                <p className="m-0 whitespace-pre-wrap text-sm leading-6 text-zinc-900">
+                  {message.body}
+                </p>
+              </article>
+            ))
+          )}
+        </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="outline"
-                onClick={addManualRow}
-                disabled={!canEdit}
-              >
-                Add fuel row
-              </Button>
-                <Button
-                  onClick={() => void handleSaveManualGallons()}
-                  disabled={!canEdit || busyAction === "save-manual-fuel"}
-                >
-                {busyAction === "save-manual-fuel" ? "Saving..." : "Save manual fuel"}
-                </Button>
-            </div>
-
-            {!canEdit ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                {filing.status === "APPROVED"
-                  ? "This filing is approved and read-only. You can download the frozen report above."
-                  : "This filing is locked because it has already been submitted for review."}
-              </div>
-            ) : null}
+        <div className="mt-4 grid gap-3 border-t border-zinc-200 pt-4">
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-zinc-900">New message</span>
+            <textarea
+              value={chatDraft}
+              onChange={(event) => setChatDraft(event.target.value)}
+              className="min-h-[110px] w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
+              placeholder="Write a message for staff about this filing."
+            />
+          </label>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setChatDraft("")}
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+              disabled={chatBusy || !chatDraft.trim()}
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => void sendChatMessage()}
+              className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
+              disabled={chatBusy || !chatDraft.trim()}
+            >
+              {chatBusy ? "Sending..." : "Send message"}
+            </button>
           </div>
-        </Card>
+        </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="border-b border-gray-200 px-6 py-5">
-          <div className="text-sm font-semibold text-gray-950">Staff review</div>
-          <p className="mt-1 text-sm text-gray-600">
-            Submit the filing when your quarter looks complete. Staff will review the backend checks,
-            tax setup, and final approval requirements.
-          </p>
-        </div>
+      {canViewAudit ? (
+        <DashboardTable
+          data={auditRows}
+          columns={auditColumns}
+          title="Audit"
+        />
+      ) : null}
 
-        <div className="space-y-4 p-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Period</div>
-              <div className="mt-2 text-sm font-medium text-gray-950">
-                {formatDate(filing.periodStart)} to {formatDate(filing.periodEnd)}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Provider</div>
-              <div className="mt-2 text-sm font-medium text-gray-950">
-                {providerLabel(filing.integrationAccount?.provider)}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-gray-500">Status</div>
-              <div className="mt-2 text-sm font-medium text-gray-950">
-                {statusLabel(filing.status)}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-700">
-            After submission, staff can sync the latest provider data, recalculate the filing,
-            request changes if needed, create the snapshot, and approve the final report.
-          </div>
-        </div>
-      </Card>
-    </div>
+      <div className="flex items-center justify-between text-sm text-zinc-500">
+        <span>Edit gallons inline from the table action.</span>
+        <Link href={backHref} className="font-medium text-zinc-700 hover:text-zinc-950">
+          Back to IFTAs
+        </Link>
+      </div>
+    </section>
   );
 }

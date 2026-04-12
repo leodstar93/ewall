@@ -1,5 +1,6 @@
 import { FuelType } from "@prisma/client";
 import {
+  IFTA_AUTOMATION_MANUAL_SOURCE_TYPE,
   type DbLike,
   decimalToNumber,
   getIftaAutomationFilingOrThrow,
@@ -10,7 +11,8 @@ import {
 } from "@/services/ifta-automation/shared";
 
 type JurisdictionAccumulator = {
-  totalMiles: number;
+  syncedMiles: number;
+  manualMiles: number;
   taxPaidGallons: number;
 };
 
@@ -21,11 +23,28 @@ export class IftaCalculationEngine {
   }) {
     const db = resolveDb(input.db ?? null);
     const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
+    const jurisdictionMap = new Map<string, JurisdictionAccumulator>();
 
-    const totalDistance = roundNumber(
-      filing.distanceLines.reduce((sum, line) => sum + decimalToNumber(line.taxableMiles), 0),
-      2,
-    );
+    for (const line of filing.distanceLines) {
+      const current = jurisdictionMap.get(line.jurisdiction) ?? {
+        syncedMiles: 0,
+        manualMiles: 0,
+        taxPaidGallons: 0,
+      };
+      if (line.sourceType === IFTA_AUTOMATION_MANUAL_SOURCE_TYPE) {
+        current.manualMiles += decimalToNumber(line.taxableMiles);
+      } else {
+        current.syncedMiles += decimalToNumber(line.taxableMiles);
+      }
+      jurisdictionMap.set(line.jurisdiction, current);
+    }
+
+    let totalDistance = 0;
+    for (const values of jurisdictionMap.values()) {
+      totalDistance += values.manualMiles > 0 ? values.manualMiles : values.syncedMiles;
+    }
+    totalDistance = roundNumber(totalDistance, 2);
+
     const totalFuelGallons = roundNumber(
       filing.fuelLines.reduce((sum, line) => {
         return sum + (line.taxPaid ? decimalToNumber(line.gallons) : 0);
@@ -67,20 +86,11 @@ export class IftaCalculationEngine {
     const rateByJurisdiction = new Map(
       rateRows.map((rate) => [rate.jurisdiction.code, decimalToNumber(rate.taxRate)]),
     );
-    const jurisdictionMap = new Map<string, JurisdictionAccumulator>();
-
-    for (const line of filing.distanceLines) {
-      const current = jurisdictionMap.get(line.jurisdiction) ?? {
-        totalMiles: 0,
-        taxPaidGallons: 0,
-      };
-      current.totalMiles += decimalToNumber(line.taxableMiles);
-      jurisdictionMap.set(line.jurisdiction, current);
-    }
 
     for (const line of filing.fuelLines) {
       const current = jurisdictionMap.get(line.jurisdiction) ?? {
-        totalMiles: 0,
+        syncedMiles: 0,
+        manualMiles: 0,
         taxPaidGallons: 0,
       };
       if (line.taxPaid) {
@@ -100,7 +110,8 @@ export class IftaCalculationEngine {
     if (jurisdictionMap.size > 0) {
       await db.iftaJurisdictionSummary.createMany({
         data: Array.from(jurisdictionMap.entries()).map(([jurisdiction, values]) => {
-          const totalMilesForJurisdiction = roundNumber(values.totalMiles, 2);
+          const effectiveMiles = values.manualMiles > 0 ? values.manualMiles : values.syncedMiles;
+          const totalMilesForJurisdiction = roundNumber(effectiveMiles, 2);
           const taxPaidGallons = roundNumber(values.taxPaidGallons, 3);
           const taxableGallons = fleetMpg > 0
             ? roundNumber(totalMilesForJurisdiction / fleetMpg, 3)
