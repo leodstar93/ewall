@@ -383,36 +383,6 @@ export default function IftaAutomationStaffFilingPage({
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-gray-200 bg-gradient-to-br from-white via-gray-50 to-amber-50">
-        <div className="p-8">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <Link
-                href={backHref}
-                className="text-sm font-medium text-gray-500 hover:text-gray-900"
-              >
-                Back to staff queue
-              </Link>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <Badge tone={filingTone(filing.status)}>{statusLabel(filing.status)}</Badge>
-                <Badge tone="light">{providerLabel(filing.integrationAccount?.provider)}</Badge>
-                <Badge tone={openExceptionCount(filing) > 0 ? "warning" : "success"}>
-                  {openExceptionCount(filing)} open exception
-                  {openExceptionCount(filing) === 1 ? "" : "s"}
-                </Badge>
-              </div>
-              <h1 className="mt-4 text-3xl font-semibold text-gray-950">
-                {(filing.tenant?.name || "Carrier") + " - " + filingPeriodLabel(filing)}
-              </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
-                Review the filing, refresh provider data if needed, recalculate the quarter,
-                request corrections, create a snapshot, and approve the final filing.
-              </p>
-            </div>
-          </div>
-        </div>
-      </Card>
-
       <NoticeBanner notice={notice} />
       <FilingDetailPanel
         mode="staff"

@@ -636,17 +636,15 @@ export function FilingDetailPanel({
       <div className="p-6">
         {activeTab === "overview" ? (
           <div className="space-y-6">
-            <Card className="p-5">
-              {filing.jurisdictionSummaries.length === 0 ? (
-                <EmptyPanel message="No jurisdiction summary has been calculated for this filing yet." />
-              ) : (
-                <DashboardTable
-                  data={jurisdictionSummaryRows}
-                  columns={jurisdictionSummaryColumns}
-                  title="Jurisdiction Summary"
-                />
-              )}
-            </Card>
+            {filing.jurisdictionSummaries.length === 0 ? (
+              <EmptyPanel message="No jurisdiction summary has been calculated for this filing yet." />
+            ) : (
+              <DashboardTable
+                data={jurisdictionSummaryRows}
+                columns={jurisdictionSummaryColumns}
+                title="Jurisdiction Summary"
+              />
+            )}
           </div>
         ) : null}
 
