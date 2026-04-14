@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -43,12 +44,13 @@ export default function Sidebar({ collapsed, navGroups }: Props) {
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
       <div className={styles.header}>
         <div className={styles.logoBox}>
-          <svg viewBox="0 0 16 16" fill="#fff">
-            <rect x="2" y="2" width="5" height="5" rx="1" />
-            <rect x="9" y="2" width="5" height="5" rx="1" />
-            <rect x="2" y="9" width="5" height="5" rx="1" />
-            <rect x="9" y="9" width="5" height="5" rx="1" />
-          </svg>
+          <Image
+            src="/brand/truckers-unidos-logo.png"
+            alt="Trucks Unidos"
+            width={30}
+            height={30}
+            className={styles.logoImage}
+          />
         </div>
         <span className={styles.title}>Trucks Unidos</span>
       </div>
