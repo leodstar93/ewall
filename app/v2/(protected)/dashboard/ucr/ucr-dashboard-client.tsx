@@ -10,22 +10,22 @@ import tableStyles from "../components/ui/DataTable.module.css";
 import {
   canDeleteCustomerUcrFiling,
   customerActionLabel,
-  customerPaymentStatusLabel,
   filingStatusLabel,
   formatCurrency,
   formatDate,
-  officialPaymentStatusLabel,
-  workflowStageForFiling,
-  workflowStageLabel,
+  unifiedStatusForUcrFiling,
   type UcrFiling,
-  type UCRCustomerPaymentStatus,
-  type UCROfficialPaymentStatus,
-  type UcrWorkflowStage,
 } from "@/features/ucr/shared";
 import type { BadgeTone } from "@/lib/ui/status-utils";
+import {
+  unifiedWorkflowStatusLabel,
+  unifiedWorkflowStatusTone,
+  unifiedWorkflowStatusOrder,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
 
 type UcrTableRow = UcrFiling & {
-  workflowStage: UcrWorkflowStage;
+  visibleStatus: UnifiedWorkflowStatus;
   searchableText: string;
   sortYear: number;
   sortUpdatedAt: number;
@@ -43,20 +43,18 @@ const fieldStyle: CSSProperties = {
   color: "var(--b)",
 };
 
-const stageOptions: Array<{ value: "all" | UcrWorkflowStage; label: string }> = [
-  { value: "all", label: "All stages" },
-  { value: "CREATE_AND_SUBMIT", label: workflowStageLabel("CREATE_AND_SUBMIT") },
-  { value: "REQUEST_PAY_CLIENT", label: workflowStageLabel("REQUEST_PAY_CLIENT") },
-  { value: "COMPLETE_BY_STAFF", label: workflowStageLabel("COMPLETE_BY_STAFF") },
-  { value: "COMPLETED", label: workflowStageLabel("COMPLETED") },
-  { value: "NEEDS_ATTENTION", label: workflowStageLabel("NEEDS_ATTENTION") },
-  { value: "CANCELLED", label: workflowStageLabel("CANCELLED") },
+const stageOptions: Array<{ value: "all" | UnifiedWorkflowStatus; label: string }> = [
+  { value: "all", label: "All statuses" },
+  ...unifiedWorkflowStatusOrder.map((status) => ({
+    value: status,
+    label: unifiedWorkflowStatusLabel(status),
+  })),
 ];
 
 function buildRows(items: UcrFiling[]): UcrTableRow[] {
   return items.map((item) => ({
     ...item,
-    workflowStage: workflowStageForFiling(item),
+    visibleStatus: unifiedStatusForUcrFiling(item.status),
     searchableText: [
       item.legalName,
       item.dbaName ?? "",
@@ -74,51 +72,8 @@ function buildRows(items: UcrFiling[]): UcrTableRow[] {
   }));
 }
 
-function workflowTone(stage: UcrWorkflowStage): BadgeTone {
-  switch (stage) {
-    case "COMPLETED":
-      return "success";
-    case "NEEDS_ATTENTION":
-    case "CANCELLED":
-      return "error";
-    case "REQUEST_PAY_CLIENT":
-      return "warning";
-    case "COMPLETE_BY_STAFF":
-      return "info";
-    case "CREATE_AND_SUBMIT":
-    default:
-      return "primary";
-  }
-}
-
-function customerPaymentTone(status: UCRCustomerPaymentStatus): BadgeTone {
-  switch (status) {
-    case "SUCCEEDED":
-      return "success";
-    case "PENDING":
-      return "warning";
-    case "FAILED":
-    case "REFUNDED":
-    case "PARTIALLY_REFUNDED":
-      return "error";
-    case "NOT_STARTED":
-    default:
-      return "light";
-  }
-}
-
-function officialPaymentTone(status: UCROfficialPaymentStatus): BadgeTone {
-  switch (status) {
-    case "PAID":
-      return "success";
-    case "PENDING":
-      return "info";
-    case "FAILED":
-      return "error";
-    case "NOT_STARTED":
-    default:
-      return "light";
-  }
+function workflowTone(status: UnifiedWorkflowStatus): BadgeTone {
+  return unifiedWorkflowStatusTone(status);
 }
 
 export default function UcrDashboardClient() {
@@ -131,7 +86,7 @@ export default function UcrDashboardClient() {
 
   const [search, setSearch] = useState("");
   const [year, setYear] = useState("");
-  const [stageFilter, setStageFilter] = useState<"all" | UcrWorkflowStage>("all");
+  const [stageFilter, setStageFilter] = useState<"all" | UnifiedWorkflowStatus>("all");
   const deferredSearch = useDeferredValue(search);
   const deferredYear = useDeferredValue(year);
 
@@ -234,7 +189,7 @@ export default function UcrDashboardClient() {
       return false;
     }
 
-    if (stageFilter !== "all" && item.workflowStage !== stageFilter) {
+    if (stageFilter !== "all" && item.visibleStatus !== stageFilter) {
       return false;
     }
 
@@ -285,27 +240,15 @@ export default function UcrDashboardClient() {
       ),
     },
     {
-      key: "workflowStage",
-      label: "Workflow",
+      key: "visibleStatus",
+      label: "Status",
       render: (_, item) => (
         <div
           style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
           title={filingStatusLabel(item.status)}
         >
-          <Badge tone={workflowTone(item.workflowStage)} variant="light">
-            {workflowStageLabel(item.workflowStage)}
-          </Badge>
-          <Badge
-            tone={customerPaymentTone(item.customerPaymentStatus)}
-            variant="light"
-          >
-            Customer: {customerPaymentStatusLabel(item.customerPaymentStatus)}
-          </Badge>
-          <Badge
-            tone={officialPaymentTone(item.officialPaymentStatus)}
-            variant="light"
-          >
-            Official: {officialPaymentStatusLabel(item.officialPaymentStatus)}
+          <Badge tone={workflowTone(item.visibleStatus)} variant="light">
+            {unifiedWorkflowStatusLabel(item.visibleStatus)}
           </Badge>
         </div>
       ),
@@ -477,7 +420,9 @@ export default function UcrDashboardClient() {
                 </span>
                 <select
                   value={stageFilter}
-                  onChange={(event) => setStageFilter(event.target.value as "all" | UcrWorkflowStage)}
+                  onChange={(event) =>
+                    setStageFilter(event.target.value as "all" | UnifiedWorkflowStatus)
+                  }
                   style={fieldStyle}
                 >
                   {stageOptions.map((option) => (

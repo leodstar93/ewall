@@ -13,6 +13,8 @@ import {
   type IftaAutomationMode,
   blockingExceptionCount,
   canTruckerEditFilingStatus,
+  connectionTone,
+  filingStatusLabel,
   filingPeriodLabel,
   filingTone,
   formatDate,
@@ -393,7 +395,7 @@ export function FilingDetailPanel({
       label: "Status",
       sortable: false,
       render: (value) => (
-        <Badge tone={filingTone(String(value ?? ""))}>
+        <Badge tone={connectionTone(String(value ?? ""))}>
           {statusLabel(String(value ?? ""))}
         </Badge>
       ),
@@ -468,7 +470,7 @@ export function FilingDetailPanel({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={filingTone(filing.status)}>
-                {statusLabel(filing.status)}
+                {filingStatusLabel(filing.status)}
               </Badge>
               <Badge tone="light">
                 {providerLabel(filing.integrationAccount?.provider)}
@@ -740,7 +742,7 @@ export function FilingDetailPanel({
                       </div>
                     </div>
                     <Badge tone={filingTone(snapshot.status)}>
-                      {statusLabel(snapshot.status)}
+                      {filingStatusLabel(snapshot.status)}
                     </Badge>
                   </div>
                 ))}

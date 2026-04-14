@@ -5,13 +5,14 @@ import {
   createPayPalTokenOrder,
   getCompletedPayPalCaptureId,
 } from "@/lib/payments/paypal";
-import { chargeStripePaymentMethod } from "@/lib/payments/stripe";
+import { chargeStripePaymentMethod, getStripe } from "@/lib/payments/stripe";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { ensureUserOrganization } from "@/lib/services/organization.service";
 import { createCheckoutSession } from "@/services/ucr/createCheckoutSession";
 import { createPricingSnapshot } from "@/services/ucr/createPricingSnapshot";
 import { finalizeCustomerPayment } from "@/services/ucr/finalizeCustomerPayment";
+import { handleStripeCheckoutCompleted } from "@/services/ucr/handleStripeCheckoutCompleted";
 import { logUcrEvent } from "@/services/ucr/logUcrEvent";
 import { transitionUcrStatus } from "@/services/ucr/transitionUcrStatus";
 import { getUcrChargeAmount, UcrServiceError } from "@/services/ucr/shared";
@@ -314,5 +315,82 @@ export async function POST(
     });
   } catch (error) {
     return toErrorResponse(error, "Failed to create UCR checkout session");
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const guard = await requireApiPermission("ucr:read_own");
+  if (!guard.ok) return guard.res;
+
+  const { id } = await params;
+
+  try {
+    const body = (await request.json().catch(() => ({}))) as {
+      sessionId?: string;
+    };
+    const sessionId = body.sessionId?.trim();
+
+    if (!sessionId) {
+      return Response.json({ error: "Checkout session ID is required." }, { status: 400 });
+    }
+
+    const filing = await prisma.uCRFiling.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        stripeCheckoutSessionId: true,
+      },
+    });
+
+    if (!filing) {
+      return Response.json({ error: "UCR filing not found" }, { status: 404 });
+    }
+
+    if (filing.userId !== guard.session.user.id) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (filing.stripeCheckoutSessionId && filing.stripeCheckoutSessionId !== sessionId) {
+      return Response.json({ error: "Checkout session does not match this filing." }, { status: 409 });
+    }
+
+    const stripe = getStripe();
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["payment_intent"],
+    });
+
+    if (session.metadata?.filingType !== "UCR" || session.metadata?.filingId !== id) {
+      return Response.json({ error: "Checkout session does not belong to this UCR filing." }, { status: 403 });
+    }
+
+    if (session.metadata?.userId && session.metadata.userId !== guard.session.user.id) {
+      return Response.json({ error: "Checkout session does not belong to this user." }, { status: 403 });
+    }
+
+    if (session.status !== "complete" || session.payment_status !== "paid") {
+      return Response.json(
+        {
+          paymentStatus: session.payment_status,
+          checkoutStatus: session.status,
+          processed: false,
+        },
+        { status: 202 },
+      );
+    }
+
+    const result = await handleStripeCheckoutCompleted(session);
+
+    return Response.json({
+      paymentStatus: session.payment_status,
+      checkoutStatus: session.status,
+      processed: result.processed,
+      filing: "filing" in result ? result.filing : null,
+    });
+  } catch (error) {
+    return toErrorResponse(error, "Failed to confirm UCR checkout session");
   }
 }

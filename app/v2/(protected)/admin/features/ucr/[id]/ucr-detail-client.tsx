@@ -365,8 +365,8 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
       { label: "Base state", value: companyState },
       { label: "Vehicle count", value: String(filing.vehicleCount ?? filing.fleetSize ?? "-") },
       { label: "Interstate", value: filing.interstateOperation ? "Yes" : "No" },
-      { label: "Assigned staff", value: assignedStaffLabel },
       { label: "Updated", value: formatDate(filing.updatedAt) },
+      { label: "Assigned staff", value: assignedStaffLabel },
     ];
   }, [
     assignedStaffLabel,
@@ -438,7 +438,8 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
               <p className={styles.eyebrow}>UCR Filing</p>
               <h1 className={styles.title}>{companyLegalName}</h1>
               <p className={styles.subtitle}>
-                Filing year {filing.year} | Updated {formatDate(filing.updatedAt)}
+                Filing year {filing.year} | Updated {formatDate(filing.updatedAt)}{" "}
+                <span className={styles.assignedHighlight}>Assigned {assignedStaffLabel}</span>
               </p>
             </div>
             <div className={styles.headerActions}>

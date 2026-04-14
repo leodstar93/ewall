@@ -11,15 +11,20 @@ import { Input } from "@/components/ui/input";
 import {
   type FilingListItem,
   currentQuarterInput,
+  filingStatusLabel,
   filingPeriodLabel,
   filingTone,
   formatDateTime,
   formatGallons,
   formatMoney,
   formatNumber,
-  statusLabel,
+  unifiedStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
+import {
+  unifiedWorkflowStatusOrder,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
 
 type Notice = {
   tone: "success" | "error" | "info";
@@ -159,7 +164,7 @@ export default function IftaAutomationTruckerPage({
   const [createQuarter, setCreateQuarter] = useState(String(currentQuarter.quarter));
   const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
   const [sortKey, setSortKey] = useState<FilingSortKey>("period");
   const [sortDirection, setSortDirection] = useState<FilingSortDirection>("desc");
   const [page, setPage] = useState(1);
@@ -190,7 +195,7 @@ export default function IftaAutomationTruckerPage({
   const filteredFilings = useMemo(() => {
     const query = search.trim().toLowerCase();
     const nextFilings = filings.filter((filing) => {
-      if (statusFilter && filing.status !== statusFilter) {
+      if (statusFilter && unifiedStatusForIftaFiling(filing.status) !== statusFilter) {
         return false;
       }
 
@@ -226,7 +231,7 @@ export default function IftaAutomationTruckerPage({
           }
           break;
         case "status":
-          comparison = left.status.localeCompare(right.status);
+          comparison = filingStatusLabel(left.status).localeCompare(filingStatusLabel(right.status));
           break;
         case "miles":
           comparison = Number(left.totalDistance ?? 0) - Number(right.totalDistance ?? 0);
@@ -257,7 +262,10 @@ export default function IftaAutomationTruckerPage({
   );
 
   const availableStatuses = useMemo(
-    () => Array.from(new Set(filings.map((filing) => filing.status))).sort(),
+    () =>
+      unifiedWorkflowStatusOrder.filter((status) =>
+        filings.some((filing) => unifiedStatusForIftaFiling(filing.status) === status),
+      ),
     [filings],
   );
 
@@ -486,13 +494,15 @@ export default function IftaAutomationTruckerPage({
               </label>
               <select
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                }
                 className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
               >
                 <option value="">All statuses</option>
                 {availableStatuses.map((status) => (
                   <option key={status} value={status}>
-                    {statusLabel(status)}
+                    {filingStatusLabel(status)}
                   </option>
                 ))}
               </select>
@@ -681,7 +691,7 @@ export default function IftaAutomationTruckerPage({
                       </td>
                       <td className="px-6 py-4">
                         <Badge tone={filingTone(filing.status)}>
-                          {statusLabel(filing.status)}
+                          {filingStatusLabel(filing.status)}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-sm text-zinc-700">

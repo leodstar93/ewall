@@ -8,6 +8,7 @@ import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 import {
   currentQuarterInput,
+  filingStatusLabel,
   filingPeriodLabel,
   filingTone,
   formatDateTime,
@@ -15,10 +16,14 @@ import {
   formatMoney,
   formatNumber,
   providerLabel,
-  statusLabel,
+  unifiedStatusForIftaFiling,
   type EldProviderCode,
   type FilingListItem,
 } from "@/features/ifta-v2/shared";
+import {
+  unifiedWorkflowStatusOrder,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
 
 type IftaTableRow = FilingListItem & {
   searchableText: string;
@@ -90,7 +95,7 @@ export default function IftaV2DashboardClient() {
   const [createYear, setCreateYear] = useState(String(currentQuarter.year));
   const [createQuarter, setCreateQuarter] = useState(String(currentQuarter.quarter));
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
   const [providerFilter, setProviderFilter] = useState<"" | EldProviderCode>("");
   const deferredSearch = useDeferredValue(search);
 
@@ -199,7 +204,9 @@ export default function IftaV2DashboardClient() {
     }
   }
 
-  const availableStatuses = Array.from(new Set(filings.map((item) => item.status))).sort();
+  const availableStatuses = unifiedWorkflowStatusOrder.filter((status) =>
+    filings.some((item) => unifiedStatusForIftaFiling(item.status) === status),
+  );
   const availableProviders = Array.from(
     new Set(
       filings
@@ -215,7 +222,7 @@ export default function IftaV2DashboardClient() {
       return false;
     }
 
-    if (statusFilter && item.status !== statusFilter) {
+    if (statusFilter && unifiedStatusForIftaFiling(item.status) !== statusFilter) {
       return false;
     }
 
@@ -248,7 +255,7 @@ export default function IftaV2DashboardClient() {
           title={`Distance lines: ${item._count?.distanceLines ?? 0}`}
         >
           <Badge tone={filingTone(item.status)} variant="light">
-            {statusLabel(item.status)}
+            {filingStatusLabel(item.status)}
           </Badge>
           <Badge tone="light" variant="light">
             {item._count?.exceptions ?? 0} exception(s)
@@ -526,13 +533,15 @@ export default function IftaV2DashboardClient() {
                 </span>
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                  }
                   style={fieldStyle}
                 >
                   <option value="">All statuses</option>
                   {availableStatuses.map((item) => (
                     <option key={item} value={item}>
-                      {statusLabel(item)}
+                      {filingStatusLabel(item)}
                     </option>
                   ))}
                 </select>

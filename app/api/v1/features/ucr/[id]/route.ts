@@ -383,14 +383,26 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    const filingFiles = await prisma.uCRFiling.findUnique({
+      where: { id },
+      select: {
+        officialReceiptUrl: true,
+        documents: {
+          select: {
+            filePath: true,
+          },
+        },
+      },
+    });
+
     const filing = await deleteUcrFiling({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
     });
 
     const fileUrls = [
-      filing.officialReceiptUrl,
-      ...filing.documents.map((document) => document.filePath),
+      filingFiles?.officialReceiptUrl ?? filing.officialReceiptUrl,
+      ...(filingFiles?.documents.map((document) => document.filePath) ?? []),
     ].filter((value): value is string => Boolean(value));
 
     await Promise.all(

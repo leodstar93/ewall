@@ -93,8 +93,8 @@ export async function createCheckoutSession(
   return stripe.checkout.sessions.create({
     mode: "payment",
     customer: customerId,
-    success_url: `${appBaseUrl}/ucr/${filing.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appBaseUrl}/ucr/${filing.id}?checkout=cancelled`,
+    success_url: `${appBaseUrl}/v2/dashboard/ucr/${filing.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appBaseUrl}/v2/dashboard/ucr/${filing.id}?checkout=cancelled`,
     submit_type: "pay",
     metadata: {
       filingId: filing.id,

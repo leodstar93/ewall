@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useDeferredValue, useEffect, useState } from "react";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
@@ -8,25 +9,21 @@ import Table, { type ColumnDef } from "../../components/ui/Table";
 import tableStyles from "../../components/ui/DataTable.module.css";
 import type { AdminUcrQueueItem } from "@/lib/services/admin-ucr.service";
 import {
-  customerPaymentStatusLabel,
   filingStatusLabel,
   formatCurrency,
   formatDate,
-  officialPaymentStatusLabel,
-  type UCRCustomerPaymentStatus,
+  unifiedStatusForUcrFiling,
   type UCRFilingStatus,
-  type UCROfficialPaymentStatus,
 } from "@/features/ucr/shared";
 import type { BadgeTone } from "@/lib/ui/status-utils";
+import {
+  unifiedWorkflowStatusLabel,
+  unifiedWorkflowStatusTone,
+  unifiedWorkflowStatusOrder,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
 
-type UcrQueueFilterStatus =
-  | "all"
-  | "QUEUED_FOR_PROCESSING"
-  | "IN_PROCESS"
-  | "OFFICIAL_PAYMENT_PENDING"
-  | "OFFICIAL_PAID"
-  | "NEEDS_ATTENTION"
-  | "COMPLETED";
+type UcrQueueFilterStatus = "all" | UnifiedWorkflowStatus;
 
 type UcrPaymentFilterStatus = "all" | "SUCCEEDED" | "PENDING" | "FAILED";
 type UcrOfficialPaymentFilterStatus = "all" | "NOT_STARTED" | "PENDING" | "PAID" | "FAILED";
@@ -47,65 +44,30 @@ function buildRows(items: AdminUcrQueueItem[]): UcrTableRow[] {
 }
 
 function filingStatusTone(status: UCRFilingStatus): BadgeTone {
-  switch (status) {
-    case "COMPLETED":
-    case "COMPLIANT":
-    case "OFFICIAL_PAID":
-      return "success";
-    case "QUEUED_FOR_PROCESSING":
-    case "IN_PROCESS":
-    case "OFFICIAL_PAYMENT_PENDING":
-      return "info";
-    case "AWAITING_CUSTOMER_PAYMENT":
-    case "CUSTOMER_PAYMENT_PENDING":
-    case "CUSTOMER_PAID":
-    case "DRAFT":
-    case "SUBMITTED":
-    case "UNDER_REVIEW":
-    case "RESUBMITTED":
-    case "PENDING_PROOF":
-      return "warning";
-    case "NEEDS_ATTENTION":
-    case "CANCELLED":
-    case "REJECTED":
-    case "CORRECTION_REQUESTED":
-      return "error";
-    default:
-      return "light";
-  }
+  return unifiedWorkflowStatusTone(unifiedStatusForUcrFiling(status));
 }
 
-function customerPaymentTone(status: UCRCustomerPaymentStatus): BadgeTone {
-  switch (status) {
-    case "SUCCEEDED":
-      return "success";
-    case "PENDING":
-      return "warning";
-    case "FAILED":
-    case "REFUNDED":
-    case "PARTIALLY_REFUNDED":
-      return "error";
-    case "NOT_STARTED":
-    default:
-      return "light";
-  }
+function assignmentTone(input: { assignedStaffId: string | null; currentUserId: string | null }): BadgeTone {
+  if (!input.assignedStaffId) return "light";
+  if (input.currentUserId && input.assignedStaffId === input.currentUserId) return "success";
+  return "info";
 }
 
-function officialPaymentTone(status: UCROfficialPaymentStatus): BadgeTone {
-  switch (status) {
-    case "PAID":
-      return "success";
-    case "PENDING":
-      return "info";
-    case "FAILED":
-      return "error";
-    case "NOT_STARTED":
-    default:
-      return "light";
-  }
+function assignmentLabel(input: {
+  assignedStaffId: string | null;
+  assignedStaffName: string;
+  currentUserId: string | null;
+}) {
+  if (!input.assignedStaffId) return "Unassigned";
+  if (input.currentUserId && input.assignedStaffId === input.currentUserId) return "Assigned to you";
+  return `Assigned: ${input.assignedStaffName}`;
 }
 
 export default function UcrAdminQueueClient() {
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id ?? null;
+  const currentUserLabel =
+    session?.user?.name?.trim() || session?.user?.email?.trim() || "You";
   const [items, setItems] = useState<UcrTableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -134,7 +96,6 @@ export default function UcrAdminQueueClient() {
         const params = new URLSearchParams();
         if (deferredSearch.trim()) params.set("search", deferredSearch.trim());
         if (deferredYear.trim()) params.set("year", deferredYear.trim());
-        if (status !== "all") params.set("status", status);
         if (paymentState !== "all") params.set("paymentState", paymentState);
         if (officialPaymentState !== "all") {
           params.set("officialPaymentState", officialPaymentState);
@@ -173,7 +134,12 @@ export default function UcrAdminQueueClient() {
       active = false;
       controller.abort();
     };
-  }, [deferredSearch, deferredYear, officialPaymentState, paymentState, reloadTick, status]);
+  }, [deferredSearch, deferredYear, officialPaymentState, paymentState, reloadTick]);
+
+  const filteredItems = items.filter((item) => {
+    if (status === "all") return true;
+    return unifiedStatusForUcrFiling(item.status as UCRFilingStatus) === status;
+  });
 
   async function assignToMe(filingId: string) {
     try {
@@ -190,6 +156,18 @@ export default function UcrAdminQueueClient() {
         throw new Error(payload.error || "Failed to assign this filing.");
       }
 
+      setItems((current) =>
+        current.map((item) =>
+          item.id === filingId
+            ? {
+                ...item,
+                assignedStaffId: currentUserId,
+                assignedStaffName: currentUserLabel,
+                updatedAt: new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
       setReloadTick((current) => current + 1);
     } catch (assignError) {
       setError(
@@ -243,7 +221,7 @@ export default function UcrAdminQueueClient() {
     },
     {
       key: "status",
-      label: "Workflow",
+      label: "Status",
       render: (_, item) => (
         <div
           style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
@@ -254,20 +232,6 @@ export default function UcrAdminQueueClient() {
             variant="light"
           >
             {filingStatusLabel(item.status as UCRFilingStatus)}
-          </Badge>
-          <Badge
-            tone={customerPaymentTone(item.customerPaymentStatus as UCRCustomerPaymentStatus)}
-            variant="light"
-          >
-            Customer:{" "}
-            {customerPaymentStatusLabel(item.customerPaymentStatus as UCRCustomerPaymentStatus)}
-          </Badge>
-          <Badge
-            tone={officialPaymentTone(item.officialPaymentStatus as UCROfficialPaymentStatus)}
-            variant="light"
-          >
-            Official:{" "}
-            {officialPaymentStatusLabel(item.officialPaymentStatus as UCROfficialPaymentStatus)}
           </Badge>
         </div>
       ),
@@ -286,20 +250,55 @@ export default function UcrAdminQueueClient() {
       ),
     },
     {
+      key: "assignedStaffName",
+      label: "Assigned",
+      render: (_, item) => (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <Badge
+            tone={assignmentTone({ assignedStaffId: item.assignedStaffId, currentUserId })}
+            variant="light"
+          >
+            {assignmentLabel({
+              assignedStaffId: item.assignedStaffId,
+              assignedStaffName: item.assignedStaffName,
+              currentUserId,
+            })}
+          </Badge>
+        </div>
+      ),
+    },
+    {
       key: "_actions",
       label: "Actions",
       sortable: false,
-      render: (_, item) => (
+      render: (_, item) => {
+        const isAssignedToCurrentUser =
+          Boolean(currentUserId) && item.assignedStaffId === currentUserId;
+
+        return (
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <button
             type="button"
             onClick={() => void assignToMe(item.id)}
-            disabled={busyFilingId === item.id}
-            aria-label={busyFilingId === item.id ? "Assigning filing" : "Assign to me"}
-            title={busyFilingId === item.id ? "Assigning filing" : "Assign to me"}
+            disabled={busyFilingId === item.id || isAssignedToCurrentUser}
+            aria-label={
+              busyFilingId === item.id
+                ? "Assigning filing"
+                : isAssignedToCurrentUser
+                  ? "Assigned to you"
+                  : "Assign to me"
+            }
+            title={
+              busyFilingId === item.id
+                ? "Assigning filing"
+                : isAssignedToCurrentUser
+                  ? "Assigned to you"
+                  : "Assign to me"
+            }
             className={iconButtonClasses({
               variant: "default",
-              className: busyFilingId === item.id ? "opacity-60" : undefined,
+              className:
+                busyFilingId === item.id || isAssignedToCurrentUser ? "opacity-60" : undefined,
             })}
           >
             {busyFilingId === item.id ? (
@@ -317,7 +316,7 @@ export default function UcrAdminQueueClient() {
             <ActionIcon name="view" />
           </Link>
         </div>
-      ),
+      )},
     },
   ];
 
@@ -359,7 +358,7 @@ export default function UcrAdminQueueClient() {
         </div>
       ) : (
         <Table
-          data={items}
+          data={filteredItems}
           columns={columns}
           title="UCR concierge queue"
           toolbar={
@@ -439,12 +438,11 @@ export default function UcrAdminQueueClient() {
                   }}
                 >
                   <option value="all">All statuses</option>
-                  <option value="QUEUED_FOR_PROCESSING">Queued</option>
-                  <option value="IN_PROCESS">In process</option>
-                  <option value="OFFICIAL_PAYMENT_PENDING">Official payment pending</option>
-                  <option value="OFFICIAL_PAID">Official paid</option>
-                  <option value="NEEDS_ATTENTION">Needs attention</option>
-                  <option value="COMPLETED">Completed</option>
+                  {unifiedWorkflowStatusOrder.map((item) => (
+                    <option key={item} value={item}>
+                      {unifiedWorkflowStatusLabel(item)}
+                    </option>
+                  ))}
                 </select>
               </label>
 

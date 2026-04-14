@@ -14,11 +14,11 @@ import {
   canTruckerEditFilingStatus,
   type FilingAudit,
   type FilingDetail,
+  filingStatusLabel,
   filingPeriodLabel,
   formatDate,
   formatNumber,
   providerLabel,
-  statusLabel,
   toNumber,
 } from "@/features/ifta-v2/shared";
 
@@ -629,7 +629,9 @@ export default function IftaAutomationTruckerFilingPage({
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
               Status
             </div>
-            <div className="mt-2 text-sm font-semibold text-zinc-900">{statusLabel(filing.status)}</div>
+            <div className="mt-2 text-sm font-semibold text-zinc-900">
+              {filingStatusLabel(filing.status)}
+            </div>
           </div>
           <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">

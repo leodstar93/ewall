@@ -10,13 +10,18 @@ import {
   assignedReviewerLabel,
   type EldProviderCode,
   type FilingListItem,
+  filingStatusLabel,
   filingPeriodLabel,
   filingTone,
   formatDateTime,
   isStaffQueueFilingStatus,
   providerLabel,
-  statusLabel,
+  unifiedStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
+import {
+  unifiedWorkflowStatusOrder,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
 
 type IftaProviderFilter = "" | EldProviderCode;
 type IftaAssignmentFilter = "" | "mine" | "unassigned" | "assigned";
@@ -62,7 +67,7 @@ export default function IftaV2AdminClient() {
   const [busyFilingId, setBusyFilingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
   const [providerFilter, setProviderFilter] = useState<IftaProviderFilter>("");
   const [assignmentFilter, setAssignmentFilter] = useState<IftaAssignmentFilter>("");
 
@@ -112,7 +117,10 @@ export default function IftaV2AdminClient() {
   }, []);
 
   const availableStatuses = useMemo(
-    () => Array.from(new Set(items.map((item) => item.status))).sort(),
+    () =>
+      unifiedWorkflowStatusOrder.filter((status) =>
+        items.some((item) => unifiedStatusForIftaFiling(item.status) === status),
+      ),
     [items],
   );
 
@@ -132,7 +140,7 @@ export default function IftaV2AdminClient() {
     const query = deferredSearch.trim().toLowerCase();
 
     return items.filter((item) => {
-      if (statusFilter && item.status !== statusFilter) {
+      if (statusFilter && unifiedStatusForIftaFiling(item.status) !== statusFilter) {
         return false;
       }
 
@@ -217,7 +225,7 @@ export default function IftaV2AdminClient() {
         render: (_, item) => (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             <Badge tone={filingTone(item.status)} variant="light">
-              {statusLabel(item.status)}
+              {filingStatusLabel(item.status)}
             </Badge>
             <Badge tone="light" variant="light">
               {providerLabel(item.integrationAccount?.provider)}
@@ -367,7 +375,9 @@ export default function IftaV2AdminClient() {
                 </span>
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                  }
                   style={{
                     border: "1px solid var(--br)",
                     borderRadius: 8,
@@ -382,7 +392,7 @@ export default function IftaV2AdminClient() {
                   <option value="">All statuses</option>
                   {availableStatuses.map((status) => (
                     <option key={status} value={status}>
-                      {statusLabel(status)}
+                      {filingStatusLabel(status)}
                     </option>
                   ))}
                 </select>

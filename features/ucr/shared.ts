@@ -1,3 +1,8 @@
+import {
+  unifiedWorkflowStatusLabel,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
+
 export type UCRFilingStatus =
   | "DRAFT"
   | "AWAITING_CUSTOMER_PAYMENT"
@@ -199,52 +204,23 @@ export function formatDate(value: string | Date | null | undefined) {
 }
 
 export function filingStatusLabel(status: UCRFilingStatus) {
-  switch (status) {
-    case "DRAFT":
-      return "Create and submit";
-    case "AWAITING_CUSTOMER_PAYMENT":
-    case "CUSTOMER_PAYMENT_PENDING":
-      return "Request pay client";
-    case "CUSTOMER_PAID":
-    case "QUEUED_FOR_PROCESSING":
-    case "IN_PROCESS":
-    case "OFFICIAL_PAYMENT_PENDING":
-    case "OFFICIAL_PAID":
-      return "Pending";
-    case "COMPLETED":
-      return "Completed";
-    case "NEEDS_ATTENTION":
-      return "Needs attention";
-    case "CANCELLED":
-      return "Cancelled";
-    case "COMPLIANT":
-      return "Compliant";
-    default:
-      return status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (match) => match.toUpperCase());
-  }
+  return unifiedWorkflowStatusLabel(unifiedStatusForUcrFiling(status));
 }
 
 export function filingStatusClasses(status: UCRFilingStatus) {
-  switch (status) {
+  switch (unifiedStatusForUcrFiling(status)) {
     case "DRAFT":
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
-    case "AWAITING_CUSTOMER_PAYMENT":
-    case "CUSTOMER_PAYMENT_PENDING":
+    case "PENDING_PAYMENT":
       return "bg-amber-50 text-amber-800 ring-amber-200";
-    case "CUSTOMER_PAID":
-    case "QUEUED_FOR_PROCESSING":
+    case "SUBMITTED":
+      return "bg-indigo-50 text-indigo-800 ring-indigo-200";
     case "IN_PROCESS":
-    case "OFFICIAL_PAYMENT_PENDING":
       return "bg-sky-50 text-sky-800 ring-sky-200";
-    case "OFFICIAL_PAID":
-    case "COMPLETED":
-    case "COMPLIANT":
+    case "APPROVED":
       return "bg-emerald-50 text-emerald-800 ring-emerald-200";
-    case "NEEDS_ATTENTION":
-      return "bg-orange-50 text-orange-800 ring-orange-200";
-    case "CANCELLED":
-    case "REJECTED":
-      return "bg-red-50 text-red-800 ring-red-200";
+    case "FINALIZED":
+      return "bg-zinc-900 text-white ring-zinc-800";
     default:
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
   }
@@ -277,21 +253,55 @@ export function workflowStageForFiling(filing: Pick<UcrFiling, "status">): UcrWo
 }
 
 export function workflowStageLabel(stage: UcrWorkflowStage) {
+  return unifiedWorkflowStatusLabel(unifiedStatusForUcrWorkflowStage(stage));
+}
+
+export function unifiedStatusForUcrFiling(status: UCRFilingStatus): UnifiedWorkflowStatus {
+  switch (status) {
+    case "DRAFT":
+    case "NEEDS_ATTENTION":
+    case "CORRECTION_REQUESTED":
+      return "DRAFT";
+    case "SUBMITTED":
+    case "UNDER_REVIEW":
+    case "RESUBMITTED":
+      return "SUBMITTED";
+    case "AWAITING_CUSTOMER_PAYMENT":
+    case "CUSTOMER_PAYMENT_PENDING":
+      return "PENDING_PAYMENT";
+    case "CUSTOMER_PAID":
+    case "QUEUED_FOR_PROCESSING":
+    case "IN_PROCESS":
+    case "OFFICIAL_PAYMENT_PENDING":
+    case "PENDING_PROOF":
+      return "IN_PROCESS";
+    case "APPROVED":
+    case "OFFICIAL_PAID":
+      return "APPROVED";
+    case "COMPLETED":
+    case "COMPLIANT":
+    case "CANCELLED":
+    case "REJECTED":
+      return "FINALIZED";
+    default:
+      return "DRAFT";
+  }
+}
+
+export function unifiedStatusForUcrWorkflowStage(stage: UcrWorkflowStage): UnifiedWorkflowStatus {
   switch (stage) {
     case "CREATE_AND_SUBMIT":
-      return "Create and submit";
-    case "REQUEST_PAY_CLIENT":
-      return "Request pay client";
-    case "COMPLETE_BY_STAFF":
-      return "Pending";
-    case "COMPLETED":
-      return "Completed";
     case "NEEDS_ATTENTION":
-      return "Needs attention";
+      return "DRAFT";
+    case "REQUEST_PAY_CLIENT":
+      return "PENDING_PAYMENT";
+    case "COMPLETE_BY_STAFF":
+      return "IN_PROCESS";
+    case "COMPLETED":
     case "CANCELLED":
-      return "Cancelled";
+      return "FINALIZED";
     default:
-      return stage;
+      return "DRAFT";
   }
 }
 

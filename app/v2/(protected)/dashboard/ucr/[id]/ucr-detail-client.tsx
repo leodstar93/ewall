@@ -209,6 +209,8 @@ export default function UcrDetailClient({ filingId }: Props) {
   const [editing, setEditing] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const [checkoutSyncing, setCheckoutSyncing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -239,6 +241,88 @@ export default function UcrDetailClient({ filingId }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const checkoutState = searchParams.get("checkout");
+    const sessionId = searchParams.get("session_id");
+
+    if (checkoutState === "cancelled") {
+      setCheckoutNotice("Stripe checkout was cancelled. You can try again whenever you're ready.");
+      window.history.replaceState({}, "", `/v2/dashboard/ucr/${filingId}`);
+      return;
+    }
+
+    if (checkoutState !== "success" || !sessionId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const wait = (ms: number) =>
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, ms);
+      });
+
+    const confirmCheckout = async () => {
+      try {
+        setCheckoutSyncing(true);
+        setError(null);
+
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          const response = await fetch(`/api/v1/features/ucr/${filingId}/checkout`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+          });
+
+          const data = (await response.json().catch(() => ({}))) as {
+            error?: string;
+            paymentStatus?: string;
+            checkoutStatus?: string;
+          };
+
+          if (!response.ok && response.status !== 202) {
+            throw new Error(data.error || "Could not confirm the Stripe payment.");
+          }
+
+          if (cancelled) return;
+
+          if (response.status !== 202) {
+            setCheckoutNotice("Payment confirmed successfully.");
+            await load();
+            return;
+          }
+
+          setCheckoutNotice("Payment received. We are syncing the Stripe confirmation now.");
+          await load();
+
+          if (attempt < 3) {
+            await wait(1200);
+          }
+        }
+      } catch (confirmError) {
+        if (cancelled) return;
+        setError(
+          confirmError instanceof Error
+            ? confirmError.message
+            : "Could not confirm the Stripe payment.",
+        );
+      } finally {
+        if (cancelled) return;
+        setCheckoutSyncing(false);
+        window.history.replaceState({}, "", `/v2/dashboard/ucr/${filingId}`);
+      }
+    };
+
+    void confirmCheckout();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filingId, load]);
 
   const runCheckout = async () => {
     try {
@@ -529,6 +613,13 @@ export default function UcrDetailClient({ filingId }: Props) {
         </div>
 
         {error ? <div className={styles.alertError}>{error}</div> : null}
+
+        {checkoutNotice ? (
+          <div className={styles.alertInfo}>
+            {checkoutNotice}
+            {checkoutSyncing ? " Refreshing filing status..." : ""}
+          </div>
+        ) : null}
 
         {hasCustomerBalanceDue ? (
           <div className={styles.alertInfo}>

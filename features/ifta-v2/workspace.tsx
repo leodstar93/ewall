@@ -18,6 +18,7 @@ import {
   type SyncJobSummary,
   connectionTone,
   currentQuarterInput,
+  filingStatusLabel,
   filingPeriodLabel,
   filingTone,
   formatDate,
@@ -28,8 +29,13 @@ import {
   statusLabel,
   summarizeFilingMetrics,
   toNumber,
+  unifiedStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
+import {
+  unifiedWorkflowStatusOrder,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
 
 type IftaWorkspaceProps = {
   mode: IftaAutomationMode;
@@ -161,7 +167,7 @@ function FilingQueueItem({
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={selected ? "light" : filingTone(filing.status)}>
-          {statusLabel(filing.status)}
+          {filingStatusLabel(filing.status)}
         </Badge>
         <Badge tone={selected ? "light" : "info"}>
           {providerLabel(filing.integrationAccount?.provider)}
@@ -266,7 +272,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
   const [providerFilter, setProviderFilter] = useState("");
   const currentQuarter = useMemo(() => currentQuarterInput(), []);
   const [createYear, setCreateYear] = useState(String(currentQuarter.year));
@@ -283,7 +289,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     const normalizedSearch = search.trim().toLowerCase();
 
     return filings.filter((filing) => {
-      if (statusFilter && filing.status !== statusFilter) return false;
+      if (statusFilter && unifiedStatusForIftaFiling(filing.status) !== statusFilter) return false;
       if (providerFilter && filing.integrationAccount?.provider !== providerFilter) return false;
       if (!normalizedSearch) return true;
 
@@ -308,7 +314,10 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   );
 
   const availableStatuses = useMemo(
-    () => Array.from(new Set(filings.map((filing) => filing.status))).sort(),
+    () =>
+      unifiedWorkflowStatusOrder.filter((status) =>
+        filings.some((filing) => unifiedStatusForIftaFiling(filing.status) === status),
+      ),
     [filings],
   );
   const availableProviders = useMemo(
@@ -1125,13 +1134,15 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <select
                       value={statusFilter}
-                      onChange={(event) => setStatusFilter(event.target.value)}
+                      onChange={(event) =>
+                        setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                      }
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 outline-none shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10"
                     >
                       <option value="">All statuses</option>
                       {availableStatuses.map((status) => (
                         <option key={status} value={status}>
-                          {statusLabel(status)}
+                          {filingStatusLabel(status)}
                         </option>
                       ))}
                     </select>
@@ -1210,7 +1221,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
                   </div>
                   <div className="mt-1 text-sm text-gray-600">
                     {selectedFiling
-                      ? `${providerLabel(selectedFiling.integrationAccount?.provider)} - ${statusLabel(selectedFiling.status)}`
+                      ? `${providerLabel(selectedFiling.integrationAccount?.provider)} - ${filingStatusLabel(selectedFiling.status)}`
                       : "Choose a filing from the list to continue."}
                   </div>
                 </div>
@@ -1233,7 +1244,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
                   </div>
                   <div className="mt-2 text-sm font-medium text-gray-950">
                     {selectedFiling?.snapshots[0]
-                      ? `Version ${selectedFiling.snapshots[0].version} - ${statusLabel(selectedFiling.snapshots[0].status)}`
+                      ? `Version ${selectedFiling.snapshots[0].version} - ${filingStatusLabel(selectedFiling.snapshots[0].status)}`
                       : "No snapshot yet"}
                   </div>
                   <div className="mt-1 text-sm text-gray-600">

@@ -1,4 +1,9 @@
 import { getStatusTone, type BadgeTone } from "@/lib/ui/status-utils";
+import {
+  unifiedWorkflowStatusLabel,
+  unifiedWorkflowStatusTone,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
 
 export type IftaAutomationMode = "trucker" | "staff";
 export type EldProviderCode = "MOTIVE" | "SAMSARA" | "OTHER";
@@ -316,7 +321,36 @@ export function severityTone(severity: string): BadgeTone {
 }
 
 export function filingTone(status: string) {
-  return getStatusTone(statusLabel(status));
+  return unifiedWorkflowStatusTone(unifiedStatusForIftaFiling(status));
+}
+
+export function filingStatusLabel(status: string | null | undefined) {
+  return unifiedWorkflowStatusLabel(unifiedStatusForIftaFiling(status));
+}
+
+export function unifiedStatusForIftaFiling(
+  status: string | null | undefined,
+): UnifiedWorkflowStatus {
+  switch (status ?? "") {
+    case "DRAFT":
+    case "SYNCING":
+    case "DATA_READY":
+    case "NEEDS_REVIEW":
+    case "CHANGES_REQUESTED":
+    case "REOPENED":
+      return "DRAFT";
+    case "READY_FOR_REVIEW":
+      return "SUBMITTED";
+    case "IN_REVIEW":
+    case "SNAPSHOT_READY":
+      return "IN_PROCESS";
+    case "APPROVED":
+      return "APPROVED";
+    case "ARCHIVED":
+      return "FINALIZED";
+    default:
+      return "DRAFT";
+  }
 }
 
 export function openExceptionCount(filing: Pick<FilingDetail, "exceptions"> | Pick<FilingListItem, "_count">) {

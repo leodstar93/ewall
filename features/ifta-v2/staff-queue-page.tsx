@@ -10,14 +10,19 @@ import {
   assignedReviewerLabel,
   type EldProviderCode,
   type FilingListItem,
+  filingStatusLabel,
   filingPeriodLabel,
   filingTone,
   formatDateTime,
   isStaffQueueFilingStatus,
   providerLabel,
-  statusLabel,
+  unifiedStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
+import {
+  unifiedWorkflowStatusOrder,
+  type UnifiedWorkflowStatus,
+} from "@/lib/ui/unified-workflow-status";
 
 type Notice = {
   tone: "success" | "error" | "info";
@@ -123,7 +128,7 @@ export default function IftaAutomationStaffQueuePage() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
   const [providerFilter, setProviderFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState("");
   const [sortKey, setSortKey] = useState<StaffQueueSortKey>("updated");
@@ -158,7 +163,10 @@ export default function IftaAutomationStaffQueuePage() {
   );
 
   const availableStatuses = useMemo(
-    () => Array.from(new Set(queueFilings.map((filing) => filing.status))).sort(),
+    () =>
+      unifiedWorkflowStatusOrder.filter((status) =>
+        queueFilings.some((filing) => unifiedStatusForIftaFiling(filing.status) === status),
+      ),
     [queueFilings],
   );
 
@@ -177,7 +185,7 @@ export default function IftaAutomationStaffQueuePage() {
   const filteredFilings = useMemo(() => {
     const query = search.trim().toLowerCase();
     const nextFilings = queueFilings.filter((filing) => {
-      if (statusFilter && filing.status !== statusFilter) {
+      if (statusFilter && unifiedStatusForIftaFiling(filing.status) !== statusFilter) {
         return false;
       }
 
@@ -234,7 +242,7 @@ export default function IftaAutomationStaffQueuePage() {
           }
           break;
         case "status":
-          comparison = left.status.localeCompare(right.status);
+          comparison = filingStatusLabel(left.status).localeCompare(filingStatusLabel(right.status));
           break;
         case "provider":
           comparison = (left.integrationAccount?.provider || "").localeCompare(
@@ -414,13 +422,15 @@ export default function IftaAutomationStaffQueuePage() {
               <label className="mb-2 block text-xs font-medium text-zinc-600">Status</label>
               <select
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                }
                 className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
               >
                 <option value="">All statuses</option>
                 {availableStatuses.map((status) => (
                   <option key={status} value={status}>
-                    {statusLabel(status)}
+                    {filingStatusLabel(status)}
                   </option>
                 ))}
               </select>
@@ -675,7 +685,7 @@ export default function IftaAutomationStaffQueuePage() {
                         </td>
                         <td className="px-6 py-4">
                           <Badge tone={filingTone(filing.status)}>
-                            {statusLabel(filing.status)}
+                            {filingStatusLabel(filing.status)}
                           </Badge>
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-700">
