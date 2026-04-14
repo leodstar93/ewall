@@ -27,35 +27,15 @@ export type DashboardTruckRow = {
 type TruckTableRow = DashboardTruckRow & {
   searchText: string;
   sortUnit: string;
-  sortAlias: string;
   sortIdentifier: string;
-  sortStatus: string;
 };
 
 type TruckFormState = {
   unitNumber: string;
-  nickname: string;
-  plateNumber: string;
   vin: string;
   make: string;
   modelName: string;
   year: string;
-  grossWeight: string;
-};
-
-const FILTERS: { label: string; value: TruckStatus | "all" }[] = [
-  { label: "Todos", value: "all" },
-  { label: "Activos", value: "Activo" },
-  { label: "En transito", value: "En transito" },
-  { label: "Mantenimiento", value: "Mantenimiento" },
-  { label: "Inactivos", value: "Inactivo" },
-];
-
-const STATUS_CLASS: Record<TruckStatus, string> = {
-  Activo: styles.tActive,
-  "En transito": styles.tTransit,
-  Mantenimiento: styles.tMaint,
-  Inactivo: styles.tIdle,
 };
 
 const NUM_CLASS: Record<TruckStatus, string> = {
@@ -67,13 +47,10 @@ const NUM_CLASS: Record<TruckStatus, string> = {
 
 const emptyForm: TruckFormState = {
   unitNumber: "",
-  nickname: "",
-  plateNumber: "",
   vin: "",
   make: "",
   modelName: "",
   year: "",
-  grossWeight: "",
 };
 
 interface Props {
@@ -100,35 +77,27 @@ function buildRows(trucks: DashboardTruckRow[]): TruckTableRow[] {
       .join(" ")
       .toLowerCase(),
     sortUnit: truck.unitNumber,
-    sortAlias: truck.alias,
     sortIdentifier: truck.identifier,
-    sortStatus: truck.status,
   }));
 }
 
 function toFormState(truck: DashboardTruckRow): TruckFormState {
   return {
     unitNumber: truck.unitNumber,
-    nickname: truck.nickname,
-    plateNumber: truck.plateNumber,
     vin: truck.vin,
     make: truck.make,
     modelName: truck.modelName,
     year: truck.year,
-    grossWeight: truck.grossWeight,
   };
 }
 
 function toPayload(form: TruckFormState) {
   return {
     unitNumber: form.unitNumber,
-    nickname: form.nickname || null,
-    plateNumber: form.plateNumber || null,
     vin: form.vin || null,
     make: form.make || null,
     model: form.modelName || null,
     year: form.year ? Number(form.year) : null,
-    grossWeight: form.grossWeight ? Number(form.grossWeight) : null,
   };
 }
 
@@ -153,7 +122,6 @@ function CloseIcon() {
 
 export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<TruckStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
@@ -161,11 +129,7 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const filtered = useMemo(() => {
-    return trucks.filter((truck) => filter === "all" || truck.status === filter);
-  }, [trucks, filter]);
-
-  const rows = useMemo(() => buildRows(filtered), [filtered]);
+  const rows = useMemo(() => buildRows(trucks), [trucks]);
 
   function startEdit(truck: DashboardTruckRow) {
     setEditingTruckId(truck.truckId);
@@ -231,38 +195,12 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
       ),
     },
     {
-      key: "sortAlias",
-      label: "Alias",
-      render: (_, truck) => (
-        <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-          {truck.alias}
-        </div>
-      ),
-    },
-    {
       key: "sortIdentifier",
       label: "Plate / VIN",
       render: (_, truck) => (
         <div className={tableStyles.muteCell} style={{ fontSize: 13 }}>
           {truck.identifier}
         </div>
-      ),
-    },
-    {
-      key: "usage",
-      label: "Activity",
-      sortable: false,
-      render: (_, truck) => (
-        <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>
-          {truck.usage}
-        </div>
-      ),
-    },
-    {
-      key: "sortStatus",
-      label: "Status",
-      render: (_, truck) => (
-        <span className={`${styles.tbadge} ${STATUS_CLASS[truck.status]}`}>{truck.status}</span>
       ),
     },
     {
@@ -338,18 +276,6 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                       onChange={(event) => setQuery(event.target.value)}
                     />
                   </div>
-                  <div className={styles.pills}>
-                    {FILTERS.map((filterOption) => (
-                      <button
-                        type="button"
-                        key={filterOption.value}
-                        className={`${styles.pill} ${filter === filterOption.value ? styles.pillActive : ""}`}
-                        onClick={() => setFilter(filterOption.value)}
-                      >
-                        {filterOption.label}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               }
             />
@@ -399,24 +325,6 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                   />
                 </label>
                 <label className={styles.field}>
-                  <span>Nickname</span>
-                  <input
-                    value={form.nickname}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, nickname: event.target.value }))
-                    }
-                  />
-                </label>
-                <label className={styles.field}>
-                  <span>Plate number</span>
-                  <input
-                    value={form.plateNumber}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, plateNumber: event.target.value }))
-                    }
-                  />
-                </label>
-                <label className={styles.field}>
                   <span>VIN</span>
                   <input
                     value={form.vin}
@@ -451,16 +359,6 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                     value={form.year}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, year: event.target.value }))
-                    }
-                  />
-                </label>
-                <label className={styles.field}>
-                  <span>Gross weight</span>
-                  <input
-                    type="number"
-                    value={form.grossWeight}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, grossWeight: event.target.value }))
                     }
                   />
                 </label>

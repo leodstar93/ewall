@@ -105,6 +105,7 @@ export default function LayoutWrap({ children }: Props) {
             onToggleSidebar={() => setCollapsed((current) => !current)}
             searchValue={search}
             onSearch={setSearch}
+            navGroups={navGroups}
           />
           {session?.impersonation?.isActive ? (
             <ImpersonationBanner

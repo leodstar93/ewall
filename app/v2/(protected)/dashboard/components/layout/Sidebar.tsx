@@ -15,6 +15,13 @@ interface Props {
   navGroups: NavGroup[];
 }
 
+function isRouteActive(pathname: string | null, href: string) {
+  if (!pathname) return false;
+  if (pathname === href) return true;
+  if (href === "/v2/dashboard") return false;
+  return pathname.startsWith(`${href}/`);
+}
+
 export default function Sidebar({ collapsed, navGroups }: Props) {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -32,9 +39,6 @@ export default function Sidebar({ collapsed, navGroups }: Props) {
         : "Usuario";
   const avatarLabel = (displayName[0] || "U").toUpperCase();
 
-  const isActive = (href: string) =>
-    pathname === href || (href !== "/admin" && pathname?.startsWith(href));
-
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
       <div className={styles.header}>
@@ -46,7 +50,7 @@ export default function Sidebar({ collapsed, navGroups }: Props) {
             <rect x="9" y="9" width="5" height="5" rx="1" />
           </svg>
         </div>
-        <span className={styles.title}>MiApp</span>
+        <span className={styles.title}>Trucks Unidos</span>
       </div>
 
       <nav className={styles.nav}>
@@ -57,7 +61,7 @@ export default function Sidebar({ collapsed, navGroups }: Props) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`${styles.navItem} ${isActive(item.href) ? styles.active : ""}`}
+                className={`${styles.navItem} ${isRouteActive(pathname, item.href) ? styles.active : ""}`}
                 title={item.label}
               >
                 <span className={styles.navIcon}>

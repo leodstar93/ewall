@@ -1,18 +1,36 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+import type { NavGroup } from "./LayoutWrap";
 import styles from "./Topbar.module.css";
 
 interface Props {
   onToggleSidebar: () => void;
   searchValue: string;
   onSearch: (value: string) => void;
+  navGroups: NavGroup[];
+}
+
+function resolveCurrentLabel(pathname: string | null, navGroups: NavGroup[]) {
+  if (!pathname) return "Dashboard";
+
+  const matches = navGroups
+    .flatMap((group) => group.items)
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((left, right) => right.href.length - left.href.length);
+
+  return matches[0]?.label ?? "Dashboard";
 }
 
 export default function Topbar({
   onToggleSidebar,
   searchValue,
   onSearch,
+  navGroups,
 }: Props) {
+  const pathname = usePathname();
+  const currentLabel = resolveCurrentLabel(pathname, navGroups);
+
   return (
     <header className={styles.topbar}>
       <button
@@ -29,10 +47,10 @@ export default function Topbar({
       </button>
 
       <div className={styles.titleWrap}>
-        <div className={styles.title}>Panel principal</div>
+        <div className={styles.title}>{currentLabel}</div>
         <div className={styles.breadcrumb}>
           Inicio <span className={styles.sep}>{">"}</span>{" "}
-          <span className={styles.current}>Dashboard</span>
+          <span className={styles.current}>{currentLabel}</span>
         </div>
       </div>
 
