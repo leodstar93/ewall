@@ -6,6 +6,14 @@ import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.modu
 
 const settingsItems = [
   {
+    section: "Integrations",
+    title: "ELD raw client export",
+    description:
+      "Pick any customer with an ELD connection and generate a multi-sheet Excel with the raw account, sync, vehicle, driver, trip, fuel, webhook, and filing data stored in the platform.",
+    href: "/v2/admin/settings/integrations",
+    cta: "Open Integrations Export",
+  },
+  {
     section: "Security",
     title: "ACH financial access audits",
     description:
