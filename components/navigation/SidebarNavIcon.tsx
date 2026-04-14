@@ -23,23 +23,38 @@ type ResolveSidebarIconInput = {
   section?: string;
 };
 
-function textForMatch({ href, label, section }: ResolveSidebarIconInput) {
-  return `${href ?? ""} ${label ?? ""} ${section ?? ""}`.toLowerCase();
+function normalize(value?: string) {
+  return (value ?? "").toLowerCase();
 }
 
 export function resolveSidebarIcon(
   input: ResolveSidebarIconInput,
 ): SidebarIconName {
-  const text = textForMatch(input);
+  const href = normalize(input.href);
+  const label = normalize(input.label);
+  const section = normalize(input.section);
+  const text = `${href} ${label} ${section}`;
 
-  if (
-    text.includes("dashboard") ||
-    text.includes("overview") ||
-    text.includes("/settings")
-  ) {
+  const isDashboardRoot =
+    label.includes("dashboard") ||
+    href === "/admin" ||
+    href === "/v2/admin" ||
+    href === "/panel" ||
+    href === "/v2/dashboard" ||
+    section.includes("overview");
+
+  if (isDashboardRoot) {
     return "dashboard";
   }
 
+  if (
+    text.includes("permission") ||
+    text.includes("access") ||
+    text.includes("security")
+  ) {
+    return "shield";
+  }
+  if (text.includes("setting") || text.includes("config")) return "settings";
   if (text.includes("calendar")) return "calendar";
   if (text.includes("email") || text.includes("mail")) return "mail";
   if (text.includes("chart") || text.includes("analytics")) return "chart";
@@ -55,14 +70,7 @@ export function resolveSidebarIcon(
   if (text.includes("role") || text.includes("staff") || text.includes("team")) {
     return "users";
   }
-  if (
-    text.includes("permission") ||
-    text.includes("access") ||
-    text.includes("security")
-  ) {
-    return "shield";
-  }
-  if (text.includes("setting") || text.includes("config")) return "settings";
+  if (text.includes("truck") || text.includes("client")) return "users";
   if (text.includes("integration") || text.includes("eld")) return "cube";
   if (text.includes("payment") || text.includes("billing")) return "receipt";
   if (
