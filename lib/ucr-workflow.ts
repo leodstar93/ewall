@@ -1,4 +1,7 @@
-import { UCRFilingStatus } from "@prisma/client";
+import {
+  UCRCustomerPaymentStatus,
+  UCRFilingStatus,
+} from "@prisma/client";
 
 export function getUcrStatusLabel(status: UCRFilingStatus) {
   switch (status) {
@@ -65,6 +68,17 @@ export function canResubmitUcrFiling(status: UCRFilingStatus) {
   return (
     status === UCRFilingStatus.CORRECTION_REQUESTED ||
     status === UCRFilingStatus.NEEDS_ATTENTION
+  );
+}
+
+export function canDeleteUcrFiling(
+  status: UCRFilingStatus,
+  customerPaymentStatus: UCRCustomerPaymentStatus,
+) {
+  return (
+    status === UCRFilingStatus.DRAFT ||
+    (status === UCRFilingStatus.AWAITING_CUSTOMER_PAYMENT &&
+      customerPaymentStatus === "NOT_STARTED")
   );
 }
 

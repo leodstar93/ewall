@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import tableStyles from "../../components/ui/DataTable.module.css";
 import styles from "./ucr-detail.module.css";
@@ -28,6 +29,7 @@ type DetailPayload = {
   permissions: {
     isOwner: boolean;
     canManageAll: boolean;
+    canDelete: boolean;
     canEdit: boolean;
     canSubmit: boolean;
     canResubmit: boolean;
@@ -196,6 +198,7 @@ function TimelineTable({
 }
 
 export default function UcrDetailClient({ filingId }: Props) {
+  const router = useRouter();
   const { data: session } = useSession();
   const [payload, setPayload] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -323,6 +326,37 @@ export default function UcrDetailClient({ filingId }: Props) {
     }
   };
 
+  const deleteFiling = async () => {
+    if (!filing) return;
+    if (
+      !window.confirm(`Delete UCR ${filing.year}? This action cannot be undone.`)
+    ) {
+      return;
+    }
+
+    try {
+      setBusy(true);
+      setError(null);
+
+      const response = await fetch(`/api/v1/features/ucr/${filingId}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not delete the UCR filing.");
+      }
+
+      router.push("/v2/dashboard/ucr");
+      router.refresh();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error ? deleteError.message : "Could not delete the UCR filing.",
+      );
+      setBusy(false);
+    }
+  };
+
   const filing = payload?.filing ?? null;
   const permissions = payload?.permissions ?? null;
   const timeline = payload?.timeline ?? [];
@@ -432,6 +466,16 @@ export default function UcrDetailClient({ filingId }: Props) {
                   onClick={() => setEditing((current) => !current)}
                 >
                   {editing ? "Hide edit" : "Edit filing"}
+                </button>
+              ) : null}
+              {permissions.canDelete ? (
+                <button
+                  type="button"
+                  onClick={() => void deleteFiling()}
+                  disabled={busy}
+                  className={styles.secondaryButton}
+                >
+                  {busy ? "Working..." : "Delete filing"}
                 </button>
               ) : null}
               {permissions.canResubmit ? (

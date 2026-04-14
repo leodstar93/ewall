@@ -370,6 +370,16 @@ export function customerActionLabel(filing: UcrFiling) {
   }
 }
 
+export function canDeleteCustomerUcrFiling(
+  filing: Pick<UcrFiling, "status" | "customerPaymentStatus">,
+) {
+  return (
+    filing.status === "DRAFT" ||
+    (filing.status === "AWAITING_CUSTOMER_PAYMENT" &&
+      filing.customerPaymentStatus === "NOT_STARTED")
+  );
+}
+
 export function documentTypeLabel(type: UCRDocumentType) {
   return (
     ucrDocumentTypeOptions.find((option) => option.value === type)?.label ?? type

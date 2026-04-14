@@ -1,8 +1,16 @@
+import { unlink } from "fs/promises";
 import { UCREntityType } from "@prisma/client";
 import { NextRequest } from "next/server";
+import { isRemoteUrl, publicDiskPathFromUrl } from "@/lib/doc-files";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
-import { canEditUcrFiling, canResubmitUcrFiling, canSubmitUcrFiling } from "@/lib/ucr-workflow";
+import {
+  canDeleteUcrFiling,
+  canEditUcrFiling,
+  canResubmitUcrFiling,
+  canSubmitUcrFiling,
+} from "@/lib/ucr-workflow";
+import { deleteUcrFiling } from "@/services/ucr/deleteUcrFiling";
 import { updateUcrFiling } from "@/services/ucr/updateUcrFiling";
 import {
   getUcrChargeAmount,
@@ -227,6 +235,8 @@ export async function GET(
       permissions: {
         isOwner,
         canManageAll,
+        canDelete:
+          isOwner && canDeleteUcrFiling(filing.status, filing.customerPaymentStatus),
         canEdit: isOwner && canEditUcrFiling(filing.status),
         canSubmit: isOwner && canSubmitUcrFiling(filing.status),
         canResubmit: isOwner && canResubmitUcrFiling(filing.status),
@@ -362,3 +372,47 @@ export async function PATCH(
 }
 
 export const PUT = PATCH;
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const guard = await requireApiPermission("ucr:update_own_draft");
+  if (!guard.ok) return guard.res;
+
+  const { id } = await params;
+
+  try {
+    const filing = await deleteUcrFiling({
+      filingId: id,
+      actorUserId: guard.session.user.id ?? "",
+    });
+
+    const fileUrls = [
+      filing.officialReceiptUrl,
+      ...filing.documents.map((document) => document.filePath),
+    ].filter((value): value is string => Boolean(value));
+
+    await Promise.all(
+      fileUrls.map(async (fileUrl) => {
+        if (isRemoteUrl(fileUrl)) return;
+
+        try {
+          await unlink(publicDiskPathFromUrl(fileUrl));
+        } catch (error) {
+          const code =
+            error && typeof error === "object" && "code" in error
+              ? (error as { code?: string }).code
+              : undefined;
+          if (code !== "ENOENT") {
+            console.warn("Failed to delete UCR file from disk", fileUrl, error);
+          }
+        }
+      }),
+    );
+
+    return Response.json({ success: true });
+  } catch (error) {
+    return toErrorResponse(error, "Failed to delete UCR filing");
+  }
+}

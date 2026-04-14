@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 import {
+  canDeleteCustomerUcrFiling,
   customerActionLabel,
   customerPaymentStatusLabel,
   filingStatusLabel,
@@ -190,6 +191,38 @@ export default function UcrDashboardClient() {
     }
   }
 
+  async function deleteFiling(filing: UcrFiling) {
+    if (
+      !window.confirm(
+        `Delete UCR ${filing.year}? This action cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setBusyId(filing.id);
+      setError("");
+
+      const response = await fetch(`/api/v1/features/ucr/${filing.id}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not delete this UCR filing.");
+      }
+
+      setFilings((current) => current.filter((item) => item.id !== filing.id));
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error ? deleteError.message : "Could not delete this UCR filing.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const filteredRows = buildRows(filings).filter((item) => {
     const query = deferredSearch.trim().toLowerCase();
 
@@ -320,6 +353,25 @@ export default function UcrDashboardClient() {
                 <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
               ) : (
                 <ActionIcon name="login" />
+              )}
+            </button>
+          ) : null}
+          {canDeleteCustomerUcrFiling(item) ? (
+            <button
+              type="button"
+              onClick={() => void deleteFiling(item)}
+              disabled={busyId === item.id}
+              aria-label={busyId === item.id ? "Deleting filing" : "Delete filing"}
+              title={busyId === item.id ? "Deleting filing" : "Delete filing"}
+              className={iconButtonClasses({
+                variant: "danger",
+                className: busyId === item.id ? "opacity-60" : undefined,
+              })}
+            >
+              {busyId === item.id ? (
+                <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+              ) : (
+                <ActionIcon name="delete" />
               )}
             </button>
           ) : null}
