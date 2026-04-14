@@ -370,6 +370,26 @@ export function customerActionLabel(filing: UcrFiling) {
   }
 }
 
+function toMoneyNumber(value: string | number | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function hasOutstandingCustomerBalance(
+  filing: Pick<UcrFiling, "customerBalanceDue">,
+) {
+  return toMoneyNumber(filing.customerBalanceDue) > 0.005;
+}
+
+export function requiresAdditionalCustomerPayment(
+  filing: Pick<UcrFiling, "customerBalanceDue" | "customerPaidAmount">,
+) {
+  return (
+    hasOutstandingCustomerBalance(filing) &&
+    toMoneyNumber(filing.customerPaidAmount) > 0.005
+  );
+}
+
 export function canDeleteCustomerUcrFiling(
   filing: Pick<UcrFiling, "status" | "customerPaymentStatus">,
 ) {

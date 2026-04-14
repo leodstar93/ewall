@@ -18,8 +18,10 @@ import {
   filingStatusLabel,
   formatCurrency,
   formatDate,
+  hasOutstandingCustomerBalance,
   officialPaymentStatusClasses,
   officialPaymentStatusLabel,
+  requiresAdditionalCustomerPayment,
 } from "@/features/ucr/shared";
 
 type DetailPayload = {
@@ -374,6 +376,10 @@ export default function UcrDetailClient({ filingId }: Props) {
   const companyState = companyProfile?.state || filing?.baseState || "-";
   const customerBalanceDue = Number(filing?.customerBalanceDue ?? 0);
   const customerCreditAmount = Number(filing?.customerCreditAmount ?? 0);
+  const hasCustomerBalanceDue = filing ? hasOutstandingCustomerBalance(filing) : false;
+  const needsAdditionalCustomerPayment = filing
+    ? requiresAdditionalCustomerPayment(filing)
+    : false;
 
   const detailRows = useMemo<KeyValueRow[]>(() => {
     if (!filing) return [];
@@ -524,10 +530,35 @@ export default function UcrDetailClient({ filingId }: Props) {
 
         {error ? <div className={styles.alertError}>{error}</div> : null}
 
-        {customerBalanceDue > 0 ? (
+        {hasCustomerBalanceDue ? (
           <div className={styles.alertInfo}>
-            Additional payment due: {formatCurrency(customerBalanceDue)}. Save your changes, then use
-            {" "}Re-submit so the filing returns to checkout.
+            {needsAdditionalCustomerPayment ? (
+              permissions.canResubmit ? (
+                <>
+                  Additional payment due: {formatCurrency(customerBalanceDue)}. Save your changes,
+                  then use {" "}Re-submit so the filing returns to checkout.
+                </>
+              ) : permissions.canCheckout ? (
+                <>
+                  Additional payment due: {formatCurrency(customerBalanceDue)}. Use Pay now to
+                  continue checkout.
+                </>
+              ) : (
+                <>
+                  Additional payment due: {formatCurrency(customerBalanceDue)}. Complete the next
+                  payment step to continue this filing.
+                </>
+              )
+            ) : permissions.canCheckout ? (
+              <>
+                Payment due: {formatCurrency(customerBalanceDue)}. Use Pay now to continue checkout.
+              </>
+            ) : (
+              <>
+                Payment due: {formatCurrency(customerBalanceDue)}. Complete the next payment step to
+                continue this filing.
+              </>
+            )}
           </div>
         ) : null}
 
