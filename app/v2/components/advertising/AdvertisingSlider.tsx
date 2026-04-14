@@ -39,11 +39,16 @@ export default function AdvertisingSlider({
     <div className={styles.panel}>
       <div className={styles.head}>
         <div className={styles.headTitle}>
-          <svg viewBox="0 0 14 14" fill="none" stroke="var(--r)" strokeWidth="2">
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="var(--r)"
+            strokeWidth="2"
+          >
             <rect x="1" y="2" width="12" height="9" rx="1" />
             <path d="M5 11v2M9 11v2M3 13h8" />
           </svg>
-          Advertising
+          News & Updates
         </div>
         <span className={styles.progress}>
           {current + 1} / {slides.length}
@@ -58,7 +63,9 @@ export default function AdvertisingSlider({
               className={`${styles.slide} ${index === current ? styles.active : ""}`}
               style={{ background: slide.gradient }}
             >
-              <div className={styles.icon}>{slideIcons[index % slideIcons.length]}</div>
+              <div className={styles.icon}>
+                {slideIcons[index % slideIcons.length]}
+              </div>
               <div className={styles.text}>
                 <div className={styles.eyebrow}>{slide.eyebrow}</div>
                 <div className={styles.title}>{slide.title}</div>
@@ -71,10 +78,18 @@ export default function AdvertisingSlider({
           ))}
 
           <div className={styles.navRow}>
-            <button type="button" className={styles.navBtn} onClick={() => go(current - 1)}>
+            <button
+              type="button"
+              className={styles.navBtn}
+              onClick={() => go(current - 1)}
+            >
               {"<"}
             </button>
-            <button type="button" className={styles.navBtn} onClick={() => go(current + 1)}>
+            <button
+              type="button"
+              className={styles.navBtn}
+              onClick={() => go(current + 1)}
+            >
               {">"}
             </button>
           </div>
