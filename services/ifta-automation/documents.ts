@@ -10,6 +10,24 @@ import {
 
 const IFTA_AUTOMATION_DOCUMENT_PREFIX = "ifta-v2-filing";
 
+function inferIftaDocumentType(mimeType: string | null | undefined): string {
+  if (!mimeType) return "ifta-supporting-document";
+  if (mimeType === "application/pdf") return "ifta-pdf-document";
+  if (mimeType.startsWith("image/")) return "ifta-image-document";
+  if (
+    mimeType.includes("spreadsheet") ||
+    mimeType.includes("excel") ||
+    mimeType.includes("csv") ||
+    mimeType === "text/csv"
+  ) {
+    return "ifta-spreadsheet-document";
+  }
+  if (mimeType.includes("word") || mimeType.includes("document")) {
+    return "ifta-text-document";
+  }
+  return "ifta-supporting-document";
+}
+
 export type IftaAutomationDocumentRecord = {
   id: string;
   name: string;
@@ -100,6 +118,7 @@ export async function saveIftaAutomationDocument(input: {
   actorRole: "admin" | "staff" | "client" | "user";
   file: File;
   description?: string | null;
+  overrideType?: string | null;
   db?: DbLike;
 }) {
   const resolvedDb = resolveDb(input.db ?? null);
@@ -134,9 +153,12 @@ export async function saveIftaAutomationDocument(input: {
     filing.tenant.name ||
     null;
 
+  const iftaDocumentType = input.overrideType?.trim() || inferIftaDocumentType(input.file.type);
+
   const classification = autoClassifyDocument({
     originalFileName: input.file.name,
     mimeType: input.file.type,
+    providedCategory: iftaDocumentType,
     companyName,
     uploaderRole: input.actorRole,
   });
@@ -145,11 +167,11 @@ export async function saveIftaAutomationDocument(input: {
     db: resolvedDb,
     userId: input.actorUserId,
     file: input.file,
-    name: classification.displayName,
+    name: input.file.name.trim() || classification.displayName,
     description: input.description?.trim() || null,
     category: buildIftaAutomationDocumentCategory({
       filingId: input.filingId,
-      type: classification.category,
+      type: iftaDocumentType,
     }),
     fileName: classification.storedFileName,
   });

@@ -28,6 +28,9 @@ export async function GET() {
           select: {
             id: true,
             name: true,
+            legalName: true,
+            companyName: true,
+            dbaName: true,
           },
         },
         integrationAccount: {
@@ -51,7 +54,34 @@ export async function GET() {
       orderBy: [{ year: "desc" }, { quarter: "desc" }, { updatedAt: "desc" }],
     });
 
-    return Response.json({ filings });
+    const assignedStaffIds = Array.from(
+      new Set(
+        filings
+          .map((f) => f.assignedStaffUserId)
+          .filter((v): v is string => Boolean(v)),
+      ),
+    );
+
+    const staffMap =
+      assignedStaffIds.length === 0
+        ? new Map<string, { id: string; name: string | null; email: string | null }>()
+        : new Map(
+            (
+              await prisma.user.findMany({
+                where: { id: { in: assignedStaffIds } },
+                select: { id: true, name: true, email: true },
+              })
+            ).map((u) => [u.id, u]),
+          );
+
+    const enriched = filings.map((f) => ({
+      ...f,
+      assignedStaff: f.assignedStaffUserId
+        ? (staffMap.get(f.assignedStaffUserId) ?? null)
+        : null,
+    }));
+
+    return Response.json({ filings: enriched });
   } catch (error) {
     return handleIftaAutomationError(error, "Failed to load IFTA filings.");
   }

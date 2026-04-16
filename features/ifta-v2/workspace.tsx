@@ -13,6 +13,7 @@ import {
   type FilingException,
   type FilingListItem,
   type IftaAutomationMode,
+  type IftaVisibleStatus,
   type IntegrationAccountSummary,
   type ProviderCatalogItem,
   type SyncJobSummary,
@@ -25,17 +26,16 @@ import {
   formatDateTime,
   formatMoney,
   formatNumber,
+  iftaVisibleStatusLabel,
+  iftaVisibleStatusOrder,
   providerLabel,
   statusLabel,
   summarizeFilingMetrics,
+  tenantCompanyName,
   toNumber,
-  unifiedStatusForIftaFiling,
+  visibleStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
-import {
-  unifiedWorkflowStatusOrder,
-  type UnifiedWorkflowStatus,
-} from "@/lib/ui/unified-workflow-status";
 
 type IftaWorkspaceProps = {
   mode: IftaAutomationMode;
@@ -272,7 +272,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
+  const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [providerFilter, setProviderFilter] = useState("");
   const currentQuarter = useMemo(() => currentQuarterInput(), []);
   const [createYear, setCreateYear] = useState(String(currentQuarter.year));
@@ -289,7 +289,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     const normalizedSearch = search.trim().toLowerCase();
 
     return filings.filter((filing) => {
-      if (statusFilter && unifiedStatusForIftaFiling(filing.status) !== statusFilter) return false;
+      if (statusFilter && visibleStatusForIftaFiling(filing.status) !== statusFilter) return false;
       if (providerFilter && filing.integrationAccount?.provider !== providerFilter) return false;
       if (!normalizedSearch) return true;
 
@@ -315,8 +315,8 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
 
   const availableStatuses = useMemo(
     () =>
-      unifiedWorkflowStatusOrder.filter((status) =>
-        filings.some((filing) => unifiedStatusForIftaFiling(filing.status) === status),
+      iftaVisibleStatusOrder.filter((status) =>
+        filings.some((filing) => visibleStatusForIftaFiling(filing.status) === status),
       ),
     [filings],
   );
@@ -680,7 +680,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
           }),
         });
       },
-      `Sync requested for ${filing.tenant.name} ${filingPeriodLabel(filing)}.`,
+      `Sync requested for ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)}.`,
       filing.id,
     );
   }
@@ -739,7 +739,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
           body: JSON.stringify({ note }),
         });
       },
-      `Need attention saved for ${filing.tenant.name}.`,
+      `Need attention saved for ${tenantCompanyName(filing.tenant)}.`,
       filing.id,
     );
   }
@@ -758,7 +758,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   }
 
   async function handleApprove(filing: FilingDetail) {
-    if (!window.confirm(`Approve ${filing.tenant.name} ${filingPeriodLabel(filing)}?`)) {
+    if (!window.confirm(`Approve ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)}?`)) {
       return;
     }
 
@@ -1179,14 +1179,14 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
                     <select
                       value={statusFilter}
                       onChange={(event) =>
-                        setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                        setStatusFilter(event.target.value as "" | IftaVisibleStatus)
                       }
                       className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 outline-none shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10"
                     >
                       <option value="">All statuses</option>
                       {availableStatuses.map((status) => (
                         <option key={status} value={status}>
-                          {filingStatusLabel(status)}
+                          {iftaVisibleStatusLabel(status)}
                         </option>
                       ))}
                     </select>

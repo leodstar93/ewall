@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DashboardTable, {
   type ColumnDef,
-  type TableAction,
 } from "@/app/v2/(protected)/dashboard/components/ui/Table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +16,9 @@ import {
   filingStatusLabel,
   filingPeriodLabel,
   formatDate,
+  formatDateTime,
   formatNumber,
+  iftaAutomationDocumentTypeLabel,
   providerLabel,
   toNumber,
 } from "@/features/ifta-v2/shared";
@@ -231,6 +232,10 @@ export default function IftaAutomationTruckerFilingPage({
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentBusy, setDocumentBusy] = useState(false);
 
   async function loadFiling() {
     setLoading(true);
@@ -394,6 +399,49 @@ export default function IftaAutomationTruckerFilingPage({
     }
   }
 
+  async function handleUploadDocument() {
+    if (!filing || !documentFile || documentBusy) return;
+
+    setDocumentBusy(true);
+    setNotice(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", documentFile);
+
+      const response = await fetch(
+        `/api/v1/features/ifta-v2/filings/${filing.id}/documents`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not upload the document.");
+      }
+
+      await loadFiling();
+      setDocumentModalOpen(false);
+      setDocumentFile(null);
+      setNotice({
+        tone: "success",
+        text: `Document uploaded for ${filingPeriodLabel(filing)}.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: getErrorMessage(error, "Could not upload the document."),
+      });
+    } finally {
+      setDocumentBusy(false);
+    }
+  }
+
   async function handleSyncLatest() {
     if (!filing) return;
 
@@ -519,6 +567,13 @@ export default function IftaAutomationTruckerFilingPage({
     filing.tenant.companyProfile?.dbaName ||
     "Company profile pending";
   const serviceLabel = `${filingPeriodLabel(filing)} - IFTA Service`;
+  const documentRows = (filing.documents ?? []).map((document) => ({
+    id: document.id,
+    name: document.name,
+    type: iftaAutomationDocumentTypeLabel(document.type),
+    createdAt: formatDateTime(document.createdAt),
+    href: `/api/v1/features/ifta-v2/documents/${document.id}/download`,
+  }));
   const tableColumns: ColumnDef<JurisdictionEditorRow>[] = [
     {
       key: "jurisdiction",
@@ -586,21 +641,6 @@ export default function IftaAutomationTruckerFilingPage({
       },
     },
   ];
-  const tableActions: TableAction[] = [
-    {
-      label: busyAction === "sync-quarter" ? "Syncing..." : "Sync ELD Quarter",
-      onClick: () => {
-        void handleSyncLatest();
-      },
-    },
-    {
-      label: busyAction === "submit" ? "Submitting..." : "Submit For Review",
-      onClick: () => {
-        void handleSubmitForReview();
-      },
-      variant: "primary",
-    },
-  ];
   const auditColumns: ColumnDef<AuditRow>[] = [
     {
       key: "event",
@@ -621,150 +661,361 @@ export default function IftaAutomationTruckerFilingPage({
   ];
 
   return (
-    <section className="space-y-4 rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">{companyName}</h1>
-          <p className="mt-1 text-sm font-medium text-zinc-500">{serviceLabel}</p>
-        </div>
-      </div>
-
-      <NoticeBanner notice={notice} />
-
-      <div className="rounded-[24px] border border-zinc-200 bg-zinc-50/80 p-5">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
-          IFTA Resume
-        </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-              Status
+    <>
+      <section
+        className="overflow-hidden rounded-[18px] border border-[var(--br)] shadow-[0_14px_32px_rgba(0,26,69,0.08)]"
+        style={{ background: "rgba(255,255,255,0.96)" }}
+      >
+        {/* Header */}
+        <div className="p-[18px]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
+                IFTA Filing
+              </p>
+              <h1 className="m-0 text-[26px] font-semibold leading-tight text-[var(--b)]">
+                {companyName}
+              </h1>
+              <p className="mt-2 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+                {serviceLabel}
+              </p>
             </div>
-            <div className="mt-2 text-sm font-semibold text-zinc-900">
-              {filingStatusLabel(filing.status)}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-              Provider
-            </div>
-            <div className="mt-2 text-sm font-semibold text-zinc-900">
-              {providerLabel(filing.integrationAccount?.provider)}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-              Quarter Window
-            </div>
-            <div className="mt-2 text-sm font-semibold text-zinc-900">
-              {formatDate(filing.periodStart)} - {formatDate(filing.periodEnd)}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-              Jurisdictions
-            </div>
-            <div className="mt-2 text-sm font-semibold text-zinc-900">
-              {jurisdictionRows.length} active row{jurisdictionRows.length === 1 ? "" : "s"}
+            <div className="flex flex-wrap gap-[10px] lg:justify-end">
+              {filing.status === "DRAFT" ? (
+                <button
+                  type="button"
+                  onClick={() => void handleSyncLatest()}
+                  disabled={busyAction === "sync-quarter"}
+                  className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {busyAction === "sync-quarter" ? "Syncing..." : "Sync ELD Quarter"}
+                </button>
+              ) : null}
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitForReview()}
+                  disabled={busyAction === "submit"}
+                  className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ background: "var(--b)" }}
+                >
+                  {busyAction === "submit" ? "Submitting..." : "Submit For Review"}
+                </button>
+              ) : null}
             </div>
           </div>
-        </div>
-      </div>
 
-      {jurisdictionRows.length === 0 ? (
-        <div className="rounded-[24px] border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-600">
-          No jurisdiction activity is available yet. If your ELD is connected, run
-          <span className="font-medium text-zinc-900"> Sync ELD Quarter</span> first.
-        </div>
-      ) : (
-        <DashboardTable
-          data={jurisdictionRows}
-          columns={tableColumns}
-          actions={tableActions}
-          title="Jurisdiction Summary"
-        />
-      )}
+          <NoticeBanner notice={notice} />
 
-      {!canEdit ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-          This filing is locked because it has already been submitted for review.
+          {!canEdit ? (
+            <div
+              className="mt-3 rounded-[14px] border p-3 text-[13px] leading-relaxed"
+              style={{
+                borderColor: "rgba(0,40,104,0.16)",
+                background: "rgba(0,40,104,0.06)",
+                color: "var(--b)",
+              }}
+            >
+              This filing is locked because it has already been submitted for review.
+            </div>
+          ) : null}
         </div>
-      ) : null}
 
-      <div className="rounded-[24px] border border-zinc-200 bg-white p-5">
-        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
-          Conversation
+        {/* IFTA Resume */}
+        <div className="border-t border-[var(--br)] p-[18px]">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
+            Overview
+          </p>
+          <h2 className="mb-4 mt-0 text-xl font-semibold text-[var(--b)]">IFTA Resume</h2>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[12px] border border-[var(--br)] bg-[var(--off)] px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                Status
+              </div>
+              <div className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                {filingStatusLabel(filing.status)}
+              </div>
+            </div>
+            <div className="rounded-[12px] border border-[var(--br)] bg-[var(--off)] px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                Provider
+              </div>
+              <div className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                {providerLabel(filing.integrationAccount?.provider)}
+              </div>
+            </div>
+            <div className="rounded-[12px] border border-[var(--br)] bg-[var(--off)] px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                Quarter Window
+              </div>
+              <div className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                {formatDate(filing.periodStart)} – {formatDate(filing.periodEnd)}
+              </div>
+            </div>
+            <div className="rounded-[12px] border border-[var(--br)] bg-[var(--off)] px-4 py-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                Jurisdictions
+              </div>
+              <div className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
+                {jurisdictionRows.length} active row{jurisdictionRows.length === 1 ? "" : "s"}
+              </div>
+            </div>
+          </div>
         </div>
-        <h3 className="mt-2 text-lg font-semibold text-zinc-950">Client and staff chat</h3>
 
-        <div className="mt-5 grid max-h-[420px] gap-3 overflow-y-auto pr-1">
-          {conversation.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-5 text-center text-sm text-zinc-600">
-              No messages yet. Start the conversation with your staff team here.
+        {/* Jurisdiction Summary */}
+        <div className="border-t border-[var(--br)] p-[18px]">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
+            Data
+          </p>
+          <h2 className="mb-4 mt-0 text-xl font-semibold text-[var(--b)]">Jurisdiction Summary</h2>
+          {jurisdictionRows.length === 0 ? (
+            <div
+              className="rounded-[14px] border border-dashed px-4 py-10 text-center text-[13px] leading-relaxed"
+              style={{ borderColor: "var(--br)", background: "var(--off)", color: "var(--text-secondary)" }}
+            >
+              No jurisdiction activity yet. If your ELD is connected, use{" "}
+              <span className="font-semibold" style={{ color: "var(--b)" }}>Sync ELD Quarter</span> first.
             </div>
           ) : (
-            conversation.map((message) => (
-              <article
-                key={message.id}
-                className="ml-auto grid max-w-[720px] gap-2 rounded-2xl border border-[rgba(0,40,104,0.16)] bg-[linear-gradient(180deg,rgba(0,40,104,0.08),rgba(255,255,255,0.98))] px-4 py-3"
-              >
-                <div className="flex items-center justify-between gap-3 text-[11px] text-zinc-500">
-                  <strong>{message.authorName}</strong>
-                  <span>{formatDate(message.createdAt)}</span>
-                </div>
-                <p className="m-0 whitespace-pre-wrap text-sm leading-6 text-zinc-900">
-                  {message.body}
-                </p>
-              </article>
-            ))
+            <DashboardTable
+              data={jurisdictionRows}
+              columns={tableColumns}
+              title="Jurisdiction Summary"
+            />
           )}
         </div>
 
-        <div className="mt-4 grid gap-3 border-t border-zinc-200 pt-4">
-          <label className="grid gap-2">
-            <span className="text-sm font-medium text-zinc-900">New message</span>
-            <textarea
-              value={chatDraft}
-              onChange={(event) => setChatDraft(event.target.value)}
-              className="min-h-[110px] w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
-              placeholder="Write a message for staff about this filing."
-            />
-          </label>
-          <div className="flex flex-wrap justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setChatDraft("")}
-              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
-              disabled={chatBusy || !chatDraft.trim()}
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={() => void sendChatMessage()}
-              className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
-              disabled={chatBusy || !chatDraft.trim()}
-            >
-              {chatBusy ? "Sending..." : "Send message"}
-            </button>
+        {/* Documents */}
+        <div className="border-t border-[var(--br)] p-[18px]">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="mb-0 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
+                Files
+              </p>
+              <div className="flex items-center gap-[10px]">
+                <h2 className="m-0 text-xl font-semibold text-[var(--b)]">Documents</h2>
+                <button
+                  type="button"
+                  onClick={() => setDocumentModalOpen(true)}
+                  disabled={documentBusy}
+                  aria-label="Upload document"
+                  title="Upload document"
+                  className="inline-flex h-[30px] w-[30px] flex-none items-center justify-center rounded-lg border border-[#d94a5a] text-lg font-semibold leading-none text-white shadow-[0_6px_14px_rgba(178,34,52,0.18)] transition-[transform,box-shadow] hover:-translate-y-px hover:shadow-[0_10px_18px_rgba(178,34,52,0.24)] disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ background: "linear-gradient(180deg,#d94a5a,#b22234)" }}
+                >
+                  <span className="inline-block translate-y-[-1px] text-[18px] font-semibold leading-none">+</span>
+                </button>
+              </div>
+            </div>
+            <span className="text-[12px] text-[var(--text-secondary)]">
+              {documentRows.length} record{documentRows.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[13px]">
+              <thead style={{ background: "var(--b)" }}>
+                <tr>
+                  <th className="px-[14px] py-[9px] text-left text-[11px] font-medium uppercase tracking-[0.03em] text-white/80">Document</th>
+                  <th className="px-[14px] py-[9px] text-left text-[11px] font-medium uppercase tracking-[0.03em] text-white/80">Type</th>
+                  <th className="px-[14px] py-[9px] text-left text-[11px] font-medium uppercase tracking-[0.03em] text-white/80">Uploaded</th>
+                  <th className="px-[14px] py-[9px] text-left text-[11px] font-medium uppercase tracking-[0.03em] text-white/80">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documentRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-[13px] text-[#aaa]">
+                      No documents uploaded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  documentRows.map((row) => (
+                    <tr key={row.id} className="border-t border-[var(--brl)] hover:bg-[#F0F3FA]">
+                      <td className="px-[14px] py-2 font-medium text-[var(--text-primary)]">{row.name}</td>
+                      <td className="px-[14px] py-2 text-[#777]">{row.type}</td>
+                      <td className="px-[14px] py-2 text-[#777]">{row.createdAt}</td>
+                      <td className="px-[14px] py-2">
+                        <a href={row.href} className="font-semibold text-[var(--b)] hover:text-[var(--r)]">
+                          Download
+                        </a>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
 
-      {canViewAudit ? (
-        <DashboardTable
-          data={auditRows}
-          columns={auditColumns}
-          title="Audit"
-        />
+        {/* Conversation */}
+        <div className="border-t border-[var(--br)] p-[18px]">
+          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
+            Conversation
+          </p>
+          <h2 className="mb-4 mt-0 text-xl font-semibold text-[var(--b)]">Client and staff chat</h2>
+
+          <div className="grid max-h-[420px] gap-3 overflow-y-auto pr-1">
+            {conversation.length === 0 ? (
+              <div
+                className="rounded-[14px] border border-dashed px-4 py-[18px] text-center text-[13px] leading-relaxed"
+                style={{ borderColor: "var(--br)", background: "var(--off)", color: "var(--text-secondary)" }}
+              >
+                No messages yet. Start the conversation with your staff team here.
+              </div>
+            ) : (
+              conversation.map((message) => (
+                <article
+                  key={message.id}
+                  className={`grid max-w-[85%] gap-2 rounded-[16px] border px-4 py-3 ${
+                    message.authorRole === "CLIENT"
+                      ? "justify-self-end border-[rgba(0,40,104,0.16)] bg-[linear-gradient(180deg,rgba(0,40,104,0.08),rgba(255,255,255,0.98))]"
+                      : "justify-self-start border-[rgba(191,10,48,0.12)] bg-[linear-gradient(180deg,rgba(191,10,48,0.06),rgba(255,255,255,0.98))]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3 text-[11px] text-[var(--text-secondary)]">
+                    <strong style={{ color: "var(--text-primary)" }}>{message.authorName}</strong>
+                    <span>{formatDate(message.createdAt)}</span>
+                  </div>
+                  <p className="m-0 whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text-primary)]">
+                    {message.body}
+                  </p>
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className="mt-4 grid gap-3 border-t border-[var(--br)] pt-4">
+            <label className="grid gap-2">
+              <span className="text-[12px] font-bold text-[var(--text-primary)]">New message</span>
+              <textarea
+                value={chatDraft}
+                onChange={(event) => setChatDraft(event.target.value)}
+                className="min-h-[140px] w-full resize-y rounded-[12px] border border-[var(--br)] px-[14px] py-3 font-[inherit] text-[13px] leading-relaxed text-[var(--text-primary)] outline-none focus:border-[var(--b)]"
+                placeholder="Write a message for staff about this filing."
+              />
+            </label>
+            <div className="flex flex-wrap justify-end gap-[10px]">
+              <button
+                type="button"
+                onClick={() => setChatDraft("")}
+                disabled={chatBusy || !chatDraft.trim()}
+                className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => void sendChatMessage()}
+                disabled={chatBusy || !chatDraft.trim()}
+                className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ background: "var(--b)" }}
+              >
+                {chatBusy ? "Sending..." : "Send message"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Audit */}
+        {canViewAudit ? (
+          <div className="border-t border-[var(--br)] p-[18px]">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
+              Audit
+            </p>
+            <h2 className="mb-4 mt-0 text-xl font-semibold text-[var(--b)]">Audit log</h2>
+            <DashboardTable data={auditRows} columns={auditColumns} title="Audit" />
+          </div>
+        ) : null}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-[var(--br)] p-[18px] text-[13px] text-[var(--text-secondary)]">
+          <span>Edit gallons inline from the table above.</span>
+          <Link href={backHref} className="font-semibold text-[var(--b)] hover:text-[var(--r)]">
+            Back to IFTAs
+          </Link>
+        </div>
+      </section>
+
+      {/* Upload modal */}
+      {documentModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-5 py-6"
+          style={{ background: "rgba(0,26,69,0.32)", backdropFilter: "blur(6px)" }}
+          onClick={() => {
+            if (documentBusy) return;
+            setDocumentModalOpen(false);
+            setDocumentFile(null);
+          }}
+        >
+          <div
+            className="grid w-full max-w-[520px] gap-4 rounded-[18px] border border-[var(--br)] p-[18px] shadow-[0_18px_40px_rgba(0,26,69,0.18)]"
+            style={{ background: "rgba(255,255,255,0.98)" }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="mb-0 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">Files</p>
+                <h2 className="m-0 text-xl font-semibold text-[var(--b)]">Upload document</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setDocumentModalOpen(false); setDocumentFile(null); }}
+                disabled={documentBusy}
+                className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Close
+              </button>
+            </div>
+
+            <label className="grid gap-2">
+              <span className="text-[12px] font-bold text-[var(--text-primary)]">Document file</span>
+              <input
+                ref={documentInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => documentInputRef.current?.click()}
+                  disabled={documentBusy}
+                  className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Choose file
+                </button>
+                <span className="text-[12px] text-[var(--text-primary)]">
+                  {documentFile ? documentFile.name : "No file selected"}
+                </span>
+              </div>
+              <span className="text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                Attach any supporting documents for this filing (fuel receipts, ELD reports, etc.).
+              </span>
+            </label>
+
+            <div className="flex flex-wrap justify-end gap-[10px]">
+              <button
+                type="button"
+                onClick={() => { setDocumentModalOpen(false); setDocumentFile(null); }}
+                disabled={documentBusy}
+                className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleUploadDocument()}
+                disabled={!documentFile || documentBusy}
+                className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ background: "var(--b)" }}
+              >
+                {documentBusy ? "Uploading..." : "Upload"}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
-
-      <div className="flex items-center justify-between text-sm text-zinc-500">
-        <span>Edit gallons inline from the table action.</span>
-        <Link href={backHref} className="font-medium text-zinc-700 hover:text-zinc-950">
-          Back to IFTAs
-        </Link>
-      </div>
-    </section>
+    </>
   );
 }

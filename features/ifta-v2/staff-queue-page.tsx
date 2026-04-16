@@ -1,28 +1,27 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import {
-  assignedReviewerLabel,
   type EldProviderCode,
   type FilingListItem,
   filingStatusLabel,
   filingPeriodLabel,
   filingTone,
   formatDateTime,
+  iftaVisibleStatusLabel,
+  iftaVisibleStatusOrder,
+  type IftaVisibleStatus,
   isStaffQueueFilingStatus,
   providerLabel,
-  unifiedStatusForIftaFiling,
+  tenantCompanyName,
+  visibleStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
-import {
-  unifiedWorkflowStatusOrder,
-  type UnifiedWorkflowStatus,
-} from "@/lib/ui/unified-workflow-status";
 
 type Notice = {
   tone: "success" | "error" | "info";
@@ -120,7 +119,6 @@ function SortHeaderButton({
 }
 
 export default function IftaAutomationStaffQueuePage() {
-  const router = useRouter();
   const { data: session } = useSession();
   const currentUserId = session?.user?.id ?? null;
   const [filings, setFilings] = useState<FilingListItem[]>([]);
@@ -128,7 +126,7 @@ export default function IftaAutomationStaffQueuePage() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
+  const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [providerFilter, setProviderFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState("");
   const [sortKey, setSortKey] = useState<StaffQueueSortKey>("updated");
@@ -164,8 +162,8 @@ export default function IftaAutomationStaffQueuePage() {
 
   const availableStatuses = useMemo(
     () =>
-      unifiedWorkflowStatusOrder.filter((status) =>
-        queueFilings.some((filing) => unifiedStatusForIftaFiling(filing.status) === status),
+      iftaVisibleStatusOrder.filter((status) =>
+        queueFilings.some((filing) => visibleStatusForIftaFiling(filing.status) === status),
       ),
     [queueFilings],
   );
@@ -185,7 +183,7 @@ export default function IftaAutomationStaffQueuePage() {
   const filteredFilings = useMemo(() => {
     const query = search.trim().toLowerCase();
     const nextFilings = queueFilings.filter((filing) => {
-      if (statusFilter && unifiedStatusForIftaFiling(filing.status) !== statusFilter) {
+      if (statusFilter && visibleStatusForIftaFiling(filing.status) !== statusFilter) {
         return false;
       }
 
@@ -210,6 +208,7 @@ export default function IftaAutomationStaffQueuePage() {
       }
 
       const searchableText = [
+        tenantCompanyName(filing.tenant),
         filing.tenant?.name,
         filingPeriodLabel(filing),
         filing.status,
@@ -229,7 +228,7 @@ export default function IftaAutomationStaffQueuePage() {
 
       switch (sortKey) {
         case "carrier":
-          comparison = (left.tenant?.name || "").localeCompare(right.tenant?.name || "");
+          comparison = tenantCompanyName(left.tenant).localeCompare(tenantCompanyName(right.tenant));
           break;
         case "period":
           if (left.year !== right.year) {
@@ -250,12 +249,7 @@ export default function IftaAutomationStaffQueuePage() {
           );
           break;
         case "reviewer":
-          comparison = assignedReviewerLabel(
-            left.assignedStaffUserId,
-            currentUserId,
-          ).localeCompare(
-            assignedReviewerLabel(right.assignedStaffUserId, currentUserId),
-          );
+          comparison = assignedStaffLabel(left).localeCompare(assignedStaffLabel(right));
           break;
         case "exceptions":
           comparison = (left._count?.exceptions ?? 0) - (right._count?.exceptions ?? 0);
@@ -326,26 +320,30 @@ export default function IftaAutomationStaffQueuePage() {
     setSortDirection(safeDirection);
   }
 
-  async function handleOpenQueueFiling(filing: FilingListItem) {
-    if (filing.status === "APPROVED") {
-      router.push(`/dashboard/ifta-v2/${filing.id}`);
-      return;
-    }
+  function assignedStaffLabel(filing: FilingListItem) {
+    return (
+      filing.assignedStaff?.name?.trim() ||
+      filing.assignedStaff?.email ||
+      "Unassigned"
+    );
+  }
 
-    const actionKey = `review:${filing.id}`;
+  async function assignToMe(filingId: string) {
+    const actionKey = `claim:${filingId}`;
     setBusyAction(actionKey);
     setNotice(null);
 
     try {
-      await requestJson(`/api/v1/features/ifta-v2/filings/${filing.id}/start-review`, {
+      await requestJson(`/api/v1/features/ifta-v2/filings/${filingId}/claim`, {
         method: "POST",
       });
-      router.push(`/dashboard/ifta-v2/${filing.id}`);
+      await loadFilings();
     } catch (error) {
       setNotice({
         tone: "error",
-        text: error instanceof Error ? error.message : "Could not open this filing for review.",
+        text: error instanceof Error ? error.message : "Could not assign this filing.",
       });
+    } finally {
       setBusyAction(null);
     }
   }
@@ -423,14 +421,14 @@ export default function IftaAutomationStaffQueuePage() {
               <select
                 value={statusFilter}
                 onChange={(event) =>
-                  setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                  setStatusFilter(event.target.value as "" | IftaVisibleStatus)
                 }
                 className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
               >
                 <option value="">All statuses</option>
                 {availableStatuses.map((status) => (
                   <option key={status} value={status}>
-                    {filingStatusLabel(status)}
+                    {iftaVisibleStatusLabel(status)}
                   </option>
                 ))}
               </select>
@@ -662,15 +660,12 @@ export default function IftaAutomationStaffQueuePage() {
                 </thead>
 
                 <tbody className="divide-y">
-                  {paginatedFilings.items.map((filing) => {
-                    const actionKey = `review:${filing.id}`;
-
-                    return (
+                  {paginatedFilings.items.map((filing) => (
                       <tr key={filing.id} className="transition-colors hover:bg-zinc-50/70">
                         <td className="px-6 py-4">
                           <div className="min-w-0">
                             <div className="text-sm font-medium text-zinc-900">
-                              {filing.tenant?.name || "Carrier"}
+                              {tenantCompanyName(filing.tenant)}
                             </div>
                             <div className="mt-1 text-xs text-zinc-500">{filing.tenantId}</div>
                           </div>
@@ -692,7 +687,7 @@ export default function IftaAutomationStaffQueuePage() {
                           {providerLabel(filing.integrationAccount?.provider)}
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-700">
-                          {assignedReviewerLabel(filing.assignedStaffUserId, currentUserId)}
+                          {assignedStaffLabel(filing)}
                         </td>
                         <td className="px-6 py-4 text-sm text-zinc-700">
                           {(filing._count?.exceptions ?? 0).toLocaleString("en-US")}
@@ -701,24 +696,30 @@ export default function IftaAutomationStaffQueuePage() {
                           {formatDateTime(filing.updatedAt || filing.lastCalculatedAt)}
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex justify-end">
+                          <div className="flex justify-end gap-2">
                             <button
                               type="button"
-                              onClick={() => void handleOpenQueueFiling(filing)}
-                              disabled={busyAction === actionKey}
-                              className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60"
+                              title={filing.assignedStaffUserId === currentUserId ? "Already assigned to you" : "Assign to me"}
+                              onClick={() => void assignToMe(filing.id)}
+                              disabled={busyAction === `claim:${filing.id}` || filing.assignedStaffUserId === currentUserId}
+                              className={iconButtonClasses({
+                                variant: "default",
+                                className: filing.assignedStaffUserId === currentUserId ? "opacity-40" : undefined,
+                              })}
                             >
-                              {busyAction === actionKey
-                                ? "Opening..."
-                                : filing.status === "APPROVED"
-                                  ? "Open"
-                                  : "Review"}
+                              <ActionIcon name="roles" />
                             </button>
+                            <Link
+                              href={`/dashboard/ifta-v2/${filing.id}`}
+                              title="Open filing"
+                              className={iconButtonClasses({ variant: "dark" })}
+                            >
+                              <ActionIcon name="view" />
+                            </Link>
                           </div>
                         </td>
                       </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>

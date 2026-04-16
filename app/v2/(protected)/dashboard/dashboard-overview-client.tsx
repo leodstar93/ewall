@@ -8,7 +8,6 @@ import DataTable from "./components/ui/DataTable";
 import styles from "./page.module.css";
 import type { Item } from "@/lib/types";
 import type { BadgeTone } from "@/lib/ui/status-utils";
-import { unifiedWorkflowStatusTone } from "@/lib/ui/unified-workflow-status";
 import type { TruckRecord } from "@/features/trucks/shared";
 import {
   filingStatusLabel as ucrFilingStatusLabel,
@@ -19,8 +18,9 @@ import {
 } from "@/features/ucr/shared";
 import {
   filingStatusLabel as iftaFilingStatusLabel,
-  unifiedStatusForIftaFiling,
+  iftaVisibleStatusTone,
   type FilingListItem,
+  visibleStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import type { CompanyProfileFormData } from "@/components/settings/company/companyProfileTypes";
 
@@ -68,11 +68,11 @@ function toItemStatusFromUcr(filing: UcrFiling) {
 }
 
 function toItemStatusFromIfta(status: string) {
-  const visibleStatus = unifiedStatusForIftaFiling(status);
+  const visibleStatus = visibleStatusForIftaFiling(status);
 
   return {
     label: iftaFilingStatusLabel(status),
-    tone: unifiedWorkflowStatusTone(visibleStatus),
+    tone: iftaVisibleStatusTone(visibleStatus),
   };
 }
 

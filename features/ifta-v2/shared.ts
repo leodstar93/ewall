@@ -64,6 +64,11 @@ export type FilingListItem = {
   providerMode: string | null;
   submittedByUserId: string | null;
   assignedStaffUserId: string | null;
+  assignedStaff?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  } | null;
   periodStart: string;
   periodEnd: string;
   updatedAt: string;
@@ -241,6 +246,8 @@ export type FilingDetail = FilingListItem & {
   documents: IftaAutomationDocument[];
 };
 
+export type IftaVisibleStatus = UnifiedWorkflowStatus | "NEEDS_ATTENTION";
+
 export function toNumber(value: string | number | null | undefined) {
   if (typeof value === "number") return value;
   if (typeof value === "string" && value.trim()) return Number(value);
@@ -308,6 +315,22 @@ export function filingPeriodLabel(filing: Pick<FilingListItem, "year" | "quarter
   return `${filing.year} ${quarterLabel(filing.quarter)}`;
 }
 
+export function tenantCompanyName(
+  tenant:
+    | { legalName?: string | null; companyName?: string | null; dbaName?: string | null; name?: string | null }
+    | null
+    | undefined,
+) {
+  if (!tenant) return "Carrier";
+  return (
+    tenant.legalName?.trim() ||
+    tenant.companyName?.trim() ||
+    tenant.dbaName?.trim() ||
+    tenant.name?.trim() ||
+    "Carrier"
+  );
+}
+
 export function statusLabel(value: string | null | undefined) {
   if (!value) return "Unknown";
   return value
@@ -334,29 +357,43 @@ export function severityTone(severity: string): BadgeTone {
 }
 
 export function filingTone(status: string) {
-  return unifiedWorkflowStatusTone(unifiedStatusForIftaFiling(status));
+  return iftaVisibleStatusTone(visibleStatusForIftaFiling(status));
 }
 
 export function filingStatusLabel(status: string | null | undefined) {
-  return unifiedWorkflowStatusLabel(unifiedStatusForIftaFiling(status));
+  return iftaVisibleStatusLabel(visibleStatusForIftaFiling(status));
 }
 
 export function iftaAutomationDocumentTypeLabel(type: string | null | undefined) {
   switch ((type || "").trim().toLowerCase()) {
+    // IFTA-specific types (current)
+    case "ifta-payment-receipt":
+      return "IFTA — Payment Receipt";
+    case "ifta-pdf-document":
+      return "IFTA — PDF Document";
+    case "ifta-image-document":
+      return "IFTA — Image";
+    case "ifta-spreadsheet-document":
+      return "IFTA — Spreadsheet";
+    case "ifta-text-document":
+      return "IFTA — Text Document";
+    case "ifta-supporting-document":
+      return "IFTA — Supporting Document";
+    // Legacy MIME-only types (backwards compat)
     case "pdf-document":
-      return "PDF document";
+      return "IFTA — PDF Document";
     case "image-document":
-      return "Image document";
+      return "IFTA — Image";
     case "spreadsheet-document":
-      return "Spreadsheet document";
+      return "IFTA — Spreadsheet";
     case "text-document":
-      return "Text document";
+      return "IFTA — Text Document";
     case "video-document":
-      return "Video document";
+      return "IFTA — Video";
     case "general-document":
-      return "Supporting document";
+      return "IFTA — Supporting Document";
     default:
-      return (type || "Supporting document")
+      return (type || "IFTA — Supporting Document")
         .replace(/[-_]+/g, " ")
         .replace(/\s+/g, " ")
         .trim()
@@ -387,6 +424,42 @@ export function unifiedStatusForIftaFiling(
     default:
       return "DRAFT";
   }
+}
+
+export const iftaVisibleStatusOrder: IftaVisibleStatus[] = [
+  "DRAFT",
+  "NEEDS_ATTENTION",
+  "SUBMITTED",
+  "IN_PROCESS",
+  "PENDING_PAYMENT",
+  "APPROVED",
+  "FINALIZED",
+];
+
+export function visibleStatusForIftaFiling(
+  status: string | null | undefined,
+): IftaVisibleStatus {
+  if (status === "CHANGES_REQUESTED") {
+    return "NEEDS_ATTENTION";
+  }
+
+  return unifiedStatusForIftaFiling(status);
+}
+
+export function iftaVisibleStatusLabel(status: IftaVisibleStatus) {
+  if (status === "NEEDS_ATTENTION") {
+    return "Need attention";
+  }
+
+  return unifiedWorkflowStatusLabel(status);
+}
+
+export function iftaVisibleStatusTone(status: IftaVisibleStatus): BadgeTone {
+  if (status === "NEEDS_ATTENTION") {
+    return "warning";
+  }
+
+  return unifiedWorkflowStatusTone(status);
 }
 
 export function openExceptionCount(filing: Pick<FilingDetail, "exceptions"> | Pick<FilingListItem, "_count">) {

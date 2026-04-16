@@ -15,15 +15,14 @@ import {
   formatGallons,
   formatMoney,
   formatNumber,
+  iftaVisibleStatusLabel,
+  iftaVisibleStatusOrder,
+  type IftaVisibleStatus,
   providerLabel,
-  unifiedStatusForIftaFiling,
+  visibleStatusForIftaFiling,
   type EldProviderCode,
   type FilingListItem,
 } from "@/features/ifta-v2/shared";
-import {
-  unifiedWorkflowStatusOrder,
-  type UnifiedWorkflowStatus,
-} from "@/lib/ui/unified-workflow-status";
 
 type IftaTableRow = FilingListItem & {
   searchableText: string;
@@ -95,7 +94,7 @@ export default function IftaV2DashboardClient() {
   const [createYear, setCreateYear] = useState(String(currentQuarter.year));
   const [createQuarter, setCreateQuarter] = useState(String(currentQuarter.quarter));
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
+  const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [providerFilter, setProviderFilter] = useState<"" | EldProviderCode>("");
   const deferredSearch = useDeferredValue(search);
 
@@ -204,8 +203,8 @@ export default function IftaV2DashboardClient() {
     }
   }
 
-  const availableStatuses = unifiedWorkflowStatusOrder.filter((status) =>
-    filings.some((item) => unifiedStatusForIftaFiling(item.status) === status),
+  const availableStatuses = iftaVisibleStatusOrder.filter((status) =>
+    filings.some((item) => visibleStatusForIftaFiling(item.status) === status),
   );
   const availableProviders = Array.from(
     new Set(
@@ -222,7 +221,7 @@ export default function IftaV2DashboardClient() {
       return false;
     }
 
-    if (statusFilter && unifiedStatusForIftaFiling(item.status) !== statusFilter) {
+    if (statusFilter && visibleStatusForIftaFiling(item.status) !== statusFilter) {
       return false;
     }
 
@@ -532,18 +531,18 @@ export default function IftaV2DashboardClient() {
                   Status
                 </span>
                 <select
-                  value={statusFilter}
-                  onChange={(event) =>
-                    setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
-                  }
+                value={statusFilter}
+                onChange={(event) =>
+                    setStatusFilter(event.target.value as "" | IftaVisibleStatus)
+                }
                   style={fieldStyle}
                 >
-                  <option value="">All statuses</option>
-                  {availableStatuses.map((item) => (
-                    <option key={item} value={item}>
-                      {filingStatusLabel(item)}
-                    </option>
-                  ))}
+                <option value="">All statuses</option>
+                {availableStatuses.map((item) => (
+                  <option key={item} value={item}>
+                    {iftaVisibleStatusLabel(item)}
+                  </option>
+                ))}
                 </select>
               </label>
 

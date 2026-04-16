@@ -8,21 +8,20 @@ import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef } from "../../components/ui/Table";
 import tableStyles from "../../components/ui/DataTable.module.css";
 import {
-  assignedReviewerLabel,
   type EldProviderCode,
   type FilingListItem,
   filingStatusLabel,
   filingPeriodLabel,
   filingTone,
+  iftaVisibleStatusLabel,
+  iftaVisibleStatusOrder,
+  type IftaVisibleStatus,
   formatDateTime,
   isStaffQueueFilingStatus,
   providerLabel,
-  unifiedStatusForIftaFiling,
+  tenantCompanyName,
+  visibleStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
-import {
-  unifiedWorkflowStatusOrder,
-  type UnifiedWorkflowStatus,
-} from "@/lib/ui/unified-workflow-status";
 
 type IftaProviderFilter = "" | EldProviderCode;
 type IftaAssignmentFilter = "" | "mine" | "unassigned" | "assigned";
@@ -40,8 +39,9 @@ function buildRows(items: FilingListItem[]) {
     .filter((filing) => isStaffQueueFilingStatus(filing.status))
     .map<IftaTableRow>((filing) => ({
       ...filing,
-      carrierName: filing.tenant?.name || "Carrier",
+      carrierName: tenantCompanyName(filing.tenant),
       searchableText: [
+        tenantCompanyName(filing.tenant),
         filing.tenant?.name || "",
         filingPeriodLabel(filing),
         filing.status,
@@ -68,7 +68,7 @@ export default function IftaV2AdminClient() {
   const [busyFilingId, setBusyFilingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
+  const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [providerFilter, setProviderFilter] = useState<IftaProviderFilter>("");
   const [assignmentFilter, setAssignmentFilter] = useState<IftaAssignmentFilter>("");
 
@@ -119,8 +119,8 @@ export default function IftaV2AdminClient() {
 
   const availableStatuses = useMemo(
     () =>
-      unifiedWorkflowStatusOrder.filter((status) =>
-        items.some((item) => unifiedStatusForIftaFiling(item.status) === status),
+      iftaVisibleStatusOrder.filter((status) =>
+        items.some((item) => visibleStatusForIftaFiling(item.status) === status),
       ),
     [items],
   );
@@ -141,7 +141,7 @@ export default function IftaV2AdminClient() {
     const query = deferredSearch.trim().toLowerCase();
 
     return items.filter((item) => {
-      if (statusFilter && unifiedStatusForIftaFiling(item.status) !== statusFilter) {
+      if (statusFilter && visibleStatusForIftaFiling(item.status) !== statusFilter) {
         return false;
       }
 
@@ -169,31 +169,32 @@ export default function IftaV2AdminClient() {
     });
   }, [assignmentFilter, currentUserId, deferredSearch, items, providerFilter, statusFilter]);
 
-  async function openQueueFiling(filing: IftaTableRow) {
-    if (filing.status === "APPROVED") {
-      router.push(`/v2/admin/features/ifta-v2/${filing.id}`);
-      return;
-    }
+  function openQueueFiling(filing: IftaTableRow) {
+    router.push(`/v2/admin/features/ifta-v2/${filing.id}`);
+  }
 
+  async function assignToMe(filing: IftaTableRow) {
     try {
       setBusyFilingId(filing.id);
       setError("");
 
-      const response = await fetch(`/api/v1/features/ifta-v2/filings/${filing.id}/start-review`, {
+      const response = await fetch(`/api/v1/features/ifta-v2/filings/${filing.id}/claim`, {
         method: "POST",
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
       if (!response.ok) {
-        throw new Error(payload.error || "Could not open this filing for review.");
+        throw new Error(payload.error || "Could not assign this filing.");
       }
 
-      router.push(`/v2/admin/features/ifta-v2/${filing.id}`);
+      const reload = await fetch("/api/v1/features/ifta-v2/filings", { cache: "no-store" });
+      const data = (await reload.json().catch(() => ({}))) as { filings?: FilingListItem[] };
+      setItems(buildRows(Array.isArray(data.filings) ? data.filings : []));
     } catch (actionError) {
       setError(
         actionError instanceof Error
           ? actionError.message
-          : "Could not open this filing for review.",
+          : "Could not assign this filing.",
       );
     } finally {
       setBusyFilingId(null);
@@ -242,7 +243,9 @@ export default function IftaV2AdminClient() {
             className={tableStyles.nameCell}
             title={item.assignedStaffUserId || "No staff assignment yet"}
           >
-            {assignedReviewerLabel(item.assignedStaffUserId, currentUserId)}
+            {item.assignedStaff?.name?.trim() ||
+              item.assignedStaff?.email ||
+              "Unassigned"}
           </div>
         ),
       },
@@ -276,23 +279,32 @@ export default function IftaV2AdminClient() {
         label: "Actions",
         sortable: false,
         render: (_, item) => (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <button
               type="button"
-              onClick={() => void openQueueFiling(item)}
-              disabled={busyFilingId === item.id}
-              aria-label={busyFilingId === item.id ? "Opening filing" : item.status === "APPROVED" ? "Open filing" : "Review filing"}
-              title={busyFilingId === item.id ? "Opening filing" : item.status === "APPROVED" ? "Open filing" : "Review filing"}
+              onClick={() => void assignToMe(item)}
+              disabled={busyFilingId === item.id || item.assignedStaffUserId === currentUserId}
+              aria-label="Assign to me"
+              title={item.assignedStaffUserId === currentUserId ? "Already assigned to you" : "Assign to me"}
               className={iconButtonClasses({
-                variant: "dark",
-                className: busyFilingId === item.id ? "opacity-60" : undefined,
+                variant: "default",
+                className: (busyFilingId === item.id || item.assignedStaffUserId === currentUserId) ? "opacity-40" : undefined,
               })}
             >
               {busyFilingId === item.id ? (
                 <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
               ) : (
-                <ActionIcon name="view" />
+                <ActionIcon name="roles" />
               )}
+            </button>
+            <button
+              type="button"
+              onClick={() => openQueueFiling(item)}
+              aria-label="Open filing"
+              title="Open filing"
+              className={iconButtonClasses({ variant: "dark" })}
+            >
+              <ActionIcon name="view" />
             </button>
           </div>
         ),
@@ -382,7 +394,7 @@ export default function IftaV2AdminClient() {
                 <select
                   value={statusFilter}
                   onChange={(event) =>
-                    setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                    setStatusFilter(event.target.value as "" | IftaVisibleStatus)
                   }
                   style={{
                     border: "1px solid var(--br)",
@@ -398,7 +410,7 @@ export default function IftaV2AdminClient() {
                   <option value="">All statuses</option>
                   {availableStatuses.map((status) => (
                     <option key={status} value={status}>
-                      {filingStatusLabel(status)}
+                      {iftaVisibleStatusLabel(status)}
                     </option>
                   ))}
                 </select>

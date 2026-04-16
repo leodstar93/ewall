@@ -27,6 +27,7 @@ import {
   providerLabel,
   severityTone,
   statusLabel,
+  tenantCompanyName,
 } from "@/features/ifta-v2/shared";
 
 type FilingDetailPanelProps = {
@@ -325,6 +326,7 @@ export function FilingDetailPanel({
   const canApprove =
     mode === "staff" &&
     !hasOpenBlockingOrError &&
+    filing.status !== "CHANGES_REQUESTED" &&
     filing.status !== "APPROVED" &&
     filing.status !== "ARCHIVED";
   const canReopen = mode === "staff" && filing.status === "APPROVED";
@@ -604,7 +606,7 @@ export function FilingDetailPanel({
               ) : null}
             </div>
             <h2 className="mt-3 text-2xl font-semibold text-gray-950">
-              {filing.tenant?.name || "Tenant"} - {filingPeriodLabel(filing)}
+              {tenantCompanyName(filing.tenant)} - {filingPeriodLabel(filing)}
             </h2>
             <p className="mt-2 max-w-3xl text-sm text-gray-600">
               {detailDescription}
@@ -778,33 +780,35 @@ export function FilingDetailPanel({
             )}
 
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
-                    Files
+              <div className="px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
+                      Files
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-gray-950">
+                        Documents
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setDocumentModalOpen(true)}
+                        disabled={documentBusy}
+                        aria-label="Upload document"
+                        title="Upload document"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-600 text-lg font-semibold leading-none text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-1 flex items-center gap-2">
-                    <h3 className="text-base font-semibold text-gray-950">
-                      Documents
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => setDocumentModalOpen(true)}
-                      disabled={documentBusy}
-                      aria-label="Upload document"
-                      title="Upload document"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-600 text-lg font-semibold leading-none text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      +
-                    </button>
+                  <div className="text-xs text-gray-500">
+                    {documentRows.length} record{documentRows.length === 1 ? "" : "s"}
                   </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {documentRows.length} record{documentRows.length === 1 ? "" : "s"}
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto border-t border-gray-200">
                 <table className="min-w-full border-collapse text-sm">
                   <thead
                     className="text-left text-xs uppercase tracking-[0.08em] text-white/80"
@@ -840,7 +844,7 @@ export function FilingDetailPanel({
                           <td className="px-4 py-3">
                             <a
                               href={row.href}
-                              className="text-sm font-medium text-gray-700 underline-offset-2 transition hover:text-gray-950 hover:underline"
+                              className="text-sm font-semibold text-[var(--b)] transition hover:text-[var(--r)]"
                             >
                               Download
                             </a>
@@ -851,10 +855,8 @@ export function FilingDetailPanel({
                   </tbody>
                 </table>
               </div>
-            </div>
 
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-              <div className="border-b border-gray-200 px-5 py-4">
+              <div className="border-t border-gray-200 px-5 py-4">
                 <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
                   Conversation
                 </div>
@@ -863,7 +865,7 @@ export function FilingDetailPanel({
                 </h3>
               </div>
 
-              <div className="space-y-4 px-5 py-5">
+              <div className="space-y-4 border-t border-gray-200 px-5 py-5">
                 <div className="grid gap-3">
                   {conversation.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-500">
@@ -929,61 +931,61 @@ export function FilingDetailPanel({
                   </div>
                 </div>
               </div>
-            </div>
 
-            {mode === "staff" ? (
-              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                <div className="border-b border-gray-200 px-5 py-4">
-                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
-                    Audit
+              {mode === "staff" ? (
+                <>
+                  <div className="border-t border-gray-200 px-5 py-4">
+                    <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
+                      Audit
+                    </div>
+                    <h3 className="mt-1 text-base font-semibold text-gray-950">
+                      Audit
+                    </h3>
                   </div>
-                  <h3 className="mt-1 text-base font-semibold text-gray-950">
-                    Audit
-                  </h3>
-                </div>
 
-                <div className="max-h-80 overflow-auto">
-                  <table className="min-w-full border-collapse text-sm">
-                    <thead
-                      className="text-left text-xs uppercase tracking-[0.08em] text-white/80"
-                      style={{ background: "var(--b)" }}
-                    >
-                      <tr>
-                        <th className="px-4 py-3 font-medium">Event</th>
-                        <th className="px-4 py-3 font-medium">Details</th>
-                        <th className="px-4 py-3 font-medium">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {auditRows.length === 0 ? (
+                  <div className="max-h-80 overflow-auto border-t border-gray-200">
+                    <table className="min-w-full border-collapse text-sm">
+                      <thead
+                        className="text-left text-xs uppercase tracking-[0.08em] text-white/80"
+                        style={{ background: "var(--b)" }}
+                      >
                         <tr>
-                          <td
-                            colSpan={3}
-                            className="px-4 py-6 text-center text-sm text-gray-500"
-                          >
-                            No audit events yet.
-                          </td>
+                          <th className="px-4 py-3 font-medium">Event</th>
+                          <th className="px-4 py-3 font-medium">Details</th>
+                          <th className="px-4 py-3 font-medium">Date</th>
                         </tr>
-                      ) : (
-                        auditRows.map((row) => (
-                          <tr key={row.id} className="border-t border-gray-200">
-                            <td className="px-4 py-3 font-medium text-gray-900">
-                              {row.event}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600">
-                              {row.detail}
-                            </td>
-                            <td className="px-4 py-3 text-gray-600">
-                              {row.createdAt}
+                      </thead>
+                      <tbody>
+                        {auditRows.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={3}
+                              className="px-4 py-6 text-center text-sm text-gray-500"
+                            >
+                              No audit events yet.
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : null}
+                        ) : (
+                          auditRows.map((row) => (
+                            <tr key={row.id} className="border-t border-gray-200">
+                              <td className="px-4 py-3 font-medium text-gray-900">
+                                {row.event}
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">
+                                {row.detail}
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">
+                                {row.createdAt}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         ) : null}
 

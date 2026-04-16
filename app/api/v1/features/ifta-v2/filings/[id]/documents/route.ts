@@ -64,6 +64,7 @@ export async function POST(
 
     const formData = await request.formData();
     const file = formData.get("file");
+    const typeOverride = formData.get("type");
 
     if (!(file instanceof File)) {
       return Response.json({ error: "File is required." }, { status: 400 });
@@ -74,6 +75,7 @@ export async function POST(
       actorUserId: userId,
       actorRole: resolveActorRole(guard.session.user.roles),
       file,
+      overrideType: typeof typeOverride === "string" && typeOverride.trim() ? typeOverride.trim() : null,
     });
 
     return Response.json({ document }, { status: 201 });

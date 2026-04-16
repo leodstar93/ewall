@@ -18,13 +18,12 @@ import {
   formatGallons,
   formatMoney,
   formatNumber,
-  unifiedStatusForIftaFiling,
+  iftaVisibleStatusLabel,
+  iftaVisibleStatusOrder,
+  type IftaVisibleStatus,
+  visibleStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
-import {
-  unifiedWorkflowStatusOrder,
-  type UnifiedWorkflowStatus,
-} from "@/lib/ui/unified-workflow-status";
 
 type Notice = {
   tone: "success" | "error" | "info";
@@ -164,7 +163,7 @@ export default function IftaAutomationTruckerPage({
   const [createQuarter, setCreateQuarter] = useState(String(currentQuarter.quarter));
   const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"" | UnifiedWorkflowStatus>("");
+  const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [sortKey, setSortKey] = useState<FilingSortKey>("period");
   const [sortDirection, setSortDirection] = useState<FilingSortDirection>("desc");
   const [page, setPage] = useState(1);
@@ -195,7 +194,7 @@ export default function IftaAutomationTruckerPage({
   const filteredFilings = useMemo(() => {
     const query = search.trim().toLowerCase();
     const nextFilings = filings.filter((filing) => {
-      if (statusFilter && unifiedStatusForIftaFiling(filing.status) !== statusFilter) {
+      if (statusFilter && visibleStatusForIftaFiling(filing.status) !== statusFilter) {
         return false;
       }
 
@@ -263,8 +262,8 @@ export default function IftaAutomationTruckerPage({
 
   const availableStatuses = useMemo(
     () =>
-      unifiedWorkflowStatusOrder.filter((status) =>
-        filings.some((filing) => unifiedStatusForIftaFiling(filing.status) === status),
+      iftaVisibleStatusOrder.filter((status) =>
+        filings.some((filing) => visibleStatusForIftaFiling(filing.status) === status),
       ),
     [filings],
   );
@@ -495,14 +494,14 @@ export default function IftaAutomationTruckerPage({
               <select
                 value={statusFilter}
                 onChange={(event) =>
-                  setStatusFilter(event.target.value as "" | UnifiedWorkflowStatus)
+                  setStatusFilter(event.target.value as "" | IftaVisibleStatus)
                 }
                 className="w-full rounded-2xl border bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900/10"
               >
                 <option value="">All statuses</option>
                 {availableStatuses.map((status) => (
                   <option key={status} value={status}>
-                    {filingStatusLabel(status)}
+                    {iftaVisibleStatusLabel(status)}
                   </option>
                 ))}
               </select>
