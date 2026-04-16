@@ -510,6 +510,32 @@
   background: #fcfdff;
 }
 
+.field input:disabled {
+  cursor: not-allowed;
+  background: #f5f7fb;
+  color: #7a879d;
+}
+
+.checkboxField {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding-top: 28px;
+}
+
+.checkboxField input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: #0e4aa8;
+}
+
+.checkboxField span {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .uppercaseInput {
   text-transform: uppercase;
 }

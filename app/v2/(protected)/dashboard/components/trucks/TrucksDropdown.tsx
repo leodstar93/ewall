@@ -27,11 +27,14 @@ export type DashboardTruckRow = {
 type TruckTableRow = DashboardTruckRow & {
   searchText: string;
   sortUnit: string;
-  sortIdentifier: string;
+  sortPlate: string;
+  sortVin: string;
 };
 
 type TruckFormState = {
   unitNumber: string;
+  plateNumber: string;
+  hasNoPlate: boolean;
   vin: string;
   make: string;
   modelName: string;
@@ -47,6 +50,8 @@ const NUM_CLASS: Record<TruckStatus, string> = {
 
 const emptyForm: TruckFormState = {
   unitNumber: "",
+  plateNumber: "",
+  hasNoPlate: false,
   vin: "",
   make: "",
   modelName: "",
@@ -79,13 +84,16 @@ function buildRows(trucks: DashboardTruckRow[]): TruckTableRow[] {
       .join(" ")
       .toLowerCase(),
     sortUnit: truck.unitNumber,
-    sortIdentifier: truck.identifier,
+    sortPlate: truck.plateNumber || "No plate",
+    sortVin: truck.vin || "No VIN",
   }));
 }
 
 function toFormState(truck: DashboardTruckRow): TruckFormState {
   return {
     unitNumber: truck.unitNumber,
+    plateNumber: truck.plateNumber,
+    hasNoPlate: !truck.plateNumber,
     vin: truck.vin,
     make: truck.make,
     modelName: truck.modelName,
@@ -96,6 +104,7 @@ function toFormState(truck: DashboardTruckRow): TruckFormState {
 function toPayload(form: TruckFormState) {
   return {
     unitNumber: form.unitNumber,
+    plateNumber: form.hasNoPlate ? null : form.plateNumber || null,
     vin: form.vin || null,
     make: form.make || null,
     model: form.modelName || null,
@@ -301,11 +310,20 @@ export default function TrucksDropdown({
       ),
     },
     {
-      key: "sortIdentifier",
-      label: "Plate / VIN",
+      key: "sortPlate",
+      label: "Plate",
       render: (_, truck) => (
         <div className={tableStyles.muteCell} style={{ fontSize: 13 }}>
-          {truck.identifier}
+          {truck.plateNumber || "No plate"}
+        </div>
+      ),
+    },
+    {
+      key: "sortVin",
+      label: "VIN",
+      render: (_, truck) => (
+        <div className={tableStyles.muteCell} style={{ fontSize: 13 }}>
+          {truck.vin || "No VIN"}
         </div>
       ),
     },
@@ -478,6 +496,35 @@ export default function TrucksDropdown({
                     }
                     required
                   />
+                </label>
+                <label className={styles.field}>
+                  <span>Plate</span>
+                  <input
+                    value={form.plateNumber}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        plateNumber: event.target.value.toUpperCase(),
+                        hasNoPlate: false,
+                      }))
+                    }
+                    className={styles.uppercaseInput}
+                    disabled={form.hasNoPlate}
+                  />
+                </label>
+                <label className={`${styles.field} ${styles.checkboxField}`}>
+                  <input
+                    type="checkbox"
+                    checked={form.hasNoPlate}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        hasNoPlate: event.target.checked,
+                        plateNumber: event.target.checked ? "" : current.plateNumber,
+                      }))
+                    }
+                  />
+                  <span>No plate</span>
                 </label>
                 <label className={styles.field}>
                   <span>VIN</span>
