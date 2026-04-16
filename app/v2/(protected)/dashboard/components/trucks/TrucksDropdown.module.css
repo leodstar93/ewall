@@ -128,12 +128,40 @@
   cursor: not-allowed;
 }
 
+.iconActionButton svg {
+  width: 15px;
+  height: 15px;
+}
+
 .iconActionPlus {
   display: inline-block;
   font-size: 18px;
   font-weight: 600;
   line-height: 1;
   transform: translateY(-1px);
+}
+
+.syncActionButton {
+  width: auto;
+  border-color: #c8d5f2;
+  background: linear-gradient(180deg, #ffffff, #eef4ff);
+  color: #002868;
+  gap: 7px;
+  padding: 0 12px;
+  box-shadow: 0 6px 14px rgba(0, 40, 104, 0.12);
+}
+
+.syncActionButton span {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.syncActionButton:hover:not(:disabled) {
+  border-color: #0e4aa8;
+  background: linear-gradient(180deg, #ffffff, #dfeaff);
+  box-shadow: 0 10px 18px rgba(0, 40, 104, 0.18);
 }
 
 .searchBox {
@@ -315,6 +343,7 @@
 }
 
 .busyDot {
+  display: inline-block;
   width: 7px;
   height: 7px;
   border-radius: 999px;
@@ -516,22 +545,44 @@
   color: #7a879d;
 }
 
-.checkboxField {
-  flex-direction: row;
+.plateInputRow {
+  display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 48px;
-  padding-top: 28px;
 }
 
-.checkboxField input {
-  width: 18px;
-  height: 18px;
+.plateInputRow > input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.noPlateCheck {
+  height: 48px;
+  border: 1px solid #d7deec;
+  border-radius: 16px;
+  background: #fff;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: #29426b;
+}
+
+.noPlateCheck input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  padding: 0;
+  margin: 0;
+  border-radius: 4px;
+  box-shadow: none;
   accent-color: #0e4aa8;
 }
 
-.checkboxField span {
+.noPlateCheck span {
   letter-spacing: 0;
   text-transform: none;
 }
@@ -617,6 +668,16 @@
 
   .formGrid {
     grid-template-columns: 1fr;
+  }
+
+  .plateInputRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .noPlateCheck {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .modalActions {

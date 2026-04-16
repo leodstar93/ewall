@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import type { MouseEvent } from "react";
 import Table, { type ColumnDef } from "../ui/Table";
 import tableStyles from "../ui/DataTable.module.css";
 import type { TruckRecord } from "@/features/trucks/shared";
@@ -39,6 +40,17 @@ type TruckFormState = {
   make: string;
   modelName: string;
   year: string;
+  grossWeight: string;
+};
+
+type TrucksPayload = {
+  trucks?: TruckRecord[];
+  error?: string;
+};
+
+type ProviderTruckSyncPayload = {
+  message?: string;
+  error?: string;
 };
 
 const NUM_CLASS: Record<TruckStatus, string> = {
@@ -56,12 +68,14 @@ const emptyForm: TruckFormState = {
   make: "",
   modelName: "",
   year: "",
+  grossWeight: "",
 };
 
 interface Props {
   trucks: DashboardTruckRow[];
   onTruckCreated?: (truck: TruckRecord) => void;
   onTruckHidden?: (truckId: string) => void;
+  onTrucksSynced?: (trucks: TruckRecord[]) => void;
   onTruckUpdated?: (truck: TruckRecord) => void;
 }
 
@@ -98,6 +112,7 @@ function toFormState(truck: DashboardTruckRow): TruckFormState {
     make: truck.make,
     modelName: truck.modelName,
     year: truck.year,
+    grossWeight: truck.grossWeight,
   };
 }
 
@@ -109,6 +124,7 @@ function toPayload(form: TruckFormState) {
     make: form.make || null,
     model: form.modelName || null,
     year: form.year ? Number(form.year) : null,
+    grossWeight: form.grossWeight ? Number(form.grossWeight) : null,
   };
 }
 
@@ -158,10 +174,27 @@ function DeleteIcon() {
   );
 }
 
+function SyncIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M16.5 7.5A6 6 0 0 0 5.4 5.2L3.5 7.5" />
+      <path d="M3.5 4.2v3.3h3.3" />
+      <path d="M3.5 12.5a6 6 0 0 0 11.1 2.3l1.9-2.3" />
+      <path d="M16.5 15.8v-3.3h-3.3" />
+    </svg>
+  );
+}
+
 export default function TrucksDropdown({
   trucks,
   onTruckCreated,
   onTruckHidden,
+  onTrucksSynced,
   onTruckUpdated,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -172,6 +205,7 @@ export default function TrucksDropdown({
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [hidingTruckId, setHidingTruckId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const rows = useMemo(() => buildRows(trucks), [trucks]);
 
@@ -289,6 +323,60 @@ export default function TrucksDropdown({
     }
   }
 
+  async function syncTrucksFromEld(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+
+    try {
+      setSyncing(true);
+      setSaveError("");
+
+      const syncResponse = await fetch(
+        "/api/v1/features/ifta/trucks/sync-provider",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        },
+      );
+      const syncPayload = (await syncResponse
+        .json()
+        .catch(() => ({}))) as ProviderTruckSyncPayload;
+
+      if (!syncResponse.ok) {
+        throw new Error(syncPayload.error || "Could not sync trucks from ELD.");
+      }
+
+      const trucksResponse = await fetch("/api/v1/features/ifta/trucks", {
+        cache: "no-store",
+      });
+      const trucksPayload = (await trucksResponse
+        .json()
+        .catch(() => ({}))) as TrucksPayload;
+
+      if (!trucksResponse.ok) {
+        throw new Error(trucksPayload.error || "Could not refresh trucks.");
+      }
+
+      onTrucksSynced?.(
+        Array.isArray(trucksPayload.trucks) ? trucksPayload.trucks : [],
+      );
+      setOpen(true);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Could not sync trucks from ELD.",
+      );
+      setEditingTruckId(null);
+      setForm(emptyForm);
+      setIsModalOpen(true);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const tableTitle = "";
 
   const columns: ColumnDef<TruckTableRow>[] = [
@@ -390,13 +478,27 @@ export default function TrucksDropdown({
             </span>
             <button
               type="button"
-              onClick={startAdd}
-              disabled={saving}
+              onClick={(event) => {
+                event.stopPropagation();
+                startAdd();
+              }}
+              disabled={saving || syncing}
               className={styles.iconActionButton}
               aria-label="Add truck"
               title="Add truck"
             >
               <span className={styles.iconActionPlus}>+</span>
+            </button>
+            <button
+              type="button"
+              onClick={syncTrucksFromEld}
+              disabled={saving || syncing}
+              className={`${styles.iconActionButton} ${styles.syncActionButton}`}
+              aria-label="Sync Trucks from ELD"
+              title="Sync Trucks from ELD"
+            >
+              {syncing ? <span className={styles.busyDot} /> : <SyncIcon />}
+              <span>{syncing ? "Syncing..." : "Sync"}</span>
             </button>
           </div>
           <div className={styles.triggerRight}>
@@ -497,35 +599,40 @@ export default function TrucksDropdown({
                     required
                   />
                 </label>
-                <label className={styles.field}>
+                <div className={styles.field}>
                   <span>Plate</span>
-                  <input
-                    value={form.plateNumber}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        plateNumber: event.target.value.toUpperCase(),
-                        hasNoPlate: false,
-                      }))
-                    }
-                    className={styles.uppercaseInput}
-                    disabled={form.hasNoPlate}
-                  />
-                </label>
-                <label className={`${styles.field} ${styles.checkboxField}`}>
-                  <input
-                    type="checkbox"
-                    checked={form.hasNoPlate}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        hasNoPlate: event.target.checked,
-                        plateNumber: event.target.checked ? "" : current.plateNumber,
-                      }))
-                    }
-                  />
-                  <span>No plate</span>
-                </label>
+                  <div className={styles.plateInputRow}>
+                    <input
+                      value={form.plateNumber}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          plateNumber: event.target.value.toUpperCase(),
+                          hasNoPlate: false,
+                        }))
+                      }
+                      className={styles.uppercaseInput}
+                      disabled={form.hasNoPlate}
+                      aria-label="Plate"
+                    />
+                    <label className={styles.noPlateCheck}>
+                      <input
+                        type="checkbox"
+                        checked={form.hasNoPlate}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            hasNoPlate: event.target.checked,
+                            plateNumber: event.target.checked
+                              ? ""
+                              : current.plateNumber,
+                          }))
+                        }
+                      />
+                      <span>No plate</span>
+                    </label>
+                  </div>
+                </div>
                 <label className={styles.field}>
                   <span>VIN</span>
                   <input
@@ -572,6 +679,20 @@ export default function TrucksDropdown({
                       setForm((current) => ({
                         ...current,
                         year: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>Gross weight</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.grossWeight}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        grossWeight: event.target.value,
                       }))
                     }
                   />

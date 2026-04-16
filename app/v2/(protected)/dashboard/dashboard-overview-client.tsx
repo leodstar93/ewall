@@ -114,6 +114,14 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
     setTrucks((current) => current.filter((truck) => truck.id !== truckId));
   }
 
+  function handleTrucksSynced(syncedTrucks: TruckRecord[]) {
+    setTrucks(
+      syncedTrucks.sort((left, right) =>
+        left.unitNumber.localeCompare(right.unitNumber),
+      ),
+    );
+  }
+
   function handleTruckCreated(createdTruck: TruckRecord) {
     setTrucks((current) =>
       [...current, createdTruck].sort((left, right) =>
@@ -325,6 +333,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
         trucks={truckRows}
         onTruckCreated={handleTruckCreated}
         onTruckHidden={handleTruckHidden}
+        onTrucksSynced={handleTrucksSynced}
         onTruckUpdated={handleTruckUpdated}
       />
 
