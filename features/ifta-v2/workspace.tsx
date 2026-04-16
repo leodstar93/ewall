@@ -739,7 +739,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
           body: JSON.stringify({ note }),
         });
       },
-      `Change request saved for ${filing.tenant.name}.`,
+      `Need attention saved for ${filing.tenant.name}.`,
       filing.id,
     );
   }
@@ -899,6 +899,22 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
         }
       },
       `Document uploaded for ${filingPeriodLabel(filing)}.`,
+      filing.id,
+    );
+  }
+
+  async function handleSendChatMessage(filing: FilingDetail, message: string) {
+    await runBusyAction(
+      `chat:${filing.id}`,
+      async () => {
+        await requestJson(`/api/v1/features/ifta-v2/filings/${filing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            chatMessage: message,
+          }),
+        });
+      },
+      isStaff ? "Message sent to the client." : "Message sent to the staff team.",
       filing.id,
     );
   }
@@ -1300,6 +1316,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
             onReopen={(filing) => void handleReopen(filing)}
             onDownload={(filing, format) => void handleDownload(filing, format)}
             onUploadDocument={(filing, file) => handleUploadDocument(filing, file)}
+            onSendChatMessage={(filing, message) => handleSendChatMessage(filing, message)}
             onExceptionAction={(filing, exception, action) =>
               void handleExceptionAction(filing, exception, action)
             }

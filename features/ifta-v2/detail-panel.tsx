@@ -44,6 +44,7 @@ type FilingDetailPanelProps = {
   onReopen: (filing: FilingDetail) => void;
   onDownload: (filing: FilingDetail, format: "pdf" | "excel") => void;
   onUploadDocument: (filing: FilingDetail, file: File) => Promise<void>;
+  onSendChatMessage: (filing: FilingDetail, message: string) => Promise<void>;
   onExceptionAction: (
     filing: FilingDetail,
     exception: FilingException,
@@ -114,6 +115,21 @@ type FilingDocumentRow = {
   href: string;
 };
 
+type AuditRow = {
+  id: string;
+  event: string;
+  detail: string;
+  createdAt: string;
+};
+
+type ConversationMessage = {
+  id: string;
+  authorRole: "CLIENT" | "STAFF";
+  authorName: string;
+  body: string;
+  createdAt: string;
+};
+
 const detailTabs: Array<{ value: DetailTab; label: string }> = [
   { value: "overview", label: "Overview" },
   { value: "vehicles", label: "Vehicles" },
@@ -151,6 +167,50 @@ function EmptyPanel({ message }: { message: string }) {
   );
 }
 
+function formatAuditAction(action: string) {
+  return action
+    .replace(/^filing\./, "")
+    .replace(/^exception\./, "exception ")
+    .replace(/^snapshot\./, "snapshot ")
+    .replace(/[._]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildConversation(filing: FilingDetail) {
+  return filing.audits
+    .filter(
+      (audit) =>
+        (audit.action === "filing.chat_message" ||
+          audit.action === "filing.client_message") &&
+        audit.message?.trim(),
+    )
+    .sort(
+      (left, right) =>
+        new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+    )
+    .map((audit) => {
+      const payload = audit.payloadJson ?? {};
+      const authorRole =
+        payload.authorRole === "STAFF" ? ("STAFF" as const) : ("CLIENT" as const);
+      const authorName =
+        typeof payload.authorName === "string" && payload.authorName.trim()
+          ? payload.authorName.trim()
+          : authorRole === "STAFF"
+            ? "Staff"
+            : "Client";
+
+      return {
+        id: audit.id,
+        authorRole,
+        authorName,
+        body: audit.message?.trim() ?? "",
+        createdAt: audit.createdAt,
+      } satisfies ConversationMessage;
+    });
+}
+
 export function FilingDetailPanel({
   mode,
   filing,
@@ -166,17 +226,20 @@ export function FilingDetailPanel({
   onReopen,
   onDownload,
   onUploadDocument,
+  onSendChatMessage,
   onExceptionAction,
 }: FilingDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const documentInputRef = useRef<HTMLInputElement | null>(null);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [chatDraft, setChatDraft] = useState("");
 
   useEffect(() => {
     setActiveTab("overview");
     setDocumentModalOpen(false);
     setDocumentFile(null);
+    setChatDraft("");
   }, [filing?.id]);
 
   const vehicleLabelById = useMemo(() => {
@@ -265,6 +328,12 @@ export function FilingDetailPanel({
     filing.status !== "APPROVED" &&
     filing.status !== "ARCHIVED";
   const canReopen = mode === "staff" && filing.status === "APPROVED";
+  const ucrPrimaryButtonClassName =
+    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[var(--b)] !bg-[var(--b)] !text-white hover:!bg-[var(--bd)]";
+  const ucrSecondaryButtonClassName =
+    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[var(--br)] !bg-white !text-[var(--text-primary)] hover:!bg-gray-50";
+  const ucrWarningButtonClassName =
+    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#fcd34d] !bg-[#fffbeb] !text-[#92400e] hover:!bg-[#fef3c7]";
   const detailDescription = isStaffDescription(mode);
   const jurisdictionSummaryRows: JurisdictionSummaryRow[] =
     filing.jurisdictionSummaries.map((summary) => ({
@@ -487,13 +556,32 @@ export function FilingDetailPanel({
       href: `/api/v1/features/ifta-v2/documents/${document.id}/download`,
     }),
   );
+  const auditRows: AuditRow[] = [...filing.audits]
+    .sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    )
+    .map((audit) => ({
+      id: audit.id,
+      event: formatAuditAction(audit.action),
+      detail: audit.message?.trim() || "No additional details.",
+      createdAt: formatDateTime(audit.createdAt),
+    }));
+  const conversation = buildConversation(filing);
   const documentBusy = busyAction === `document:upload:${filing.id}`;
+  const chatBusy = busyAction === `chat:${filing.id}`;
 
   async function handleUploadDocument() {
     if (!filing || !documentFile || documentBusy) return;
     await onUploadDocument(filing, documentFile);
     setDocumentModalOpen(false);
     setDocumentFile(null);
+  }
+
+  async function handleSendChatMessage() {
+    if (!filing || !chatDraft.trim() || chatBusy) return;
+    await onSendChatMessage(filing, chatDraft.trim());
+    setChatDraft("");
   }
 
   return (
@@ -528,6 +616,7 @@ export function FilingDetailPanel({
               <Button
                 variant="outline"
                 size="sm"
+                className={ucrSecondaryButtonClassName}
                 onClick={() => onSyncLatest(filing)}
                 disabled={busyAction === `sync:${filing.id}`}
               >
@@ -540,6 +629,7 @@ export function FilingDetailPanel({
               <Button
                 variant="outline"
                 size="sm"
+                className={ucrSecondaryButtonClassName}
                 onClick={() => onRebuild(filing)}
                 disabled={busyAction === `rebuild:${filing.id}`}
               >
@@ -551,6 +641,7 @@ export function FilingDetailPanel({
             <Button
               variant="outline"
               size="sm"
+              className={ucrSecondaryButtonClassName}
               onClick={() => onRecalculate(filing)}
               disabled={busyAction === `recalculate:${filing.id}`}
             >
@@ -561,6 +652,7 @@ export function FilingDetailPanel({
             {canSubmit ? (
               <Button
                 size="sm"
+                className={ucrPrimaryButtonClassName}
                 onClick={() => onSubmit(filing)}
                 disabled={busyAction === `submit:${filing.id}`}
               >
@@ -573,18 +665,20 @@ export function FilingDetailPanel({
               <Button
                 variant="outline"
                 size="sm"
+                className={ucrWarningButtonClassName}
                 onClick={() => onRequestChanges(filing)}
                 disabled={busyAction === `request-changes:${filing.id}`}
               >
                 {busyAction === `request-changes:${filing.id}`
                   ? "Saving..."
-                  : "Request Changes"}
+                  : "Need Attention"}
               </Button>
             ) : null}
             {canCreateSnapshot ? (
               <Button
                 variant="outline"
                 size="sm"
+                className={ucrSecondaryButtonClassName}
                 onClick={() => onCreateSnapshot(filing)}
                 disabled={busyAction === `snapshot:${filing.id}`}
               >
@@ -596,6 +690,7 @@ export function FilingDetailPanel({
             {canApprove ? (
               <Button
                 size="sm"
+                className={ucrPrimaryButtonClassName}
                 onClick={() => onApprove(filing)}
                 disabled={busyAction === `approve:${filing.id}`}
               >
@@ -608,6 +703,7 @@ export function FilingDetailPanel({
               <Button
                 variant="outline"
                 size="sm"
+                className={ucrSecondaryButtonClassName}
                 onClick={() => onReopen(filing)}
                 disabled={busyAction === `reopen:${filing.id}`}
               >
@@ -684,7 +780,7 @@ export function FilingDetailPanel({
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.16em] text-gray-500">
+                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
                     Files
                   </div>
                   <div className="mt-1 flex items-center gap-2">
@@ -756,6 +852,138 @@ export function FilingDetailPanel({
                 </table>
               </div>
             </div>
+
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+              <div className="border-b border-gray-200 px-5 py-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
+                  Conversation
+                </div>
+                <h3 className="mt-1 text-base font-semibold text-gray-950">
+                  Client and staff chat
+                </h3>
+              </div>
+
+              <div className="space-y-4 px-5 py-5">
+                <div className="grid gap-3">
+                  {conversation.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-500">
+                      No messages yet. Use this thread to coordinate directly between client and staff.
+                    </div>
+                  ) : (
+                    conversation.map((message) => (
+                      <article
+                        key={message.id}
+                        className={`max-w-[85%] rounded-2xl border px-4 py-3 ${
+                          message.authorRole === "STAFF"
+                            ? "ml-auto border-blue-200 bg-blue-50"
+                            : "mr-auto border-amber-200 bg-amber-50"
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
+                          <strong className="text-gray-900">{message.authorName}</strong>
+                          <span>{formatDateTime(message.createdAt)}</span>
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
+                          {message.body}
+                        </p>
+                      </article>
+                    ))
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="text-sm font-semibold text-gray-900">Reply</span>
+                    <textarea
+                      value={chatDraft}
+                      onChange={(event) => setChatDraft(event.target.value)}
+                      rows={5}
+                      className="mt-2 w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)]"
+                      placeholder={
+                        mode === "staff"
+                          ? "Send a message that the client will see in this filing."
+                          : "Send a message to the staff team about this filing."
+                      }
+                    />
+                  </label>
+                  <div className="flex justify-end gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={ucrSecondaryButtonClassName}
+                      onClick={() => setChatDraft("")}
+                      disabled={chatBusy || !chatDraft.trim()}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className={ucrPrimaryButtonClassName}
+                      onClick={() => void handleSendChatMessage()}
+                      disabled={chatBusy || !chatDraft.trim()}
+                    >
+                      {chatBusy ? "Sending..." : "Send message"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {mode === "staff" ? (
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-5 py-4">
+                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
+                    Audit
+                  </div>
+                  <h3 className="mt-1 text-base font-semibold text-gray-950">
+                    Audit
+                  </h3>
+                </div>
+
+                <div className="max-h-80 overflow-auto">
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead
+                      className="text-left text-xs uppercase tracking-[0.08em] text-white/80"
+                      style={{ background: "var(--b)" }}
+                    >
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Event</th>
+                        <th className="px-4 py-3 font-medium">Details</th>
+                        <th className="px-4 py-3 font-medium">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditRows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={3}
+                            className="px-4 py-6 text-center text-sm text-gray-500"
+                          >
+                            No audit events yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        auditRows.map((row) => (
+                          <tr key={row.id} className="border-t border-gray-200">
+                            <td className="px-4 py-3 font-medium text-gray-900">
+                              {row.event}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {row.detail}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {row.createdAt}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -879,7 +1107,7 @@ export function FilingDetailPanel({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs uppercase tracking-[0.16em] text-gray-500">
+                <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
                   Files
                 </div>
                 <h3 className="mt-1 text-xl font-semibold text-gray-950">

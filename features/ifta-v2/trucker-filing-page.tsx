@@ -147,11 +147,22 @@ function buildConversation(filing: FilingDetail | null) {
   }
 
   return filing.audits
-    .filter((audit) => audit.action === "filing.client_message" && audit.message?.trim())
+    .filter(
+      (audit) =>
+        (audit.action === "filing.client_message" ||
+          audit.action === "filing.chat_message") &&
+        audit.message?.trim(),
+    )
     .map((audit) => ({
       id: audit.id,
-      authorRole: "CLIENT" as const,
-      authorName: "You",
+      authorRole:
+        audit.payloadJson?.authorRole === "STAFF" ? ("STAFF" as const) : ("CLIENT" as const),
+      authorName:
+        typeof audit.payloadJson?.authorName === "string" && audit.payloadJson.authorName.trim()
+          ? audit.payloadJson.authorName.trim()
+          : audit.payloadJson?.authorRole === "STAFF"
+            ? "Staff"
+            : "You",
       body: audit.message?.trim() ?? "",
       createdAt: audit.createdAt,
     }))

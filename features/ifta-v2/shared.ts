@@ -183,6 +183,7 @@ export type FilingAudit = {
   actorUserId: string | null;
   action: string;
   message: string | null;
+  payloadJson?: Record<string, unknown> | null;
   createdAt: string;
 };
 

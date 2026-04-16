@@ -91,13 +91,20 @@ export async function PATCH(
       return Response.json({ error: "Message is required." }, { status: 400 });
     }
 
+    const authorRole = canReviewAll ? "STAFF" : "CLIENT";
+    const authorName =
+      guard.session.user.name?.trim() ||
+      guard.session.user.email?.trim() ||
+      (authorRole === "STAFF" ? "Staff" : "Client");
+
     const audit = await FilingWorkflowService.logAudit({
       filingId: id,
       actorUserId: userId,
-      action: "filing.client_message",
+      action: "filing.chat_message",
       message: chatMessage,
       payloadJson: {
-        authorRole: "CLIENT",
+        authorRole,
+        authorName,
       },
       db: prisma,
     });

@@ -209,7 +209,7 @@ export default function IftaAutomationStaffFilingPage({
           },
         );
       },
-      `Change request saved for ${currentFiling.tenant.name}.`,
+      `Need attention saved for ${currentFiling.tenant.name}.`,
     );
   }
 
@@ -378,6 +378,21 @@ export default function IftaAutomationStaffFilingPage({
     );
   }
 
+  async function handleSendChatMessage(currentFiling: FilingDetail, message: string) {
+    await runBusyAction(
+      `chat:${currentFiling.id}`,
+      async () => {
+        await requestJson(`/api/v1/features/ifta-v2/filings/${currentFiling.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            chatMessage: message,
+          }),
+        });
+      },
+      "Message sent to the client.",
+    );
+  }
+
   if (loading) {
     return (
       <Card className="p-8">
@@ -426,6 +441,9 @@ export default function IftaAutomationStaffFilingPage({
         onReopen={(currentFiling) => void handleReopen(currentFiling)}
         onDownload={(currentFiling, format) => void handleDownload(currentFiling, format)}
         onUploadDocument={(currentFiling, file) => handleUploadDocument(currentFiling, file)}
+        onSendChatMessage={(currentFiling, message) =>
+          handleSendChatMessage(currentFiling, message)
+        }
         onExceptionAction={(currentFiling, exception, action) =>
           void handleExceptionAction(currentFiling, exception, action)
         }
