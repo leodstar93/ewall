@@ -5,6 +5,7 @@ export type ActionIconName =
   | "delete"
   | "download"
   | "edit"
+  | "key"
   | "login"
   | "roles"
   | "view";
@@ -91,6 +92,15 @@ export function ActionIcon({
           <path d="M13.7 9.8a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8Z" />
           <path d="M3.7 15.3a4 4 0 0 1 5.8-1.3" />
           <path d="M11.1 14.7a3.3 3.3 0 0 1 4.5-.5" />
+        </>
+      ) : null}
+
+      {name === "key" ? (
+        <>
+          <circle cx="7.8" cy="12.2" r="3.2" />
+          <path d="M10.6 9.4 16.2 3.8" />
+          <path d="M14.6 5.4 16.2 7" />
+          <path d="M12.6 7.4 14.2 9" />
         </>
       ) : null}
 
