@@ -13,6 +13,7 @@ import {
   emptyCompanyProfileState,
   type CompanyProfileFormData,
 } from "@/components/settings/company/companyProfileTypes";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import {
   EmptyState,
   Field,
@@ -23,6 +24,7 @@ import {
   StickyActions,
   textInputClassName,
 } from "@/app/(dashboard)/settings/components/settings-ui";
+import Table, { type ColumnDef } from "../../components/ui/Table";
 import tableStyles from "../../components/ui/DataTable.module.css";
 
 type PersonalInfo = {
@@ -172,6 +174,17 @@ type TruckFormState = {
   grossWeight: string;
 };
 
+type ManagedTruck = ManagedTruckerProfile["trucks"][number];
+
+type TruckTableRow = ManagedTruck & {
+  vehicleLabel: string;
+  usageLabel: string;
+  searchText: string;
+  sortUnitNumber: string;
+  sortVin: string;
+  sortUpdatedAt: number;
+};
+
 const emptyTruckForm: TruckFormState = {
   unitNumber: "",
   nickname: "",
@@ -220,6 +233,54 @@ function toTruckPayload(form: TruckFormState) {
     year: form.year ? Number(form.year) : null,
     grossWeight: form.grossWeight ? Number(form.grossWeight) : null,
   };
+}
+
+function truckToForm(truck: ManagedTruck): TruckFormState {
+  return {
+    unitNumber: truck.unitNumber,
+    nickname: truck.nickname ?? "",
+    plateNumber: truck.plateNumber ?? "",
+    vin: truck.vin ?? "",
+    make: truck.make ?? "",
+    model: truck.model ?? "",
+    year: truck.year?.toString() ?? "",
+    grossWeight: truck.grossWeight?.toString() ?? "",
+  };
+}
+
+function buildTruckRows(trucks: ManagedTruck[]): TruckTableRow[] {
+  return trucks.map((truck) => {
+    const vehicleLabel =
+      [truck.year, truck.make, truck.model].filter(Boolean).join(" ") || "Not set";
+    const usageParts = [
+      truck.counts.trips ? `${truck.counts.trips} trips` : null,
+      truck.counts.fuelPurchases ? `${truck.counts.fuelPurchases} fuel` : null,
+      truck.counts.iftaReports ? `${truck.counts.iftaReports} IFTA` : null,
+      truck.counts.form2290Filings ? `${truck.counts.form2290Filings} 2290` : null,
+    ].filter((part): part is string => Boolean(part));
+    const usageLabel = usageParts.length ? usageParts.join(" · ") : "No linked activity";
+
+    return {
+      ...truck,
+      vehicleLabel,
+      usageLabel,
+      searchText: [
+        truck.unitNumber,
+        truck.vin ?? "",
+        truck.plateNumber ?? "",
+        truck.nickname ?? "",
+        truck.make ?? "",
+        truck.model ?? "",
+        truck.year?.toString() ?? "",
+        usageLabel,
+      ]
+        .join(" ")
+        .toLowerCase(),
+      sortUnitNumber: truck.unitNumber,
+      sortVin: truck.vin ?? "",
+      sortUpdatedAt: -new Date(truck.updatedAt).getTime(),
+    };
+  });
 }
 
 function formatFileSize(bytes: number) {
@@ -323,6 +384,8 @@ export default function TruckerProfileAdminClient({
   const [truckForm, setTruckForm] = useState<TruckFormState>(emptyTruckForm);
   const [savingTruck, setSavingTruck] = useState(false);
   const [truckModalOpen, setTruckModalOpen] = useState(false);
+  const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
+  const [viewingTruck, setViewingTruck] = useState<ManagedTruck | null>(null);
 
   const personalDirty = useMemo(
     () => JSON.stringify(personal) !== JSON.stringify(initialPersonal),
@@ -346,6 +409,7 @@ export default function TruckerProfileAdminClient({
       ),
     [profile?.billing.subscriptionsEnabled],
   );
+  const truckRows = useMemo(() => buildTruckRows(profile?.trucks ?? []), [profile?.trucks]);
 
   const applyServerProfile = (
     nextProfile: ManagedTruckerProfile,
@@ -476,6 +540,21 @@ export default function TruckerProfileAdminClient({
   const resetTruckForm = () => {
     setTruckForm(emptyTruckForm);
     setTruckModalOpen(false);
+    setEditingTruckId(null);
+  };
+
+  const startAddTruck = () => {
+    setTruckMessage(null);
+    setTruckForm(emptyTruckForm);
+    setEditingTruckId(null);
+    setTruckModalOpen(true);
+  };
+
+  const startEditTruck = (truck: ManagedTruck) => {
+    setTruckMessage(null);
+    setTruckForm(truckToForm(truck));
+    setEditingTruckId(truck.id);
+    setTruckModalOpen(true);
   };
 
   const handleSavePersonal = async () => {
@@ -690,34 +769,71 @@ export default function TruckerProfileAdminClient({
       setSavingTruck(true);
       setTruckMessage(null);
 
-      const response = await fetch(`/api/v1/admin/truckers/${truckerId}/trucks`, {
-        method: "POST",
+      const response = await fetch(editingTruckId ? `/api/v1/features/ifta/trucks/${editingTruckId}` : `/api/v1/admin/truckers/${truckerId}/trucks`, {
+        method: editingTruckId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toTruckPayload(truckForm)),
       });
 
       const payload = (await response.json().catch(() => ({}))) as
         | ManagedTruckerProfile
+        | (ManagedTruck & { _count?: ManagedTruck["counts"] })
         | { error?: string };
 
       if (!response.ok) {
         throw new Error(
           "error" in payload && payload.error
             ? payload.error
-            : "Failed to add truck for this client.",
+            : editingTruckId
+              ? "Failed to update truck for this client."
+              : "Failed to add truck for this client.",
         );
       }
 
-      applyServerProfile(payload as ManagedTruckerProfile, {
-        preservePersonal: personalDirty,
-        preserveCompany: companyDirty,
-        preserveEldProvider: eldProviderDirty,
-      });
+      if (editingTruckId) {
+        const updatedTruck = payload as ManagedTruck & { _count?: ManagedTruck["counts"] };
+        setProfile((current) =>
+          current
+            ? {
+                ...current,
+                trucks: current.trucks.map((truck) =>
+                  truck.id === editingTruckId
+                    ? {
+                        id: updatedTruck.id,
+                        unitNumber: updatedTruck.unitNumber,
+                        nickname: updatedTruck.nickname,
+                        plateNumber: updatedTruck.plateNumber,
+                        vin: updatedTruck.vin,
+                        make: updatedTruck.make,
+                        model: updatedTruck.model,
+                        year: updatedTruck.year,
+                        grossWeight: updatedTruck.grossWeight,
+                        is2290Eligible: updatedTruck.is2290Eligible,
+                        createdAt: updatedTruck.createdAt,
+                        updatedAt: updatedTruck.updatedAt,
+                        counts: updatedTruck._count ?? truck.counts,
+                      }
+                    : truck,
+                ),
+              }
+            : current,
+        );
+      } else {
+        applyServerProfile(payload as ManagedTruckerProfile, {
+          preservePersonal: personalDirty,
+          preserveCompany: companyDirty,
+          preserveEldProvider: eldProviderDirty,
+        });
+      }
+
       setTruckMessage({
         tone: "success",
-        message: "Truck added for this client.",
+        message: editingTruckId
+          ? "Truck updated for this client."
+          : "Truck added for this client.",
       });
       setTruckForm(emptyTruckForm);
+      setEditingTruckId(null);
       setTruckModalOpen(false);
       setActiveTab("trucks");
     } catch (saveError) {
@@ -726,12 +842,100 @@ export default function TruckerProfileAdminClient({
         message:
           saveError instanceof Error
             ? saveError.message
-            : "Failed to add truck for this client.",
+            : editingTruckId
+              ? "Failed to update truck for this client."
+              : "Failed to add truck for this client.",
       });
     } finally {
       setSavingTruck(false);
     }
   };
+
+  const truckColumns: ColumnDef<TruckTableRow>[] = [
+    {
+      key: "sortUnitNumber",
+      label: "Unit number",
+      render: (_, truck) => (
+        <div className={tableStyles.nameCell}>
+          <div>Unit {truck.unitNumber}</div>
+          <div className={tableStyles.muteCell}>{truck.nickname || "No nickname"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "sortVin",
+      label: "VIN",
+      render: (_, truck) => (
+        <div className={tableStyles.compactCell} title={truck.vin || "Not set"}>
+          {truck.vin || "Not set"}
+        </div>
+      ),
+    },
+    {
+      key: "plateNumber",
+      label: "Plate",
+      render: (_, truck) => truck.plateNumber || "Not set",
+    },
+    {
+      key: "vehicleLabel",
+      label: "Vehicle",
+      render: (_, truck) => (
+        <div className={tableStyles.compactCell} title={truck.vehicleLabel}>
+          {truck.vehicleLabel}
+        </div>
+      ),
+    },
+    {
+      key: "usageLabel",
+      label: "Usage",
+      render: (_, truck) => (
+        <div className={tableStyles.compactCell} title={truck.usageLabel}>
+          {truck.usageLabel}
+        </div>
+      ),
+    },
+    {
+      key: "is2290Eligible",
+      label: "2290",
+      render: (_, truck) => (
+        <StatusBadge tone={truck.is2290Eligible ? "green" : "zinc"}>
+          {truck.is2290Eligible ? "Eligible" : "Not eligible"}
+        </StatusBadge>
+      ),
+    },
+    {
+      key: "sortUpdatedAt",
+      label: "Updated",
+      render: (_, truck) => formatDateTime(truck.updatedAt),
+    },
+    {
+      key: "_actions",
+      label: "Actions",
+      sortable: false,
+      render: (_, truck) => (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setViewingTruck(truck)}
+            aria-label={`View truck ${truck.unitNumber}`}
+            title={`View truck ${truck.unitNumber}`}
+            className={iconButtonClasses({ variant: "dark" })}
+          >
+            <ActionIcon name="view" />
+          </button>
+          <button
+            type="button"
+            onClick={() => startEditTruck(truck)}
+            aria-label={`Edit truck ${truck.unitNumber}`}
+            title={`Edit truck ${truck.unitNumber}`}
+            className={iconButtonClasses({ variant: "default" })}
+          >
+            <ActionIcon name="edit" />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   if (loading) {
     return (
@@ -1237,76 +1441,35 @@ export default function TruckerProfileAdminClient({
               <InlineAlert tone={truckMessage.tone} message={truckMessage.message} />
             ) : null}
 
-            <div className="flex flex-col gap-4 rounded-[24px] border border-zinc-200 bg-zinc-50 p-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-zinc-950">
-                  Support the customer with truck setup
-                </p>
-                <p className="mt-1 text-sm text-zinc-600">
-                  Staff and admins can register a truck here without leaving the client profile.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setTruckMessage(null);
-                  setTruckForm(emptyTruckForm);
-                  setTruckModalOpen(true);
-                }}
-                className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
-              >
-                Add truck
-              </button>
-            </div>
-
             {profile.trucks.length === 0 ? (
-              <EmptyState
-                title="No trucks registered"
-                description="This trucker client does not have trucks or trailers on file yet."
-              />
-            ) : (
               <div className="space-y-4">
-                {profile.trucks.map((truck) => (
-                  <div
-                    key={truck.id}
-                    className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-base font-semibold text-zinc-950">
-                            Unit {truck.unitNumber}
-                          </p>
-                          {truck.is2290Eligible ? (
-                            <StatusBadge tone="green">2290 eligible</StatusBadge>
-                          ) : null}
-                        </div>
-                        <div className="mt-2 grid gap-2 text-sm text-zinc-600 md:grid-cols-2">
-                          <div>VIN: {truck.vin || "Not set"}</div>
-                          <div>Plate: {truck.plateNumber || "Not set"}</div>
-                          <div>
-                            Make/Model: {[truck.make, truck.model].filter(Boolean).join(" ") || "Not set"}
-                          </div>
-                          <div>Year: {truck.year || "Not set"}</div>
-                          <div>Gross weight: {truck.grossWeight || "Not set"}</div>
-                          <div>Nickname: {truck.nickname || "Not set"}</div>
-                        </div>
-                      </div>
-
-                      <div className="text-sm text-zinc-600">
-                        Updated {formatDateTime(truck.updatedAt)}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <StatusBadge tone="blue">Trips: {truck.counts.trips}</StatusBadge>
-                      <StatusBadge tone="blue">Fuel: {truck.counts.fuelPurchases}</StatusBadge>
-                      <StatusBadge tone="blue">IFTA: {truck.counts.iftaReports}</StatusBadge>
-                      <StatusBadge tone="blue">2290: {truck.counts.form2290Filings}</StatusBadge>
-                    </div>
-                  </div>
-                ))}
+                <EmptyState
+                  title="No trucks registered"
+                  description="This trucker client does not have trucks or trailers on file yet."
+                />
+                <button
+                  type="button"
+                  onClick={startAddTruck}
+                  className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+                >
+                  Add truck
+                </button>
               </div>
+            ) : (
+              <Table
+                data={truckRows}
+                columns={truckColumns}
+                title="Registered units"
+                actions={[
+                  {
+                    label: "Add truck",
+                    onClick: startAddTruck,
+                    variant: "primary",
+                  },
+                ]}
+                searchQuery=""
+                searchKeys={["searchText"]}
+              />
             )}
           </div>
         </PanelCard>
@@ -1369,8 +1532,14 @@ export default function TruckerProfileAdminClient({
           <div className={tableStyles.card} style={{ width: "100%", maxWidth: 720 }}>
             <div className={tableStyles.header}>
               <div>
-                <div className={tableStyles.title}>Add truck</div>
-                <div className={tableStyles.subtitle}>Register a truck on behalf of this customer.</div>
+                <div className={tableStyles.title}>
+                  {editingTruckId ? "Edit truck" : "Add truck"}
+                </div>
+                <div className={tableStyles.subtitle}>
+                  {editingTruckId
+                    ? "Update this customer's truck details."
+                    : "Register a truck on behalf of this customer."}
+                </div>
               </div>
               <button
                 type="button"
@@ -1473,8 +1642,64 @@ export default function TruckerProfileAdminClient({
                 disabled={savingTruck || !truckForm.unitNumber.trim()}
                 className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
               >
-                {savingTruck ? "Saving..." : "Create truck"}
+                {savingTruck ? "Saving..." : editingTruckId ? "Save truck" : "Create truck"}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {viewingTruck ? (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)", padding: 16, backdropFilter: "blur(4px)" }}>
+          <div className={tableStyles.card} style={{ width: "100%", maxWidth: 680 }}>
+            <div className={tableStyles.header}>
+              <div>
+                <div className={tableStyles.title}>Unit {viewingTruck.unitNumber}</div>
+                <div className={tableStyles.subtitle}>
+                  Truck details and linked activity for this client.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingTruck(null)}
+                className={tableStyles.btn}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ padding: 20 }}>
+              <div className="grid gap-3 text-sm text-zinc-700 sm:grid-cols-2">
+                <div><strong>VIN:</strong> {viewingTruck.vin || "Not set"}</div>
+                <div><strong>Plate:</strong> {viewingTruck.plateNumber || "Not set"}</div>
+                <div><strong>Nickname:</strong> {viewingTruck.nickname || "Not set"}</div>
+                <div><strong>Vehicle:</strong> {[viewingTruck.year, viewingTruck.make, viewingTruck.model].filter(Boolean).join(" ") || "Not set"}</div>
+                <div><strong>Gross weight:</strong> {viewingTruck.grossWeight || "Not set"}</div>
+                <div><strong>Updated:</strong> {formatDateTime(viewingTruck.updatedAt)}</div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <StatusBadge tone="blue">Trips: {viewingTruck.counts.trips}</StatusBadge>
+                <StatusBadge tone="blue">Fuel: {viewingTruck.counts.fuelPurchases}</StatusBadge>
+                <StatusBadge tone="blue">IFTA: {viewingTruck.counts.iftaReports}</StatusBadge>
+                <StatusBadge tone="blue">2290: {viewingTruck.counts.form2290Filings}</StatusBadge>
+                <StatusBadge tone={viewingTruck.is2290Eligible ? "green" : "zinc"}>
+                  {viewingTruck.is2290Eligible ? "2290 eligible" : "Not 2290 eligible"}
+                </StatusBadge>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    startEditTruck(viewingTruck);
+                    setViewingTruck(null);
+                  }}
+                  className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
+                >
+                  Edit truck
+                </button>
+              </div>
             </div>
           </div>
         </div>
