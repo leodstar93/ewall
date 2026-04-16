@@ -42,6 +42,11 @@ function buildNavGroups(
           permission: "settings:read",
         },
         {
+          href: "/v2/dashboard/security",
+          label: "Security",
+          permission: "settings:read",
+        },
+        {
           href: "/v2/dashboard/payments",
           label: "Payments",
           permission: "billing:manage",

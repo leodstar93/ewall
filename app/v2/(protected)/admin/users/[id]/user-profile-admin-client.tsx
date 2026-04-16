@@ -546,95 +546,152 @@ export default function UserProfileAdminClient({ userId }: { userId: string }) {
 
       {/* ── Security tab ────────────────────────────────────────────────────── */}
       {activeTab === "security" ? (
-        <div className="space-y-4">
-          {securityMessage ? (
-            <InlineAlert
-              tone={securityMessage.tone}
-              message={securityMessage.message}
-            />
-          ) : null}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
           {/* Password reset */}
-          <PanelCard
-            title="Password reset"
-            description="Generate a temporary password and send it to the user's email address."
-          >
-            <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-5">
-              <p className="text-sm font-semibold text-amber-900">
-                Send temporary password
-              </p>
-              <p className="mt-1 text-sm text-amber-800">
-                A new temporary password will be generated and emailed to{" "}
-                <span className="font-semibold">
-                  {user.email || "this user"}
-                </span>
-                . The user must change it after logging in.
-              </p>
+          <div className={tableStyles.card}>
+            <div className={tableStyles.header}>
+              <div>
+                <div className={tableStyles.title}>Password reset</div>
+                <div className={tableStyles.subtitle}>
+                  Generate a temporary password and send it to the user&apos;s email.
+                </div>
+              </div>
+            </div>
+
+            {securityMessage ? (
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--brl)" }}>
+                <div
+                  style={{
+                    borderRadius: 8,
+                    border: securityMessage.tone === "success"
+                      ? "1px solid #a7f3d0"
+                      : "1px solid #fca5a5",
+                    background: securityMessage.tone === "success" ? "#f0fdf4" : "#fff0f0",
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    color: securityMessage.tone === "success" ? "#166534" : "#c00",
+                  }}
+                >
+                  {securityMessage.message}
+                </div>
+              </div>
+            ) : null}
+
+            <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div
+                style={{
+                  borderRadius: 8,
+                  border: "1px solid #fde68a",
+                  background: "#fffbeb",
+                  padding: "10px 14px",
+                  fontSize: 12,
+                  color: "#92400e",
+                }}
+              >
+                A temporary password will be generated and emailed to{" "}
+                <strong>{user.email || "this user"}</strong>. The user must change it after logging in.
+              </div>
 
               {!user.email ? (
-                <div className="mt-3">
-                  <InlineAlert
-                    tone="error"
-                    message="This user account does not have an email address. Password reset is unavailable."
-                  />
+                <div
+                  style={{
+                    borderRadius: 8,
+                    border: "1px solid #fca5a5",
+                    background: "#fff0f0",
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    color: "#c00",
+                  }}
+                >
+                  No email address on file — password reset is unavailable.
                 </div>
               ) : null}
+            </div>
 
+            <div
+              className={tableStyles.header}
+              style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}
+            >
               <button
                 type="button"
                 onClick={() => void handleResetPassword()}
                 disabled={resettingPassword || !user.email}
-                className="mt-4 inline-flex items-center justify-center rounded-2xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className={tableStyles.btn}
+                style={{ color: "#92400e", borderColor: "#fde68a", background: "#fffbeb" }}
               >
                 {resettingPassword ? "Sending..." : "Reset and send email"}
               </button>
             </div>
-          </PanelCard>
+          </div>
 
           {/* Danger zone */}
-          <PanelCard
-            title="Danger zone"
-            description="Permanently delete this user account. This action cannot be undone."
-          >
-            <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-5">
-              <p className="text-sm font-semibold text-rose-900">
-                Delete user account
-              </p>
-              <p className="mt-1 text-sm text-rose-800">
-                Type{" "}
-                <span className="font-semibold">{user.email}</span> to confirm.
-                All data associated with this account will be permanently
-                removed.
-              </p>
-
-              <div className="mt-4 space-y-3">
-                <Field label="Confirm email">
-                  <input
-                    value={confirmDelete}
-                    onChange={(e) => {
-                      setConfirmDelete(e.target.value);
-                      setDeleteError("");
-                    }}
-                    placeholder={user.email || ""}
-                    className={textInputClassName()}
-                  />
-                </Field>
-
-                {deleteError ? (
-                  <InlineAlert tone="error" message={deleteError} />
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteUser()}
-                  disabled={deletingUser}
-                  className="inline-flex items-center justify-center rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
-                >
-                  {deletingUser ? "Deleting..." : "Delete user"}
-                </button>
+          <div className={tableStyles.card} style={{ borderColor: "#fca5a5" }}>
+            <div className={tableStyles.header} style={{ background: "#fff0f0", borderBottomColor: "#fca5a5" }}>
+              <div>
+                <div className={tableStyles.title} style={{ color: "#c00" }}>Danger zone</div>
+                <div className={tableStyles.subtitle}>
+                  Permanently delete this user account. This cannot be undone.
+                </div>
               </div>
             </div>
-          </PanelCard>
+
+            <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 12, color: "#c00" }}>
+                Type <strong>{user.email}</strong> to confirm deletion. All data for this account will be removed.
+              </div>
+
+              <input
+                value={confirmDelete}
+                onChange={(e) => {
+                  setConfirmDelete(e.target.value);
+                  setDeleteError("");
+                }}
+                placeholder={user.email || ""}
+                style={{
+                  width: "100%",
+                  border: "1px solid var(--br)",
+                  borderRadius: 6,
+                  padding: "7px 10px",
+                  fontSize: 13,
+                  outline: "none",
+                  boxSizing: "border-box",
+                  color: "var(--b)",
+                }}
+              />
+
+              {deleteError ? (
+                <div
+                  style={{
+                    borderRadius: 8,
+                    border: "1px solid #fca5a5",
+                    background: "#fff0f0",
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    color: "#c00",
+                  }}
+                >
+                  {deleteError}
+                </div>
+              ) : null}
+            </div>
+
+            <div
+              className={tableStyles.header}
+              style={{ borderBottom: "none", borderTop: "1px solid #fca5a5", justifyContent: "flex-end" }}
+            >
+              <button
+                type="button"
+                onClick={() => void handleDeleteUser()}
+                disabled={deletingUser}
+                className={tableStyles.btn}
+                style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }}
+              >
+                {deletingUser ? "Deleting..." : "Delete user"}
+              </button>
+            </div>
+          </div>
+
         </div>
       ) : null}
     </div>
