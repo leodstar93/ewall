@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
     if (!integrationAccount) {
       throw new IftaAutomationError(
-        "Connect an ELD provider first from Settings > Integrations.",
+        "Connect an ELD provider first from ELD Integrations.",
         409,
         "ELD_INTEGRATION_NOT_FOUND",
       );

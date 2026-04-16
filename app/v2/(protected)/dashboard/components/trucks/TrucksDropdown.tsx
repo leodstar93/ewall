@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import type { MouseEvent } from "react";
+import { toast } from "react-toastify";
 import Table, { type ColumnDef } from "../ui/Table";
 import tableStyles from "../ui/DataTable.module.css";
 import type { TruckRecord } from "@/features/trucks/shared";
@@ -364,14 +365,11 @@ export default function TrucksDropdown({
       );
       setOpen(true);
     } catch (error) {
-      setSaveError(
+      toast.error(
         error instanceof Error
           ? error.message
           : "Could not sync trucks from ELD.",
       );
-      setEditingTruckId(null);
-      setForm(emptyForm);
-      setIsModalOpen(true);
     } finally {
       setSyncing(false);
     }
