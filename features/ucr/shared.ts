@@ -1,7 +1,9 @@
 import {
   unifiedWorkflowStatusLabel,
+  unifiedWorkflowStatusTone,
   type UnifiedWorkflowStatus,
 } from "@/lib/ui/unified-workflow-status";
+import type { BadgeTone } from "@/lib/ui/status-utils";
 
 export type UCRFilingStatus =
   | "DRAFT"
@@ -59,6 +61,8 @@ export type UcrWorkflowStage =
   | "COMPLETED"
   | "NEEDS_ATTENTION"
   | "CANCELLED";
+
+export type UcrVisibleStatus = UnifiedWorkflowStatus | "NEEDS_ATTENTION";
 
 export type UcrDocument = {
   id: string;
@@ -204,10 +208,18 @@ export function formatDate(value: string | Date | null | undefined) {
 }
 
 export function filingStatusLabel(status: UCRFilingStatus) {
+  if (status === "NEEDS_ATTENTION") {
+    return "Needs attention";
+  }
+
   return unifiedWorkflowStatusLabel(unifiedStatusForUcrFiling(status));
 }
 
 export function filingStatusClasses(status: UCRFilingStatus) {
+  if (status === "NEEDS_ATTENTION") {
+    return "bg-rose-50 text-rose-700 ring-rose-200";
+  }
+
   switch (unifiedStatusForUcrFiling(status)) {
     case "DRAFT":
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
@@ -286,6 +298,40 @@ export function unifiedStatusForUcrFiling(status: UCRFilingStatus): UnifiedWorkf
     default:
       return "DRAFT";
   }
+}
+
+export const ucrVisibleStatusOrder: UcrVisibleStatus[] = [
+  "DRAFT",
+  "NEEDS_ATTENTION",
+  "SUBMITTED",
+  "IN_PROCESS",
+  "PENDING_PAYMENT",
+  "APPROVED",
+  "FINALIZED",
+];
+
+export function visibleStatusForUcrFiling(status: UCRFilingStatus): UcrVisibleStatus {
+  if (status === "NEEDS_ATTENTION") {
+    return "NEEDS_ATTENTION";
+  }
+
+  return unifiedStatusForUcrFiling(status);
+}
+
+export function ucrVisibleStatusLabel(status: UcrVisibleStatus) {
+  if (status === "NEEDS_ATTENTION") {
+    return "Needs attention";
+  }
+
+  return unifiedWorkflowStatusLabel(status);
+}
+
+export function ucrVisibleStatusTone(status: UcrVisibleStatus): BadgeTone {
+  if (status === "NEEDS_ATTENTION") {
+    return "error";
+  }
+
+  return unifiedWorkflowStatusTone(status);
 }
 
 export function unifiedStatusForUcrWorkflowStage(stage: UcrWorkflowStage): UnifiedWorkflowStatus {

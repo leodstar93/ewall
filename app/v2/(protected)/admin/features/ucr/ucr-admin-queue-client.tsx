@@ -12,18 +12,16 @@ import {
   filingStatusLabel,
   formatCurrency,
   formatDate,
-  unifiedStatusForUcrFiling,
+  ucrVisibleStatusLabel,
+  ucrVisibleStatusOrder,
+  ucrVisibleStatusTone,
+  visibleStatusForUcrFiling,
+  type UcrVisibleStatus,
   type UCRFilingStatus,
 } from "@/features/ucr/shared";
 import type { BadgeTone } from "@/lib/ui/status-utils";
-import {
-  unifiedWorkflowStatusLabel,
-  unifiedWorkflowStatusTone,
-  unifiedWorkflowStatusOrder,
-  type UnifiedWorkflowStatus,
-} from "@/lib/ui/unified-workflow-status";
 
-type UcrQueueFilterStatus = "all" | UnifiedWorkflowStatus;
+type UcrQueueFilterStatus = "all" | UcrVisibleStatus;
 
 type UcrPaymentFilterStatus = "all" | "SUCCEEDED" | "PENDING" | "FAILED";
 type UcrOfficialPaymentFilterStatus = "all" | "NOT_STARTED" | "PENDING" | "PAID" | "FAILED";
@@ -44,7 +42,7 @@ function buildRows(items: AdminUcrQueueItem[]): UcrTableRow[] {
 }
 
 function filingStatusTone(status: UCRFilingStatus): BadgeTone {
-  return unifiedWorkflowStatusTone(unifiedStatusForUcrFiling(status));
+  return ucrVisibleStatusTone(visibleStatusForUcrFiling(status));
 }
 
 function assignmentTone(input: { assignedStaffId: string | null; currentUserId: string | null }): BadgeTone {
@@ -138,7 +136,7 @@ export default function UcrAdminQueueClient() {
 
   const filteredItems = items.filter((item) => {
     if (status === "all") return true;
-    return unifiedStatusForUcrFiling(item.status as UCRFilingStatus) === status;
+    return visibleStatusForUcrFiling(item.status as UCRFilingStatus) === status;
   });
 
   async function assignToMe(filingId: string) {
@@ -438,9 +436,9 @@ export default function UcrAdminQueueClient() {
                   }}
                 >
                   <option value="all">All statuses</option>
-                  {unifiedWorkflowStatusOrder.map((item) => (
+                  {ucrVisibleStatusOrder.map((item) => (
                     <option key={item} value={item}>
-                      {unifiedWorkflowStatusLabel(item)}
+                      {ucrVisibleStatusLabel(item)}
                     </option>
                   ))}
                 </select>

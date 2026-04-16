@@ -13,19 +13,17 @@ import {
   filingStatusLabel,
   formatCurrency,
   formatDate,
-  unifiedStatusForUcrFiling,
+  ucrVisibleStatusLabel,
+  ucrVisibleStatusOrder,
+  ucrVisibleStatusTone,
+  visibleStatusForUcrFiling,
+  type UcrVisibleStatus,
   type UcrFiling,
 } from "@/features/ucr/shared";
 import type { BadgeTone } from "@/lib/ui/status-utils";
-import {
-  unifiedWorkflowStatusLabel,
-  unifiedWorkflowStatusTone,
-  unifiedWorkflowStatusOrder,
-  type UnifiedWorkflowStatus,
-} from "@/lib/ui/unified-workflow-status";
 
 type UcrTableRow = UcrFiling & {
-  visibleStatus: UnifiedWorkflowStatus;
+  visibleStatus: UcrVisibleStatus;
   searchableText: string;
   sortYear: number;
   sortUpdatedAt: number;
@@ -43,18 +41,18 @@ const fieldStyle: CSSProperties = {
   color: "var(--b)",
 };
 
-const stageOptions: Array<{ value: "all" | UnifiedWorkflowStatus; label: string }> = [
+const stageOptions: Array<{ value: "all" | UcrVisibleStatus; label: string }> = [
   { value: "all", label: "All statuses" },
-  ...unifiedWorkflowStatusOrder.map((status) => ({
+  ...ucrVisibleStatusOrder.map((status) => ({
     value: status,
-    label: unifiedWorkflowStatusLabel(status),
+    label: ucrVisibleStatusLabel(status),
   })),
 ];
 
 function buildRows(items: UcrFiling[]): UcrTableRow[] {
   return items.map((item) => ({
     ...item,
-    visibleStatus: unifiedStatusForUcrFiling(item.status),
+    visibleStatus: visibleStatusForUcrFiling(item.status),
     searchableText: [
       item.legalName,
       item.dbaName ?? "",
@@ -72,8 +70,8 @@ function buildRows(items: UcrFiling[]): UcrTableRow[] {
   }));
 }
 
-function workflowTone(status: UnifiedWorkflowStatus): BadgeTone {
-  return unifiedWorkflowStatusTone(status);
+function workflowTone(status: UcrVisibleStatus): BadgeTone {
+  return ucrVisibleStatusTone(status);
 }
 
 export default function UcrDashboardClient() {
@@ -86,7 +84,7 @@ export default function UcrDashboardClient() {
 
   const [search, setSearch] = useState("");
   const [year, setYear] = useState("");
-  const [stageFilter, setStageFilter] = useState<"all" | UnifiedWorkflowStatus>("all");
+  const [stageFilter, setStageFilter] = useState<"all" | UcrVisibleStatus>("all");
   const deferredSearch = useDeferredValue(search);
   const deferredYear = useDeferredValue(year);
 
@@ -248,7 +246,7 @@ export default function UcrDashboardClient() {
           title={filingStatusLabel(item.status)}
         >
           <Badge tone={workflowTone(item.visibleStatus)} variant="light">
-            {unifiedWorkflowStatusLabel(item.visibleStatus)}
+            {ucrVisibleStatusLabel(item.visibleStatus)}
           </Badge>
         </div>
       ),
@@ -421,7 +419,7 @@ export default function UcrDashboardClient() {
                 <select
                   value={stageFilter}
                   onChange={(event) =>
-                    setStageFilter(event.target.value as "all" | UnifiedWorkflowStatus)
+                    setStageFilter(event.target.value as "all" | UcrVisibleStatus)
                   }
                   style={fieldStyle}
                 >

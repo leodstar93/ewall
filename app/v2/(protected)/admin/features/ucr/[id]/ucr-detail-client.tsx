@@ -184,8 +184,11 @@ function TimelineTable({ rows }: { rows: TimelineRow[] }) {
 export default function UcrAdminDetailClient({ filingId }: Props) {
   const [payload, setPayload] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<
+    "claim" | "needs-attention" | "complete" | null
+  >(null);
   const [editing, setEditing] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
   const [needsAttentionModalOpen, setNeedsAttentionModalOpen] = useState(false);
@@ -193,10 +196,15 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
   const [staffReason, setStaffReason] = useState("");
   const [chatDraft, setChatDraft] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const busy = busyAction !== null;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { background?: boolean }) => {
     try {
-      setLoading(true);
+      if (options?.background) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
       const response = await fetch(`/api/v1/admin/ucr/${filingId}`, {
@@ -217,6 +225,7 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
       );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [filingId]);
 
@@ -251,23 +260,25 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
   }
 
   async function postAdminAction(path: string, body?: unknown, isMultipart = false) {
+    const nextBusyAction = path === "claim" ? "claim" : null;
+
     try {
-      setBusy(true);
+      setBusyAction(nextBusyAction);
       setError(null);
       await requestAdminAction(path, body, isMultipart);
-      await load();
+      await load({ background: true });
     } catch (actionError) {
       setError(
         actionError instanceof Error ? actionError.message : "The UCR action failed.",
       );
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
   async function completeByStaff() {
     try {
-      setBusy(true);
+      setBusyAction("complete");
       setError(null);
 
       if (receiptFile) {
@@ -280,30 +291,30 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
 
       setReceiptFile(null);
       setCompleteModalOpen(false);
-      await load();
+      await load({ background: true });
     } catch (actionError) {
       setError(
         actionError instanceof Error ? actionError.message : "The UCR action failed.",
       );
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
   async function markNeedsAttention() {
     try {
-      setBusy(true);
+      setBusyAction("needs-attention");
       setError(null);
       await requestAdminAction("needs-attention", { reason: staffReason });
       setNeedsAttentionModalOpen(false);
       setStaffReason("");
-      await load();
+      await load({ background: true });
     } catch (actionError) {
       setError(
         actionError instanceof Error ? actionError.message : "The UCR action failed.",
       );
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -351,6 +362,22 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
     filing?.assignedStaff?.name?.trim() || filing?.assignedStaff?.email || "Unassigned";
   const customerBalanceDue = Number(filing?.customerBalanceDue ?? 0);
   const customerCreditAmount = Number(filing?.customerCreditAmount ?? 0);
+  const canMarkNeedsAttention = ![
+    "COMPLETED",
+    "CANCELLED",
+    "COMPLIANT",
+    "REJECTED",
+    "NEEDS_ATTENTION",
+  ].includes(filing?.status ?? "");
+  const canCompleteByStaff = [
+    "CUSTOMER_PAID",
+    "QUEUED_FOR_PROCESSING",
+    "IN_PROCESS",
+    "OFFICIAL_PAYMENT_PENDING",
+    "OFFICIAL_PAID",
+  ].includes(filing?.status ?? "");
+  const hasReceiptOnFile = Boolean(filing?.officialReceiptUrl);
+  const canSubmitStaffCompletion = Boolean(receiptFile || hasReceiptOnFile);
 
   const detailRows = useMemo<KeyValueRow[]>(() => {
     if (!filing) return [];
@@ -461,24 +488,28 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
                 onClick={() => void postAdminAction("claim")}
                 disabled={busy}
               >
-                Assign to me
+                {busyAction === "claim" ? "Assigning..." : "Assign to me"}
               </button>
-              <button
-                type="button"
-                className={styles.warningButton}
-                onClick={() => setNeedsAttentionModalOpen(true)}
-                disabled={busy}
-              >
-                Need attention
-              </button>
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => setCompleteModalOpen(true)}
-                disabled={busy}
-              >
-                Complete by staff
-              </button>
+              {canMarkNeedsAttention ? (
+                <button
+                  type="button"
+                  className={styles.warningButton}
+                  onClick={() => setNeedsAttentionModalOpen(true)}
+                  disabled={busy}
+                >
+                  {busyAction === "needs-attention" ? "Sending..." : "Need attention"}
+                </button>
+              ) : null}
+              {canCompleteByStaff ? (
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => setCompleteModalOpen(true)}
+                  disabled={busy}
+                >
+                  {busyAction === "complete" ? "Completing..." : "Complete by staff"}
+                </button>
+              ) : null}
               {permissions.canViewReceipt ? (
                 <a href={`/api/v1/admin/ucr/${filing.id}/receipt`} className={styles.secondaryButton}>
                   Download receipt
@@ -500,6 +531,9 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
               label={`Official: ${officialPaymentStatusLabel(filing.officialPaymentStatus)}`}
               className={officialPaymentStatusClasses(filing.officialPaymentStatus)}
             />
+            {refreshing ? (
+              <StatusChip label="Refreshing" className="bg-zinc-100 text-zinc-700 ring-zinc-200" />
+            ) : null}
           </div>
         </div>
 
@@ -678,7 +712,7 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
                 disabled={busy}
                 className={styles.warningButton}
               >
-                {busy ? "Saving..." : "Confirm"}
+                {busyAction === "needs-attention" ? "Sending..." : "Send note"}
               </button>
             </div>
           </div>
@@ -739,10 +773,10 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
               <button
                 type="button"
                 onClick={() => void completeByStaff()}
-                disabled={busy || !receiptFile}
+                disabled={busy || !canSubmitStaffCompletion}
                 className={styles.primaryButton}
               >
-                {busy ? "Completing..." : "Confirm completion"}
+                {busyAction === "complete" ? "Completing..." : "Complete filing"}
               </button>
             </div>
           </div>
