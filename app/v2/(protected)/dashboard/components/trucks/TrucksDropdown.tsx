@@ -55,6 +55,7 @@ const emptyForm: TruckFormState = {
 
 interface Props {
   trucks: DashboardTruckRow[];
+  onTruckCreated?: (truck: TruckRecord) => void;
   onTruckUpdated?: (truck: TruckRecord) => void;
 }
 
@@ -120,7 +121,11 @@ function CloseIcon() {
   );
 }
 
-export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
+export default function TrucksDropdown({
+  trucks,
+  onTruckCreated,
+  onTruckUpdated,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -130,6 +135,13 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
   const [saving, setSaving] = useState(false);
 
   const rows = useMemo(() => buildRows(trucks), [trucks]);
+
+  function startAdd() {
+    setEditingTruckId(null);
+    setForm(emptyForm);
+    setSaveError("");
+    setIsModalOpen(true);
+  }
 
   function startEdit(truck: DashboardTruckRow) {
     setEditingTruckId(truck.truckId);
@@ -149,34 +161,60 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
   async function saveTruck(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!editingTruckId) return;
-
     try {
       setSaving(true);
       setSaveError("");
 
-      const response = await fetch(`/api/v1/features/ifta/trucks/${editingTruckId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        editingTruckId
+          ? `/api/v1/features/ifta/trucks/${editingTruckId}`
+          : "/api/v1/features/ifta/trucks",
+        {
+          method: editingTruckId ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(toPayload(form)),
         },
-        body: JSON.stringify(toPayload(form)),
-      });
+      );
 
-      const payload = (await response.json().catch(() => ({}))) as TruckRecord & { error?: string };
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as TruckRecord & {
+        error?: string;
+      };
 
       if (!response.ok) {
-        throw new Error(payload.error || "Could not update the truck.");
+        throw new Error(
+          payload.error ||
+            (editingTruckId
+              ? "Could not update the truck."
+              : "Could not create the truck."),
+        );
       }
 
-      onTruckUpdated?.(payload);
+      if (editingTruckId) {
+        onTruckUpdated?.(payload);
+      } else {
+        onTruckCreated?.(payload);
+        setOpen(true);
+      }
+
       closeModal(true);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Could not update the truck.");
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : editingTruckId
+            ? "Could not update the truck."
+            : "Could not create the truck.",
+      );
     } finally {
       setSaving(false);
     }
   }
+
+  const tableTitle = "";
 
   const columns: ColumnDef<TruckTableRow>[] = [
     {
@@ -184,10 +222,12 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
       label: "Unit",
       render: (_, truck) => (
         <div className={styles.unitCell}>
-          <div className={`${styles.num} ${NUM_CLASS[truck.status]}`}>{truck.unitNumber}</div>
+          <div className={`${styles.num} ${NUM_CLASS[truck.status]}`}>
+            {truck.unitNumber}
+          </div>
           <div
             className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
-            title={`${truck.unitNumber} · ${truck.vehicleLabel}`}
+            title={`${truck.unitNumber} - ${truck.vehicleLabel}`}
           >
             {truck.vehicleLabel}
           </div>
@@ -231,7 +271,12 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
         >
           <div className={styles.triggerLeft}>
             <div className={styles.triggerIcon}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#fff"
+                strokeWidth="1.8"
+              >
                 <rect x="1" y="3" width="15" height="13" rx="1" />
                 <path d="M16 8h4l3 5v4h-7V8z" />
                 <circle cx="5.5" cy="18.5" r="2.5" />
@@ -239,7 +284,19 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
               </svg>
             </div>
             <span className={styles.triggerLabel}>Trucks and Trails</span>
-            <span className={styles.triggerCount}>({trucks.length} unidades)</span>
+            <span className={styles.triggerCount}>
+              ({trucks.length} unidades)
+            </span>
+            <button
+              type="button"
+              onClick={startAdd}
+              disabled={saving}
+              className={styles.iconActionButton}
+              aria-label="Add truck"
+              title="Add truck"
+            >
+              <span className={styles.iconActionPlus}>+</span>
+            </button>
           </div>
           <div className={styles.triggerRight}>
             <svg
@@ -259,13 +316,18 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
             <Table
               data={rows}
               columns={columns}
-              title="Trucks and Trails"
+              title={tableTitle}
               searchQuery={query}
               searchKeys={["searchText"]}
               toolbar={
                 <div className={styles.toolbar}>
                   <div className={styles.searchBox}>
-                    <svg viewBox="0 0 14 14" fill="none" stroke="#bbb" strokeWidth="2">
+                    <svg
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="#bbb"
+                      strokeWidth="2"
+                    >
                       <circle cx="6" cy="6" r="4" />
                       <line x1="9" y1="9" x2="13" y2="13" />
                     </svg>
@@ -297,9 +359,13 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                 <CloseIcon />
               </button>
               <p className={styles.modalEyebrow}>Dashboard truck editor</p>
-              <h3 className={styles.modalTitle}>Update truck details</h3>
+              <h3 className={styles.modalTitle}>
+                {editingTruckId ? "Update truck details" : "Add truck"}
+              </h3>
               <p className={styles.modalText}>
-                Edit this unit without leaving the dashboard. Keep the fleet card clean and current.
+                {editingTruckId
+                  ? "Edit this unit without leaving the dashboard. Keep the fleet card clean and current."
+                  : "Register a new unit without leaving the dashboard. It will appear in this fleet table immediately."}
               </p>
               <div className={styles.flagRow} aria-hidden="true">
                 <span />
@@ -311,7 +377,9 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
             </div>
 
             <form className={styles.modalBody} onSubmit={saveTruck}>
-              {saveError ? <div className={styles.modalError}>{saveError}</div> : null}
+              {saveError ? (
+                <div className={styles.modalError}>{saveError}</div>
+              ) : null}
 
               <div className={styles.formGrid}>
                 <label className={styles.field}>
@@ -319,7 +387,10 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                   <input
                     value={form.unitNumber}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, unitNumber: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        unitNumber: event.target.value,
+                      }))
                     }
                     required
                   />
@@ -329,7 +400,10 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                   <input
                     value={form.vin}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, vin: event.target.value.toUpperCase() }))
+                      setForm((current) => ({
+                        ...current,
+                        vin: event.target.value.toUpperCase(),
+                      }))
                     }
                     className={styles.uppercaseInput}
                   />
@@ -339,7 +413,10 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                   <input
                     value={form.make}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, make: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        make: event.target.value,
+                      }))
                     }
                   />
                 </label>
@@ -348,7 +425,10 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                   <input
                     value={form.modelName}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, modelName: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        modelName: event.target.value,
+                      }))
                     }
                   />
                 </label>
@@ -358,7 +438,10 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                     type="number"
                     value={form.year}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, year: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        year: event.target.value,
+                      }))
                     }
                   />
                 </label>
@@ -377,7 +460,11 @@ export default function TrucksDropdown({ trucks, onTruckUpdated }: Props) {
                   className={styles.primaryButton}
                   disabled={saving || !form.unitNumber.trim()}
                 >
-                  {saving ? "Saving..." : "Save changes"}
+                  {saving
+                    ? "Saving..."
+                    : editingTruckId
+                      ? "Save changes"
+                      : "Create truck"}
                 </button>
               </div>
             </form>

@@ -110,6 +110,14 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
     );
   }
 
+  function handleTruckCreated(createdTruck: TruckRecord) {
+    setTrucks((current) =>
+      [...current, createdTruck].sort((left, right) =>
+        left.unitNumber.localeCompare(right.unitNumber),
+      ),
+    );
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -309,7 +317,11 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
         <AdvertisingSlider slides={slides} />
       </div>
 
-      <TrucksDropdown trucks={truckRows} onTruckUpdated={handleTruckUpdated} />
+      <TrucksDropdown
+        trucks={truckRows}
+        onTruckCreated={handleTruckCreated}
+        onTruckUpdated={handleTruckUpdated}
+      />
 
       <DataTable
         data={

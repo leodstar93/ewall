@@ -28,7 +28,7 @@ interface Props<T extends object> {
   columns: ColumnDef<T>[];
   actions?: TableAction[];
   searchQuery?: string;
-  title?: string;
+  title?: ReactNode;
   toolbar?: ReactNode;
   /** Keys used for full-text search. Defaults to all string columns. */
   searchKeys?: (keyof T & string)[];
