@@ -355,11 +355,12 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     const params = new URLSearchParams(window.location.search);
     const provider = params.get("eldProvider") as EldProviderCode | null;
     const eldError = params.get("eldError");
+    const pending = params.get("eldPending") === "true";
     const connected = params.get("eldConnected") === "true";
     const syncStatus = params.get("eldSync");
     const syncJobId = params.get("eldSyncJobId");
 
-    if (!provider && !eldError && !connected) {
+    if (!provider && !eldError && !pending && !connected) {
       return;
     }
 
@@ -381,10 +382,16 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
           syncJobId ? ` Job ${syncJobId} is available in sync history.` : ""
         }`,
       });
+    } else if (pending) {
+      setNotice({
+        tone: "info",
+        text: `${providerLabel(provider)} returned a Motive company. Confirm it before the integration is activated.`,
+      });
     }
 
     params.delete("eldProvider");
     params.delete("eldError");
+    params.delete("eldPending");
     params.delete("eldConnected");
     params.delete("eldSync");
     params.delete("eldSyncJobId");
@@ -593,6 +600,26 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
       });
       setBusyAction(null);
     }
+  }
+
+  async function handleConfirmConnection(provider: EldProviderCode) {
+    await runBusyAction(
+      `confirm:${provider}`,
+      async () => {
+        const data = await requestJson<{ syncStatus?: string }>(
+          "/api/v1/integrations/eld/confirm",
+          {
+            method: "POST",
+            body: JSON.stringify({ provider }),
+          },
+        );
+
+        if (data.syncStatus && data.syncStatus !== "success") {
+          throw new Error(`Initial sync status: ${data.syncStatus}`);
+        }
+      },
+      `${providerLabel(provider)} was confirmed and initial sync completed.`,
+    );
   }
 
   async function handleDisconnect(provider: EldProviderCode) {
@@ -1015,7 +1042,9 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
                   const account = accounts.find((candidate) => candidate.provider === provider.provider);
                   const isAvailable = provider.status === "available" && provider.provider === "MOTIVE";
                   const connectKey = `connect:${provider.provider}`;
+                  const confirmKey = `confirm:${provider.provider}`;
                   const disconnectKey = `disconnect:${provider.provider}`;
+                  const isPending = account?.status === "PENDING";
 
                   return (
                     <div
@@ -1043,14 +1072,26 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
                         </div>
 
                         <div className="flex gap-2">
+                          {isPending ? (
+                            <Button
+                              size="sm"
+                              onClick={() => void handleConfirmConnection(provider.provider)}
+                              disabled={busyAction === confirmKey}
+                            >
+                              {busyAction === confirmKey ? "Confirming..." : "Confirm"}
+                            </Button>
+                          ) : null}
                           <Button
                             size="sm"
                             onClick={() => void handleConnect(provider.provider)}
-                            disabled={!isAvailable || busyAction === connectKey}
+                            disabled={!isAvailable || busyAction === connectKey || isPending}
+                            variant={isPending ? "outline" : "primary"}
                           >
                             {busyAction === connectKey
                               ? "Opening..."
-                              : account
+                              : isPending
+                                ? "Pending"
+                                : account
                                 ? "Reconnect"
                                 : isAvailable
                                   ? "Connect"

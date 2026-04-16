@@ -52,6 +52,7 @@ type IntegrationTableRow = {
   sortConnectedAt: number;
   isAvailable: boolean;
   hasAccount: boolean;
+  isPending: boolean;
   notes: string[];
   lastErrorMessage: string | null;
 };
@@ -161,6 +162,7 @@ function buildRows(
       sortConnectedAt: account?.connectedAt ? -new Date(account.connectedAt).getTime() : 0,
       isAvailable,
       hasAccount: Boolean(account),
+      isPending: account?.status === "PENDING",
       notes: provider.notes ?? [],
       lastErrorMessage: account?.lastErrorMessage ?? null,
     };
@@ -226,10 +228,11 @@ export default function IntegrationsPageClient() {
     const params = new URLSearchParams(window.location.search);
     const provider = params.get("eldProvider");
     const eldError = params.get("eldError");
+    const pending = params.get("eldPending") === "true";
     const connected = params.get("eldConnected") === "true";
     const syncStatus = params.get("eldSync");
 
-    if (!provider && !eldError && !connected) {
+    if (!provider && !eldError && !pending && !connected) {
       return;
     }
 
@@ -247,10 +250,17 @@ export default function IntegrationsPageClient() {
             : `${provider || "ELD"} connected. Initial sync status: ${syncStatus || "started"}.`,
       });
       void load();
+    } else if (pending) {
+      setBanner({
+        tone: "info",
+        message: `${provider || "ELD"} returned a Motive company. Confirm it before the integration is activated.`,
+      });
+      void load();
     }
 
     params.delete("eldProvider");
     params.delete("eldError");
+    params.delete("eldPending");
     params.delete("eldConnected");
     params.delete("eldSync");
     params.delete("eldSyncJobId");
@@ -292,6 +302,35 @@ export default function IntegrationsPageClient() {
         tone: "error",
         message: error instanceof Error ? error.message : "Could not start the ELD connection.",
       });
+      setBusyAction(null);
+    }
+  };
+
+  const handleConfirm = async (provider: EldProviderCode) => {
+    setBusyAction(`confirm:${provider}`);
+    setBanner(null);
+
+    try {
+      const data = await requestJson<{ syncStatus?: string }>("/api/v1/integrations/eld/confirm", {
+        method: "POST",
+        body: JSON.stringify({ provider }),
+      });
+
+      await load();
+      setBanner({
+        tone: data.syncStatus === "success" ? "success" : "info",
+        message:
+          data.syncStatus === "success"
+            ? `${providerLabel(provider)} confirmed and initial sync completed.`
+            : `${providerLabel(provider)} confirmed. Initial sync status: ${data.syncStatus || "started"}.`,
+      });
+    } catch (error) {
+      setBanner({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "Could not confirm the ELD provider.",
+      });
+    } finally {
       setBusyAction(null);
     }
   };
@@ -429,19 +468,32 @@ export default function IntegrationsPageClient() {
       sortable: false,
       render: (_, item) => {
         const connectKey = `connect:${item.provider}`;
+        const confirmKey = `confirm:${item.provider}`;
         const disconnectKey = `disconnect:${item.provider}`;
 
         return (
           <div className={styles.tableActionRow}>
+            {item.isPending ? (
+              <button
+                type="button"
+                onClick={() => void handleConfirm(item.provider)}
+                disabled={busyAction === confirmKey}
+                className={styles.primaryButton}
+              >
+                {busyAction === confirmKey ? "Confirming..." : "Confirm"}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => void handleConnect(item.provider)}
-              disabled={!item.isAvailable || busyAction === connectKey}
-              className={styles.primaryButton}
+              disabled={!item.isAvailable || busyAction === connectKey || item.isPending}
+              className={item.isPending ? styles.secondaryButton : styles.primaryButton}
             >
               {busyAction === connectKey
                 ? "Opening..."
-                : item.hasAccount
+                : item.isPending
+                  ? "Pending"
+                  : item.hasAccount
                   ? "Reconnect"
                   : item.isAvailable
                     ? "Connect"

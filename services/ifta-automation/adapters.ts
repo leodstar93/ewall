@@ -27,6 +27,12 @@ export type ProviderSyncContext = {
   metadataJson?: Prisma.JsonValue | null;
 };
 
+export type ProviderOrganizationIdentity = {
+  externalOrgId: string;
+  externalOrgName?: string | null;
+  metadataJson?: Prisma.InputJsonValue | null;
+};
+
 export type ProviderSyncWindowContext = ProviderSyncContext & {
   windowStart: Date;
   windowEnd: Date;
@@ -141,6 +147,9 @@ export interface ELDProviderAdapter {
   refreshAccessToken(input: {
     refreshToken: string;
   }): Promise<ProviderTokenSet>;
+  identifyOrganization?(input: {
+    accessToken: string;
+  }): Promise<ProviderOrganizationIdentity | null>;
   syncVehicles(input: ProviderSyncContext): Promise<VehicleSyncResult>;
   syncDrivers(input: ProviderSyncContext): Promise<DriverSyncResult>;
   syncFuelPurchases(input: ProviderSyncWindowContext): Promise<FuelSyncResult>;
@@ -273,6 +282,12 @@ function splitScopes(value: string | null | undefined) {
     .filter(Boolean);
 }
 
+function optionalEnvWithDefault(value: string | undefined, fallback: string | null) {
+  if (typeof value === "undefined") return fallback;
+  const normalized = value.trim();
+  return normalized.length ? normalized : null;
+}
+
 function extractAccessTokenPayload(payload: unknown): ProviderTokenSet {
   const record = toJsonRecord(payload);
   if (!record) {
@@ -313,6 +328,9 @@ type MotiveConfig = {
   tokenUrl: string;
   apiBaseUrl: string;
   scopes: string[];
+  oauthPrompt: string | null;
+  oauthMaxAge: string | null;
+  companiesPath: string;
   vehiclesPath: string;
   driversPath: string;
   fuelPurchasesPath: string;
@@ -336,8 +354,11 @@ function getMotiveConfig() {
       "https://api.gomotive.com",
     scopes: splitScopes(
       process.env.MOTIVE_OAUTH_SCOPES?.trim() ||
-        "vehicles.read users.read ifta.read fuel.read",
+        "companies.read vehicles.read users.read ifta.read fuel.read",
     ),
+    oauthPrompt: optionalEnvWithDefault(process.env.MOTIVE_OAUTH_PROMPT, "login"),
+    oauthMaxAge: optionalEnvWithDefault(process.env.MOTIVE_OAUTH_MAX_AGE, "0"),
+    companiesPath: process.env.MOTIVE_COMPANIES_PATH?.trim() || "/v1/companies",
     vehiclesPath: process.env.MOTIVE_VEHICLES_PATH?.trim() || "/v1/vehicles",
     driversPath: process.env.MOTIVE_DRIVERS_PATH?.trim() || "/v1/users",
     fuelPurchasesPath:
@@ -445,6 +466,32 @@ class MotiveAdapter implements ELDProviderAdapter {
     };
   }
 
+  private mapCompany(candidate: unknown): ProviderOrganizationIdentity | null {
+    const unwrapped = unwrapEntityRecord(candidate, ["company", "organization", "fleet"]);
+    if (!unwrapped) return null;
+    const { record, payload } = unwrapped;
+
+    const externalOrgId = readString(
+      record,
+      "id",
+      "company_id",
+      "companyId",
+      "org_id",
+      "orgId",
+      "organization_id",
+      "organizationId",
+      "fleet_id",
+      "fleetId",
+    );
+    if (!externalOrgId) return null;
+
+    return {
+      externalOrgId,
+      externalOrgName: readString(record, "name", "company_name", "companyName", "legal_name", "legalName"),
+      metadataJson: payload as Prisma.InputJsonValue,
+    };
+  }
+
   private mapTrip(candidate: unknown): ProviderIftaTripRecord | null {
     const unwrapped = unwrapEntityRecord(candidate, ["ifta_trip", "trip"]);
     if (!unwrapped) return null;
@@ -526,6 +573,12 @@ class MotiveAdapter implements ELDProviderAdapter {
     if (config.scopes.length > 0) {
       url.searchParams.set("scope", config.scopes.join(" "));
     }
+    if (config.oauthPrompt) {
+      url.searchParams.set("prompt", config.oauthPrompt);
+    }
+    if (config.oauthMaxAge) {
+      url.searchParams.set("max_age", config.oauthMaxAge);
+    }
 
     return url.toString();
   }
@@ -563,6 +616,26 @@ class MotiveAdapter implements ELDProviderAdapter {
     }
 
     return extractAccessTokenPayload(payload);
+  }
+
+  async identifyOrganization(input: { accessToken: string }) {
+    const payload = await this.requestJson({
+      accessToken: input.accessToken,
+      path: this.getConfig().companiesPath,
+    });
+
+    const fromCollection = extractCollection(payload, ["companies", "organizations", "fleets", "results"])
+      .map((company) => this.mapCompany(company))
+      .find((company): company is ProviderOrganizationIdentity => Boolean(company));
+
+    if (fromCollection) {
+      return fromCollection;
+    }
+
+    const payloadRecord = toJsonRecord(payload);
+    const dataRecord = payloadRecord ? toJsonRecord(payloadRecord.data) : null;
+
+    return this.mapCompany(payload) || (dataRecord ? this.mapCompany(dataRecord) : null);
   }
 
   async refreshAccessToken(input: { refreshToken: string }) {

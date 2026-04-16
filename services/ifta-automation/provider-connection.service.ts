@@ -4,6 +4,7 @@ import { ensureUserOrganization } from "@/lib/services/organization.service";
 import {
   ELDProviderRegistry,
   type ELDProviderAdapter,
+  type ProviderOrganizationIdentity,
   type ProviderTokenSet,
 } from "@/services/ifta-automation/adapters";
 import {
@@ -133,12 +134,26 @@ export class ProviderConnectionService {
     tenantId: string;
     provider: ELDProvider;
     tokenSet: ProviderTokenSet;
+    status?: IntegrationStatus;
     metadataJson?: Prisma.InputJsonValue | null;
+    externalOrgId?: string | null;
+    externalOrgName?: string | null;
   }) {
     const now = new Date();
+    const status = input.status ?? IntegrationStatus.CONNECTED;
+    const connectedAt = status === IntegrationStatus.CONNECTED ? now : null;
     const metadataJson = input.metadataJson
       ? JSON.parse(JSON.stringify(input.metadataJson))
       : undefined;
+    const providerOrganizationData = {
+      ...(typeof input.externalOrgId !== "undefined"
+        ? { externalOrgId: input.externalOrgId }
+        : {}),
+      ...(typeof input.externalOrgName !== "undefined"
+        ? { externalOrgName: input.externalOrgName }
+        : {}),
+    };
+
     return prisma.integrationAccount.upsert({
       where: {
         tenantId_provider: {
@@ -147,33 +162,82 @@ export class ProviderConnectionService {
         },
       },
       update: {
-        status: IntegrationStatus.CONNECTED,
+        status,
         accessTokenEncrypted: encryptEldSecret(input.tokenSet.accessToken),
         refreshTokenEncrypted: input.tokenSet.refreshToken
           ? encryptEldSecret(input.tokenSet.refreshToken)
           : null,
         tokenExpiresAt: input.tokenSet.expiresAt,
         scopesJson: input.tokenSet.scopes,
-        connectedAt: now,
+        connectedAt,
         disconnectedAt: null,
         lastErrorAt: null,
         lastErrorMessage: null,
         metadataJson,
+        ...providerOrganizationData,
       },
       create: {
         tenantId: input.tenantId,
         provider: input.provider,
-        status: IntegrationStatus.CONNECTED,
+        status,
         accessTokenEncrypted: encryptEldSecret(input.tokenSet.accessToken),
         refreshTokenEncrypted: input.tokenSet.refreshToken
           ? encryptEldSecret(input.tokenSet.refreshToken)
           : null,
         tokenExpiresAt: input.tokenSet.expiresAt,
         scopesJson: input.tokenSet.scopes,
-        connectedAt: now,
+        connectedAt,
         metadataJson,
+        ...providerOrganizationData,
       },
     });
+  }
+
+  static async ensureProviderOrganizationCanConnect(input: {
+    provider: ELDProvider;
+    tenantId: string;
+    organization: ProviderOrganizationIdentity | null;
+  }) {
+    if (!input.organization?.externalOrgId) {
+      throw new IftaAutomationError(
+        "Motive connected, but the Motive company could not be identified. Add the companies.read scope and try again.",
+        409,
+        "ELD_PROVIDER_ORG_NOT_IDENTIFIED",
+      );
+    }
+
+    const existingAccount = await prisma.integrationAccount.findFirst({
+      where: {
+        provider: input.provider,
+        externalOrgId: input.organization.externalOrgId,
+        tenantId: { not: input.tenantId },
+        status: { not: IntegrationStatus.DISCONNECTED },
+      },
+      select: {
+        id: true,
+        tenant: {
+          select: {
+            name: true,
+            legalName: true,
+            companyName: true,
+          },
+        },
+      },
+    });
+
+    if (existingAccount) {
+      const tenantName =
+        existingAccount.tenant.legalName ||
+        existingAccount.tenant.companyName ||
+        existingAccount.tenant.name ||
+        "another client";
+
+      throw new IftaAutomationError(
+        `This Motive company is already connected to ${tenantName}. Sign out of Motive or choose the correct Motive account before connecting this client.`,
+        409,
+        "ELD_PROVIDER_ORG_ALREADY_CONNECTED",
+      );
+    }
   }
 
   static async handleOAuthCallback(input: {
@@ -199,14 +263,40 @@ export class ProviderConnectionService {
       code: input.code,
       redirectUri,
     });
+    let providerOrganization: ProviderOrganizationIdentity | null = null;
+    try {
+      providerOrganization = adapter.identifyOrganization
+        ? await adapter.identifyOrganization({ accessToken: tokenSet.accessToken })
+        : null;
+    } catch (error) {
+      throw new IftaAutomationError(
+        "Motive connected, but the Motive company could not be verified. Confirm companies.read is approved for this Motive app and try again.",
+        409,
+        "ELD_PROVIDER_ORG_VERIFICATION_FAILED",
+        error instanceof IftaAutomationError
+          ? { code: error.code, details: error.details }
+          : undefined,
+      );
+    }
+
+    await this.ensureProviderOrganizationCanConnect({
+      provider: input.provider,
+      tenantId: payload.tenantId,
+      organization: providerOrganization,
+    });
 
     const account = await this.persistTokenSet({
       tenantId: payload.tenantId,
       provider: input.provider,
       tokenSet,
+      status: IntegrationStatus.PENDING,
+      externalOrgId: providerOrganization?.externalOrgId,
+      externalOrgName: providerOrganization?.externalOrgName,
       metadataJson: {
         oauthConnectedByUserId: payload.userId,
         oauthConnectedAt: new Date().toISOString(),
+        oauthPendingConfirmation: true,
+        providerOrganization: providerOrganization?.metadataJson ?? null,
       },
     });
 
@@ -214,7 +304,78 @@ export class ProviderConnectionService {
       state: payload,
       account,
       redirectTo: payload.returnTo || "/ifta-v2",
+      pendingConfirmation: account.status === IntegrationStatus.PENDING,
     };
+  }
+
+  static async confirmPendingConnection(input: {
+    userId: string;
+    provider: ELDProvider;
+  }) {
+    const tenant = await ensureUserOrganization(input.userId);
+    const account = await prisma.integrationAccount.findUnique({
+      where: {
+        tenantId_provider: {
+          tenantId: tenant.id,
+          provider: input.provider,
+        },
+      },
+    });
+
+    if (!account) {
+      throw new IftaAutomationError(
+        "No pending ELD integration was found for this tenant.",
+        404,
+        "ELD_INTEGRATION_NOT_FOUND",
+      );
+    }
+
+    if (account.status !== IntegrationStatus.PENDING) {
+      throw new IftaAutomationError(
+        "This ELD integration is not waiting for confirmation.",
+        409,
+        "ELD_INTEGRATION_NOT_PENDING",
+      );
+    }
+
+    if (!account.externalOrgId) {
+      throw new IftaAutomationError(
+        "The Motive company could not be verified for this pending connection.",
+        409,
+        "ELD_PROVIDER_ORG_NOT_IDENTIFIED",
+      );
+    }
+
+    await this.ensureProviderOrganizationCanConnect({
+      provider: input.provider,
+      tenantId: tenant.id,
+      organization: {
+        externalOrgId: account.externalOrgId,
+        externalOrgName: account.externalOrgName,
+      },
+    });
+
+    const metadata =
+      account.metadataJson && typeof account.metadataJson === "object" && !Array.isArray(account.metadataJson)
+        ? (account.metadataJson as Record<string, unknown>)
+        : {};
+
+    return prisma.integrationAccount.update({
+      where: { id: account.id },
+      data: {
+        status: IntegrationStatus.CONNECTED,
+        connectedAt: new Date(),
+        disconnectedAt: null,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        metadataJson: {
+          ...metadata,
+          oauthPendingConfirmation: false,
+          oauthConfirmedByUserId: input.userId,
+          oauthConfirmedAt: new Date().toISOString(),
+        },
+      },
+    });
   }
 
   static async disconnect(input: {

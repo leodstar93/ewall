@@ -66,6 +66,9 @@ If your local database already applied the old IFTA v2 migrations, reset that da
 - Set `NEXT_PUBLIC_APP_URL` or `NEXTAUTH_URL` so OAuth callback URLs can be generated server-side.
 - Set `MOTIVE_CLIENT_ID`, `MOTIVE_CLIENT_SECRET`, and whitelist `/api/v1/integrations/eld/callback/motive`.
 - Confirm `MOTIVE_OAUTH_SCOPES` with your Motive app approval.
+- Keep `companies.read` enabled so the callback can identify the Motive company and block accidental cross-client links.
+- `MOTIVE_OAUTH_PROMPT=login` and `MOTIVE_OAUTH_MAX_AGE=0` ask Motive for a fresh login during each connect.
+- Motive may still reuse an active browser session, so OAuth callbacks are saved as `PENDING` until the user confirms the returned Motive company in EWALL.
 - Set `MOTIVE_WEBHOOK_SECRET` before accepting signed webhooks in production.
 - Prefer dedicated `ELD_ENCRYPTION_KEY_*` and `ELD_OAUTH_STATE_SECRET` values instead of relying on the `AUTH_SECRET` fallback.
 

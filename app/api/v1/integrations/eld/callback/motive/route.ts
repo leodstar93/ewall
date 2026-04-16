@@ -1,6 +1,5 @@
 import { ELDProvider } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { handleIftaAutomationError } from "@/services/ifta-automation/http";
 import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
 import { verifyEldOauthState } from "@/services/ifta-automation/security";
 import { SyncOrchestrator } from "@/services/ifta-automation/sync-orchestrator.service";
@@ -11,6 +10,31 @@ function getPublicAppBaseUrl(request: NextRequest) {
     process.env.NEXTAUTH_URL?.trim() ||
     request.nextUrl.origin
   ).replace(/\/+$/, "");
+}
+
+function buildErrorRedirect(input: {
+  appBaseUrl: string;
+  state: string | null;
+  error: unknown;
+}) {
+  let returnTo = "/ifta-v2";
+  if (input.state) {
+    try {
+      returnTo = verifyEldOauthState(input.state).returnTo || returnTo;
+    } catch {
+      returnTo = "/ifta-v2";
+    }
+  }
+
+  const redirectUrl = new URL(returnTo, input.appBaseUrl);
+  const message =
+    input.error instanceof Error
+      ? input.error.message.slice(0, 250)
+      : "Failed to complete Motive OAuth callback.";
+
+  redirectUrl.searchParams.set("eldProvider", "MOTIVE");
+  redirectUrl.searchParams.set("eldError", message);
+  return redirectUrl;
 }
 
 export async function GET(request: NextRequest) {
@@ -47,6 +71,13 @@ export async function GET(request: NextRequest) {
       redirectUri: `${appBaseUrl}/api/v1/integrations/eld/callback/motive`,
     });
 
+    if (result.pendingConfirmation) {
+      const redirectUrl = new URL(result.redirectTo || "/ifta-v2", appBaseUrl);
+      redirectUrl.searchParams.set("eldProvider", "MOTIVE");
+      redirectUrl.searchParams.set("eldPending", "true");
+      return NextResponse.redirect(redirectUrl);
+    }
+
     let syncStatus = "success";
     let syncJobId: string | null = null;
 
@@ -72,6 +103,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
-    return handleIftaAutomationError(error, "Failed to complete Motive OAuth callback.");
+    return NextResponse.redirect(
+      buildErrorRedirect({
+        appBaseUrl,
+        state,
+        error,
+      }),
+    );
   }
 }

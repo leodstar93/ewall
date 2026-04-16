@@ -139,10 +139,11 @@ export default function IntegrationsTab({
     const params = new URLSearchParams(window.location.search);
     const provider = params.get("eldProvider");
     const eldError = params.get("eldError");
+    const pending = params.get("eldPending") === "true";
     const connected = params.get("eldConnected") === "true";
     const syncStatus = params.get("eldSync");
 
-    if (!provider && !eldError && !connected) {
+    if (!provider && !eldError && !pending && !connected) {
       return;
     }
 
@@ -170,10 +171,23 @@ export default function IntegrationsTab({
         message: `${provider || "ELD"} connected.`,
       });
       void load();
+    } else if (pending) {
+      const nextMessage = `${provider || "ELD"} returned a Motive company. Confirm it before the integration is activated.`;
+
+      setMessage({
+        tone: "info",
+        text: nextMessage,
+      });
+      onNotify({
+        tone: "success",
+        message: `${provider || "ELD"} is waiting for confirmation.`,
+      });
+      void load();
     }
 
     params.delete("eldProvider");
     params.delete("eldError");
+    params.delete("eldPending");
     params.delete("eldConnected");
     params.delete("eldSync");
     params.delete("eldSyncJobId");
@@ -213,6 +227,49 @@ export default function IntegrationsTab({
         tone: "error",
         message: text,
       });
+      setBusyAction(null);
+    }
+  }
+
+  async function handleConfirm(provider: EldProviderCode) {
+    setBusyAction(`confirm:${provider}`);
+    setMessage(null);
+
+    try {
+      const data = await requestJson<{ syncStatus?: string }>(
+        "/api/v1/integrations/eld/confirm",
+        {
+          method: "POST",
+          body: JSON.stringify({ provider }),
+        },
+      );
+
+      await load();
+      const text =
+        data.syncStatus === "success"
+          ? `${providerLabel(provider)} confirmed and initial sync completed.`
+          : `${providerLabel(provider)} confirmed. Initial sync status: ${data.syncStatus || "started"}.`;
+
+      setMessage({
+        tone: data.syncStatus === "success" ? "success" : "info",
+        text,
+      });
+      onNotify({
+        tone: "success",
+        message: `${providerLabel(provider)} confirmed.`,
+      });
+    } catch (error) {
+      const text =
+        error instanceof Error ? error.message : "Could not confirm the ELD provider.";
+      setMessage({
+        tone: "error",
+        text,
+      });
+      onNotify({
+        tone: "error",
+        message: text,
+      });
+    } finally {
       setBusyAction(null);
     }
   }
@@ -306,8 +363,10 @@ export default function IntegrationsTab({
               {providers.map((provider) => {
                 const account = accounts.find((item) => item.provider === provider.provider);
                 const connectKey = `connect:${provider.provider}`;
+                const confirmKey = `confirm:${provider.provider}`;
                 const disconnectKey = `disconnect:${provider.provider}`;
                 const isAvailable = provider.provider === "MOTIVE" && provider.status === "available";
+                const isPending = account?.status === "PENDING";
 
                 return (
                   <div
@@ -367,14 +426,26 @@ export default function IntegrationsTab({
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+                        {isPending ? (
+                          <Button
+                            size="sm"
+                            onClick={() => void handleConfirm(provider.provider)}
+                            disabled={busyAction === confirmKey}
+                          >
+                            {busyAction === confirmKey ? "Confirming..." : "Confirm"}
+                          </Button>
+                        ) : null}
                         <Button
                           size="sm"
                           onClick={() => void handleConnect(provider.provider)}
-                          disabled={!isAvailable || busyAction === connectKey}
+                          disabled={!isAvailable || busyAction === connectKey || isPending}
+                          variant={isPending ? "outline" : "primary"}
                         >
                           {busyAction === connectKey
                             ? "Opening..."
-                            : account
+                            : isPending
+                              ? "Pending"
+                              : account
                               ? "Reconnect"
                               : isAvailable
                                 ? "Connect"
