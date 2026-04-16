@@ -4,6 +4,7 @@ import { UCRDocumentType } from "@prisma/client";
 import type { AppEnvironment, DbClient } from "@/lib/db/types";
 import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
 import { createStoredDocument } from "@/services/documents/create-stored-document";
+import { logUcrEvent } from "@/services/ucr/logUcrEvent";
 import {
   buildUcrAutoDocumentName,
   getUcrDocumentCategory,
@@ -119,6 +120,21 @@ export async function saveUcrDocument(input: SaveUcrDocumentInput) {
     description: input.description?.trim() || null,
     category: getUcrDocumentCategory(input.type),
     fileName: downloadFileName,
+  });
+
+  await logUcrEvent({ db }, {
+    filingId: input.filingId,
+    actorUserId: input.uploadedBy,
+    eventType: "ucr.document.uploaded",
+    message: `Document uploaded: ${documentName}.`,
+    metaJson: {
+      documentId: document.id,
+      documentName,
+      documentType: input.type,
+      uploadedByRole: input.uploadedByRole,
+      mimeType: input.file.type || null,
+      size: input.file.size,
+    },
   });
 
   return document;

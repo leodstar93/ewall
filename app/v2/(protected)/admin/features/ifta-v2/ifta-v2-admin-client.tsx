@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef } from "../../components/ui/Table";
 import tableStyles from "../../components/ui/DataTable.module.css";
@@ -280,13 +281,18 @@ export default function IftaV2AdminClient() {
               type="button"
               onClick={() => void openQueueFiling(item)}
               disabled={busyFilingId === item.id}
-              className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60"
+              aria-label={busyFilingId === item.id ? "Opening filing" : item.status === "APPROVED" ? "Open filing" : "Review filing"}
+              title={busyFilingId === item.id ? "Opening filing" : item.status === "APPROVED" ? "Open filing" : "Review filing"}
+              className={iconButtonClasses({
+                variant: "dark",
+                className: busyFilingId === item.id ? "opacity-60" : undefined,
+              })}
             >
-              {busyFilingId === item.id
-                ? "Opening..."
-                : item.status === "APPROVED"
-                  ? "Open"
-                  : "Review"}
+              {busyFilingId === item.id ? (
+                <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+              ) : (
+                <ActionIcon name="view" />
+              )}
             </button>
           </div>
         ),

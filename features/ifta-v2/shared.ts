@@ -186,6 +186,17 @@ export type FilingAudit = {
   createdAt: string;
 };
 
+export type IftaAutomationDocument = {
+  id: string;
+  name: string;
+  type: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+};
+
 export type FilingDetail = FilingListItem & {
   tenant: {
     id: string;
@@ -226,6 +237,7 @@ export type FilingDetail = FilingListItem & {
   exceptions: FilingException[];
   snapshots: FilingSnapshot[];
   audits: FilingAudit[];
+  documents: IftaAutomationDocument[];
 };
 
 export function toNumber(value: string | number | null | undefined) {
@@ -326,6 +338,29 @@ export function filingTone(status: string) {
 
 export function filingStatusLabel(status: string | null | undefined) {
   return unifiedWorkflowStatusLabel(unifiedStatusForIftaFiling(status));
+}
+
+export function iftaAutomationDocumentTypeLabel(type: string | null | undefined) {
+  switch ((type || "").trim().toLowerCase()) {
+    case "pdf-document":
+      return "PDF document";
+    case "image-document":
+      return "Image document";
+    case "spreadsheet-document":
+      return "Spreadsheet document";
+    case "text-document":
+      return "Text document";
+    case "video-document":
+      return "Video document";
+    case "general-document":
+      return "Supporting document";
+    default:
+      return (type || "Supporting document")
+        .replace(/[-_]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
 }
 
 export function unifiedStatusForIftaFiling(

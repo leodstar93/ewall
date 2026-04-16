@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DashboardTable, {
   type ColumnDef,
 } from "@/app/v2/(protected)/dashboard/components/ui/Table";
@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import {
   type FilingDetail,
   type FilingException,
+  iftaAutomationDocumentTypeLabel,
   type IftaAutomationMode,
   blockingExceptionCount,
   canTruckerEditFilingStatus,
@@ -42,6 +43,7 @@ type FilingDetailPanelProps = {
   onApprove: (filing: FilingDetail) => void;
   onReopen: (filing: FilingDetail) => void;
   onDownload: (filing: FilingDetail, format: "pdf" | "excel") => void;
+  onUploadDocument: (filing: FilingDetail, file: File) => Promise<void>;
   onExceptionAction: (
     filing: FilingDetail,
     exception: FilingException,
@@ -104,6 +106,14 @@ type ExceptionTableRow = {
   exception: FilingException;
 };
 
+type FilingDocumentRow = {
+  id: string;
+  name: string;
+  type: string;
+  createdAt: string;
+  href: string;
+};
+
 const detailTabs: Array<{ value: DetailTab; label: string }> = [
   { value: "overview", label: "Overview" },
   { value: "vehicles", label: "Vehicles" },
@@ -155,12 +165,18 @@ export function FilingDetailPanel({
   onApprove,
   onReopen,
   onDownload,
+  onUploadDocument,
   onExceptionAction,
 }: FilingDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
 
   useEffect(() => {
     setActiveTab("overview");
+    setDocumentModalOpen(false);
+    setDocumentFile(null);
   }, [filing?.id]);
 
   const vehicleLabelById = useMemo(() => {
@@ -462,6 +478,23 @@ export function FilingDetailPanel({
       ),
     },
   ];
+  const documentRows: FilingDocumentRow[] = (filing.documents ?? []).map(
+    (document) => ({
+      id: document.id,
+      name: document.name,
+      type: iftaAutomationDocumentTypeLabel(document.type),
+      createdAt: formatDateTime(document.createdAt),
+      href: `/api/v1/features/ifta-v2/documents/${document.id}/download`,
+    }),
+  );
+  const documentBusy = busyAction === `document:upload:${filing.id}`;
+
+  async function handleUploadDocument() {
+    if (!filing || !documentFile || documentBusy) return;
+    await onUploadDocument(filing, documentFile);
+    setDocumentModalOpen(false);
+    setDocumentFile(null);
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -647,6 +680,82 @@ export function FilingDetailPanel({
                 title="Jurisdiction Summary"
               />
             )}
+
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-gray-500">
+                    Files
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-gray-950">
+                      Documents
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setDocumentModalOpen(true)}
+                      disabled={documentBusy}
+                      aria-label="Upload document"
+                      title="Upload document"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-600 text-lg font-semibold leading-none text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {documentRows.length} record{documentRows.length === 1 ? "" : "s"}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead
+                    className="text-left text-xs uppercase tracking-[0.08em] text-white/80"
+                    style={{ background: "var(--b)" }}
+                  >
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Document</th>
+                      <th className="px-4 py-3 font-medium">Type</th>
+                      <th className="px-4 py-3 font-medium">Uploaded</th>
+                      <th className="px-4 py-3 font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {documentRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-4 py-6 text-center text-sm text-gray-500"
+                        >
+                          No documents uploaded yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      documentRows.map((row) => (
+                        <tr key={row.id} className="border-t border-gray-200">
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            {row.name}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{row.type}</td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {row.createdAt}
+                          </td>
+                          <td className="px-4 py-3">
+                            <a
+                              href={row.href}
+                              className="text-sm font-medium text-gray-700 underline-offset-2 transition hover:text-gray-950 hover:underline"
+                            >
+                              Download
+                            </a>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         ) : null}
 
@@ -754,6 +863,97 @@ export function FilingDetailPanel({
           </div>
         ) : null}
       </div>
+
+      {documentModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6"
+          onClick={() => {
+            if (documentBusy) return;
+            setDocumentModalOpen(false);
+            setDocumentFile(null);
+          }}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.16em] text-gray-500">
+                  Files
+                </div>
+                <h3 className="mt-1 text-xl font-semibold text-gray-950">
+                  Upload document
+                </h3>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDocumentModalOpen(false);
+                  setDocumentFile(null);
+                }}
+                disabled={documentBusy}
+              >
+                Close
+              </Button>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <div className="text-sm font-medium text-gray-900">
+                Document file
+              </div>
+              <input
+                ref={documentInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) =>
+                  setDocumentFile(event.target.files?.[0] ?? null)
+                }
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => documentInputRef.current?.click()}
+                  disabled={documentBusy}
+                >
+                  Choose file
+                </Button>
+                <span className="text-sm text-gray-600">
+                  {documentFile ? documentFile.name : "No file selected"}
+                </span>
+              </div>
+              <p className="text-sm text-gray-500">
+                This upload uses the system auto-classification helper to label the document.
+              </p>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDocumentModalOpen(false);
+                  setDocumentFile(null);
+                }}
+                disabled={documentBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleUploadDocument()}
+                disabled={!documentFile || documentBusy}
+              >
+                {documentBusy ? "Uploading..." : "Upload"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Card>
   );
 }

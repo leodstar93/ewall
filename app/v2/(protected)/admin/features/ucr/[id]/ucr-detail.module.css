@@ -197,6 +197,13 @@
   color: var(--text-primary);
 }
 
+.auditTableWrap {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--br);
+  border-radius: 14px;
+}
+
 .uploadField {
   display: grid;
   gap: 8px;

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { publicDiskPathFromUrl } from "@/lib/doc-files";
 import { readFile } from "fs/promises";
 import { getUcrDocumentFileName } from "@/services/ucr/shared";
+import { logUcrEvent } from "@/services/ucr/logUcrEvent";
 
 export async function GET(
   _request: NextRequest,
@@ -22,8 +23,10 @@ export async function GET(
       name: true,
       filePath: true,
       mimeType: true,
+      type: true,
       filing: {
         select: {
+          id: true,
           userId: true,
         },
       },
@@ -45,6 +48,18 @@ export async function GET(
     const diskPath = publicDiskPathFromUrl(document.filePath);
     const fileBuffer = await readFile(diskPath);
     const fileName = getUcrDocumentFileName(document.name, document.filePath);
+
+    await logUcrEvent({
+      filingId: document.filing.id,
+      actorUserId: session.user.id,
+      eventType: "ucr.document.downloaded",
+      message: `Document downloaded: ${document.name}.`,
+      metaJson: {
+        documentId: document.id,
+        documentName: document.name,
+        documentType: document.type,
+      },
+    });
 
     return new Response(fileBuffer, {
       status: 200,

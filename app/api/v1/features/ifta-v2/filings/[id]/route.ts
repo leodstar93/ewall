@@ -4,6 +4,7 @@ import { assertFilingAccess, canReviewAllIfta } from "@/services/ifta-automation
 import { CanonicalNormalizationService } from "@/services/ifta-automation/canonical-normalization.service";
 import { FilingWorkflowService } from "@/services/ifta-automation/filing-workflow.service";
 import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
+import { listIftaAutomationDocuments } from "@/services/ifta-automation/documents";
 import { getIftaAutomationFilingOrThrow } from "@/services/ifta-automation/shared";
 import { handleIftaAutomationError, parseOptionalString } from "@/services/ifta-automation/http";
 
@@ -47,7 +48,14 @@ export async function GET(
       }
     }
 
-    return Response.json({ filing });
+    const documents = await listIftaAutomationDocuments(id, prisma);
+
+    return Response.json({
+      filing: {
+        ...filing,
+        documents,
+      },
+    });
   } catch (error) {
     return handleIftaAutomationError(error, "Failed to load IFTA filing detail.");
   }

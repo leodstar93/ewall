@@ -1,4 +1,6 @@
+import { readFile } from "fs/promises";
 import { NextRequest } from "next/server";
+import { publicDiskPathFromUrl } from "@/lib/doc-files";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { logUcrEvent } from "@/services/ucr/logUcrEvent";
@@ -15,6 +17,54 @@ function toErrorResponse(error: unknown, fallback: string) {
 
   console.error(fallback, error);
   return Response.json({ error: fallback }, { status: 500 });
+}
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const guard = await requireApiPermission("ucr:read_all");
+  if (!guard.ok) return guard.res;
+
+  const { id } = await params;
+  const filing = await prisma.uCRFiling.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      officialReceiptUrl: true,
+      officialReceiptName: true,
+      officialReceiptMimeType: true,
+    },
+  });
+
+  if (!filing) {
+    return Response.json({ error: "UCR filing not found" }, { status: 404 });
+  }
+
+  if (filing.status !== "COMPLETED" || !filing.officialReceiptUrl) {
+    return Response.json({ error: "Receipt is not available yet." }, { status: 409 });
+  }
+
+  try {
+    const diskPath = publicDiskPathFromUrl(filing.officialReceiptUrl);
+    const fileBuffer = await readFile(diskPath);
+    const safeName = (filing.officialReceiptName || `ucr-receipt-${filing.id}`)
+      .replace(/"/g, "")
+      .trim();
+
+    return new Response(fileBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": filing.officialReceiptMimeType || "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${safeName}"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  } catch (error) {
+    console.error("Failed to download UCR receipt from admin view", error);
+    return Response.json({ error: "Receipt file unavailable" }, { status: 404 });
+  }
 }
 
 export async function POST(

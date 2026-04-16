@@ -159,6 +159,13 @@
   gap: 8px;
 }
 
+.auditTableWrap {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--br);
+  border-radius: 14px;
+}
+
 .fieldLabel {
   font-size: 12px;
   font-weight: 700;

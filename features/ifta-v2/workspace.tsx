@@ -875,6 +875,34 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     }
   }
 
+  async function handleUploadDocument(filing: FilingDetail, file: File) {
+    await runBusyAction(
+      `document:upload:${filing.id}`,
+      async () => {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(
+          `/api/v1/features/ifta-v2/filings/${filing.id}/documents`,
+          {
+            method: "POST",
+            body: formData,
+          },
+        );
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not upload the document.");
+        }
+      },
+      `Document uploaded for ${filingPeriodLabel(filing)}.`,
+      filing.id,
+    );
+  }
+
   if (loadingWorkspace) {
     return (
       <Card className="overflow-hidden bg-gradient-to-br from-white via-gray-50 to-amber-50">
@@ -1271,6 +1299,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
             onApprove={(filing) => void handleApprove(filing)}
             onReopen={(filing) => void handleReopen(filing)}
             onDownload={(filing, format) => void handleDownload(filing, format)}
+            onUploadDocument={(filing, file) => handleUploadDocument(filing, file)}
             onExceptionAction={(filing, exception, action) =>
               void handleExceptionAction(filing, exception, action)
             }

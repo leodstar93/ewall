@@ -168,7 +168,7 @@ function TimelineTable({
   rows: TimelineRow[];
 }) {
   return (
-    <div className={tableStyles.tableWrap}>
+    <div className={`${tableStyles.tableWrap} ${styles.auditTableWrap}`}>
       <table className={tableStyles.table}>
         <thead>
           <tr>

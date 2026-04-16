@@ -250,6 +250,7 @@ export function workflowStageForFiling(filing: Pick<UcrFiling, "status">): UcrWo
     case "IN_PROCESS":
     case "OFFICIAL_PAYMENT_PENDING":
     case "OFFICIAL_PAID":
+    case "RESUBMITTED":
       return "COMPLETE_BY_STAFF";
     case "COMPLETED":
     case "COMPLIANT":

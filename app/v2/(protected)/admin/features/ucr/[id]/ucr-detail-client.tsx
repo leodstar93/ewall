@@ -151,7 +151,7 @@ function DocumentsTable({ rows }: { rows: DocumentRow[] }) {
 
 function TimelineTable({ rows }: { rows: TimelineRow[] }) {
   return (
-    <div className={tableStyles.tableWrap}>
+    <div className={`${tableStyles.tableWrap} ${styles.auditTableWrap}`}>
       <table className={tableStyles.table}>
         <thead>
           <tr>
@@ -418,6 +418,7 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
     "IN_PROCESS",
     "OFFICIAL_PAYMENT_PENDING",
     "OFFICIAL_PAID",
+    "RESUBMITTED",
   ].includes(filing?.status ?? "");
   const hasReceiptOnFile = Boolean(filing?.officialReceiptUrl);
   const canSubmitStaffCompletion = Boolean(receiptFile || hasReceiptOnFile);

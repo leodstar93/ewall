@@ -351,6 +351,33 @@ export default function IftaAutomationStaffFilingPage({
     }
   }
 
+  async function handleUploadDocument(currentFiling: FilingDetail, file: File) {
+    await runBusyAction(
+      `document:upload:${currentFiling.id}`,
+      async () => {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(
+          `/api/v1/features/ifta-v2/filings/${currentFiling.id}/documents`,
+          {
+            method: "POST",
+            body: formData,
+          },
+        );
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not upload the document.");
+        }
+      },
+      `Document uploaded for ${filingPeriodLabel(currentFiling)}.`,
+    );
+  }
+
   if (loading) {
     return (
       <Card className="p-8">
@@ -398,6 +425,7 @@ export default function IftaAutomationStaffFilingPage({
         onApprove={(currentFiling) => void handleApprove(currentFiling)}
         onReopen={(currentFiling) => void handleReopen(currentFiling)}
         onDownload={(currentFiling, format) => void handleDownload(currentFiling, format)}
+        onUploadDocument={(currentFiling, file) => handleUploadDocument(currentFiling, file)}
         onExceptionAction={(currentFiling, exception, action) =>
           void handleExceptionAction(currentFiling, exception, action)
         }
