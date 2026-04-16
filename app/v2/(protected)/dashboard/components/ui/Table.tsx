@@ -30,6 +30,7 @@ interface Props<T extends object> {
   searchQuery?: string;
   title?: ReactNode;
   toolbar?: ReactNode;
+  hideHeader?: boolean;
   /** Keys used for full-text search. Defaults to all string columns. */
   searchKeys?: (keyof T & string)[];
 }
@@ -47,6 +48,7 @@ export default function Table<T extends object>({
   searchQuery = "",
   title,
   toolbar,
+  hideHeader = false,
   searchKeys,
 }: Props<T>) {
   const firstKey = columns[0]?.key ?? "";
@@ -120,32 +122,33 @@ export default function Table<T extends object>({
 
   return (
     <div className={styles.card}>
-      {/* Header */}
-      <div className={styles.header}>
-        <div>
-          {title && <div className={styles.title}>{title}</div>}
-          <div className={styles.subtitle}>
-            {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
-            {searchQuery ? " encontrados" : " totales"}
+      {!hideHeader ? (
+        <div className={styles.header}>
+          <div>
+            {title && <div className={styles.title}>{title}</div>}
+            <div className={styles.subtitle}>
+              {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
+              {searchQuery ? " encontrados" : " totales"}
+            </div>
           </div>
-        </div>
 
-        {actions.length > 0 && (
-          <div className={styles.actions}>
-            {actions.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                onClick={action.onClick}
-                className={`${styles.btn} ${action.variant === "primary" ? styles.btnPrimary : ""}`}
-              >
-                {action.icon}
-                {action.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          {actions.length > 0 && (
+            <div className={styles.actions}>
+              {actions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={action.onClick}
+                  className={`${styles.btn} ${action.variant === "primary" ? styles.btnPrimary : ""}`}
+                >
+                  {action.icon}
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {toolbar ? <div className={styles.toolbar}>{toolbar}</div> : null}
 

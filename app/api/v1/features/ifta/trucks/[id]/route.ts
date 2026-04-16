@@ -214,14 +214,6 @@ export async function DELETE(
       select: {
         id: true,
         userId: true,
-        _count: {
-          select: {
-            trips: true,
-            fuelPurchases: true,
-            iftaReports: true,
-            form2290Filings: true,
-          },
-        },
       },
     });
 
@@ -233,28 +225,10 @@ export async function DELETE(
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const usageChecks = [
-      { label: "IFTA trips", count: existing._count.trips },
-      { label: "fuel purchases", count: existing._count.fuelPurchases },
-      { label: "IFTA reports", count: existing._count.iftaReports },
-      { label: "Form 2290 filings", count: existing._count.form2290Filings },
-    ].filter((item) => item.count > 0);
-
-    if (usageChecks.length > 0) {
-      const usageSummary = usageChecks
-        .map((item) => `${item.count} ${item.label}`)
-        .join(", ");
-
-      return Response.json(
-        {
-          error: `This truck cannot be deleted because it is currently used by ${usageSummary}.`,
-          code: "TRUCK_IN_USE",
-        },
-        { status: 409 },
-      );
-    }
-
-    await prisma.truck.delete({ where: { id } });
+    await prisma.truck.update({
+      where: { id },
+      data: { isActive: false },
+    });
 
     return Response.json({ success: true });
   } catch (error) {

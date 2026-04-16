@@ -94,6 +94,7 @@ export type ManagedTruckerProfile = {
     model: string | null;
     year: number | null;
     grossWeight: number | null;
+    isActive: boolean;
     is2290Eligible: boolean;
     createdAt: string;
     updatedAt: string;
@@ -538,6 +539,7 @@ export async function getManagedTruckerProfile(
       model: truck.model,
       year: truck.year,
       grossWeight: truck.grossWeight,
+      isActive: truck.isActive,
       is2290Eligible: truck.is2290Eligible,
       createdAt: truck.createdAt.toISOString(),
       updatedAt: truck.updatedAt.toISOString(),

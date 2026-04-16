@@ -56,6 +56,7 @@ const emptyForm: TruckFormState = {
 interface Props {
   trucks: DashboardTruckRow[];
   onTruckCreated?: (truck: TruckRecord) => void;
+  onTruckHidden?: (truckId: string) => void;
   onTruckUpdated?: (truck: TruckRecord) => void;
 }
 
@@ -104,7 +105,12 @@ function toPayload(form: TruckFormState) {
 
 function EditIcon() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M3.5 13.75V16.5h2.75L15 7.75 12.25 5 3.5 13.75z" />
       <path d="M10.75 6.5 13.5 9.25" />
       <path d="M11.5 4.25 14.25 1.5 18.5 5.75 15.75 8.5" />
@@ -114,9 +120,31 @@ function EditIcon() {
 
 function CloseIcon() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M5 5 15 15" />
       <path d="M15 5 5 15" />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M3 5h14" />
+      <path d="M8 5V3.5h4V5" />
+      <path d="M6 7v9.5h8V7" />
+      <path d="M8.5 9.5v4.5" />
+      <path d="M11.5 9.5v4.5" />
     </svg>
   );
 }
@@ -124,6 +152,7 @@ function CloseIcon() {
 export default function TrucksDropdown({
   trucks,
   onTruckCreated,
+  onTruckHidden,
   onTruckUpdated,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -133,6 +162,7 @@ export default function TrucksDropdown({
   const [form, setForm] = useState<TruckFormState>(emptyForm);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [hidingTruckId, setHidingTruckId] = useState<string | null>(null);
 
   const rows = useMemo(() => buildRows(trucks), [trucks]);
 
@@ -214,6 +244,42 @@ export default function TrucksDropdown({
     }
   }
 
+  async function hideTruck(truck: DashboardTruckRow) {
+    const confirmed = window.confirm(
+      `Delete truck ${truck.unitNumber} from your dashboard? This action cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setHidingTruckId(truck.truckId);
+      const response = await fetch(
+        `/api/v1/features/ifta/trucks/${truck.truckId}`,
+        {
+          method: "DELETE",
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not delete the truck.");
+      }
+
+      onTruckHidden?.(truck.truckId);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Could not delete the truck.",
+      );
+      setEditingTruckId(null);
+      setForm(emptyForm);
+      setIsModalOpen(true);
+    } finally {
+      setHidingTruckId(null);
+    }
+  }
+
   const tableTitle = "";
 
   const columns: ColumnDef<TruckTableRow>[] = [
@@ -248,15 +314,32 @@ export default function TrucksDropdown({
       label: "Actions",
       sortable: false,
       render: (_, truck) => (
-        <button
-          type="button"
-          className={styles.actionButton}
-          onClick={() => startEdit(truck)}
-          aria-label={`Edit truck ${truck.unitNumber}`}
-          title={`Edit truck ${truck.unitNumber}`}
-        >
-          <EditIcon />
-        </button>
+        <div className={styles.actionCell}>
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={() => startEdit(truck)}
+            aria-label={`Edit truck ${truck.unitNumber}`}
+            title={`Edit truck ${truck.unitNumber}`}
+            disabled={hidingTruckId === truck.truckId}
+          >
+            <EditIcon />
+          </button>
+          <button
+            type="button"
+            className={`${styles.actionButton} ${styles.dangerActionButton}`}
+            onClick={() => void hideTruck(truck)}
+            aria-label={`Delete truck ${truck.unitNumber}`}
+            title={`Delete truck ${truck.unitNumber}`}
+            disabled={hidingTruckId === truck.truckId}
+          >
+            {hidingTruckId === truck.truckId ? (
+              <span className={styles.busyDot} />
+            ) : (
+              <DeleteIcon />
+            )}
+          </button>
+        </div>
       ),
     },
   ];
@@ -317,6 +400,7 @@ export default function TrucksDropdown({
               data={rows}
               columns={columns}
               title={tableTitle}
+              hideHeader
               searchQuery={query}
               searchKeys={["searchText"]}
               toolbar={

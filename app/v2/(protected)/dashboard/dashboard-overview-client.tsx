@@ -110,6 +110,10 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
     );
   }
 
+  function handleTruckHidden(truckId: string) {
+    setTrucks((current) => current.filter((truck) => truck.id !== truckId));
+  }
+
   function handleTruckCreated(createdTruck: TruckRecord) {
     setTrucks((current) =>
       [...current, createdTruck].sort((left, right) =>
@@ -320,6 +324,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
       <TrucksDropdown
         trucks={truckRows}
         onTruckCreated={handleTruckCreated}
+        onTruckHidden={handleTruckHidden}
         onTruckUpdated={handleTruckUpdated}
       />
 

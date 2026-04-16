@@ -88,6 +88,7 @@ type ManagedTruckerProfile = {
     model: string | null;
     year: number | null;
     grossWeight: number | null;
+    isActive: boolean;
     is2290Eligible: boolean;
     createdAt: string;
     updatedAt: string;
@@ -272,6 +273,7 @@ function buildTruckRows(trucks: ManagedTruck[]): TruckTableRow[] {
         truck.make ?? "",
         truck.model ?? "",
         truck.year?.toString() ?? "",
+        truck.isActive ? "active" : "hidden by client removed by client",
         usageLabel,
       ]
         .join(" ")
@@ -808,6 +810,7 @@ export default function TruckerProfileAdminClient({
                         model: updatedTruck.model,
                         year: updatedTruck.year,
                         grossWeight: updatedTruck.grossWeight,
+                        isActive: updatedTruck.isActive,
                         is2290Eligible: updatedTruck.is2290Eligible,
                         createdAt: updatedTruck.createdAt,
                         updatedAt: updatedTruck.updatedAt,
@@ -892,6 +895,15 @@ export default function TruckerProfileAdminClient({
         <div className={tableStyles.compactCell} title={truck.usageLabel}>
           {truck.usageLabel}
         </div>
+      ),
+    },
+    {
+      key: "isActive",
+      label: "Status",
+      render: (_, truck) => (
+        <StatusBadge tone={truck.isActive ? "green" : "amber"}>
+          {truck.isActive ? "Active" : "Hidden by client"}
+        </StatusBadge>
       ),
     },
     {

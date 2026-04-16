@@ -45,7 +45,7 @@ export async function GET() {
 
   try {
     const trucks = await prisma.truck.findMany({
-      where: { userId: guard.session.user.id },
+      where: { userId: guard.session.user.id, isActive: true },
       include: {
         _count: {
           select: {

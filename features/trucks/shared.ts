@@ -9,6 +9,7 @@ export type TruckRecord = {
   model: string | null;
   year: number | null;
   grossWeight: number | null;
+  isActive: boolean;
   is2290Eligible: boolean;
   createdAt: string;
   updatedAt: string;

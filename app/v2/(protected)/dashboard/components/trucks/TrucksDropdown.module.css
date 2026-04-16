@@ -260,6 +260,12 @@
   color: #777;
 }
 
+.actionCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .actionButton {
   width: 34px;
   height: 34px;
@@ -285,9 +291,46 @@
   box-shadow: 0 10px 24px rgba(178, 34, 52, 0.15);
 }
 
+.actionButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .actionButton svg {
   width: 16px;
   height: 16px;
+}
+
+.dangerActionButton {
+  border-color: #f0b8c0;
+  background: linear-gradient(135deg, #ffffff 0%, #fff1f2 60%, #ffe4e6 100%);
+  color: #b22234;
+}
+
+.dangerActionButton:hover:not(:disabled) {
+  border-color: #b22234;
+  box-shadow: 0 10px 24px rgba(178, 34, 52, 0.18);
+}
+
+.busyDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .modalBackdrop {
