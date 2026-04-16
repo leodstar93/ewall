@@ -52,12 +52,6 @@ export default function CompanyInfoPanel({ data }: Props) {
   );
 
   const summaryItems = [
-    {
-      label: "Company",
-      value:
-        form.companyName.trim() || form.legalName.trim() || form.dbaName.trim() || "Your company",
-      wide: true,
-    },
     { label: "Owner", value: fieldValue(form.owner) },
     { label: "USDOT", value: fieldValue(form.dotNumber) },
     { label: "MC", value: fieldValue(form.mcNumber) },
@@ -121,11 +115,19 @@ export default function CompanyInfoPanel({ data }: Props) {
     <div className={styles.panel}>
       <div className={styles.head}>
         <div className={styles.headTitle}>
-          <svg viewBox="0 0 14 14" fill="none" stroke="var(--r)" strokeWidth="2">
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="var(--r)"
+            strokeWidth="2"
+          >
             <rect x="1" y="3" width="12" height="9" rx="1" />
             <path d="M5 3V2a2 2 0 0 1 4 0v1" />
           </svg>
-          Company Profile
+          {form.companyName.trim() ||
+            form.legalName.trim() ||
+            form.dbaName.trim() ||
+            "Company Information"}
         </div>
         <button
           type="button"
@@ -143,7 +145,9 @@ export default function CompanyInfoPanel({ data }: Props) {
         {message ? (
           <div
             className={`${styles.message} ${
-              message.tone === "success" ? styles.messageSuccess : styles.messageError
+              message.tone === "success"
+                ? styles.messageSuccess
+                : styles.messageError
             }`}
           >
             {message.text}
