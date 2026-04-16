@@ -30,6 +30,10 @@ function slugify(value: string) {
     .replace(/-{2,}/g, "-");
 }
 
+function readableSlug(value: string) {
+  return slugify(value).replace(/-/g, " ");
+}
+
 function getSafeExtension(fileName: string) {
   const match = /(\.[A-Za-z0-9]+)$/.exec(fileName.trim());
   return match?.[1]?.toLowerCase() || "";
@@ -55,14 +59,15 @@ export function autoClassifyDocument(input: AutoClassifyDocumentInput): AutoClas
     normalizeOptionalText(input.providedCategory) || inferCategoryFromMime(input.mimeType),
   );
   const companySlug = normalizeOptionalText(input.companyName)
-    ? slugify(normalizeOptionalText(input.companyName) || "")
+    ? readableSlug(normalizeOptionalText(input.companyName) || "")
     : "";
-  const dateStamp = (input.createdAt ?? new Date()).toISOString().slice(0, 10);
+  const dateStamp = (input.createdAt ?? new Date()).toISOString().slice(0, 10).replace(/-/g, " ");
   const providedNameSlug = normalizeOptionalText(input.providedName)
-    ? slugify(normalizeOptionalText(input.providedName) || "")
+    ? readableSlug(normalizeOptionalText(input.providedName) || "")
     : "";
-  const baseName = [category, companySlug, uploaderRole, dateStamp].filter(Boolean).join("-");
-  const displayName = providedNameSlug ? `${baseName}-${providedNameSlug}` : baseName;
+  const readableCategory = category.replace(/-/g, " ");
+  const baseName = [readableCategory, companySlug, uploaderRole, dateStamp].filter(Boolean).join(" ");
+  const displayName = providedNameSlug ? `${baseName} ${providedNameSlug}` : baseName;
   const extension = getSafeExtension(input.originalFileName);
 
   return {

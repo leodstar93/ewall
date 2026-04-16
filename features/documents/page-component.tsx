@@ -48,6 +48,20 @@ function formatDate(dateString: string) {
   });
 }
 
+function normalizeDocumentSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function documentSearchTokens(value: string) {
+  return normalizeDocumentSearchText(value).split(" ").filter(Boolean);
+}
+
 type DocumentsPageProps = {
   apiBasePath?: string;
   title?: string;
@@ -142,20 +156,19 @@ export default function DocumentsPage({
   }, [apiBasePath, session?.user?.id]);
 
   const filteredSortedDocs = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const tokens = documentSearchTokens(query);
 
-    const filtered = q
+    const filtered = tokens.length > 0
       ? documents.filter((d) => {
-          const n = d.name?.toLowerCase() ?? "";
-          const desc = d.description?.toLowerCase() ?? "";
-          const fn = d.fileName?.toLowerCase() ?? "";
-          const ft = d.fileType?.toLowerCase() ?? "";
-          return (
-            n.includes(q) ||
-            desc.includes(q) ||
-            fn.includes(q) ||
-            ft.includes(q)
-          );
+          const searchableText = [
+            d.name ?? "",
+            d.description ?? "",
+            d.fileName ?? "",
+            d.fileType ?? "",
+          ]
+            .map(normalizeDocumentSearchText)
+            .join(" ");
+          return tokens.every((token) => searchableText.includes(token));
         })
       : documents;
 

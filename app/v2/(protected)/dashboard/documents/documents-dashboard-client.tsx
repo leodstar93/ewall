@@ -70,6 +70,20 @@ function formatDateTime(value: string) {
   });
 }
 
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function searchTokens(value: string) {
+  return normalizeSearchText(value).split(" ").filter(Boolean);
+}
+
 function buildRows(items: DocumentItem[]): DocumentTableRow[] {
   return items.map((item) => ({
     ...item,
@@ -81,8 +95,8 @@ function buildRows(items: DocumentItem[]): DocumentTableRow[] {
       item.fileType,
       item.category ?? "",
     ]
-      .join(" ")
-      .toLowerCase(),
+      .map((value) => normalizeSearchText(value))
+      .join(" "),
   }));
 }
 
@@ -163,9 +177,9 @@ export default function DocumentsDashboardClient() {
   ).sort((left, right) => left.localeCompare(right));
 
   const filteredRows = buildRows(documents).filter((item) => {
-    const query = deferredSearch.trim().toLowerCase();
+    const tokens = searchTokens(deferredSearch);
 
-    if (query && !item.searchableText.includes(query)) {
+    if (tokens.length > 0 && !tokens.every((token) => item.searchableText.includes(token))) {
       return false;
     }
 

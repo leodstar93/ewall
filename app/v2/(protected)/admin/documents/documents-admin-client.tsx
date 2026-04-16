@@ -58,6 +58,20 @@ function fileTone(fileType: string): "info" | "success" | "warning" | "light" {
   return "light";
 }
 
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function searchTokens(value: string) {
+  return normalizeSearchText(value).split(" ").filter(Boolean);
+}
+
 export default function DocumentsAdminClient({
   data,
 }: {
@@ -84,17 +98,17 @@ export default function DocumentsAdminClient({
           item.userEmail,
           item.userCompanyName,
         ]
-          .join(" ")
-          .toLowerCase(),
+          .map((value) => normalizeSearchText(value ?? ""))
+          .join(" "),
       })),
     [data.items],
   );
 
   const filteredRows = useMemo(() => {
-    const query = deferredSearch.trim().toLowerCase();
+    const tokens = searchTokens(deferredSearch);
 
     return rows.filter((item) => {
-      if (query && !item.searchableText.includes(query)) {
+      if (tokens.length > 0 && !tokens.every((token) => item.searchableText.includes(token))) {
         return false;
       }
 

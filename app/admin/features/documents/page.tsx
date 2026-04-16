@@ -86,6 +86,20 @@ function parsePositiveInt(value: string, fallback: number) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function searchTokens(value: string) {
+  return normalizeSearchText(value).split(" ").filter(Boolean);
+}
+
 function buildDocumentsHref(params: {
   search?: string;
   fileType?: string;
@@ -127,15 +141,19 @@ export default async function AdminDocumentsPage({
     : 10;
 
   const where: Prisma.DocumentWhereInput = {};
-  if (search) {
-    where.OR = [
-      { name: { contains: search, mode: "insensitive" } },
-      { description: { contains: search, mode: "insensitive" } },
-      { fileName: { contains: search, mode: "insensitive" } },
-      { fileType: { contains: search, mode: "insensitive" } },
-      { user: { name: { contains: search, mode: "insensitive" } } },
-      { user: { email: { contains: search, mode: "insensitive" } } },
-    ];
+  const tokens = searchTokens(search);
+  if (tokens.length > 0) {
+    where.AND = tokens.map((token) => ({
+      OR: [
+        { name: { contains: token, mode: "insensitive" } },
+        { description: { contains: token, mode: "insensitive" } },
+        { fileName: { contains: token, mode: "insensitive" } },
+        { fileType: { contains: token, mode: "insensitive" } },
+        { category: { contains: token, mode: "insensitive" } },
+        { user: { name: { contains: token, mode: "insensitive" } } },
+        { user: { email: { contains: token, mode: "insensitive" } } },
+      ],
+    }));
   }
   if (fileTypeValue) {
     where.fileType = fileTypeValue;
