@@ -224,6 +224,59 @@ export async function sendGoogleCredentialsPasswordEmail({
   }
 }
 
+export async function sendInvitationEmail({
+  to,
+  inviteUrl,
+  invitedByName,
+  note,
+}: {
+  to: string;
+  inviteUrl: string;
+  invitedByName?: string | null;
+  note?: string | null;
+}) {
+  const apiKey = requiredEnv("RESEND_API_KEY");
+  const from = requiredEnv("EMAIL_FROM");
+
+  const inviterLabel = invitedByName?.trim() || "The EWALL team";
+
+  const lines = [
+    `Hi,`,
+    "",
+    `${inviterLabel} has invited you to join EWALL.`,
+    "Click the link below to set up your account and company information:",
+    "",
+    inviteUrl,
+    "",
+    "This invitation expires in 7 days.",
+  ];
+
+  if (note?.trim()) {
+    lines.splice(3, 0, "", `Note from your admin: ${note.trim()}`);
+  }
+
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject: "You've been invited to EWALL",
+      text: lines.join("\n"),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Failed to send invitation email (${response.status}): ${errorText || "unknown error"}`,
+    );
+  }
+}
+
 export async function sendContactFormEmail({
   name,
   email,

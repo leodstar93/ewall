@@ -25,7 +25,7 @@ interface Role {
   description: string | null;
 }
 
-type ModalType = "roles" | "delete" | "add" | "bulkRoles" | "bulkDelete";
+type ModalType = "roles" | "delete" | "add" | "invite" | "bulkRoles" | "bulkDelete";
 
 // ─── Small UI helpers (kept local) ───────────────────────────────────────────
 
@@ -75,6 +75,7 @@ export default function AdminUsersPage() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
 
   const [newUserForm, setNewUserForm] = useState({ email: "", name: "", password: "", roles: [] as string[] });
+  const [inviteForm, setInviteForm] = useState({ email: "", roleNames: ["TRUCKER", "USER"] as string[], note: "" });
   const [formError, setFormError] = useState("");
   const [toast, setToast] = useState<{ tone: "success" | "error"; msg: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -174,6 +175,13 @@ export default function AdminUsersPage() {
     setShowModal(true);
   };
 
+  const openInviteModal = () => {
+    setInviteForm({ email: "", roleNames: ["TRUCKER", "USER"], note: "" });
+    setFormError("");
+    setModalType("invite");
+    setShowModal(true);
+  };
+
   const openBulkRolesModal = () => {
     setSelectedUser(null);
     setSelectedRoles([]);
@@ -266,6 +274,37 @@ export default function AdminUsersPage() {
     } catch (e) {
       console.error(e);
       setFormError("Error creating user");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSendInvite = async () => {
+    setFormError("");
+    if (!inviteForm.email.trim()) {
+      setFormError("Email is required.");
+      return;
+    }
+    try {
+      setBusy(true);
+      const res = await fetch("/api/v1/admin/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteForm.email.trim().toLowerCase(),
+          roleNames: inviteForm.roleNames,
+          note: inviteForm.note.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        setFormError(err.error || "Failed to send invitation.");
+        return;
+      }
+      setToast({ tone: "success", msg: `Invitation sent to ${inviteForm.email}.` });
+      setShowModal(false);
+    } catch {
+      setFormError("Network error. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -456,6 +495,17 @@ export default function AdminUsersPage() {
 
   const tableActions: TableAction[] = [
     {
+      label: "Invite user",
+      variant: "default",
+      onClick: openInviteModal,
+      icon: (
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="1" y="3" width="12" height="9" rx="1.5" />
+          <polyline points="1,3 7,8.5 13,3" />
+        </svg>
+      ),
+    },
+    {
       label: "Add user",
       variant: "primary",
       onClick: openAddModal,
@@ -624,6 +674,68 @@ export default function AdminUsersPage() {
                 <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
                   <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} disabled={busy}>Cancel</button>
                   <button type="button" onClick={handleCreateUser} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`} disabled={busy}>{busy ? "Creating…" : "Create"}</button>
+                </div>
+              </>
+            )}
+
+            {/* Invite */}
+            {modalType === "invite" && (
+              <>
+                <div className={tableStyles.header}>
+                  <div>
+                    <div className={tableStyles.title}>Invite user</div>
+                    <div className={tableStyles.subtitle}>Send an email invitation with an onboarding link.</div>
+                  </div>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
+                </div>
+                <div style={{ padding: "16px 16px 0", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <div className={tableStyles.subtitle} style={{ marginBottom: 4 }}>Email *</div>
+                    <input
+                      type="email"
+                      value={inviteForm.email}
+                      onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                      placeholder="user@example.com"
+                      style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <div className={tableStyles.subtitle} style={{ marginBottom: 4 }}>Note (optional)</div>
+                    <textarea
+                      value={inviteForm.note}
+                      onChange={(e) => setInviteForm({ ...inviteForm, note: e.target.value })}
+                      placeholder="Welcome to EWALL!"
+                      rows={2}
+                      style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical" }}
+                    />
+                  </div>
+                  <div>
+                    <div className={tableStyles.subtitle} style={{ marginBottom: 6 }}>Roles assigned on signup</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {["TRUCKER", "USER", "STAFF", "ADMIN"].map((roleName) => {
+                        const checked = inviteForm.roleNames.includes(roleName);
+                        return (
+                          <label key={roleName} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", border: `1px solid ${checked ? "var(--b)" : "var(--br)"}`, borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 500, background: checked ? "var(--b)" : "transparent", color: checked ? "#fff" : "var(--b)" }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) setInviteForm({ ...inviteForm, roleNames: [...inviteForm.roleNames, roleName] });
+                                else setInviteForm({ ...inviteForm, roleNames: inviteForm.roleNames.filter((r) => r !== roleName) });
+                              }}
+                              style={{ display: "none" }}
+                            />
+                            {roleName}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {formError && <div style={{ background: "#fff0f0", border: "1px solid #fca5a5", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#c00" }}>{formError}</div>}
+                </div>
+                <div className={tableStyles.header} style={{ borderTop: "1px solid var(--brl)", borderBottom: "none", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+                  <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} disabled={busy}>Cancel</button>
+                  <button type="button" onClick={() => void handleSendInvite()} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`} disabled={busy}>{busy ? "Sending…" : "Send invitation"}</button>
                 </div>
               </>
             )}
