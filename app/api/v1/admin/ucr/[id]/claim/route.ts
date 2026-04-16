@@ -1,10 +1,18 @@
-import { UCRWorkItemStatus } from "@prisma/client";
+import { UCRFilingStatus, UCRWorkItemStatus } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { createWorkItem } from "@/services/ucr/createWorkItem";
 import { logUcrEvent } from "@/services/ucr/logUcrEvent";
 import { notifyUcrAssigned } from "@/services/ucr/notifications";
+import { transitionUcrStatus } from "@/services/ucr/transitionUcrStatus";
+
+const START_PROCESSING_ON_CLAIM_STATUSES = new Set<UCRFilingStatus>([
+  UCRFilingStatus.CUSTOMER_PAID,
+  UCRFilingStatus.QUEUED_FOR_PROCESSING,
+  UCRFilingStatus.SUBMITTED,
+  UCRFilingStatus.RESUBMITTED,
+]);
 
 export async function POST(
   _request: NextRequest,
@@ -32,6 +40,9 @@ export async function POST(
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    const processingStartedAt = new Date();
+    const shouldStartProcessing = START_PROCESSING_ON_CLAIM_STATUSES.has(filing.status);
+
     const workItem =
       (await tx.uCRWorkItem.findFirst({
         where: {
@@ -50,11 +61,28 @@ export async function POST(
       },
     });
 
+    if (shouldStartProcessing) {
+      await transitionUcrStatus({ db: tx }, {
+        filingId: filing.id,
+        toStatus: UCRFilingStatus.IN_PROCESS,
+        actorUserId,
+        eventType: "ucr.processing.started",
+        message: "Filing assigned to staff and moved into processing.",
+        data: {
+          processingStartedAt,
+        },
+      });
+    }
+
     const updatedWorkItem = await tx.uCRWorkItem.update({
       where: { id: workItem.id },
       data: {
         assignedToId: actorUserId,
-        status: UCRWorkItemStatus.CLAIMED,
+        status:
+          shouldStartProcessing || filing.status === UCRFilingStatus.IN_PROCESS
+            ? UCRWorkItemStatus.PROCESSING
+            : UCRWorkItemStatus.CLAIMED,
+        ...(shouldStartProcessing ? { startedAt: processingStartedAt } : {}),
       },
     });
 
@@ -69,7 +97,10 @@ export async function POST(
       },
     });
 
-    return updatedWorkItem;
+    return {
+      workItem: updatedWorkItem,
+      filingStatus: shouldStartProcessing ? UCRFilingStatus.IN_PROCESS : filing.status,
+    };
   });
 
   await notifyUcrAssigned(
@@ -78,10 +109,14 @@ export async function POST(
       userId: filing.userId,
       year: filing.year,
       legalName: filing.legalName,
-      status: filing.status,
+      status: result.filingStatus,
     },
     guard.session.user.name?.trim() || guard.session.user.email?.trim() || "staff",
   );
 
-  return Response.json({ success: true, workItem: result });
+  return Response.json({
+    success: true,
+    workItem: result.workItem,
+    filingStatus: result.filingStatus,
+  });
 }

@@ -125,10 +125,10 @@ export async function notifyUcrQueuedForProcessing(filing: UcrNotificationFiling
     roleNames: STAFF_ROLE_NAMES,
     category: NotificationCategory.UCR,
     level: NotificationLevel.WARNING,
-    title: `Paid UCR ${year} is ready`,
-    message: `${filing.legalName} is now in the concierge processing queue.`,
+    title: `UCR ${year} submitted`,
+    message: `${filing.legalName} paid and submitted a UCR filing for staff assignment.`,
     href: adminHref(filing.id),
-    actionLabel: "Open queue item",
+    actionLabel: "Open filing",
     metadataJson: {
       filingId: filing.id,
       filingYear: year,

@@ -170,7 +170,10 @@ export default function UcrAdminQueueClient() {
         method: "POST",
       });
 
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        filingStatus?: UCRFilingStatus;
+      };
 
       if (!response.ok) {
         throw new Error(payload.error || "Failed to assign this filing.");
@@ -183,6 +186,7 @@ export default function UcrAdminQueueClient() {
                 ...item,
                 assignedStaffId: currentUserId,
                 assignedStaffName: currentUserLabel,
+                status: payload.filingStatus ?? item.status,
                 updatedAt: new Date().toISOString(),
               }
             : item,

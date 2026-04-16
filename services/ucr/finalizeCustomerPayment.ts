@@ -67,6 +67,7 @@ export async function finalizeCustomerPayment(
       ([
         UCRFilingStatus.CUSTOMER_PAID,
         UCRFilingStatus.QUEUED_FOR_PROCESSING,
+        UCRFilingStatus.SUBMITTED,
         UCRFilingStatus.IN_PROCESS,
         UCRFilingStatus.OFFICIAL_PAYMENT_PENDING,
         UCRFilingStatus.OFFICIAL_PAID,
@@ -163,28 +164,19 @@ export async function finalizeCustomerPayment(
       };
     }
 
-    await transitionUcrStatus({ db: tx }, {
-      filingId: filing.id,
-      toStatus: UCRFilingStatus.CUSTOMER_PAID,
-      actorUserId: input.actorUserId ?? null,
-      eventType: "ucr.customer_payment.succeeded",
-      message: input.successMessage,
-    });
-
     await createWorkItem({ db: tx }, {
       filingId: filing.id,
-      notes: "Customer payment received. Ready for concierge processing.",
+      notes: "Customer payment received. Ready for staff assignment.",
     });
 
-    const queuedAt = new Date();
     await transitionUcrStatus({ db: tx }, {
       filingId: filing.id,
-      toStatus: UCRFilingStatus.QUEUED_FOR_PROCESSING,
+      toStatus: UCRFilingStatus.SUBMITTED,
       actorUserId: input.actorUserId ?? null,
-      eventType: "ucr.processing.queued",
-      message: "Filing was queued for staff processing.",
+      eventType: "ucr.submitted",
+      message: "Customer payment received; filing submitted for staff assignment.",
       data: {
-        queuedAt,
+        queuedAt: now,
       },
     });
 

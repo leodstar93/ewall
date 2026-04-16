@@ -28,6 +28,7 @@ const statusTabs: Array<{ value: StatusFilter; label: string }> = [
   { value: "ALL", label: "All" },
   { value: "CREATE_AND_SUBMIT", label: workflowStageLabel("CREATE_AND_SUBMIT") },
   { value: "REQUEST_PAY_CLIENT", label: workflowStageLabel("REQUEST_PAY_CLIENT") },
+  { value: "SUBMITTED", label: workflowStageLabel("SUBMITTED") },
   { value: "COMPLETE_BY_STAFF", label: workflowStageLabel("COMPLETE_BY_STAFF") },
   { value: "COMPLETED", label: workflowStageLabel("COMPLETED") },
 ];

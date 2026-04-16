@@ -57,6 +57,7 @@ export type UCRDocumentType =
 export type UcrWorkflowStage =
   | "CREATE_AND_SUBMIT"
   | "REQUEST_PAY_CLIENT"
+  | "SUBMITTED"
   | "COMPLETE_BY_STAFF"
   | "COMPLETED"
   | "NEEDS_ATTENTION"
@@ -245,12 +246,14 @@ export function workflowStageForFiling(filing: Pick<UcrFiling, "status">): UcrWo
     case "AWAITING_CUSTOMER_PAYMENT":
     case "CUSTOMER_PAYMENT_PENDING":
       return "REQUEST_PAY_CLIENT";
+    case "SUBMITTED":
+    case "RESUBMITTED":
+      return "SUBMITTED";
     case "CUSTOMER_PAID":
     case "QUEUED_FOR_PROCESSING":
     case "IN_PROCESS":
     case "OFFICIAL_PAYMENT_PENDING":
     case "OFFICIAL_PAID":
-    case "RESUBMITTED":
       return "COMPLETE_BY_STAFF";
     case "COMPLETED":
     case "COMPLIANT":
@@ -342,6 +345,8 @@ export function unifiedStatusForUcrWorkflowStage(stage: UcrWorkflowStage): Unifi
       return "DRAFT";
     case "REQUEST_PAY_CLIENT":
       return "PENDING_PAYMENT";
+    case "SUBMITTED":
+      return "SUBMITTED";
     case "COMPLETE_BY_STAFF":
       return "IN_PROCESS";
     case "COMPLETED":
@@ -418,6 +423,8 @@ export function customerActionLabel(filing: UcrFiling) {
   switch (workflowStageForFiling(filing)) {
     case "REQUEST_PAY_CLIENT":
       return filing.status === "CUSTOMER_PAYMENT_PENDING" ? "Resume payment" : "Pay now";
+    case "SUBMITTED":
+      return "Pending assignment";
     case "COMPLETE_BY_STAFF":
       return "Pending";
     case "COMPLETED":
