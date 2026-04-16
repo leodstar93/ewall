@@ -34,6 +34,7 @@ export default function UcrAdminQueuePage({
   const [status, setStatus] = useState("");
   const [paymentState, setPaymentState] = useState("");
   const [search, setSearch] = useState("");
+  const [reviewerFilter, setReviewerFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyFilingId, setBusyFilingId] = useState<string | null>(null);
@@ -111,7 +112,25 @@ export default function UcrAdminQueuePage({
     }
   }
 
-  const paginatedFilings = paginateItems(filings, page, pageSize);
+  const availableReviewers = (() => {
+    const seen = new Map<string, string>();
+    for (const f of filings) {
+      if (f.assignedToStaffId && f.assignedStaff) {
+        const label =
+          f.assignedStaff.name?.trim() || f.assignedStaff.email || f.assignedToStaffId;
+        seen.set(f.assignedToStaffId, label);
+      }
+    }
+    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  })();
+
+  const filteredFilings = !reviewerFilter
+    ? filings
+    : reviewerFilter === "__unassigned__"
+      ? filings.filter((f) => !f.assignedToStaffId)
+      : filings.filter((f) => f.assignedToStaffId === reviewerFilter);
+
+  const paginatedFilings = paginateItems(filteredFilings, page, pageSize);
 
   return (
     <div className="w-full min-w-0 space-y-6">
@@ -145,7 +164,7 @@ export default function UcrAdminQueuePage({
         </div>
 
         <div className="p-6">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <label className="space-y-2">
               <span className="block text-xs font-medium text-zinc-600">Year</span>
               <input
@@ -184,6 +203,21 @@ export default function UcrAdminQueuePage({
                 <option value="SUCCEEDED">Succeeded</option>
                 <option value="PENDING">Pending</option>
                 <option value="FAILED">Failed</option>
+              </select>
+            </label>
+
+            <label className="space-y-2">
+              <span className="block text-xs font-medium text-zinc-600">Reviewer</span>
+              <select
+                value={reviewerFilter}
+                onChange={(event) => setReviewerFilter(event.target.value)}
+                className="w-full rounded-2xl border bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:ring-2 focus:ring-zinc-900/10"
+              >
+                <option value="">All reviewers</option>
+                <option value="__unassigned__">Unassigned</option>
+                {availableReviewers.map(([id, label]) => (
+                  <option key={id} value={id}>{label}</option>
+                ))}
               </select>
             </label>
 

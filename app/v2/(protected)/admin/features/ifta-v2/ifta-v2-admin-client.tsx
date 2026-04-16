@@ -71,6 +71,7 @@ export default function IftaV2AdminClient() {
   const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [providerFilter, setProviderFilter] = useState<IftaProviderFilter>("");
   const [assignmentFilter, setAssignmentFilter] = useState<IftaAssignmentFilter>("");
+  const [reviewerFilter, setReviewerFilter] = useState("");
 
   const deferredSearch = useDeferredValue(search);
 
@@ -137,6 +138,20 @@ export default function IftaV2AdminClient() {
     [items],
   );
 
+  const availableReviewers = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const item of items) {
+      if (item.assignedStaffUserId && item.assignedStaff) {
+        const label =
+          item.assignedStaff.name?.trim() ||
+          item.assignedStaff.email ||
+          item.assignedStaffUserId;
+        seen.set(item.assignedStaffUserId, label);
+      }
+    }
+    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [items]);
+
   const filteredItems = useMemo(() => {
     const query = deferredSearch.trim().toLowerCase();
 
@@ -161,13 +176,21 @@ export default function IftaV2AdminClient() {
         return false;
       }
 
+      if (reviewerFilter === "__unassigned__" && item.assignedStaffUserId) {
+        return false;
+      }
+
+      if (reviewerFilter && reviewerFilter !== "__unassigned__" && item.assignedStaffUserId !== reviewerFilter) {
+        return false;
+      }
+
       if (query && !item.searchableText.includes(query)) {
         return false;
       }
 
       return true;
     });
-  }, [assignmentFilter, currentUserId, deferredSearch, items, providerFilter, statusFilter]);
+  }, [assignmentFilter, currentUserId, deferredSearch, items, providerFilter, reviewerFilter, statusFilter]);
 
   function openQueueFiling(filing: IftaTableRow) {
     router.push(`/v2/admin/features/ifta-v2/${filing.id}`);
@@ -358,7 +381,7 @@ export default function IftaV2AdminClient() {
                 display: "grid",
                 gap: 16,
                 gridTemplateColumns:
-                  "minmax(0,1.6fr) minmax(180px,0.8fr) minmax(180px,0.8fr) minmax(180px,0.8fr)",
+                  "minmax(0,1.6fr) minmax(160px,0.7fr) minmax(160px,0.7fr) minmax(160px,0.7fr) minmax(160px,0.7fr)",
               }}
             >
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -473,6 +496,35 @@ export default function IftaV2AdminClient() {
                   <option value="mine">Assigned to me</option>
                   <option value="unassigned">Unassigned</option>
                   <option value="assigned">Assigned to anyone</option>
+                </select>
+              </label>
+
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span
+                  className={tableStyles.subtitle}
+                  style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+                >
+                  Reviewer
+                </span>
+                <select
+                  value={reviewerFilter}
+                  onChange={(event) => setReviewerFilter(event.target.value)}
+                  style={{
+                    border: "1px solid var(--br)",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    outline: "none",
+                    width: "100%",
+                    background: "#fff",
+                    color: "var(--b)",
+                  }}
+                >
+                  <option value="">All reviewers</option>
+                  <option value="__unassigned__">Unassigned</option>
+                  {availableReviewers.map(([id, label]) => (
+                    <option key={id} value={id}>{label}</option>
+                  ))}
                 </select>
               </label>
             </div>

@@ -447,9 +447,8 @@ export function visibleStatusForIftaFiling(
 }
 
 export function iftaVisibleStatusLabel(status: IftaVisibleStatus) {
-  if (status === "NEEDS_ATTENTION") {
-    return "Need attention";
-  }
+  if (status === "NEEDS_ATTENTION") return "Need attention";
+  if (status === "APPROVED") return "Finalized";
 
   return unifiedWorkflowStatusLabel(status);
 }

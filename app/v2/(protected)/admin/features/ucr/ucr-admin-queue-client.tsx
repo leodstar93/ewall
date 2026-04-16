@@ -78,6 +78,7 @@ export default function UcrAdminQueueClient() {
   const [paymentState, setPaymentState] = useState<UcrPaymentFilterStatus>("all");
   const [officialPaymentState, setOfficialPaymentState] =
     useState<UcrOfficialPaymentFilterStatus>("all");
+  const [reviewerFilter, setReviewerFilter] = useState("");
 
   const deferredSearch = useDeferredValue(search);
   const deferredYear = useDeferredValue(year);
@@ -134,9 +135,30 @@ export default function UcrAdminQueueClient() {
     };
   }, [deferredSearch, deferredYear, officialPaymentState, paymentState, reloadTick]);
 
+  const availableReviewers = (() => {
+    const seen = new Map<string, string>();
+    for (const item of items) {
+      if (item.assignedStaffId && item.assignedStaffName) {
+        seen.set(item.assignedStaffId, item.assignedStaffName);
+      }
+    }
+    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  })();
+
   const filteredItems = items.filter((item) => {
-    if (status === "all") return true;
-    return visibleStatusForUcrFiling(item.status as UCRFilingStatus) === status;
+    if (status !== "all" && visibleStatusForUcrFiling(item.status as UCRFilingStatus) !== status) {
+      return false;
+    }
+
+    if (reviewerFilter === "__unassigned__" && item.assignedStaffId) {
+      return false;
+    }
+
+    if (reviewerFilter && reviewerFilter !== "__unassigned__" && item.assignedStaffId !== reviewerFilter) {
+      return false;
+    }
+
+    return true;
   });
 
   async function assignToMe(filingId: string) {
@@ -365,7 +387,7 @@ export default function UcrAdminQueueClient() {
                 display: "grid",
                 gap: 16,
                 gridTemplateColumns:
-                  "minmax(0,1.5fr) minmax(120px,0.45fr) minmax(180px,0.7fr) minmax(180px,0.7fr) minmax(180px,0.7fr)",
+                  "minmax(0,1.5fr) minmax(120px,0.45fr) minmax(160px,0.65fr) minmax(160px,0.65fr) minmax(160px,0.65fr) minmax(160px,0.65fr)",
               }}
             >
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -504,6 +526,35 @@ export default function UcrAdminQueueClient() {
                   <option value="PENDING">Pending</option>
                   <option value="PAID">Paid</option>
                   <option value="FAILED">Failed</option>
+                </select>
+              </label>
+
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span
+                  className={tableStyles.subtitle}
+                  style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+                >
+                  Reviewer
+                </span>
+                <select
+                  value={reviewerFilter}
+                  onChange={(event) => setReviewerFilter(event.target.value)}
+                  style={{
+                    border: "1px solid var(--br)",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    outline: "none",
+                    width: "100%",
+                    background: "#fff",
+                    color: "var(--b)",
+                  }}
+                >
+                  <option value="">All reviewers</option>
+                  <option value="__unassigned__">Unassigned</option>
+                  {availableReviewers.map(([id, label]) => (
+                    <option key={id} value={id}>{label}</option>
+                  ))}
                 </select>
               </label>
             </div>

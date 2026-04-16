@@ -614,7 +614,7 @@ export function FilingDetailPanel({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {filing.integrationAccount?.provider ? (
+            {filing.integrationAccount?.provider && filing.status !== "APPROVED" ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -640,17 +640,19 @@ export function FilingDetailPanel({
                   : "Rebuild"}
               </Button>
             ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              className={ucrSecondaryButtonClassName}
-              onClick={() => onRecalculate(filing)}
-              disabled={busyAction === `recalculate:${filing.id}`}
-            >
-              {busyAction === `recalculate:${filing.id}`
-                ? "Calculating..."
-                : "Recalculate"}
-            </Button>
+            {filing.status !== "APPROVED" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className={ucrSecondaryButtonClassName}
+                onClick={() => onRecalculate(filing)}
+                disabled={busyAction === `recalculate:${filing.id}`}
+              >
+                {busyAction === `recalculate:${filing.id}`
+                  ? "Calculating..."
+                  : "Recalculate"}
+              </Button>
+            ) : null}
             {canSubmit ? (
               <Button
                 size="sm"
