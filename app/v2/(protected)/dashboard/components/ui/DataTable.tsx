@@ -1,17 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import type { Item, ItemStatus } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { getStatusTone } from "@/lib/ui/status-utils";
+import type { Item } from "@/lib/types";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import Table, { type ColumnDef, type TableAction } from "./Table";
 import styles from "./DataTable.module.css";
-
-const BADGE: Record<ItemStatus, string> = {
-  Activo:     styles.bActive,
-  Pendiente:  styles.bPending,
-  Completado: styles.bDone,
-  Inactivo:   styles.bInactive,
-};
 
 const columns: ColumnDef<Item>[] = [
   { key: "id",       label: "#",         cellClass: styles.idCell },
@@ -20,10 +15,10 @@ const columns: ColumnDef<Item>[] = [
   {
     key: "status",
     label: "Estado",
-    render: (value) => (
-      <span className={`${styles.badge} ${BADGE[value as ItemStatus] ?? ""}`}>
-        {value as string}
-      </span>
+    render: (value, row) => (
+      <Badge tone={row.statusTone ?? getStatusTone(String(value ?? ""))} variant="light">
+        {String(value ?? "")}
+      </Badge>
     ),
   },
   { key: "date",   label: "Fecha",  cellClass: styles.muteCell },
@@ -78,7 +73,7 @@ export default function DataTable({ data, searchQuery }: Props) {
       columns={columns}
       actions={actions}
       searchQuery={searchQuery}
-      title="Mys Fillings"
+      title="My Filings"
     />
   );
 }

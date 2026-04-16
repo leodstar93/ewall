@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import tableStyles from "../../../../dashboard/components/ui/DataTable.module.css";
 import styles from "./ucr-detail.module.css";
 import UcrFilingForm from "@/features/ucr/filing-form";
@@ -182,6 +183,9 @@ function TimelineTable({ rows }: { rows: TimelineRow[] }) {
 }
 
 export default function UcrAdminDetailClient({ filingId }: Props) {
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id ?? null;
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
   const [payload, setPayload] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -191,6 +195,9 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
   >(null);
   const [editing, setEditing] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
+  const [documentBusy, setDocumentBusy] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [needsAttentionModalOpen, setNeedsAttentionModalOpen] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [staffReason, setStaffReason] = useState("");
@@ -345,6 +352,40 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
     }
   }
 
+  async function uploadDocument() {
+    if (!documentFile) return;
+
+    try {
+      setDocumentBusy(true);
+      setError(null);
+
+      const formData = new FormData();
+      formData.append("file", documentFile);
+
+      const response = await fetch(`/api/v1/features/ucr/${filingId}/documents`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not upload this document.");
+      }
+
+      setDocumentFile(null);
+      setDocumentModalOpen(false);
+      await load({ background: true });
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Could not upload this document.",
+      );
+    } finally {
+      setDocumentBusy(false);
+    }
+  }
+
   const filing = payload?.filing ?? null;
   const permissions = payload?.permissions ?? null;
   const timeline = payload?.timeline ?? [];
@@ -362,6 +403,8 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
     filing?.assignedStaff?.name?.trim() || filing?.assignedStaff?.email || "Unassigned";
   const customerBalanceDue = Number(filing?.customerBalanceDue ?? 0);
   const customerCreditAmount = Number(filing?.customerCreditAmount ?? 0);
+  const isAssignedToCurrentUser =
+    Boolean(currentUserId) && filing?.assignedToStaffId === currentUserId;
   const canMarkNeedsAttention = ![
     "COMPLETED",
     "CANCELLED",
@@ -486,9 +529,13 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
                 type="button"
                 className={styles.secondaryButton}
                 onClick={() => void postAdminAction("claim")}
-                disabled={busy}
+                disabled={busy || isAssignedToCurrentUser}
               >
-                {busyAction === "claim" ? "Assigning..." : "Assign to me"}
+                {busyAction === "claim"
+                  ? "Assigning..."
+                  : isAssignedToCurrentUser
+                    ? "Assigned to you"
+                    : "Assign to me"}
               </button>
               {canMarkNeedsAttention ? (
                 <button
@@ -596,7 +643,22 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
         </div>
 
         <div className={styles.section}>
-          <SectionTitle eyebrow="Files" title="Documents" />
+          <div className={styles.sectionHeaderRow}>
+            <p className={styles.eyebrow}>Files</p>
+            <div className={styles.sectionTitleLine}>
+              <h2 className={styles.sectionTitle}>Documents</h2>
+              <button
+                type="button"
+                onClick={() => setDocumentModalOpen(true)}
+                disabled={documentBusy}
+                className={styles.iconActionButton}
+                aria-label="Upload document"
+                title="Upload document"
+              >
+                <span className={styles.iconActionPlus}>+</span>
+              </button>
+            </div>
+          </div>
           <DocumentsTable rows={documentRows} />
         </div>
 
@@ -713,6 +775,86 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
                 className={styles.warningButton}
               >
                 {busyAction === "needs-attention" ? "Sending..." : "Send note"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {documentModalOpen ? (
+        <div
+          className={styles.modalOverlay}
+          onClick={() => {
+            if (documentBusy) return;
+            setDocumentModalOpen(false);
+            setDocumentFile(null);
+          }}
+        >
+          <div className={styles.modalCard} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div>
+                <p className={styles.eyebrow}>Files</p>
+                <h2 className={styles.sectionTitle}>Upload document</h2>
+              </div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => {
+                  setDocumentModalOpen(false);
+                  setDocumentFile(null);
+                }}
+                disabled={documentBusy}
+              >
+                Close
+              </button>
+            </div>
+
+            <label className={styles.uploadField}>
+              <span className={styles.uploadFieldLabel}>Document file</span>
+              <input
+                key={documentFile?.name ?? "empty-upload"}
+                ref={documentInputRef}
+                type="file"
+                onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+                className={styles.uploadInputHidden}
+              />
+              <div className={styles.uploadPickerRow}>
+                <button
+                  type="button"
+                  onClick={() => documentInputRef.current?.click()}
+                  className={styles.secondaryButton}
+                  disabled={documentBusy}
+                >
+                  Choose file
+                </button>
+                <span className={styles.uploadFileName}>
+                  {documentFile ? documentFile.name : "No file selected"}
+                </span>
+              </div>
+              <span className={styles.uploadFieldHelp}>
+                The system will auto-classify and attach it to this filing.
+              </span>
+            </label>
+
+            <div className={styles.noteActions}>
+              <button
+                type="button"
+                onClick={() => {
+                  setDocumentModalOpen(false);
+                  setDocumentFile(null);
+                }}
+                className={styles.secondaryButton}
+                disabled={documentBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void uploadDocument()}
+                className={styles.primaryButton}
+                disabled={documentBusy || !documentFile}
+              >
+                {documentBusy ? "Uploading..." : "Upload"}
               </button>
             </div>
           </div>

@@ -6,11 +6,22 @@ import TrucksDropdown, { type DashboardTruckRow } from "./components/trucks/Truc
 import CompanyInfoPanel from "./components/ui/CompanyInfo";
 import DataTable from "./components/ui/DataTable";
 import styles from "./page.module.css";
-import type { Item, ItemStatus } from "@/lib/types";
+import type { Item } from "@/lib/types";
+import type { BadgeTone } from "@/lib/ui/status-utils";
+import { unifiedWorkflowStatusTone } from "@/lib/ui/unified-workflow-status";
 import type { TruckRecord } from "@/features/trucks/shared";
-import type { UcrFiling } from "@/features/ucr/shared";
-import { workflowStageForFiling } from "@/features/ucr/shared";
-import type { FilingListItem } from "@/features/ifta-v2/shared";
+import {
+  filingStatusLabel as ucrFilingStatusLabel,
+  ucrVisibleStatusTone,
+  type UcrFiling,
+  visibleStatusForUcrFiling,
+  workflowStageForFiling,
+} from "@/features/ucr/shared";
+import {
+  filingStatusLabel as iftaFilingStatusLabel,
+  unifiedStatusForIftaFiling,
+  type FilingListItem,
+} from "@/features/ifta-v2/shared";
 import type { CompanyProfileFormData } from "@/components/settings/company/companyProfileTypes";
 
 type DocumentItem = {
@@ -28,7 +39,8 @@ type Props = {
 type OverviewActivity = {
   name: string;
   category: string;
-  status: ItemStatus;
+  status: string;
+  statusTone: BadgeTone;
   date: string;
   amount: number;
   sortDate: number;
@@ -46,22 +58,22 @@ async function fetchJson<T>(url: string) {
   return payload;
 }
 
-function toItemStatusFromUcr(filing: UcrFiling): ItemStatus {
-  const workflow = workflowStageForFiling(filing);
+function toItemStatusFromUcr(filing: UcrFiling) {
+  const visibleStatus = visibleStatusForUcrFiling(filing.status);
 
-  if (workflow === "COMPLETED") return "Completado";
-  if (workflow === "NEEDS_ATTENTION" || workflow === "CANCELLED") return "Inactivo";
-  if (workflow === "CREATE_AND_SUBMIT" || workflow === "REQUEST_PAY_CLIENT") return "Pendiente";
-  return "Activo";
+  return {
+    label: ucrFilingStatusLabel(filing.status),
+    tone: ucrVisibleStatusTone(visibleStatus),
+  };
 }
 
-function toItemStatusFromIfta(status: string): ItemStatus {
-  if (status === "APPROVED") return "Completado";
-  if (["CHANGES_REQUESTED", "REOPENED", "DRAFT", "NEEDS_REVIEW"].includes(status)) {
-    return "Pendiente";
-  }
-  if (["REJECTED", "CANCELLED", "FAILED"].includes(status)) return "Inactivo";
-  return "Activo";
+function toItemStatusFromIfta(status: string) {
+  const visibleStatus = unifiedStatusForIftaFiling(status);
+
+  return {
+    label: iftaFilingStatusLabel(status),
+    tone: unifiedWorkflowStatusTone(visibleStatus),
+  };
 }
 
 function toTruckStatus(truck: TruckRecord): DashboardTruckRow["status"] {
@@ -229,26 +241,36 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
 
   const activityRows = useMemo<Item[]>(() => {
     const combined: OverviewActivity[] = [
-      ...ucrFilings.map((filing) => ({
-        name: `UCR ${filing.year}`,
-        category: "UCR",
-        status: toItemStatusFromUcr(filing),
-        date: new Date(filing.updatedAt).toLocaleDateString("en-US"),
-        amount: Number(filing.totalCharged ?? 0),
-        sortDate: new Date(filing.updatedAt).getTime(),
-        href: `/v2/dashboard/ucr/${filing.id}`,
-      })),
-      ...iftaFilings.map((filing) => ({
-        name: `IFTA ${filing.year} Q${filing.quarter}`,
-        category: "IFTA",
-        status: toItemStatusFromIfta(filing.status),
-        date: new Date(filing.updatedAt || filing.lastCalculatedAt || Date.now()).toLocaleDateString(
-          "en-US",
-        ),
-        amount: Number(filing.totalNetTax ?? 0),
-        sortDate: new Date(filing.updatedAt || filing.lastCalculatedAt || 0).getTime(),
-        href: `/v2/dashboard/ifta-v2/${filing.id}`,
-      })),
+      ...ucrFilings.map((filing) => {
+        const status = toItemStatusFromUcr(filing);
+
+        return {
+          name: `UCR ${filing.year}`,
+          category: "UCR",
+          status: status.label,
+          statusTone: status.tone,
+          date: new Date(filing.updatedAt).toLocaleDateString("en-US"),
+          amount: Number(filing.totalCharged ?? 0),
+          sortDate: new Date(filing.updatedAt).getTime(),
+          href: `/v2/dashboard/ucr/${filing.id}`,
+        };
+      }),
+      ...iftaFilings.map((filing) => {
+        const status = toItemStatusFromIfta(filing.status);
+
+        return {
+          name: `IFTA ${filing.year} Q${filing.quarter}`,
+          category: "IFTA",
+          status: status.label,
+          statusTone: status.tone,
+          date: new Date(
+            filing.updatedAt || filing.lastCalculatedAt || Date.now(),
+          ).toLocaleDateString("en-US"),
+          amount: Number(filing.totalNetTax ?? 0),
+          sortDate: new Date(filing.updatedAt || filing.lastCalculatedAt || 0).getTime(),
+          href: `/v2/dashboard/ifta-v2/${filing.id}`,
+        };
+      }),
     ]
       .sort((left, right) => right.sortDate - left.sortDate)
       .slice(0, 10);
@@ -258,6 +280,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
       name: item.name,
       category: item.category,
       status: item.status,
+      statusTone: item.statusTone,
       date: item.date,
       amount: item.amount,
       href: item.href,

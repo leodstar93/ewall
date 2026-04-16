@@ -2,7 +2,11 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { saveUcrDocument } from "@/services/ucr/saveUcrDocument";
-import { parseDocumentType, UcrServiceError } from "@/services/ucr/shared";
+import {
+  autoClassifyUcrDocumentType,
+  parseDocumentType,
+  UcrServiceError,
+} from "@/services/ucr/shared";
 
 function toErrorResponse(error: unknown, fallback: string) {
   if (error instanceof UcrServiceError) {
@@ -46,11 +50,17 @@ export async function POST(
     const formData = await request.formData();
     const file = formData.get("file");
     const description = formData.get("description");
-    const type = parseDocumentType(formData.get("type"));
 
     if (!(file instanceof File)) {
       return Response.json({ error: "file is required" }, { status: 400 });
     }
+
+    const type =
+      parseDocumentType(formData.get("type")) ??
+      autoClassifyUcrDocumentType({
+        originalFileName: file.name,
+        mimeType: file.type,
+      });
 
     if (!type) {
       return Response.json({ error: "Invalid document type" }, { status: 400 });

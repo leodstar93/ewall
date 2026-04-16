@@ -5,6 +5,7 @@ import {
   UCREntityType,
   UCRFilingStatus,
 } from "@prisma/client";
+import { autoClassifyDocument } from "@/services/documents/auto-classify";
 
 export type UcrDocumentActorRole = "client" | "staff";
 
@@ -322,6 +323,42 @@ export function parseDocumentType(value: unknown) {
   if (typeof value !== "string") return null;
   if (!Object.values(UCRDocumentType).includes(value as UCRDocumentType)) return null;
   return value as UCRDocumentType;
+}
+
+export function autoClassifyUcrDocumentType(input: {
+  originalFileName: string;
+  mimeType?: string | null;
+}) {
+  const classification = autoClassifyDocument({
+    originalFileName: input.originalFileName,
+    mimeType: input.mimeType,
+    uploaderRole: "client",
+  });
+  const fingerprint = [
+    input.originalFileName,
+    classification.category,
+    classification.displayName,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    /receipt|payment|paid|invoice|transaction|charge|confirmation/.test(
+      fingerprint,
+    )
+  ) {
+    return UCRDocumentType.PAYMENT_RECEIPT;
+  }
+
+  if (/correction|corrected|revised|revision|updated|fix/.test(fingerprint)) {
+    return UCRDocumentType.CORRECTION_ATTACHMENT;
+  }
+
+  if (/registration|permit|cab.?card|plate|tag|proof|ucr/.test(fingerprint)) {
+    return UCRDocumentType.REGISTRATION_PROOF;
+  }
+
+  return UCRDocumentType.SUPPORTING_DOCUMENT;
 }
 
 export function hasProofDocument(

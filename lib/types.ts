@@ -1,10 +1,13 @@
-export type ItemStatus = "Activo" | "Pendiente" | "Completado" | "Inactivo";
+import type { BadgeTone } from "@/lib/ui/status-utils";
+
+export type ItemStatus = string;
 
 export interface Item {
   id: number;
   name: string;
   category: string;
   status: ItemStatus;
+  statusTone?: BadgeTone;
   date: string;
   amount: number;
   href?: string;
