@@ -32,6 +32,7 @@ type DetailPayload = {
     canSubmit: boolean;
     canCheckout: boolean;
     canViewReceipt: boolean;
+    canViewAudit: boolean;
   };
 };
 
@@ -740,10 +741,12 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
           </div>
         </div>
 
-        <div className={styles.section}>
-          <SectionTitle eyebrow="Audit" title="Audit" />
-          <TimelineTable rows={timelineRows} />
-        </div>
+        {permissions.canViewAudit ? (
+          <div className={styles.section}>
+            <SectionTitle eyebrow="Audit" title="Audit" />
+            <TimelineTable rows={timelineRows} />
+          </div>
+        ) : null}
       </section>
 
       {needsAttentionModalOpen ? (

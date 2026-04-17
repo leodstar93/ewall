@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
+import { hasPermission } from "@/lib/rbac-core";
 import {
   UcrServiceError,
   normalizeOptionalText,
@@ -203,13 +204,15 @@ export async function GET(
       actorUsers.map((user) => [user.id, user.name?.trim() || user.email || "User"]),
     );
     const fallbackStaffName = assignedStaff?.name?.trim() || assignedStaff?.email || "Staff";
+    const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
+    const canViewAudit = hasPermission(guard.perms, roles, "audit:read");
 
     return Response.json({
       filing: {
         ...filing,
         assignedStaff,
       },
-      timeline: buildTimeline(filing),
+      timeline: canViewAudit ? buildTimeline(filing) : [],
       conversation: buildConversation(filing, actorNames, fallbackStaffName),
       permissions: {
         isOwner: filing.userId === guard.session.user.id,
@@ -218,6 +221,7 @@ export async function GET(
         canSubmit: false,
         canCheckout: false,
         canViewReceipt: Boolean(filing.officialReceiptUrl) && filing.status === "COMPLETED",
+        canViewAudit,
       },
     });
   } catch (error) {

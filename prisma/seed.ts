@@ -29,6 +29,7 @@ const PERMISSIONS = [
   { key: "permissions:read", description: "Read permissions" },
   { key: "permissions:write", description: "Create/update permissions" },
   { key: "dashboard:access", description: "Access dashboard" },
+  { key: "audit:read", description: "Read audit sections and event history" },
 
   // Ejemplos de módulos (ajusta a tu app)
   { key: "profile:access", description: "Access profile" },

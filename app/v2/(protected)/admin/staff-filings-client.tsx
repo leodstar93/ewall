@@ -37,6 +37,64 @@ type StaffFilingRow = {
   href: string;
 };
 
+type StaffFilingMetrics = {
+  pending: number;
+  total: number;
+  needsAttention: number;
+  finalizedThisMonth: number;
+  finalizedTotal: number;
+  urgentCases: UrgentCase[];
+};
+
+type UrgentCase = {
+  id: string;
+  module: "UCR" | "IFTA";
+  title: string;
+  customer: string;
+  status: string;
+  ageLabel: string;
+  priority: string;
+  href: string;
+};
+
+type StaffDashboardGraphqlResponse = {
+  data?: {
+    staffDashboardMetrics?: StaffFilingMetrics;
+  };
+  errors?: Array<{ message?: string }>;
+};
+
+const EMPTY_METRICS: StaffFilingMetrics = {
+  pending: 0,
+  total: 0,
+  needsAttention: 0,
+  finalizedThisMonth: 0,
+  finalizedTotal: 0,
+  urgentCases: [],
+};
+
+const STAFF_DASHBOARD_METRICS_QUERY = `
+  query StaffDashboardMetrics {
+    staffDashboardMetrics {
+      pending
+      total
+      needsAttention
+      finalizedThisMonth
+      finalizedTotal
+      urgentCases {
+        id
+        module
+        title
+        customer
+        status
+        ageLabel
+        priority
+        href
+      }
+    }
+  }
+`;
+
 function ucrStatusTone(status: UCRFilingStatus): BadgeTone {
   const workflow = workflowStageForFiling({ status });
 
@@ -70,7 +128,7 @@ function buildUcrRows(items: AdminUcrQueueItem[]): StaffFilingRow[] {
         item.vehicleCount ? `${item.vehicleCount} vehicle(s)` : null,
       ]
         .filter(Boolean)
-        .join(" · ") || "Pending filing",
+        .join(" - ") || "Pending filing",
       status: ucrFilingStatusLabel(item.status as UCRFilingStatus),
       statusTone: ucrStatusTone(item.status as UCRFilingStatus),
       updatedLabel: formatUcrDate(item.updatedAt),
@@ -108,8 +166,187 @@ async function fetchJson<T>(url: string) {
   return payload;
 }
 
+async function fetchStaffDashboardMetrics() {
+  const response = await fetch("/api/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({ query: STAFF_DASHBOARD_METRICS_QUERY }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as StaffDashboardGraphqlResponse;
+
+  if (!response.ok || payload.errors?.length) {
+    throw new Error(payload.errors?.[0]?.message || "Failed to load dashboard metrics.");
+  }
+
+  return payload.data?.staffDashboardMetrics ?? EMPTY_METRICS;
+}
+
+function DonutChart({ metrics }: { metrics: StaffFilingMetrics }) {
+  const total = Math.max(1, metrics.pending + metrics.needsAttention + metrics.finalizedThisMonth);
+  const needs = (metrics.needsAttention / total) * 100;
+  const pending = (metrics.pending / total) * 100;
+  const finalized = (metrics.finalizedThisMonth / total) * 100;
+  const background = `conic-gradient(#dc2626 0 ${needs}%, #f59e0b ${needs}% ${
+    needs + pending
+  }%, #059669 ${needs + pending}% ${needs + pending + finalized}%, #e4e4e7 0)`;
+
+  return (
+    <div
+      aria-label="Case mix chart"
+      style={{
+        width: 78,
+        height: 78,
+        borderRadius: "50%",
+        background,
+        display: "grid",
+        placeItems: "center",
+        flex: "0 0 auto",
+      }}
+    >
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          background: "#fff",
+          display: "grid",
+          placeItems: "center",
+          boxShadow: "inset 0 0 0 1px var(--brl)",
+        }}
+      >
+        <span style={{ color: "var(--b)", fontSize: 18, fontWeight: 800 }}>
+          {metrics.pending}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MetricsCard({ metrics }: { metrics: StaffFilingMetrics }) {
+  const urgentCases = metrics.urgentCases.slice(0, 2);
+  const metricItems = [
+    { label: "Cases", value: metrics.total, color: "#2563eb" },
+    { label: "Need attention", value: metrics.needsAttention, color: "#dc2626" },
+    { label: "Finalized month", value: metrics.finalizedThisMonth, color: "#059669" },
+    { label: "Finalized total", value: metrics.finalizedTotal, color: "#0f766e" },
+  ];
+
+  return (
+    <div
+      className={tableStyles.card}
+      style={{
+        height: 138,
+        padding: "14px 16px",
+        display: "grid",
+        gridTemplateColumns: "minmax(230px, 0.9fr) minmax(360px, 1.4fr) minmax(280px, 1fr)",
+        gap: 18,
+        alignItems: "center",
+        overflowX: "auto",
+        overflowY: "hidden",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 230 }}>
+        <DonutChart metrics={metrics} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: "#71717a", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>
+            Staff workload
+          </div>
+          <div style={{ color: "var(--b)", fontSize: 17, fontWeight: 800, marginTop: 3 }}>
+            Priority overview
+          </div>
+          <div style={{ color: "#71717a", fontSize: 12, marginTop: 4 }}>
+            Pending cases shown in center ring.
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(82px, 1fr))",
+          gap: 10,
+          minWidth: 360,
+        }}
+      >
+        {metricItems.map((item) => (
+          <div key={item.label} style={{ minWidth: 0 }}>
+            <div style={{ height: 4, borderRadius: 999, background: item.color, marginBottom: 8 }} />
+            <div style={{ color: "var(--b)", fontSize: 24, fontWeight: 800, lineHeight: 1 }}>
+              {item.value}
+            </div>
+            <div
+              style={{
+                color: "#71717a",
+                fontSize: 10,
+                fontWeight: 700,
+                marginTop: 6,
+                textTransform: "uppercase",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {item.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ minWidth: 280 }}>
+        <div style={{ color: "#71717a", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>
+          Most urgent
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 8 }}>
+          {urgentCases.length ? (
+            urgentCases.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "auto 1fr auto",
+                  gap: 8,
+                  alignItems: "center",
+                  color: "inherit",
+                  textDecoration: "none",
+                  minWidth: 0,
+                }}
+              >
+                <Badge tone={item.module === "UCR" ? "primary" : "info"} variant="light">
+                  {item.module}
+                </Badge>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      color: "var(--b)",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={`${item.title} - ${item.customer}`}
+                  >
+                    {item.title} - {item.customer}
+                  </div>
+                  <div style={{ color: "#71717a", fontSize: 11 }}>
+                    {item.priority} - {item.ageLabel}
+                  </div>
+                </div>
+                <ActionIcon name="view" />
+              </Link>
+            ))
+          ) : (
+            <div style={{ color: "#71717a", fontSize: 12 }}>No urgent cases right now.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StaffFilingsClient() {
   const [rows, setRows] = useState<StaffFilingRow[]>([]);
+  const [metrics, setMetrics] = useState<StaffFilingMetrics>(EMPTY_METRICS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -123,35 +360,44 @@ export default function StaffFilingsClient() {
         setLoading(true);
         setError("");
 
-        const [ucrResult, iftaResult] = await Promise.allSettled([
+        const [ucrResult, iftaResult, metricsResult] = await Promise.allSettled([
           fetchJson<{ filings: AdminUcrQueueItem[] }>("/api/v1/admin/ucr/queue"),
           fetchJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings"),
+          fetchStaffDashboardMetrics(),
         ]);
 
         if (!active) return;
 
         const errors: string[] = [];
         const nextRows: StaffFilingRow[] = [];
+        const ucrFilings =
+          ucrResult.status === "fulfilled" && Array.isArray(ucrResult.value.filings)
+            ? ucrResult.value.filings
+            : [];
+        const iftaFilings =
+          iftaResult.status === "fulfilled" && Array.isArray(iftaResult.value.filings)
+            ? iftaResult.value.filings
+            : [];
 
         if (ucrResult.status === "fulfilled") {
-          nextRows.push(
-            ...buildUcrRows(Array.isArray(ucrResult.value.filings) ? ucrResult.value.filings : []),
-          );
+          nextRows.push(...buildUcrRows(ucrFilings));
         } else {
           errors.push("Could not load UCR filings.");
         }
 
         if (iftaResult.status === "fulfilled") {
-          nextRows.push(
-            ...buildIftaRows(
-              Array.isArray(iftaResult.value.filings) ? iftaResult.value.filings : [],
-            ),
-          );
+          nextRows.push(...buildIftaRows(iftaFilings));
         } else {
           errors.push("Could not load IFTA filings.");
         }
 
         setRows(nextRows);
+        if (metricsResult.status === "fulfilled") {
+          setMetrics(metricsResult.value);
+        } else {
+          setMetrics(EMPTY_METRICS);
+          errors.push("Could not load dashboard metrics.");
+        }
         if (errors.length > 0) {
           setError(errors.join(" "));
         }
@@ -275,6 +521,8 @@ export default function StaffFilingsClient() {
 
   return (
     <div className="w-full min-w-0 space-y-4">
+      <MetricsCard metrics={metrics} />
+
       {error ? (
         <div
           style={{
