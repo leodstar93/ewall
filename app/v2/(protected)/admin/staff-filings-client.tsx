@@ -32,6 +32,7 @@ type StaffFilingRow = {
   filingMeta: string;
   status: string;
   statusTone: BadgeTone;
+  assigned: string;
   updatedLabel: string;
   sortRecency: number;
   href: string;
@@ -131,6 +132,7 @@ function buildUcrRows(items: AdminUcrQueueItem[]): StaffFilingRow[] {
         .join(" - ") || "Pending filing",
       status: ucrFilingStatusLabel(item.status as UCRFilingStatus),
       statusTone: ucrStatusTone(item.status as UCRFilingStatus),
+      assigned: item.assignedStaffName || "Unassigned",
       updatedLabel: formatUcrDate(item.updatedAt),
       sortRecency: -new Date(item.updatedAt).getTime(),
       href: `/v2/admin/features/ucr/${item.id}`,
@@ -149,6 +151,10 @@ function buildIftaRows(items: FilingListItem[]): StaffFilingRow[] {
       filingMeta: providerLabel(item.integrationAccount?.provider) || "ELD filing",
       status: iftaStatusLabel(item.status),
       statusTone: iftaFilingTone(item.status),
+      assigned:
+        item.assignedStaff?.name?.trim() ||
+        item.assignedStaff?.email ||
+        "Unassigned",
       updatedLabel: formatDateTime(item.updatedAt || item.lastCalculatedAt),
       sortRecency: -new Date(item.updatedAt || item.lastCalculatedAt || 0).getTime(),
       href: `/v2/admin/features/ifta-v2/${item.id}`,
@@ -451,11 +457,11 @@ export default function StaffFilingsClient() {
         ),
       },
       {
-        key: "customer",
-        label: "Customer",
+        key: "company",
+        label: "Company name",
         render: (_, row) => (
-          <div className={tableStyles.nameCell} title={row.company}>
-            {row.customer}
+          <div className={tableStyles.nameCell} title={row.customer}>
+            {row.company}
           </div>
         ),
       },
@@ -475,6 +481,15 @@ export default function StaffFilingsClient() {
           <Badge tone={row.statusTone} variant="light">
             {row.status}
           </Badge>
+        ),
+      },
+      {
+        key: "assigned",
+        label: "Assigned",
+        render: (_, row) => (
+          <div className={tableStyles.muteCell} title={row.assigned}>
+            {row.assigned}
+          </div>
         ),
       },
       {
