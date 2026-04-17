@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import { ensureDefaultSelfServiceRoles } from "@/lib/default-user-roles";
 import { ensureUserOrganization } from "@/lib/services/organization.service";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 
 type AcceptBody = {
   // Account
@@ -74,6 +75,7 @@ export async function POST(
   const roleNames = Array.isArray(invitation.roleNames)
     ? (invitation.roleNames as string[])
     : [];
+  const isStaffInvitation = roleNames.includes("STAFF");
 
   const roles =
     roleNames.length > 0
@@ -98,35 +100,38 @@ export async function POST(
       await tx.userRole.createMany({
         data: roles.map((r) => ({ userId: created.id, roleId: r.id })),
       });
+      await ensureStaffDisplayNameForUser(created.id, tx);
     }
 
-    // Upsert company profile
-    await tx.companyProfile.upsert({
-      where: { userId: created.id },
-      update: {
-        companyName: body.companyName?.trim() || null,
-        legalName: body.legalName?.trim() || null,
-        dotNumber: body.dotNumber?.trim() || null,
-        mcNumber: body.mcNumber?.trim() || null,
-        businessPhone: body.businessPhone?.trim() || null,
-        addressLine1: body.addressLine1?.trim() || null,
-        city: body.city?.trim() || null,
-        state: body.state?.trim() || null,
-        zipCode: body.zipCode?.trim() || null,
-      },
-      create: {
-        userId: created.id,
-        companyName: body.companyName?.trim() || null,
-        legalName: body.legalName?.trim() || null,
-        dotNumber: body.dotNumber?.trim() || null,
-        mcNumber: body.mcNumber?.trim() || null,
-        businessPhone: body.businessPhone?.trim() || null,
-        addressLine1: body.addressLine1?.trim() || null,
-        city: body.city?.trim() || null,
-        state: body.state?.trim() || null,
-        zipCode: body.zipCode?.trim() || null,
-      },
-    });
+    if (!isStaffInvitation) {
+      // Upsert company profile
+      await tx.companyProfile.upsert({
+        where: { userId: created.id },
+        update: {
+          companyName: body.companyName?.trim() || null,
+          legalName: body.legalName?.trim() || null,
+          dotNumber: body.dotNumber?.trim() || null,
+          mcNumber: body.mcNumber?.trim() || null,
+          businessPhone: body.businessPhone?.trim() || null,
+          addressLine1: body.addressLine1?.trim() || null,
+          city: body.city?.trim() || null,
+          state: body.state?.trim() || null,
+          zipCode: body.zipCode?.trim() || null,
+        },
+        create: {
+          userId: created.id,
+          companyName: body.companyName?.trim() || null,
+          legalName: body.legalName?.trim() || null,
+          dotNumber: body.dotNumber?.trim() || null,
+          mcNumber: body.mcNumber?.trim() || null,
+          businessPhone: body.businessPhone?.trim() || null,
+          addressLine1: body.addressLine1?.trim() || null,
+          city: body.city?.trim() || null,
+          state: body.state?.trim() || null,
+          zipCode: body.zipCode?.trim() || null,
+        },
+      });
+    }
 
     // Mark invitation as accepted
     await tx.userInvitation.update({
@@ -146,8 +151,10 @@ export async function POST(
     await ensureDefaultSelfServiceRoles({ userId: user.id });
   }
 
-  // Ensure organization membership
-  await ensureUserOrganization(user.id);
+  if (!isStaffInvitation) {
+    // Ensure organization membership
+    await ensureUserOrganization(user.id);
+  }
 
   return NextResponse.json({ userId: user.id }, { status: 201 });
 }

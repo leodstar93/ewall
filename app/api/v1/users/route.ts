@@ -2,8 +2,14 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import { ensureDefaultSelfServiceRoles } from "@/lib/default-user-roles";
 import { ensureUserOrganization } from "@/lib/services/organization.service";
+import {
+  ensureAllStaffDisplayNames,
+  ensureStaffDisplayNameForUser,
+} from "@/lib/services/staff-display-name.service";
 
 export async function GET() {
+  await ensureAllStaffDisplayNames();
+
   const users = await prisma.user.findMany({
     include: {
       roles: {
@@ -88,6 +94,7 @@ export async function POST(request: Request) {
       await ensureDefaultSelfServiceRoles({ userId: user.id });
     }
 
+    await ensureStaffDisplayNameForUser(user.id);
     await ensureUserOrganization(user.id);
 
     const userWithRoles = await prisma.user.findUnique({

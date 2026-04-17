@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { hasPermission } from "@/lib/rbac-core";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 import {
   UcrServiceError,
   normalizeOptionalText,
@@ -170,6 +171,10 @@ export async function GET(
 
     if (!filing) {
       return Response.json({ error: "UCR filing not found" }, { status: 404 });
+    }
+
+    if (filing.assignedToStaffId) {
+      await ensureStaffDisplayNameForUser(filing.assignedToStaffId);
     }
 
     const assignedStaff = filing.assignedToStaffId

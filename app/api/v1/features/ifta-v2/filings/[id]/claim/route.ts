@@ -3,6 +3,7 @@ import { assertFilingAccess, canReviewAllIfta } from "@/services/ifta-automation
 import { FilingWorkflowService } from "@/services/ifta-automation/filing-workflow.service";
 import { handleIftaAutomationError } from "@/services/ifta-automation/http";
 import { prisma } from "@/lib/prisma";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 
 export async function POST(
   _request: Request,
@@ -17,6 +18,7 @@ export async function POST(
     if (!userId) {
       return Response.json({ error: "Invalid session." }, { status: 400 });
     }
+    await ensureStaffDisplayNameForUser(userId);
 
     const canReviewAll = canReviewAllIfta(guard.perms, guard.isAdmin);
     await assertFilingAccess({

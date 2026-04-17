@@ -6,6 +6,7 @@ import { createWorkItem } from "@/services/ucr/createWorkItem";
 import { logUcrEvent } from "@/services/ucr/logUcrEvent";
 import { notifyUcrAssigned } from "@/services/ucr/notifications";
 import { transitionUcrStatus } from "@/services/ucr/transitionUcrStatus";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 
 const START_PROCESSING_ON_CLAIM_STATUSES = new Set<UCRFilingStatus>([
   UCRFilingStatus.CUSTOMER_PAID,
@@ -23,6 +24,11 @@ export async function POST(
 
   const { id } = await params;
   const actorUserId = guard.session.user.id ?? "";
+  const staffDisplayName =
+    (actorUserId ? await ensureStaffDisplayNameForUser(actorUserId) : null) ||
+    guard.session.user.name?.trim() ||
+    guard.session.user.email?.trim() ||
+    "staff";
 
   const filing = await prisma.uCRFiling.findUnique({
     where: { id },
@@ -111,7 +117,7 @@ export async function POST(
       legalName: filing.legalName,
       status: result.filingStatus,
     },
-    guard.session.user.name?.trim() || guard.session.user.email?.trim() || "staff",
+    staffDisplayName,
   );
 
   return Response.json({

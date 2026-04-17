@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 
 export type AdminUcrQueueItem = {
   id: string;
@@ -131,6 +132,8 @@ export async function listAdminUcrQueue(input: {
         .filter((value): value is string => Boolean(value)),
     ),
   );
+
+  await Promise.all(assignedStaffIds.map((id) => ensureStaffDisplayNameForUser(id)));
 
   const assignedStaffMap =
     assignedStaffIds.length === 0

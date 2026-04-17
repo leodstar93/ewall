@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { NextRequest } from "next/server";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 
 
 // DELETE user
@@ -116,6 +117,8 @@ export async function PUT(
         roleId,
       })),
     });
+
+    await ensureStaffDisplayNameForUser(id);
 
     // Return updated user
     const updatedUser = await prisma.user.findUnique({

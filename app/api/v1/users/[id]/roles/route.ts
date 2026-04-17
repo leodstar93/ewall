@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { NextRequest } from "next/server";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 
 export async function GET(
   request: NextRequest,
@@ -72,6 +73,8 @@ export async function PUT(
         data: roleIds.map((roleId) => ({ userId: id, roleId })),
       });
     }
+
+    await ensureStaffDisplayNameForUser(id);
 
     const updated = await prisma.user.findUnique({
       where: { id },

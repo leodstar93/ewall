@@ -5,6 +5,7 @@ import { CanonicalNormalizationService } from "@/services/ifta-automation/canoni
 import { getCurrentQuarter } from "@/services/ifta-automation/shared";
 import { handleIftaAutomationError, parseProvider } from "@/services/ifta-automation/http";
 import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 
 export async function GET() {
   const guard = await requireApiPermission("ifta:read");
@@ -61,6 +62,8 @@ export async function GET() {
           .filter((v): v is string => Boolean(v)),
       ),
     );
+
+    await Promise.all(assignedStaffIds.map((id) => ensureStaffDisplayNameForUser(id)));
 
     const staffMap =
       assignedStaffIds.length === 0

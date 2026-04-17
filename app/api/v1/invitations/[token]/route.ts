@@ -34,5 +34,6 @@ export async function GET(
     email: invitation.email,
     invitedByName: invitation.invitedBy.name,
     expiresAt: invitation.expiresAt,
+    roleNames: Array.isArray(invitation.roleNames) ? invitation.roleNames : [],
   });
 }

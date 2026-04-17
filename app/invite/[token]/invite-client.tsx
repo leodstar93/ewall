@@ -13,6 +13,7 @@ type InviteInfo = {
   email: string;
   invitedByName: string | null;
   expiresAt: string;
+  roleNames: string[];
 };
 
 type Step = "loading" | "invalid" | "account" | "company" | "done";
@@ -63,6 +64,8 @@ export default function InvitePageClient({ token }: { token: string }) {
 
   const [searching, setSearching] = useState(false);
   const [saferBanner, setSaferBanner] = useState<{ tone: "success" | "error" | "info"; message: string } | null>(null);
+  const isStaffInvite = (inviteInfo?.roleNames ?? []).includes("STAFF");
+  const totalSteps = isStaffInvite ? 1 : 2;
 
   // ─── Validate token ───────────────────────────────────────────────────────
 
@@ -157,6 +160,10 @@ export default function InvitePageClient({ token }: { token: string }) {
       setError("Passwords do not match.");
       return;
     }
+    if (isStaffInvite) {
+      void handleSubmit();
+      return;
+    }
     setSaferBanner(null);
     setStep("company");
   };
@@ -168,22 +175,29 @@ export default function InvitePageClient({ token }: { token: string }) {
     setSubmitting(true);
 
     try {
+      const payload = isStaffInvite
+        ? {
+            name: account.name.trim(),
+            password: account.password,
+          }
+        : {
+            name: account.name.trim(),
+            password: account.password,
+            companyName: company.companyName.trim() || undefined,
+            legalName: company.legalName.trim() || undefined,
+            dotNumber: company.dotNumber.trim() || undefined,
+            mcNumber: company.mcNumber.trim() || undefined,
+            businessPhone: company.businessPhone.trim() || undefined,
+            addressLine1: company.addressLine1.trim() || undefined,
+            city: company.city.trim() || undefined,
+            state: company.state.trim() || undefined,
+            zipCode: company.zipCode.trim() || undefined,
+          };
+
       const res = await fetch(`/api/v1/invitations/${token}/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: account.name.trim(),
-          password: account.password,
-          companyName: company.companyName.trim() || undefined,
-          legalName: company.legalName.trim() || undefined,
-          dotNumber: company.dotNumber.trim() || undefined,
-          mcNumber: company.mcNumber.trim() || undefined,
-          businessPhone: company.businessPhone.trim() || undefined,
-          addressLine1: company.addressLine1.trim() || undefined,
-          city: company.city.trim() || undefined,
-          state: company.state.trim() || undefined,
-          zipCode: company.zipCode.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -284,7 +298,9 @@ export default function InvitePageClient({ token }: { token: string }) {
             <>
               <h2 className={styles.sectionTitle}>Create account</h2>
               <div style={{ marginTop: 6, marginBottom: 12, textAlign: "center" }}>
-                <span style={{ fontSize: "0.88rem", color: "#3a5b76" }}>Step 1 of 2 — Account info</span>
+                <span style={{ fontSize: "0.88rem", color: "#3a5b76" }}>
+                  Step 1 of {totalSteps} - Account info
+                </span>
               </div>
 
               {inviteInfo && (
@@ -340,8 +356,9 @@ export default function InvitePageClient({ token }: { token: string }) {
                   type="button"
                   className={`${styles.button} ${styles.primaryButton}`}
                   onClick={handleAccountNext}
+                  disabled={submitting}
                 >
-                  Continue
+                  {isStaffInvite ? (submitting ? "Creating account..." : "Create account") : "Continue"}
                 </button>
               </div>
             </>
