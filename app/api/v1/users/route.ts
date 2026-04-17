@@ -13,6 +13,12 @@ export async function GET() {
           },
         },
       },
+      companyProfile: {
+        select: {
+          legalName: true,
+          companyName: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -61,6 +67,12 @@ export async function POST(request: Request) {
             },
           },
         },
+        companyProfile: {
+          select: {
+            legalName: true,
+            companyName: true,
+          },
+        },
       },
     });
 
@@ -76,6 +88,8 @@ export async function POST(request: Request) {
       await ensureDefaultSelfServiceRoles({ userId: user.id });
     }
 
+    await ensureUserOrganization(user.id);
+
     const userWithRoles = await prisma.user.findUnique({
       where: { id: user.id },
       include: {
@@ -86,10 +100,15 @@ export async function POST(request: Request) {
             },
           },
         },
+        companyProfile: {
+          select: {
+            legalName: true,
+            companyName: true,
+          },
+        },
       },
     });
 
-    await ensureUserOrganization(user.id);
     return Response.json(userWithRoles, { status: 201 });
   } catch (error) {
     console.error("Error creating user:", error);

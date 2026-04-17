@@ -509,12 +509,18 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
               <p className={styles.eyebrow}>UCR Filing</p>
               <h1 className={styles.title}>{companyLegalName}</h1>
               <p className={styles.subtitle}>
-                Filing year {filing.year} | Updated {formatDate(filing.updatedAt)}{" "}
-                <span className={styles.assignedHighlight}>Assigned {assignedStaffLabel}</span>
+                Filing year {filing.year} | Updated{" "}
+                {formatDate(filing.updatedAt)}{" "}
+                <span className={styles.assignedHighlight}>
+                  Assigned {assignedStaffLabel}
+                </span>
               </p>
             </div>
             <div className={styles.headerActions}>
-              <Link href="/v2/admin/features/ucr" className={styles.secondaryButton}>
+              <Link
+                href="/v2/admin/features/ucr"
+                className={styles.secondaryButton}
+              >
                 Back
               </Link>
               {permissions.canEdit ? (
@@ -545,7 +551,9 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
                   onClick={() => setNeedsAttentionModalOpen(true)}
                   disabled={busy}
                 >
-                  {busyAction === "needs-attention" ? "Sending..." : "Need attention"}
+                  {busyAction === "needs-attention"
+                    ? "Sending..."
+                    : "Need attention"}
                 </button>
               ) : null}
               {canCompleteByStaff ? (
@@ -555,11 +563,14 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
                   onClick={() => setCompleteModalOpen(true)}
                   disabled={busy}
                 >
-                  {busyAction === "complete" ? "Completing..." : "Complete by staff"}
+                  {busyAction === "complete" ? "Completing..." : "Finalize"}
                 </button>
               ) : null}
               {permissions.canViewReceipt ? (
-                <a href={`/api/v1/admin/ucr/${filing.id}/receipt`} className={styles.secondaryButton}>
+                <a
+                  href={`/api/v1/admin/ucr/${filing.id}/receipt`}
+                  className={styles.secondaryButton}
+                >
                   Download receipt
                 </a>
               ) : null}
@@ -573,14 +584,21 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
             />
             <StatusChip
               label={`Customer: ${customerPaymentStatusLabel(filing.customerPaymentStatus)}`}
-              className={customerPaymentStatusClasses(filing.customerPaymentStatus)}
+              className={customerPaymentStatusClasses(
+                filing.customerPaymentStatus,
+              )}
             />
             <StatusChip
               label={`Official: ${officialPaymentStatusLabel(filing.officialPaymentStatus)}`}
-              className={officialPaymentStatusClasses(filing.officialPaymentStatus)}
+              className={officialPaymentStatusClasses(
+                filing.officialPaymentStatus,
+              )}
             />
             {refreshing ? (
-              <StatusChip label="Refreshing" className="bg-zinc-100 text-zinc-700 ring-zinc-200" />
+              <StatusChip
+                label="Refreshing"
+                className="bg-zinc-100 text-zinc-700 ring-zinc-200"
+              />
             ) : null}
           </div>
         </div>
@@ -589,15 +607,15 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
 
         {customerBalanceDue > 0 ? (
           <div className={styles.alertInfo}>
-            Customer still owes {formatCurrency(customerBalanceDue)} before staff can continue this
-            filing.
+            Customer still owes {formatCurrency(customerBalanceDue)} before
+            staff can continue this filing.
           </div>
         ) : null}
 
         {customerCreditAmount > 0 ? (
           <div className={styles.alertInfo}>
-            This filing is overpaid by {formatCurrency(customerCreditAmount)}. Review the credit
-            before closing the case.
+            This filing is overpaid by {formatCurrency(customerCreditAmount)}.
+            Review the credit before closing the case.
           </div>
         ) : null}
 
@@ -668,14 +686,17 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
           <div className={styles.chatThread}>
             {conversation.length === 0 ? (
               <div className={styles.chatEmpty}>
-                No messages yet. Use this thread to coordinate directly with the client.
+                No messages yet. Use this thread to coordinate directly with the
+                client.
               </div>
             ) : (
               conversation.map((message) => (
                 <article
                   key={message.id}
                   className={`${styles.chatMessage} ${
-                    message.authorRole === "STAFF" ? styles.chatMessageStaff : styles.chatMessageClient
+                    message.authorRole === "STAFF"
+                      ? styles.chatMessageStaff
+                      : styles.chatMessageClient
                   }`}
                 >
                   <div className={styles.chatMeta}>
@@ -733,7 +754,10 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
             setNeedsAttentionModalOpen(false);
           }}
         >
-          <div className={styles.modalCard} onClick={(event) => event.stopPropagation()}>
+          <div
+            className={styles.modalCard}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className={styles.modalHeader}>
               <div>
                 <p className={styles.eyebrow}>Staff action</p>
@@ -791,7 +815,10 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
             setDocumentFile(null);
           }}
         >
-          <div className={styles.modalCard} onClick={(event) => event.stopPropagation()}>
+          <div
+            className={styles.modalCard}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className={styles.modalHeader}>
               <div>
                 <p className={styles.eyebrow}>Files</p>
@@ -816,7 +843,9 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
                 key={documentFile?.name ?? "empty-upload"}
                 ref={documentInputRef}
                 type="file"
-                onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+                onChange={(event) =>
+                  setDocumentFile(event.target.files?.[0] ?? null)
+                }
                 className={styles.uploadInputHidden}
               />
               <div className={styles.uploadPickerRow}>
@@ -870,7 +899,10 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
             setCompleteModalOpen(false);
           }}
         >
-          <div className={styles.modalCard} onClick={(event) => event.stopPropagation()}>
+          <div
+            className={styles.modalCard}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className={styles.modalHeader}>
               <div>
                 <p className={styles.eyebrow}>Staff action</p>
@@ -890,18 +922,27 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
               <span className={styles.fieldLabel}>Receipt file</span>
               <input
                 type="file"
-                onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+                onChange={(event) =>
+                  setReceiptFile(event.target.files?.[0] ?? null)
+                }
                 className={styles.input}
               />
             </label>
 
             {filing.officialReceiptUrl ? (
               <div className={styles.modalNote}>
-                <strong>{filing.officialReceiptName || "Receipt on file"}</strong>
-                <span>A new file uploaded here will replace the current official receipt.</span>
+                <strong>
+                  {filing.officialReceiptName || "Receipt on file"}
+                </strong>
+                <span>
+                  A new file uploaded here will replace the current official
+                  receipt.
+                </span>
               </div>
             ) : (
-              <p className={styles.modalHelp}>Upload the official receipt to complete the filing.</p>
+              <p className={styles.modalHelp}>
+                Upload the official receipt to complete the filing.
+              </p>
             )}
 
             <div className={styles.modalActions}>
@@ -919,7 +960,9 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
                 disabled={busy || !canSubmitStaffCompletion}
                 className={styles.primaryButton}
               >
-                {busyAction === "complete" ? "Completing..." : "Complete filing"}
+                {busyAction === "complete"
+                  ? "Completing..."
+                  : "Complete filing"}
               </button>
             </div>
           </div>

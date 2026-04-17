@@ -17,6 +17,10 @@ interface User {
   name: string | null;
   createdAt: string;
   roles: Array<{ role: { id: string; name: string } }>;
+  companyProfile?: {
+    legalName: string | null;
+    companyName: string | null;
+  } | null;
 }
 
 interface Role {
@@ -43,6 +47,11 @@ function RoleBadge({ children }: { children: React.ReactNode }) {
       {children}
     </span>
   );
+}
+
+function getCompanyLegalName(user: User) {
+  if (user.roles.some((r) => r.role.name === "STAFF")) return "STAFF";
+  return user.companyProfile?.legalName || user.companyProfile?.companyName || "Not set";
 }
 
 function getImpersonationDestination(permissions: string[]) {
@@ -442,6 +451,16 @@ export default function AdminUsersPage() {
               Copy
             </button>
           </div>
+        ),
+      },
+      {
+        key: "_companyLegalName",
+        label: "Legal name",
+        sortable: false,
+        render: (_, user) => (
+          <span className={tableStyles.muteCell}>
+            {getCompanyLegalName(user)}
+          </span>
         ),
       },
       {

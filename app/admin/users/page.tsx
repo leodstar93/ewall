@@ -17,6 +17,10 @@ interface User {
       name: string;
     };
   }>;
+  companyProfile?: {
+    legalName: string | null;
+    companyName: string | null;
+  } | null;
 }
 
 interface Role {
@@ -57,6 +61,11 @@ function Badge({
       {children}
     </span>
   );
+}
+
+function getCompanyLegalName(user: User) {
+  if (user.roles.some((r) => r.role.name === "STAFF")) return "STAFF";
+  return user.companyProfile?.legalName || user.companyProfile?.companyName || "Not set";
 }
 
 function Alert({
@@ -219,7 +228,9 @@ export default function AdminUsersPage() {
     const list = users.filter((u) => {
       const email = (u.email ?? "").toLowerCase();
       const name = (u.name ?? "").toLowerCase();
-      return email.includes(q) || name.includes(q);
+      const legalName = getCompanyLegalName(u).toLowerCase();
+      const companyName = (u.companyProfile?.companyName ?? "").toLowerCase();
+      return email.includes(q) || name.includes(q) || legalName.includes(q) || companyName.includes(q);
     });
 
     list.sort((a, b) => {
@@ -732,6 +743,9 @@ export default function AdminUsersPage() {
                     Email
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-700 uppercase tracking-wide">
+                    Legal name
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-700 uppercase tracking-wide">
                     Roles
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-700 uppercase tracking-wide">
@@ -795,6 +809,12 @@ export default function AdminUsersPage() {
                             Copy
                           </button>
                         </div>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-zinc-700">
+                          {getCompanyLegalName(user)}
+                        </span>
                       </td>
 
                       <td className="px-6 py-4">

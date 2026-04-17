@@ -63,6 +63,12 @@ export async function GET(
       where: { id },
       include: {
         roles: { include: { role: true } },
+        companyProfile: {
+          select: {
+            legalName: true,
+            companyName: true,
+          },
+        },
       },
     });
     if (!user) {
@@ -117,6 +123,12 @@ export async function PUT(
       include: {
         roles: {
           include: { role: true },
+        },
+        companyProfile: {
+          select: {
+            legalName: true,
+            companyName: true,
+          },
         },
       },
     });
