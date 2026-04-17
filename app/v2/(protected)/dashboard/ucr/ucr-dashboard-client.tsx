@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import Swal from "sweetalert2";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef } from "../components/ui/Table";
@@ -145,13 +146,18 @@ export default function UcrDashboardClient() {
   }
 
   async function deleteFiling(filing: UcrFiling) {
-    if (
-      !window.confirm(
-        `Delete UCR ${filing.year}? This action cannot be undone.`,
-      )
-    ) {
-      return;
-    }
+    const result = await Swal.fire({
+      icon: "warning",
+      title: `Delete UCR ${filing.year}?`,
+      text: "This action cannot be undone.",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
+
+    if (!result.isConfirmed) return;
 
     try {
       setBusyId(filing.id);

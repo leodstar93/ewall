@@ -9,6 +9,7 @@ import {
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import Swal from "sweetalert2";
 import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 import styles from "./page.module.css";
@@ -446,12 +447,21 @@ export default function PaymentsPageClient() {
 
   const handleDelete = async (id: string) => {
     const method = methods.find((entry) => entry.id === id) ?? null;
-    const confirmed = window.confirm(
-      isAchMethod(method)
-        ? "Revoke this ACH payment method? History and audit records will be preserved."
-        : "Delete this saved payment method?",
-    );
-    if (!confirmed) return;
+    const isAch = isAchMethod(method);
+    const result = await Swal.fire({
+      icon: "warning",
+      title: isAch ? "Revoke ACH payment method?" : "Delete payment method?",
+      text: isAch
+        ? "History and audit records will be preserved."
+        : "This saved payment method will be removed.",
+      showCancelButton: true,
+      confirmButtonText: isAch ? "Revoke" : "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
+
+    if (!result.isConfirmed) return;
 
     try {
       setDeletingId(id);

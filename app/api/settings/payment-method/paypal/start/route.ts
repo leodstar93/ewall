@@ -5,6 +5,31 @@ import { createPayPalSetupToken, isPayPalConfigured } from "@/lib/payments/paypa
 import { requireApiPermission } from "@/lib/rbac-api";
 import { getSettingsErrorResponse } from "@/lib/services/settings-errors";
 
+function getPublicOrigin(request: Request) {
+  const configuredOrigin =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim() ||
+    new URL(request.url).origin;
+
+  return configuredOrigin.replace(/\/$/, "");
+}
+
+function getPayPalReturnPath(request: Request) {
+  const referer = request.headers.get("referer");
+  if (!referer) return "/v2/dashboard/payments";
+
+  try {
+    const pathname = new URL(referer).pathname;
+    if (pathname.startsWith("/v2/dashboard/payments")) {
+      return "/v2/dashboard/payments";
+    }
+  } catch {
+    return "/v2/dashboard/payments";
+  }
+
+  return "/settings?tab=payments";
+}
+
 export async function POST(request: Request) {
   const guard = await requireApiPermission("billing:manage");
   if (!guard.ok) return guard.res;
@@ -23,9 +48,11 @@ export async function POST(request: Request) {
     }
 
     const flowId = randomUUID();
-    const origin = new URL(request.url).origin;
-    const returnUrl = `${origin}/settings?tab=payments&paypal_status=success&paypal_flow=${flowId}`;
-    const cancelUrl = `${origin}/settings?tab=payments&paypal_status=cancel&paypal_flow=${flowId}`;
+    const origin = getPublicOrigin(request);
+    const returnPath = getPayPalReturnPath(request);
+    const separator = returnPath.includes("?") ? "&" : "?";
+    const returnUrl = `${origin}${returnPath}${separator}paypal_status=success&paypal_flow=${flowId}`;
+    const cancelUrl = `${origin}${returnPath}${separator}paypal_status=cancel&paypal_flow=${flowId}`;
 
     const result = await createPayPalSetupToken({
       returnUrl,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import Swal from "sweetalert2";
 import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 import styles from "./page.module.css";
@@ -336,9 +337,18 @@ export default function IntegrationsPageClient() {
   };
 
   const handleDisconnect = async (provider: EldProviderCode) => {
-    if (!window.confirm(`Disconnect ${providerLabel(provider)} from this account?`)) {
-      return;
-    }
+    const result = await Swal.fire({
+      icon: "warning",
+      title: `Disconnect ${providerLabel(provider)}?`,
+      text: "This ELD provider will be disconnected from this account.",
+      showCancelButton: true,
+      confirmButtonText: "Disconnect",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
+
+    if (!result.isConfirmed) return;
 
     setBusyAction(`disconnect:${provider}`);
     setBanner(null);

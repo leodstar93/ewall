@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import type { MouseEvent } from "react";
 import { toast } from "react-toastify";
+import Swal from "sweetalert2";
 import Table, { type ColumnDef } from "../ui/Table";
 import tableStyles from "../ui/DataTable.module.css";
 import type { TruckRecord } from "@/features/trucks/shared";
@@ -289,11 +290,18 @@ export default function TrucksDropdown({
   }
 
   async function hideTruck(truck: DashboardTruckRow) {
-    const confirmed = window.confirm(
-      `Delete truck ${truck.unitNumber} from your dashboard? This action cannot be undone.`,
-    );
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Delete truck?",
+      text: `Delete truck ${truck.unitNumber} from your dashboard? This action cannot be undone.`,
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
 
-    if (!confirmed) return;
+    if (!result.isConfirmed) return;
 
     try {
       setHidingTruckId(truck.truckId);
@@ -313,12 +321,9 @@ export default function TrucksDropdown({
 
       onTruckHidden?.(truck.truckId);
     } catch (error) {
-      setSaveError(
+      toast.error(
         error instanceof Error ? error.message : "Could not delete the truck.",
       );
-      setEditingTruckId(null);
-      setForm(emptyForm);
-      setIsModalOpen(true);
     } finally {
       setHidingTruckId(null);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Swal from "sweetalert2";
 import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
 
 type RequirementTemplate = {
@@ -105,8 +106,18 @@ export default function DmvSettingsClient() {
   }
 
   async function deleteTemplate(template: RequirementTemplate) {
-    const confirmed = window.confirm(`Delete the requirement template "${template.name}" (${template.code})?`);
-    if (!confirmed) return;
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Delete requirement template?",
+      text: `Delete "${template.name}" (${template.code})?`,
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
+
+    if (!result.isConfirmed) return;
     try {
       setDeletingTemplateId(template.id); setError(null);
       const response = await fetch(`/api/v1/features/dmv/settings/requirements?id=${encodeURIComponent(template.id)}`, { method: "DELETE" });
@@ -119,8 +130,20 @@ export default function DmvSettingsClient() {
   }
 
   async function deleteFee(fee: FeeRule) {
-    const confirmed = window.confirm(`Delete the fee rule for ${fee.registrationType || "all types"} / ${fee.jurisdictionCode || "all jurisdictions"}?`);
-    if (!confirmed) return;
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Delete fee rule?",
+      text: `Delete the fee rule for ${fee.registrationType || "all types"} / ${
+        fee.jurisdictionCode || "all jurisdictions"
+      }?`,
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
+
+    if (!result.isConfirmed) return;
     try {
       setDeletingFeeId(fee.id); setError(null);
       const response = await fetch(`/api/v1/features/dmv/settings/fees?id=${encodeURIComponent(fee.id)}`, { method: "DELETE" });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import Swal from "sweetalert2";
 import tableStyles from "../../components/ui/DataTable.module.css";
 import styles from "./ucr-detail.module.css";
 import UcrFilingForm from "@/features/ucr/filing-form";
@@ -452,11 +453,18 @@ export default function UcrDetailClient({ filingId }: Props) {
 
   const deleteFiling = async () => {
     if (!filing) return;
-    if (
-      !window.confirm(`Delete UCR ${filing.year}? This action cannot be undone.`)
-    ) {
-      return;
-    }
+    const result = await Swal.fire({
+      icon: "warning",
+      title: `Delete UCR ${filing.year}?`,
+      text: "This action cannot be undone.",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
+
+    if (!result.isConfirmed) return;
 
     try {
       setBusy(true);
