@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Table, { type ColumnDef, type TableAction } from "@/app/v2/(protected)/admin/components/ui/Table";
 import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
 
 type ClientSummary = {
@@ -32,6 +33,39 @@ type ClientSummary = {
   }>;
 };
 
+type SyncJobSummary = {
+  id: string;
+  syncType: string;
+  status: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  windowStart: string | null;
+  windowEnd: string | null;
+  recordsRead: number;
+  recordsCreated: number;
+  recordsUpdated: number;
+  recordsFailed: number;
+  errorMessage: string | null;
+  createdAt: string;
+  integrationAccount?: {
+    id: string;
+    provider: string;
+    tenantId: string;
+    tenant?: {
+      id: string;
+      name: string;
+    } | null;
+  } | null;
+};
+
+type SyncJobRow = SyncJobSummary & {
+  clientName: string;
+  providerLabel: string;
+  recordsTotal: number;
+  sortStartedAt: number;
+  searchText: string;
+};
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not available";
 
@@ -47,24 +81,119 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
+function formatShortDate(value: string | null | undefined) {
+  if (!value) return "Not available";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Invalid date";
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function parseFileName(header: string | null) {
   if (!header) return "eld-raw-export.xlsx";
   const match = header.match(/filename="([^"]+)"/i);
   return match?.[1] ?? "eld-raw-export.xlsx";
 }
 
+function statusBadge(status: string) {
+  const normalized = status.trim().toUpperCase();
+  const badgeClass =
+    normalized === "SUCCESS" || normalized === "PARTIAL_SUCCESS"
+      ? tableStyles.bDone
+      : normalized === "RUNNING" || normalized === "QUEUED"
+        ? tableStyles.bPending
+        : normalized === "FAILED"
+          ? tableStyles.bActive
+          : tableStyles.bInactive;
+
+  return (
+    <span className={`${tableStyles.badge} ${badgeClass}`}>
+      {normalized.replace(/_/g, " ")}
+    </span>
+  );
+}
+
 export default function AdminIntegrationsSettingsClient() {
   const [clients, setClients] = useState<ClientSummary[]>([]);
+  const [syncJobs, setSyncJobs] = useState<SyncJobSummary[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingSyncJobs, setLoadingSyncJobs] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncJobsError, setSyncJobsError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [syncSearch, setSyncSearch] = useState("");
 
   const selectedClient = useMemo(
     () => clients.find((item) => item.id === selectedTenantId) ?? null,
     [clients, selectedTenantId],
   );
+
+  const syncRows = useMemo<SyncJobRow[]>(
+    () =>
+      syncJobs.map((job) => {
+        const clientName = job.integrationAccount?.tenant?.name || "Unknown client";
+        const providerLabel = job.integrationAccount?.provider || "Unknown";
+        const searchText = [
+          clientName,
+          providerLabel,
+          job.syncType,
+          job.status,
+          job.errorMessage ?? "",
+          job.id,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return {
+          ...job,
+          clientName,
+          providerLabel,
+          recordsTotal:
+            job.recordsRead +
+            job.recordsCreated +
+            job.recordsUpdated +
+            job.recordsFailed,
+          sortStartedAt: -new Date(job.startedAt || job.createdAt || 0).getTime(),
+          searchText,
+        };
+      }),
+    [syncJobs],
+  );
+
+  async function loadSyncJobs() {
+    try {
+      setLoadingSyncJobs(true);
+      setSyncJobsError(null);
+
+      const response = await fetch("/api/v1/features/ifta-v2/integrations/sync-jobs", {
+        cache: "no-store",
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        syncJobs?: SyncJobSummary[];
+        error?: string;
+      };
+
+      if (!response.ok || !Array.isArray(data.syncJobs)) {
+        throw new Error(data.error || "Could not load ELD sync job logs.");
+      }
+
+      setSyncJobs(data.syncJobs);
+    } catch (loadError) {
+      setSyncJobs([]);
+      setSyncJobsError(
+        loadError instanceof Error ? loadError.message : "Could not load ELD sync job logs.",
+      );
+    } finally {
+      setLoadingSyncJobs(false);
+    }
+  }
 
   async function load() {
     try {
@@ -98,6 +227,7 @@ export default function AdminIntegrationsSettingsClient() {
 
   useEffect(() => {
     void load();
+    void loadSyncJobs();
   }, []);
 
   async function handleExport() {
@@ -145,6 +275,86 @@ export default function AdminIntegrationsSettingsClient() {
       setBusy(false);
     }
   }
+
+  const syncJobActions: TableAction[] = [
+    {
+      label: "Refresh logs",
+      onClick: () => void loadSyncJobs(),
+    },
+  ];
+
+  const syncJobColumns: ColumnDef<SyncJobRow>[] = [
+    {
+      key: "sortStartedAt",
+      label: "Started",
+      render: (_, job) => (
+        <div className={tableStyles.nameCell}>
+          <div className={tableStyles.compactCell}>{formatDate(job.startedAt)}</div>
+          <div className={tableStyles.muteCell}>{formatDate(job.finishedAt)}</div>
+        </div>
+      ),
+    },
+    {
+      key: "clientName",
+      label: "Client",
+      render: (_, job) => (
+        <div className={tableStyles.nameCell}>
+          <div className={tableStyles.compactCell} title={job.clientName}>
+            {job.clientName}
+          </div>
+          <div className={tableStyles.muteCell}>{job.providerLabel}</div>
+        </div>
+      ),
+    },
+    {
+      key: "syncType",
+      label: "Type",
+      render: (value) => String(value ?? "").replace(/_/g, " "),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (_, job) => statusBadge(job.status),
+    },
+    {
+      key: "windowStart",
+      label: "Window",
+      render: (_, job) => (
+        <div className={tableStyles.nameCell}>
+          <div className={tableStyles.compactCell}>
+            {formatShortDate(job.windowStart)}
+          </div>
+          <div className={tableStyles.muteCell}>{formatShortDate(job.windowEnd)}</div>
+        </div>
+      ),
+    },
+    {
+      key: "recordsTotal",
+      label: "Records",
+      render: (_, job) => (
+        <div className={tableStyles.nameCell}>
+          <div className={tableStyles.compactCell}>{job.recordsRead} read</div>
+          <div className={tableStyles.muteCell}>
+            {job.recordsCreated} new / {job.recordsUpdated} upd / {job.recordsFailed} failed
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "errorMessage",
+      label: "Error",
+      sortable: false,
+      render: (_, job) => (
+        <div
+          className={`${tableStyles.muteCell} ${tableStyles.compactCell}`}
+          title={job.errorMessage || "No error"}
+          style={{ maxWidth: 260 }}
+        >
+          {job.errorMessage || "None"}
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -382,6 +592,44 @@ export default function AdminIntegrationsSettingsClient() {
           </>
         )}
       </div>
+
+      {syncJobsError ? (
+        <div
+          style={{
+            borderRadius: 10,
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+            padding: "10px 14px",
+            fontSize: 13,
+            color: "#b91c1c",
+          }}
+        >
+          {syncJobsError}
+        </div>
+      ) : null}
+
+      <Table
+        data={syncRows}
+        columns={syncJobColumns}
+        title={loadingSyncJobs ? "Loading ELD sync job logs..." : "ELD sync job logs"}
+        actions={syncJobActions}
+        searchQuery={syncSearch}
+        searchKeys={["searchText"]}
+        toolbar={
+          <input
+            value={syncSearch}
+            onChange={(event) => setSyncSearch(event.target.value)}
+            placeholder="Search by client, provider, status, or job id..."
+            style={{
+              height: 34,
+              border: "1px solid var(--br)",
+              borderRadius: 6,
+              padding: "0 10px",
+              minWidth: 280,
+            }}
+          />
+        }
+      />
     </div>
   );
 }
