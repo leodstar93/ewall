@@ -176,6 +176,7 @@ type TruckFormState = {
 };
 
 type ManagedTruck = ManagedTruckerProfile["trucks"][number];
+type ManagedDocument = ManagedTruckerProfile["documents"][number];
 
 type TruckTableRow = ManagedTruck & {
   vehicleLabel: string;
@@ -184,6 +185,14 @@ type TruckTableRow = ManagedTruck & {
   sortUnitNumber: string;
   sortVin: string;
   sortUpdatedAt: number;
+};
+
+type DocumentTableRow = ManagedDocument & {
+  searchText: string;
+  sortName: string;
+  sortFileType: string;
+  sortFileSize: number;
+  sortCreatedAt: number;
 };
 
 const emptyTruckForm: TruckFormState = {
@@ -283,6 +292,25 @@ function buildTruckRows(trucks: ManagedTruck[]): TruckTableRow[] {
       sortUpdatedAt: -new Date(truck.updatedAt).getTime(),
     };
   });
+}
+
+function buildDocumentRows(documents: ManagedDocument[]): DocumentTableRow[] {
+  return documents.map((document) => ({
+    ...document,
+    searchText: [
+      document.name,
+      document.description ?? "",
+      document.fileName,
+      document.fileType,
+      formatFileSize(document.fileSize),
+    ]
+      .join(" ")
+      .toLowerCase(),
+    sortName: document.name || document.fileName,
+    sortFileType: document.fileType || "file",
+    sortFileSize: document.fileSize || 0,
+    sortCreatedAt: -new Date(document.createdAt).getTime(),
+  }));
 }
 
 function formatFileSize(bytes: number) {
@@ -412,6 +440,10 @@ export default function TruckerProfileAdminClient({
     [profile?.billing.subscriptionsEnabled],
   );
   const truckRows = useMemo(() => buildTruckRows(profile?.trucks ?? []), [profile?.trucks]);
+  const documentRows = useMemo(
+    () => buildDocumentRows(profile?.documents ?? []),
+    [profile?.documents],
+  );
 
   const applyServerProfile = (
     nextProfile: ManagedTruckerProfile,
@@ -949,6 +981,60 @@ export default function TruckerProfileAdminClient({
     },
   ];
 
+  const documentColumns: ColumnDef<DocumentTableRow>[] = [
+    {
+      key: "sortName",
+      label: "Document",
+      render: (_, document) => (
+        <div className={tableStyles.nameCell}>
+          <div className={tableStyles.compactCell} title={document.name}>
+            {document.name}
+          </div>
+          <div
+            className={`${tableStyles.muteCell} ${tableStyles.compactCell}`}
+            title={document.description || document.fileName}
+          >
+            {document.description || document.fileName}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "sortFileType",
+      label: "Type",
+      render: (_, document) => (
+        <StatusBadge tone="blue">{document.fileType || "file"}</StatusBadge>
+      ),
+    },
+    {
+      key: "sortFileSize",
+      label: "Size",
+      render: (_, document) => formatFileSize(document.fileSize),
+    },
+    {
+      key: "sortCreatedAt",
+      label: "Uploaded",
+      render: (_, document) => formatDateTime(document.createdAt),
+    },
+    {
+      key: "_actions",
+      label: "Actions",
+      sortable: false,
+      render: (_, document) => (
+        <a
+          href={document.fileUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open ${document.name}`}
+          title={`Open ${document.name}`}
+          className={iconButtonClasses({ variant: "dark" })}
+        >
+          <ActionIcon name="view" />
+        </a>
+      ),
+    },
+  ];
+
   if (loading) {
     return (
       <div className={tableStyles.card} style={{ padding: 24 }}>
@@ -1058,23 +1144,6 @@ export default function TruckerProfileAdminClient({
             );
           })}
         </div>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(6, 1fr)" }}>
-        {[
-          { label: "Trucks", value: profile.stats.trucksCount },
-          { label: "IFTA Reports", value: profile.stats.iftaReportsCount },
-          { label: "UCR Filings", value: profile.stats.ucrFilingsCount },
-          { label: "2290 Filings", value: profile.stats.form2290FilingsCount },
-          { label: "DMV Registrations", value: profile.stats.dmvRegistrationsCount },
-          { label: "DMV Renewals", value: profile.stats.dmvRenewalCasesCount },
-        ].map(({ label, value }) => (
-          <div key={label} className={tableStyles.card} style={{ padding: "16px 20px" }}>
-            <div className={tableStyles.subtitle}>{label}</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: "var(--b)", marginTop: 4 }}>{value}</div>
-          </div>
-        ))}
       </div>
 
       {activeTab === "personal" ? (
@@ -1498,43 +1567,13 @@ export default function TruckerProfileAdminClient({
               description="This trucker client has not uploaded documents yet."
             />
           ) : (
-            <div className="space-y-4">
-              {profile.documents.map((document) => (
-                <div
-                  key={document.id}
-                  className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5"
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-base font-semibold text-zinc-950">
-                        {document.name}
-                      </p>
-                      <p className="mt-2 text-sm text-zinc-600">
-                        {document.description || document.fileName}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <StatusBadge tone="blue">{document.fileType || "file"}</StatusBadge>
-                        <StatusBadge tone="zinc">{formatFileSize(document.fileSize)}</StatusBadge>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-start gap-3 lg:items-end">
-                      <div className="text-sm text-zinc-600">
-                        {formatDateTime(document.createdAt)}
-                      </div>
-                      <a
-                        href={document.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
-                      >
-                        Open file
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Table
+              data={documentRows}
+              columns={documentColumns}
+              title="Uploaded documents"
+              searchQuery=""
+              searchKeys={["searchText"]}
+            />
           )}
         </PanelCard>
       ) : null}

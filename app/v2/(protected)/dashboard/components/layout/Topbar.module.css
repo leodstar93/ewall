@@ -45,37 +45,8 @@
   font-weight: 500;
 }
 
-.searchBox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--br);
-  border-radius: 6px;
-  padding: 0 10px;
-  height: 32px;
-  background: var(--off);
-  width: 200px;
-}
-
-.searchBox svg { width: 13px; height: 13px; flex-shrink: 0; }
-
-.searchBox input {
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  color: var(--text-primary);
-  outline: none;
-  width: 100%;
-}
-
-.searchBox input::placeholder { color: #bbb; }
-
 .topActions {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-}
-
-@media (max-width: 700px) {
-  .searchBox { width: 140px; }
 }

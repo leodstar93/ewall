@@ -7,8 +7,6 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 interface Props {
   onToggleSidebar: () => void;
-  searchValue: string;
-  onSearch: (value: string) => void;
   navGroups: NavGroup[];
 }
 
@@ -25,8 +23,6 @@ function resolveCurrentLabel(pathname: string | null, navGroups: NavGroup[]) {
 
 export default function Topbar({
   onToggleSidebar,
-  searchValue,
-  onSearch,
   navGroups,
 }: Props) {
   const pathname = usePathname();
@@ -53,19 +49,6 @@ export default function Topbar({
           Inicio <span className={styles.sep}>{">"}</span>{" "}
           <span className={styles.current}>{currentLabel}</span>
         </div>
-      </div>
-
-      <div className={styles.searchBox}>
-        <svg viewBox="0 0 14 14" fill="none" stroke="#aaa" strokeWidth="2">
-          <circle cx="6" cy="6" r="4" />
-          <line x1="9" y1="9" x2="13" y2="13" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Buscar..."
-          value={searchValue}
-          onChange={(event) => onSearch(event.target.value)}
-        />
       </div>
 
       <div className={styles.topActions}>

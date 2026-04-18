@@ -91,7 +91,6 @@ function buildNavGroups(
 export default function LayoutWrap({ children }: Props) {
   const { data: session } = useSession();
   const [collapsed, setCollapsed] = useState(false);
-  const [search, setSearch] = useState("");
 
   const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
   const permissions = Array.isArray(session?.user?.permissions) ? session.user.permissions : [];
@@ -108,8 +107,6 @@ export default function LayoutWrap({ children }: Props) {
         <div className={styles.main}>
           <Topbar
             onToggleSidebar={() => setCollapsed((current) => !current)}
-            searchValue={search}
-            onSearch={setSearch}
             navGroups={navGroups}
           />
           {session?.impersonation?.isActive ? (
