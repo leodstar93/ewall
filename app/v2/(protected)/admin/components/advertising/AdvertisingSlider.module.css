@@ -3,6 +3,9 @@
   border: 1px solid var(--brl);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .head {
@@ -26,13 +29,18 @@
 
 .progress { font-size: 11px; color: #aaa; }
 
-.body { padding: 12px 14px; }
+.body {
+  padding: 12px 14px;
+  display: flex;
+  flex: 1;
+}
 
 .wrap {
   position: relative;
   overflow: hidden;
   border-radius: 8px;
-  height: 130px;
+  flex: 1;
+  min-height: 130px;
 }
 
 .slide {
