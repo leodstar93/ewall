@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "react-toastify";
 import Swal from "sweetalert2";
 import Table, { type ColumnDef } from "@/app/v2/(protected)/admin/components/ui/Table";
+import { isLightBackground } from "@/lib/ui/color-utils";
 import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
 
 type Audience = "ALL" | "ADMIN" | "TRUCKER" | "PUBLIC";
@@ -61,6 +62,10 @@ const gradientOptions = [
   {
     label: "Slate",
     value: "linear-gradient(135deg, #111827 0%, #475569 100%)",
+  },
+  {
+    label: "White",
+    value: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
   },
 ];
 
@@ -144,6 +149,10 @@ function statusBadge(active: boolean) {
   );
 }
 
+function isSolidHexColor(value: string) {
+  return /^#[0-9a-f]{6}$/i.test(value.trim());
+}
+
 export default function NewsUpdatesManager() {
   const [updates, setUpdates] = useState<NewsUpdate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,6 +161,7 @@ export default function NewsUpdatesManager() {
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [customColor, setCustomColor] = useState("#ffffff");
 
   const rows = useMemo<NewsUpdateRow[]>(
     () =>
@@ -196,6 +206,7 @@ export default function NewsUpdatesManager() {
   function resetForm() {
     setEditingId(null);
     setForm(emptyForm);
+    setCustomColor("#ffffff");
   }
 
   async function handleImageUpload(file: File | undefined) {
@@ -329,6 +340,7 @@ export default function NewsUpdatesManager() {
             onClick={() => {
               setEditingId(update.id);
               setForm(toForm(update));
+              setCustomColor(isSolidHexColor(update.gradient) ? update.gradient : "#ffffff");
             }}
           >
             Edit
@@ -344,6 +356,8 @@ export default function NewsUpdatesManager() {
       ),
     },
   ];
+  const previewIsLight = isLightBackground(form.gradient);
+  const isCustomSelected = isSolidHexColor(form.gradient);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -580,6 +594,34 @@ export default function NewsUpdatesManager() {
                   {option.label}
                 </button>
               ))}
+              <label
+                className={tableStyles.btn}
+                style={{
+                  cursor: "pointer",
+                  borderColor: isCustomSelected ? "var(--b)" : undefined,
+                  background: isCustomSelected ? "var(--bl)" : undefined,
+                }}
+              >
+                <input
+                  type="color"
+                  value={customColor}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setCustomColor(value);
+                    setForm((current) => ({ ...current, gradient: value }));
+                  }}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    padding: 0,
+                    border: "1px solid var(--br)",
+                    borderRadius: 4,
+                    background: "transparent",
+                    cursor: "pointer",
+                  }}
+                />
+                Custom color
+              </label>
             </div>
           </div>
 
@@ -588,7 +630,7 @@ export default function NewsUpdatesManager() {
               minHeight: 120,
               borderRadius: 8,
               padding: form.template === "FULL_IMAGE" ? 0 : 16,
-              color: "#fff",
+              color: previewIsLight ? "#0f172a" : "#fff",
               background: form.gradient,
               display: "flex",
               flexDirection: "column",
@@ -614,7 +656,7 @@ export default function NewsUpdatesManager() {
                     minHeight: 150,
                     display: "grid",
                     placeItems: "center",
-                    color: "rgba(255,255,255,0.78)",
+                    color: previewIsLight ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.78)",
                     fontSize: 13,
                   }}
                 >

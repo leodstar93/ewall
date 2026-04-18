@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { AdSlide } from "@/lib/types";
+import { isLightBackground } from "@/lib/ui/color-utils";
 import styles from "./AdvertisingSlider.module.css";
 
 interface Props {
@@ -67,7 +68,9 @@ export default function AdvertisingSlider({
               key={`${slide.title}-${index}`}
               className={`${styles.slide} ${
                 slide.template === "FULL_IMAGE" && slide.imageUrl ? styles.fullImageSlide : ""
-              } ${index === current ? styles.active : ""}`}
+              } ${isLightBackground(slide.gradient) ? styles.lightSlide : ""} ${
+                index === current ? styles.active : ""
+              }`}
               style={{ background: slide.gradient }}
             >
               {slide.template === "FULL_IMAGE" && slide.imageUrl ? (
