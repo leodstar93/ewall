@@ -29,6 +29,7 @@ export interface Truck {
 }
 
 export interface AdSlide {
+  id?: string;
   eyebrow: string;
   title: string;
   description: string;

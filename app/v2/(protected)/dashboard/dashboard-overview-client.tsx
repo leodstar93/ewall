@@ -6,7 +6,7 @@ import TrucksDropdown, { type DashboardTruckRow } from "./components/trucks/Truc
 import CompanyInfoPanel from "./components/ui/CompanyInfo";
 import DataTable from "./components/ui/DataTable";
 import styles from "./page.module.css";
-import type { Item } from "@/lib/types";
+import type { AdSlide, Item } from "@/lib/types";
 import type { BadgeTone } from "@/lib/ui/status-utils";
 import type { TruckRecord } from "@/features/trucks/shared";
 import {
@@ -103,6 +103,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [ucrFilings, setUcrFilings] = useState<UcrFiling[]>([]);
   const [iftaFilings, setIftaFilings] = useState<FilingListItem[]>([]);
+  const [managedSlides, setManagedSlides] = useState<AdSlide[]>([]);
 
   function handleTruckUpdated(updatedTruck: TruckRecord) {
     setTrucks((current) =>
@@ -138,12 +139,14 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
         setLoading(true);
         setError("");
 
-        const [trucksResult, documentsResult, ucrResult, iftaResult] = await Promise.allSettled([
-          fetchJson<{ trucks: TruckRecord[] }>("/api/v1/features/ifta/trucks"),
-          fetchJson<{ documents: DocumentItem[] }>("/api/v1/features/documents"),
-          fetchJson<{ filings: UcrFiling[] }>("/api/v1/features/ucr"),
-          fetchJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings"),
-        ]);
+        const [trucksResult, documentsResult, ucrResult, iftaResult, newsResult] =
+          await Promise.allSettled([
+            fetchJson<{ trucks: TruckRecord[] }>("/api/v1/features/ifta/trucks"),
+            fetchJson<{ documents: DocumentItem[] }>("/api/v1/features/documents"),
+            fetchJson<{ filings: UcrFiling[] }>("/api/v1/features/ucr"),
+            fetchJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings"),
+            fetchJson<{ slides: AdSlide[] }>("/api/v1/news-updates?audience=TRUCKER"),
+          ]);
 
         if (!active) return;
 
@@ -179,6 +182,12 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
           setIftaFilings([]);
         }
 
+        if (newsResult.status === "fulfilled") {
+          setManagedSlides(Array.isArray(newsResult.value.slides) ? newsResult.value.slides : []);
+        } else {
+          setManagedSlides([]);
+        }
+
         if (errors.length > 0) {
           setError(errors.join(" "));
         }
@@ -196,7 +205,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
     };
   }, []);
 
-  const slides = useMemo(() => {
+  const dashboardSlides = useMemo(() => {
     const openIfta = iftaFilings.filter((filing) => filing.status !== "APPROVED").length;
     const pendingUcr = ucrFilings.filter((filing) => workflowStageForFiling(filing) !== "COMPLETED")
       .length;
@@ -237,6 +246,8 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
       },
     ];
   }, [documents.length, iftaFilings, ucrFilings]);
+
+  const slides = managedSlides.length > 0 ? managedSlides : dashboardSlides;
 
   const truckRows = useMemo<DashboardTruckRow[]>(
     () =>

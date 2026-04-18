@@ -6,6 +6,7 @@ import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.modu
 
 const tabs = [
   { href: "/v2/admin/settings", label: "General" },
+  { href: "/v2/admin/settings/news-updates", label: "News & Updates" },
   { href: "/v2/admin/settings/integrations", label: "Integrations" },
   { href: "/v2/admin/settings/ucr", label: "UCR" },
   { href: "/v2/admin/settings/billing", label: "Billing" },

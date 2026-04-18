@@ -328,6 +328,23 @@ model BillingSettings {
   updatedAt              DateTime @updatedAt
 }
 
+model NewsUpdate {
+  id          String   @id @default(cuid())
+  eyebrow     String
+  title       String
+  description String
+  cta         String
+  href        String?
+  gradient    String
+  audience    String   @default("ALL")
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, audience, sortOrder])
+}
+
 model AppModule {
   id                   String   @id @default(cuid())
   slug                 String   @unique

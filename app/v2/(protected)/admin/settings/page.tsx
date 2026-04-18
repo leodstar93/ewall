@@ -6,6 +6,14 @@ import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.modu
 
 const settingsItems = [
   {
+    section: "Content",
+    title: "News & Updates",
+    description:
+      "Create, edit, reorder, and target the slides shown in the News & Updates dashboard card.",
+    href: "/v2/admin/settings/news-updates",
+    cta: "Open News Manager",
+  },
+  {
     section: "Integrations",
     title: "ELD raw client export",
     description:
