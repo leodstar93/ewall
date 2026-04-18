@@ -30,6 +30,16 @@ import {
 } from "@/services/ifta-automation/notifications";
 import { SnapshotService } from "@/services/ifta-automation/snapshot.service";
 
+const SEND_FOR_APPROVAL_STATUSES = new Set<IftaFilingStatus>([
+  IftaFilingStatus.DATA_READY,
+  IftaFilingStatus.NEEDS_REVIEW,
+  IftaFilingStatus.READY_FOR_REVIEW,
+  IftaFilingStatus.IN_REVIEW,
+  IftaFilingStatus.CHANGES_REQUESTED,
+  IftaFilingStatus.REOPENED,
+  IftaFilingStatus.SNAPSHOT_READY,
+]);
+
 export class FilingWorkflowService {
   static async logAudit(input: {
     filingId: string;
@@ -520,9 +530,9 @@ export class FilingWorkflowService {
       return filing;
     }
 
-    if (filing.status !== IftaFilingStatus.SNAPSHOT_READY) {
+    if (!SEND_FOR_APPROVAL_STATUSES.has(filing.status)) {
       throw new IftaAutomationError(
-        "A snapshot must be created before sending the filing for approval.",
+        "This filing is not ready to be sent for approval.",
         409,
         "IFTA_SEND_FOR_APPROVAL_INVALID_STATUS",
       );
@@ -550,29 +560,28 @@ export class FilingWorkflowService {
       );
     }
 
-    const preferredSnapshot = await SnapshotService.getPreferredSnapshot({
+    const draftSnapshot = await SnapshotService.createSnapshot({
       filingId: filing.id,
+      actorUserId: input.actorUserId,
       db,
     });
-    const snapshot = preferredSnapshot
-      ? await SnapshotService.freezeSnapshot({
-          filingId: filing.id,
-          snapshotId: preferredSnapshot.id,
-          actorUserId: input.actorUserId,
-          db,
-        })
-      : await SnapshotService.freezeSnapshot({
-          filingId: filing.id,
-          snapshotId: (
-            await SnapshotService.createSnapshot({
-              filingId: filing.id,
-              actorUserId: input.actorUserId,
-              db,
-            })
-          ).id,
-          actorUserId: input.actorUserId,
-          db,
-        });
+
+    if (filing.status !== IftaFilingStatus.SNAPSHOT_READY) {
+      await this.setStatus({
+        filingId: filing.id,
+        status: IftaFilingStatus.SNAPSHOT_READY,
+        actorUserId: input.actorUserId,
+        message: `Snapshot version ${draftSnapshot.version} is ready.`,
+        db,
+      });
+    }
+
+    const snapshot = await SnapshotService.freezeSnapshot({
+      filingId: filing.id,
+      snapshotId: draftSnapshot.id,
+      actorUserId: input.actorUserId,
+      db,
+    });
 
     const updated = await db.iftaFiling.update({
       where: { id: filing.id },

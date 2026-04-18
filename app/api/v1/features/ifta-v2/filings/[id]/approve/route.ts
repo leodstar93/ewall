@@ -30,6 +30,6 @@ export async function POST(
 
     return Response.json({ filing });
   } catch (error) {
-    return handleIftaAutomationError(error, "Failed to approve IFTA filing.");
+    return handleIftaAutomationError(error, "Failed to send IFTA filing for approval.");
   }
 }

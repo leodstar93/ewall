@@ -260,18 +260,6 @@ export default function IftaAutomationStaffFilingPage({
     );
   }
 
-  async function handleCreateSnapshot(currentFiling: FilingDetail) {
-    await runBusyAction(
-      `snapshot:${currentFiling.id}`,
-      async () => {
-        await requestJson(`/api/v1/features/ifta-v2/filings/${currentFiling.id}/create-snapshot`, {
-          method: "POST",
-        });
-      },
-      `A new snapshot was created for ${filingPeriodLabel(currentFiling)}.`,
-    );
-  }
-
   async function handleApprove(currentFiling: FilingDetail) {
     await runBusyAction(
       `approve:${currentFiling.id}`,
@@ -497,7 +485,6 @@ export default function IftaAutomationStaffFilingPage({
           onRecalculate={(currentFiling) => void handleRecalculate(currentFiling)}
           onSubmit={() => {}}
           onRequestChanges={(currentFiling) => void handleRequestChanges(currentFiling)}
-          onCreateSnapshot={(currentFiling) => void handleCreateSnapshot(currentFiling)}
           onApprove={(currentFiling) => void handleApprove(currentFiling)}
           onFinalize={(currentFiling) => void handleFinalize(currentFiling)}
           onReopen={(currentFiling) => void handleReopen(currentFiling)}

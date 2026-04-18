@@ -42,7 +42,6 @@ type FilingDetailPanelProps = {
   onRecalculate: (filing: FilingDetail) => void;
   onSubmit: (filing: FilingDetail) => void;
   onRequestChanges: (filing: FilingDetail) => void;
-  onCreateSnapshot: (filing: FilingDetail) => void;
   onApprove: (filing: FilingDetail) => void;
   onFinalize: (filing: FilingDetail) => void;
   onReopen: (filing: FilingDetail) => void;
@@ -227,7 +226,6 @@ export function FilingDetailPanel({
   onRecalculate,
   onSubmit,
   onRequestChanges,
-  onCreateSnapshot,
   onApprove,
   onFinalize,
   onReopen,
@@ -318,8 +316,9 @@ export function FilingDetailPanel({
     mode === "staff" &&
     ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY"].includes(filing.status);
   const canRebuild = mode !== "staff";
-  const canCreateSnapshot =
+  const canSendForApproval =
     mode === "staff" &&
+    !hasOpenBlockingOrError &&
     [
       "DATA_READY",
       "NEEDS_REVIEW",
@@ -329,10 +328,6 @@ export function FilingDetailPanel({
       "REOPENED",
       "SNAPSHOT_READY",
     ].includes(filing.status);
-  const canApprove =
-    mode === "staff" &&
-    !hasOpenBlockingOrError &&
-    filing.status === "SNAPSHOT_READY";
   const canFinalize = mode === "staff" && filing.status === "APPROVED";
   const canReopen =
     mode === "staff" &&
@@ -698,20 +693,7 @@ export function FilingDetailPanel({
                   : "Need Attention"}
               </Button>
             ) : null}
-            {canCreateSnapshot ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className={ucrSecondaryButtonClassName}
-                onClick={() => onCreateSnapshot(filing)}
-                disabled={busyAction === `snapshot:${filing.id}`}
-              >
-                {busyAction === `snapshot:${filing.id}`
-                  ? "Creating..."
-                  : "Create Snapshot"}
-              </Button>
-            ) : null}
-            {canApprove ? (
+            {canSendForApproval ? (
               <Button
                 size="sm"
                 className={ucrPrimaryButtonClassName}

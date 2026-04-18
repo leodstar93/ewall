@@ -719,23 +719,10 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     );
   }
 
-  async function handleCreateSnapshot(filing: FilingDetail) {
-    await runBusyAction(
-      `snapshot:${filing.id}`,
-      async () => {
-        await requestJson(`/api/v1/features/ifta-v2/filings/${filing.id}/create-snapshot`, {
-          method: "POST",
-        });
-      },
-      `A new snapshot was created for ${filingPeriodLabel(filing)}.`,
-      filing.id,
-    );
-  }
-
   async function handleApprove(filing: FilingDetail) {
     const result = await Swal.fire({
       title: "Send for Approval",
-      text: `Send ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)} to the client for approval?`,
+      text: `Create a snapshot and send ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)} to the client for approval?`,
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Send",
@@ -749,7 +736,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
           method: "POST",
         });
       },
-      `Filing ${filingPeriodLabel(filing)} is now approved.`,
+      `Filing ${filingPeriodLabel(filing)} was sent to the client for approval.`,
       filing.id,
     );
   }
@@ -1327,7 +1314,6 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
             onRecalculate={(filing) => void handleRecalculate(filing)}
             onSubmit={(filing) => void handleSubmit(filing)}
             onRequestChanges={(filing) => void handleRequestChanges(filing)}
-            onCreateSnapshot={(filing) => void handleCreateSnapshot(filing)}
             onApprove={(filing) => void handleApprove(filing)}
             onFinalize={(filing) => void handleFinalize(filing)}
             onReopen={(filing) => void handleReopen(filing)}
