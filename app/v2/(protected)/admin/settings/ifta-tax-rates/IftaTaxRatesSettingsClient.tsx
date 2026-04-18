@@ -2,17 +2,61 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import IftaTaxRateEditDialog from "@/components/ifta/IftaTaxRateEditDialog";
-import IftaTaxRateFilters from "@/components/ifta/IftaTaxRateFilters";
 import IftaTaxRateImportButton from "@/components/ifta/IftaTaxRateImportButton";
 import IftaTaxRateValidationSummary from "@/components/ifta/IftaTaxRateValidationSummary";
-import IftaTaxRatesTable from "@/components/ifta/IftaTaxRatesTable";
 import type {
   IftaTaxRateImportResult,
   IftaTaxRateTableRow,
   IftaTaxRateValidationResult,
   TaxRateFilterState,
+  TaxRateFuelType,
+  TaxRateQuarter,
 } from "@/features/ifta/types/tax-rate";
+import {
+  formatTaxRateLabel,
+  sourceLabel,
+} from "@/features/ifta/utils/tax-rate-mappers";
 import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
+import Table, { type ColumnDef } from "@/app/v2/(protected)/admin/components/ui/Table";
+import { IconButton } from "@/components/ui/icon-button";
+
+type RateSourceFilter = "all" | "missing" | "official" | "manual";
+
+const quarters: TaxRateQuarter[] = ["Q1", "Q2", "Q3", "Q4"];
+const fuelTypes: TaxRateFuelType[] = ["DI", "GA"];
+const sourceFilters: Array<{ value: RateSourceFilter; label: string }> = [
+  { value: "all", label: "All rates" },
+  { value: "missing", label: "Missing rate" },
+  { value: "official", label: "Official/imported" },
+  { value: "manual", label: "Manual" },
+];
+
+const filterInputStyle: React.CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+  height: 34,
+  border: "1px solid var(--br)",
+  borderRadius: 6,
+  background: "var(--w)",
+  color: "var(--b)",
+  padding: "0 10px",
+  fontSize: 12,
+  outline: "none",
+};
+
+const filterLabelStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  minWidth: 0,
+};
+
+const filterTextStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: "#777",
+  textTransform: "uppercase",
+};
 
 function getQuarterFromDate(date: Date): TaxRateFilterState["quarter"] {
   const month = date.getMonth() + 1;
@@ -22,6 +66,24 @@ function getQuarterFromDate(date: Date): TaxRateFilterState["quarter"] {
   return "Q4";
 }
 
+function formatDate(value: string | null) {
+  if (!value) return "Not imported";
+  return new Date(value).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function matchesSourceFilter(row: IftaTaxRateTableRow, filter: RateSourceFilter) {
+  if (filter === "missing") return !row.taxRate;
+  if (filter === "manual") return row.source === "MANUAL_ADMIN";
+  if (filter === "official") return Boolean(row.taxRate) && row.source !== "MANUAL_ADMIN";
+  return true;
+}
+
 export default function IftaTaxRatesSettingsClient() {
   const [filters, setFilters] = useState<TaxRateFilterState>({
     year: new Date().getFullYear(),
@@ -29,6 +91,8 @@ export default function IftaTaxRatesSettingsClient() {
     fuelType: "DI",
     usOnly: true,
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<RateSourceFilter>("all");
   const [rows, setRows] = useState<IftaTaxRateTableRow[]>([]);
   const [validation, setValidation] = useState<IftaTaxRateValidationResult | null>(null);
   const [lastImport, setLastImport] = useState<IftaTaxRateImportResult | null>(null);
@@ -108,17 +172,145 @@ export default function IftaTaxRatesSettingsClient() {
     }, "Tax rate saved.");
   };
 
+  const filteredRows = useMemo(
+    () => rows.filter((row) => matchesSourceFilter(row, sourceFilter)),
+    [rows, sourceFilter],
+  );
+
+  const columns = useMemo<ColumnDef<IftaTaxRateTableRow>[]>(
+    () => [
+      { key: "code", label: "Code", cellClass: tableStyles.nameCell },
+      { key: "name", label: "Jurisdiction" },
+      { key: "countryCode", label: "Country" },
+      {
+        key: "fuelType",
+        label: "Fuel Type",
+        render: (value) => (value === "DI" ? "Diesel" : "Gasoline"),
+      },
+      { key: "year", label: "Year" },
+      { key: "quarter", label: "Quarter" },
+      {
+        key: "taxRate",
+        label: "Tax Rate",
+        cellClass: tableStyles.amountCell,
+        render: (_value, row) => formatTaxRateLabel(row),
+      },
+      {
+        key: "source",
+        label: "Source",
+        render: (value) => sourceLabel(typeof value === "string" ? value : null),
+      },
+      {
+        key: "importedAt",
+        label: "Imported At",
+        render: (value) => formatDate(typeof value === "string" ? value : null),
+      },
+      {
+        key: "actions",
+        label: "Actions",
+        sortable: false,
+        render: (_value, row) => (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <IconButton
+              disabled={busy}
+              onClick={() => setEditingRow(row)}
+              label="Edit tax rate"
+              icon="edit"
+            />
+          </div>
+        ),
+      },
+    ],
+    [busy],
+  );
+
+  const tableToolbar = (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, alignItems: "end" }}>
+      <label style={filterLabelStyle}>
+        <span style={filterTextStyle}>Search</span>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Code, jurisdiction, source..."
+          style={filterInputStyle}
+        />
+      </label>
+
+      <label style={filterLabelStyle}>
+        <span style={filterTextStyle}>Year</span>
+        <input
+          type="number"
+          min={2000}
+          max={new Date().getFullYear() + 2}
+          value={filters.year}
+          onChange={(event) => setFilters((current) => ({ ...current, year: Number(event.target.value) || current.year }))}
+          disabled={busy}
+          style={filterInputStyle}
+        />
+      </label>
+
+      <label style={filterLabelStyle}>
+        <span style={filterTextStyle}>Quarter</span>
+        <select
+          value={filters.quarter}
+          onChange={(event) => setFilters((current) => ({ ...current, quarter: event.target.value as TaxRateQuarter }))}
+          disabled={busy}
+          style={filterInputStyle}
+        >
+          {quarters.map((quarter) => (
+            <option key={quarter} value={quarter}>{quarter}</option>
+          ))}
+        </select>
+      </label>
+
+      <label style={filterLabelStyle}>
+        <span style={filterTextStyle}>Fuel</span>
+        <select
+          value={filters.fuelType}
+          onChange={(event) => setFilters((current) => ({ ...current, fuelType: event.target.value as TaxRateFuelType }))}
+          disabled={busy}
+          style={filterInputStyle}
+        >
+          {fuelTypes.map((fuelType) => (
+            <option key={fuelType} value={fuelType}>{fuelType === "DI" ? "Diesel" : "Gasoline"}</option>
+          ))}
+        </select>
+      </label>
+
+      <label style={filterLabelStyle}>
+        <span style={filterTextStyle}>Rate status</span>
+        <select
+          value={sourceFilter}
+          onChange={(event) => setSourceFilter(event.target.value as RateSourceFilter)}
+          disabled={busy}
+          style={filterInputStyle}
+        >
+          {sourceFilters.map((filter) => (
+            <option key={filter.value} value={filter.value}>{filter.label}</option>
+          ))}
+        </select>
+      </label>
+
+      <label style={{ ...filterLabelStyle, justifyContent: "end" }}>
+        <span style={filterTextStyle}>Country</span>
+        <label style={{ height: 34, display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px", color: "#666", fontSize: 12 }}>
+          <input
+            type="checkbox"
+            checked={filters.usOnly}
+            onChange={(event) => setFilters((current) => ({ ...current, usOnly: event.target.checked }))}
+            disabled={busy}
+          />
+          U.S. only
+        </label>
+      </label>
+    </div>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {error ? <div style={{ borderRadius: 10, border: "1px solid #fecaca", background: "#fef2f2", padding: "10px 14px", fontSize: 13, color: "#b91c1c" }}>{error}</div> : null}
       {message ? <div style={{ borderRadius: 10, border: "1px solid #bbf7d0", background: "#f0fdf4", padding: "10px 14px", fontSize: 13, color: "#15803d" }}>{message}</div> : null}
-
-      <div className={tableStyles.card}>
-        <div className={tableStyles.header}><div className={tableStyles.title}>Filters</div></div>
-        <div style={{ padding: 20 }}>
-          <IftaTaxRateFilters value={filters} onChange={setFilters} disabled={busy} />
-        </div>
-      </div>
 
       <IftaTaxRateImportButton onImportSelected={() => handleImport([filters.fuelType])} onImportBoth={() => handleImport(["DI", "GA"])} busy={busy} lastResult={lastImport} />
       <IftaTaxRateValidationSummary result={validation} busy={busy} onValidate={handleValidate} />
@@ -126,7 +318,14 @@ export default function IftaTaxRatesSettingsClient() {
       {loading ? (
         <div className={tableStyles.card}><div style={{ padding: 20, fontSize: 13, color: "#aaa" }}>Loading tax rates...</div></div>
       ) : (
-        <IftaTaxRatesTable rows={rows} onEdit={setEditingRow} busy={busy} />
+        <Table
+          data={filteredRows}
+          columns={columns}
+          searchQuery={searchQuery}
+          searchKeys={["code", "name", "countryCode", "source", "notes"]}
+          title="IFTA tax rates"
+          toolbar={tableToolbar}
+        />
       )}
 
       <IftaTaxRateEditDialog
