@@ -7,6 +7,7 @@ import Table, { type ColumnDef } from "@/app/v2/(protected)/admin/components/ui/
 import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
 
 type Audience = "ALL" | "ADMIN" | "TRUCKER" | "PUBLIC";
+type SlideTemplate = "MIXED" | "FULL_IMAGE";
 
 type NewsUpdate = {
   id: string;
@@ -16,6 +17,7 @@ type NewsUpdate = {
   cta: string;
   href: string | null;
   imageUrl: string | null;
+  template: SlideTemplate;
   gradient: string;
   audience: Audience;
   isActive: boolean;
@@ -36,6 +38,7 @@ type FormState = {
   cta: string;
   href: string;
   imageUrl: string;
+  template: SlideTemplate;
   gradient: string;
   audience: Audience;
   isActive: boolean;
@@ -68,6 +71,7 @@ const emptyForm: FormState = {
   cta: "",
   href: "",
   imageUrl: "",
+  template: "MIXED",
   gradient: gradientOptions[0].value,
   audience: "ALL",
   isActive: true,
@@ -92,6 +96,26 @@ async function fetchJson<T>(url: string, init?: RequestInit) {
   return payload;
 }
 
+async function uploadImage(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch("/api/v1/admin/settings/news-updates/image", {
+    method: "POST",
+    body: formData,
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    imageUrl?: string;
+    error?: string;
+  };
+
+  if (!response.ok || !payload.imageUrl) {
+    throw new Error(payload.error || "Could not upload image.");
+  }
+
+  return payload.imageUrl;
+}
+
 function toForm(update: NewsUpdate): FormState {
   return {
     eyebrow: update.eyebrow,
@@ -100,6 +124,7 @@ function toForm(update: NewsUpdate): FormState {
     cta: update.cta,
     href: update.href ?? "",
     imageUrl: update.imageUrl ?? "",
+    template: update.template,
     gradient: update.gradient,
     audience: update.audience,
     isActive: update.isActive,
@@ -123,6 +148,7 @@ export default function NewsUpdatesManager() {
   const [updates, setUpdates] = useState<NewsUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -139,6 +165,7 @@ export default function NewsUpdatesManager() {
           update.cta,
           update.href ?? "",
           update.imageUrl ?? "",
+          update.template,
           update.audience,
           update.isActive ? "active" : "hidden inactive",
         ]
@@ -169,6 +196,21 @@ export default function NewsUpdatesManager() {
   function resetForm() {
     setEditingId(null);
     setForm(emptyForm);
+  }
+
+  async function handleImageUpload(file: File | undefined) {
+    if (!file) return;
+
+    try {
+      setUploadingImage(true);
+      const imageUrl = await uploadImage(file);
+      setForm((current) => ({ ...current, imageUrl }));
+      toast.success("Image uploaded.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not upload image.");
+    } finally {
+      setUploadingImage(false);
+    }
   }
 
   async function saveUpdate(event: FormEvent<HTMLFormElement>) {
@@ -261,6 +303,11 @@ export default function NewsUpdatesManager() {
       label: "Audience",
     },
     {
+      key: "template",
+      label: "Template",
+      render: (_, update) => (update.template === "FULL_IMAGE" ? "Full image" : "Mixed"),
+    },
+    {
       key: "statusLabel",
       label: "Status",
       render: (_, update) => statusBadge(update.isActive),
@@ -322,13 +369,30 @@ export default function NewsUpdatesManager() {
             }}
           >
             <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
-              Eyebrow
+              Template
+              <select
+                value={form.template}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    template: event.target.value as SlideTemplate,
+                  }))
+                }
+                style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
+              >
+                <option value="MIXED">Mixed text + image</option>
+                <option value="FULL_IMAGE">Full image</option>
+              </select>
+            </label>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
+              Eyebrow {form.template === "FULL_IMAGE" ? "(optional)" : ""}
               <input
                 value={form.eyebrow}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, eyebrow: event.target.value }))
                 }
-                required
+                required={form.template === "MIXED"}
                 maxLength={80}
                 style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
               />
@@ -348,13 +412,13 @@ export default function NewsUpdatesManager() {
             </label>
 
             <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
-              CTA
+              CTA {form.template === "FULL_IMAGE" ? "(optional)" : ""}
               <input
                 value={form.cta}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, cta: event.target.value }))
                 }
-                required
+                required={form.template === "MIXED"}
                 maxLength={80}
                 style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
               />
@@ -373,26 +437,62 @@ export default function NewsUpdatesManager() {
             </label>
 
             <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
-              Image URL
+              Image URL {form.template === "FULL_IMAGE" ? "(required)" : ""}
               <input
                 value={form.imageUrl}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, imageUrl: event.target.value }))
                 }
-                placeholder="https://..."
+                required={form.template === "FULL_IMAGE"}
+                placeholder="/uploads/production/news-updates/..."
                 style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
               />
             </label>
           </div>
 
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 12px",
+              border: "1px dashed var(--br)",
+              borderRadius: 8,
+              background: "#fafafa",
+            }}
+          >
+            <input
+              id="news-update-image-upload"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              disabled={uploadingImage}
+              onChange={(event) => {
+                void handleImageUpload(event.target.files?.[0]);
+                event.currentTarget.value = "";
+              }}
+              style={{ display: "none" }}
+            />
+            <label
+              htmlFor="news-update-image-upload"
+              className={tableStyles.btn}
+              style={{ cursor: uploadingImage ? "default" : "pointer" }}
+            >
+              {uploadingImage ? "Uploading image..." : "Upload image"}
+            </label>
+            <span style={{ fontSize: 12, color: "#666" }}>
+              JPG, PNG, WEBP or GIF. Max 5 MB.
+            </span>
+          </div>
+
           <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
-            Description
+            Description {form.template === "FULL_IMAGE" ? "(optional)" : ""}
             <textarea
               value={form.description}
               onChange={(event) =>
                 setForm((current) => ({ ...current, description: event.target.value }))
               }
-              required
+              required={form.template === "MIXED"}
               maxLength={320}
               rows={3}
               style={{ border: "1px solid var(--br)", borderRadius: 6, padding: 10, resize: "vertical" }}
@@ -487,44 +587,71 @@ export default function NewsUpdatesManager() {
             style={{
               minHeight: 120,
               borderRadius: 8,
-              padding: 16,
+              padding: form.template === "FULL_IMAGE" ? 0 : 16,
               color: "#fff",
               background: form.gradient,
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
               gap: 6,
+              overflow: "hidden",
             }}
           >
-            <div style={{ display: "grid", gridTemplateColumns: form.imageUrl.trim() ? "minmax(0, 1fr) 170px" : "1fr", gap: 16, alignItems: "center" }}>
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.75 }}>
-                  {form.eyebrow || "Eyebrow"}
-                </div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>
-                  {form.title || "Slide title"}
-                </div>
-                <div style={{ fontSize: 13, opacity: 0.86 }}>
-                  {form.description || "Slide description preview."}
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>
-                  {form.cta || "CTA"} -&gt;
-                </div>
-              </div>
-              {form.imageUrl.trim() ? (
+            {form.template === "FULL_IMAGE" ? (
+              form.imageUrl.trim() ? (
                 <div
                   style={{
-                    height: 96,
+                    minHeight: 150,
                     borderRadius: 10,
                     backgroundImage: `url("${form.imageUrl.trim()}")`,
                     backgroundSize: "cover",
                     backgroundPosition: "center",
-                    border: "1px solid rgba(255,255,255,0.28)",
-                    boxShadow: "0 16px 36px rgba(0,0,0,0.22)",
                   }}
                 />
-              ) : null}
-            </div>
+              ) : (
+                <div
+                  style={{
+                    minHeight: 150,
+                    display: "grid",
+                    placeItems: "center",
+                    color: "rgba(255,255,255,0.78)",
+                    fontSize: 13,
+                  }}
+                >
+                  Upload or paste an image URL for the full image slide.
+                </div>
+              )
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: form.imageUrl.trim() ? "minmax(0, 1fr) 170px" : "1fr", gap: 16, alignItems: "center" }}>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.75 }}>
+                    {form.eyebrow || "Eyebrow"}
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>
+                    {form.title || "Slide title"}
+                  </div>
+                  <div style={{ fontSize: 13, opacity: 0.86 }}>
+                    {form.description || "Slide description preview."}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>
+                    {form.cta || "CTA"} -&gt;
+                  </div>
+                </div>
+                {form.imageUrl.trim() ? (
+                  <div
+                    style={{
+                      height: 96,
+                      borderRadius: 10,
+                      backgroundImage: `url("${form.imageUrl.trim()}")`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      border: "1px solid rgba(255,255,255,0.28)",
+                      boxShadow: "0 16px 36px rgba(0,0,0,0.22)",
+                    }}
+                  />
+                ) : null}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

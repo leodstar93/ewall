@@ -36,6 +36,7 @@ export interface AdSlide {
   cta: string;
   href?: string;
   imageUrl?: string;
+  template?: "MIXED" | "FULL_IMAGE";
   gradient: string;
 }
 

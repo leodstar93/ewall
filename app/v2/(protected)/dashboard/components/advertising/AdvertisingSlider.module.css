@@ -61,6 +61,18 @@
   pointer-events: auto;
 }
 
+.fullImageSlide {
+  display: block;
+  padding: 0;
+}
+
+.fullImage {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
 .icon {
   width: 100%;
   height: 100%;

@@ -22,9 +22,10 @@ export default function AdvertisingSlider({
 }: Props) {
   const router = useRouter();
   const [current, setCurrent] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
-    if (slides.length <= 1) {
+    if (slides.length <= 1 || isPaused) {
       return undefined;
     }
 
@@ -33,12 +34,16 @@ export default function AdvertisingSlider({
     }, autoPlayMs);
 
     return () => clearInterval(timer);
-  }, [slides.length, autoPlayMs]);
+  }, [slides.length, autoPlayMs, isPaused]);
 
   const go = (index: number) => setCurrent((index + slides.length) % slides.length);
 
   return (
-    <div className={styles.panel}>
+    <div
+      className={styles.panel}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
       <div className={styles.head}>
         <div className={styles.headTitle}>
           <svg
@@ -62,34 +67,42 @@ export default function AdvertisingSlider({
           {slides.map((slide, index) => (
             <div
               key={`${slide.title}-${index}`}
-              className={`${styles.slide} ${index === current ? styles.active : ""}`}
+              className={`${styles.slide} ${
+                slide.template === "FULL_IMAGE" && slide.imageUrl ? styles.fullImageSlide : ""
+              } ${index === current ? styles.active : ""}`}
               style={{ background: slide.gradient }}
             >
-              <div className={styles.text}>
-                <div className={styles.eyebrow}>{slide.eyebrow}</div>
-                <div className={styles.title}>{slide.title}</div>
-                <div className={styles.desc}>{slide.description}</div>
-                <button
-                  type="button"
-                  className={styles.cta}
-                  onClick={() => {
-                    if (slide.href) {
-                      router.push(slide.href);
-                    }
-                  }}
-                >
-                  {slide.cta} {"->"}
-                </button>
-              </div>
-              <div className={styles.visual}>
-                {slide.imageUrl ? (
-                  <img src={slide.imageUrl} alt="" className={styles.image} />
-                ) : (
-                  <div className={styles.icon}>
-                    {slideIcons[index % slideIcons.length]}
+              {slide.template === "FULL_IMAGE" && slide.imageUrl ? (
+                <img src={slide.imageUrl} alt={slide.title} className={styles.fullImage} />
+              ) : (
+                <>
+                  <div className={styles.text}>
+                    <div className={styles.eyebrow}>{slide.eyebrow}</div>
+                    <div className={styles.title}>{slide.title}</div>
+                    <div className={styles.desc}>{slide.description}</div>
+                    <button
+                      type="button"
+                      className={styles.cta}
+                      onClick={() => {
+                        if (slide.href) {
+                          router.push(slide.href);
+                        }
+                      }}
+                    >
+                      {slide.cta} {"->"}
+                    </button>
                   </div>
-                )}
-              </div>
+                  <div className={styles.visual}>
+                    {slide.imageUrl ? (
+                      <img src={slide.imageUrl} alt="" className={styles.image} />
+                    ) : (
+                      <div className={styles.icon}>
+                        {slideIcons[index % slideIcons.length]}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           ))}
 
