@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import Swal from "sweetalert2";
 import tableStyles from "../../components/ui/DataTable.module.css";
 import styles from "./ucr-detail.module.css";
@@ -38,6 +37,7 @@ type DetailPayload = {
     canResubmit: boolean;
     canCheckout: boolean;
     canViewReceipt: boolean;
+    canViewAudit: boolean;
   };
 };
 
@@ -202,7 +202,6 @@ function TimelineTable({
 
 export default function UcrDetailClient({ filingId }: Props) {
   const router = useRouter();
-  const { data: session } = useSession();
   const documentInputRef = useRef<HTMLInputElement | null>(null);
   const [payload, setPayload] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -493,8 +492,7 @@ export default function UcrDetailClient({ filingId }: Props) {
   const permissions = payload?.permissions ?? null;
   const timeline = payload?.timeline ?? [];
   const conversation = payload?.conversation ?? [];
-  const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
-  const canViewAudit = roles.includes("ADMIN") || roles.includes("STAFF");
+  const canViewAudit = Boolean(permissions?.canViewAudit);
 
   const companyProfile = filing?.user?.companyProfile;
   const companyLegalName =

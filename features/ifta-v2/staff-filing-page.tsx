@@ -91,6 +91,10 @@ function minDateInput(left: string, right: string) {
   return left <= right ? left : right;
 }
 
+function canReadAudit(roles: string[], permissions: string[]) {
+  return roles.includes("ADMIN") && permissions.includes("audit:read");
+}
+
 export default function IftaAutomationStaffFilingPage({
   filingId,
   backHref = "/dashboard/ifta-v2",
@@ -99,7 +103,11 @@ export default function IftaAutomationStaffFilingPage({
   backHref?: string;
 }) {
   const { data: session } = useSession();
-  const currentUserId = session?.user?.id ?? null;
+  const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
+  const permissions = Array.isArray(session?.user?.permissions)
+    ? session.user.permissions
+    : [];
+  const canViewAudit = canReadAudit(roles, permissions);
   const [filing, setFiling] = useState<FilingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -541,6 +549,7 @@ export default function IftaAutomationStaffFilingPage({
           filing={filing}
           loading={loading}
           busyAction={busyAction}
+          canViewAudit={canViewAudit}
           onSyncLatest={(currentFiling) => void handleSyncLatest(currentFiling)}
           onSyncByDates={(currentFiling) => openSyncDatesModal(currentFiling)}
           onRebuild={(currentFiling) => void handleRebuild(currentFiling)}

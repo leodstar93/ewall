@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
-import { hasPermission } from "@/lib/rbac-core";
 import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 import {
   UcrServiceError,
@@ -18,6 +17,10 @@ type UpdateAdminUcrBody = {
 const UCR_CONVERSATION_EVENT_TYPE = "CONVERSATION_MESSAGE";
 
 type ConversationAuthorRole = "CLIENT" | "STAFF";
+
+function canReadAudit(roles: string[], permissions: string[]) {
+  return roles.includes("ADMIN") && permissions.includes("audit:read");
+}
 
 function getConversationAuthorRole(metaJson: unknown): ConversationAuthorRole | null {
   if (!metaJson || typeof metaJson !== "object" || Array.isArray(metaJson)) {
@@ -210,7 +213,7 @@ export async function GET(
     );
     const fallbackStaffName = assignedStaff?.name?.trim() || assignedStaff?.email || "Staff";
     const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
-    const canViewAudit = hasPermission(guard.perms, roles, "audit:read");
+    const canViewAudit = canReadAudit(roles, guard.perms);
 
     return Response.json({
       filing: {

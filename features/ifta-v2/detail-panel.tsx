@@ -35,6 +35,7 @@ type FilingDetailPanelProps = {
   filing: FilingDetail | null;
   loading: boolean;
   busyAction: string | null;
+  canViewAudit?: boolean;
   onSyncLatest: (filing: FilingDetail) => void;
   onSyncByDates?: (filing: FilingDetail) => void;
   onRebuild: (filing: FilingDetail) => void;
@@ -218,6 +219,7 @@ export function FilingDetailPanel({
   filing,
   loading,
   busyAction,
+  canViewAudit = false,
   onSyncLatest,
   onSyncByDates,
   onRebuild,
@@ -949,7 +951,7 @@ export function FilingDetailPanel({
                 </div>
               </div>
 
-              {mode === "staff" ? (
+              {mode === "staff" && canViewAudit ? (
                 <>
                   <div className="border-t border-gray-200 px-5 py-4">
                     <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">

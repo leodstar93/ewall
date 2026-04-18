@@ -8,6 +8,10 @@ import { listIftaAutomationDocuments } from "@/services/ifta-automation/document
 import { getIftaAutomationFilingOrThrow } from "@/services/ifta-automation/shared";
 import { handleIftaAutomationError, parseOptionalString } from "@/services/ifta-automation/http";
 
+function canReadAudit(roles: string[], permissions: string[]) {
+  return roles.includes("ADMIN") && permissions.includes("audit:read");
+}
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
@@ -49,10 +53,13 @@ export async function GET(
     }
 
     const documents = await listIftaAutomationDocuments(id, prisma);
+    const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
+    const canViewAudit = canReadAudit(roles, guard.perms);
 
     return Response.json({
       filing: {
         ...filing,
+        audits: canViewAudit ? filing.audits : [],
         documents,
       },
     });

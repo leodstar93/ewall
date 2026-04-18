@@ -41,6 +41,10 @@ const UCR_CONVERSATION_EVENT_TYPE = "CONVERSATION_MESSAGE";
 
 type ConversationAuthorRole = "CLIENT" | "STAFF";
 
+function canReadAudit(roles: string[], permissions: string[]) {
+  return roles.includes("ADMIN") && permissions.includes("audit:read");
+}
+
 function getConversationAuthorRole(metaJson: unknown): ConversationAuthorRole | null {
   if (!metaJson || typeof metaJson !== "object" || Array.isArray(metaJson)) {
     return null;
@@ -200,6 +204,8 @@ export async function GET(
     if (!isOwner && !canManageAll) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
+    const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
+    const canViewAudit = canReadAudit(roles, guard.perms);
 
     const actorUserIds = Array.from(
       new Set(
@@ -230,11 +236,12 @@ export async function GET(
 
     return Response.json({
       filing,
-      timeline: buildTimeline(filing),
+      timeline: canViewAudit ? buildTimeline(filing) : [],
       conversation: buildConversation(filing, actorNames, fallbackStaffName),
       permissions: {
         isOwner,
         canManageAll,
+        canViewAudit,
         canDelete:
           isOwner && canDeleteUcrFiling(filing.status, filing.customerPaymentStatus),
         canEdit: isOwner && canEditUcrFiling(filing.status),

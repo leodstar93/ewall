@@ -76,6 +76,10 @@ function minDateInput(left: string, right: string) {
   return left <= right ? left : right;
 }
 
+function canReadAudit(roles: string[], permissions: string[]) {
+  return roles.includes("ADMIN") && permissions.includes("audit:read");
+}
+
 function buildJurisdictionRows(filing: FilingDetail | null) {
   if (!filing) {
     return [] as JurisdictionEditorRow[];
@@ -656,7 +660,10 @@ export default function IftaAutomationTruckerFilingPage({
 
   const canEdit = canTruckerEditFilingStatus(filing.status);
   const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
-  const canViewAudit = roles.includes("STAFF");
+  const permissions = Array.isArray(session?.user?.permissions)
+    ? session.user.permissions
+    : [];
+  const canViewAudit = canReadAudit(roles, permissions);
   const canUseEldSync = roles.includes("STAFF") || roles.includes("ADMIN");
   const conversation = buildConversation(filing);
   const auditRows = buildAuditRows(filing);
