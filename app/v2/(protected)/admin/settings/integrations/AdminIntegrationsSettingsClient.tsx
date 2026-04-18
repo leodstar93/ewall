@@ -129,6 +129,7 @@ export default function AdminIntegrationsSettingsClient() {
   const [syncJobsError, setSyncJobsError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [syncSearch, setSyncSearch] = useState("");
+  const [syncStatusFilter, setSyncStatusFilter] = useState("");
 
   const selectedClient = useMemo(
     () => clients.find((item) => item.id === selectedTenantId) ?? null,
@@ -165,6 +166,20 @@ export default function AdminIntegrationsSettingsClient() {
         };
       }),
     [syncJobs],
+  );
+  const availableSyncStatuses = useMemo(
+    () =>
+      Array.from(new Set(syncRows.map((job) => job.status.trim().toUpperCase())))
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right)),
+    [syncRows],
+  );
+  const filteredSyncRows = useMemo(
+    () =>
+      syncStatusFilter
+        ? syncRows.filter((job) => job.status.trim().toUpperCase() === syncStatusFilter)
+        : syncRows,
+    [syncRows, syncStatusFilter],
   );
 
   async function loadSyncJobs() {
@@ -609,25 +624,54 @@ export default function AdminIntegrationsSettingsClient() {
       ) : null}
 
       <Table
-        data={syncRows}
+        data={filteredSyncRows}
         columns={syncJobColumns}
         title={loadingSyncJobs ? "Loading ELD sync job logs..." : "ELD sync job logs"}
         actions={syncJobActions}
         searchQuery={syncSearch}
         searchKeys={["searchText"]}
         toolbar={
-          <input
-            value={syncSearch}
-            onChange={(event) => setSyncSearch(event.target.value)}
-            placeholder="Search by client, provider, status, or job id..."
-            style={{
-              height: 34,
-              border: "1px solid var(--br)",
-              borderRadius: 6,
-              padding: "0 10px",
-              minWidth: 280,
-            }}
-          />
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+            <input
+              value={syncSearch}
+              onChange={(event) => setSyncSearch(event.target.value)}
+              placeholder="Search by client, provider, status, or job id..."
+              style={{
+                height: 34,
+                border: "1px solid var(--br)",
+                borderRadius: 6,
+                padding: "0 10px",
+                minWidth: 280,
+              }}
+            />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setSyncStatusFilter("")}
+                className={tableStyles.btn}
+                style={{
+                  borderColor: syncStatusFilter ? undefined : "var(--b)",
+                  background: syncStatusFilter ? undefined : "var(--bl)",
+                }}
+              >
+                All
+              </button>
+              {availableSyncStatuses.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setSyncStatusFilter(status)}
+                  className={tableStyles.btn}
+                  style={{
+                    borderColor: syncStatusFilter === status ? "var(--b)" : undefined,
+                    background: syncStatusFilter === status ? "var(--bl)" : undefined,
+                  }}
+                >
+                  {status.replace(/_/g, " ")}
+                </button>
+              ))}
+            </div>
+          </div>
         }
       />
     </div>
