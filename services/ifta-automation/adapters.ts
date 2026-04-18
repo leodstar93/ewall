@@ -10,6 +10,7 @@ import {
 } from "@/services/ifta-automation/shared";
 
 type JsonRecord = Record<string, unknown>;
+const MILES_PER_KILOMETER = 0.621371;
 
 export type ProviderTokenSet = {
   accessToken: string;
@@ -36,6 +37,8 @@ export type ProviderOrganizationIdentity = {
 export type ProviderSyncWindowContext = ProviderSyncContext & {
   windowStart: Date;
   windowEnd: Date;
+  providerStartDate?: string | null;
+  providerEndDate?: string | null;
 };
 
 export type ProviderVehicleRecord = {
@@ -196,6 +199,13 @@ function readNumber(record: JsonRecord, ...keys: string[]) {
   return null;
 }
 
+function readDistanceMiles(record: JsonRecord, ...keys: string[]) {
+  const distance = readNumber(record, ...keys);
+  if (distance === null) return null;
+  const metricUnits = readBoolean(record, "metric_units", "metricUnits");
+  return metricUnits ? distance * MILES_PER_KILOMETER : distance;
+}
+
 function readBoolean(record: JsonRecord, ...keys: string[]) {
   for (const key of keys) {
     const value = record[key];
@@ -212,6 +222,15 @@ function readBoolean(record: JsonRecord, ...keys: string[]) {
 
 function readNestedRecord(record: JsonRecord, key: string) {
   return toJsonRecord(record[key]);
+}
+
+function readNestedArray(record: JsonRecord, ...keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+  }
+
+  return [];
 }
 
 function unwrapEntityRecord(candidate: unknown, entityKeys: string[]) {
@@ -263,6 +282,73 @@ function extractCollection(payload: unknown, candidates: string[]) {
   return [];
 }
 
+function mergeVehicleSummaryRecord(parent: JsonRecord, child: unknown) {
+  const childRecord = toJsonRecord(child);
+  if (!childRecord) return null;
+  const vehicleRecord = readNestedRecord(parent, "vehicle") ?? parent;
+  const parentVehicleId = readString(
+    vehicleRecord,
+    "id",
+    "vehicle_id",
+    "vehicleId",
+  );
+
+  return {
+    ...childRecord,
+    vehicle: vehicleRecord,
+    vehicle_id:
+      readString(childRecord, "vehicle_id", "vehicleId") ?? parentVehicleId,
+  };
+}
+
+function flattenIftaSummaryRecords(records: unknown[]) {
+  const flattened: unknown[] = [];
+
+  for (const candidate of records) {
+    const record = toJsonRecord(candidate);
+    if (!record) continue;
+
+    const nestedSummaries = readNestedArray(
+      record,
+      "ifta_summaries",
+      "ifta_summary",
+      "iftaSummaries",
+      "summaries",
+      "summary",
+      "mileage_summaries",
+      "mileageSummaries",
+      "jurisdictions",
+      "jurisdiction_summaries",
+      "jurisdictionSummaries",
+      "states",
+      "state_summaries",
+      "stateSummaries",
+      "ifta_reports",
+      "iftaReports",
+      "reports",
+      "mileage_reports",
+      "mileageReports",
+      "vehicle_mileages",
+      "vehicleMileages",
+      "records",
+      "items",
+      "results",
+    );
+
+    if (nestedSummaries.length > 0) {
+      for (const summary of nestedSummaries) {
+        const merged = mergeVehicleSummaryRecord(record, summary);
+        if (merged) flattened.push(merged);
+      }
+      continue;
+    }
+
+    flattened.push(candidate);
+  }
+
+  return flattened;
+}
+
 function buildWindowParams(windowStart: Date, windowEnd: Date) {
   const startDate = windowStart.toISOString().slice(0, 10);
   const endDate = windowEnd.toISOString().slice(0, 10);
@@ -275,11 +361,113 @@ function buildWindowParams(windowStart: Date, windowEnd: Date) {
   });
 }
 
+function formatDateInTimeZone(date: Date, timeZone: string) {
+  const dateParts = getTimeZoneDateParts(date, timeZone);
+  if (!dateParts) return date.toISOString().slice(0, 10);
+
+  return [
+    String(dateParts.year).padStart(4, "0"),
+    String(dateParts.month).padStart(2, "0"),
+    String(dateParts.day).padStart(2, "0"),
+  ].join("-");
+}
+
+function buildDateWindowParams(windowStart: Date, windowEnd: Date, timeZone = "UTC") {
+  const startDate = formatDateInTimeZone(windowStart, timeZone);
+  const endDate = formatDateInTimeZone(windowEnd, timeZone);
+
+  return new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+  });
+}
+
+function buildExplicitDateWindowParams(startDate: string, endDate: string) {
+  return new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+  });
+}
+
+function buildProviderWindowParams(
+  windowStart: Date,
+  windowEnd: Date,
+  providerStartDate?: string | null,
+  providerEndDate?: string | null,
+) {
+  const params = buildWindowParams(windowStart, windowEnd);
+  if (providerStartDate) params.set("start_date", providerStartDate);
+  if (providerEndDate) params.set("end_date", providerEndDate);
+  return params;
+}
+
+function getTimeZoneDateParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function addCalendarDays(dateParts: { year: number; month: number; day: number }, days: number) {
+  const date = new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+function endOfCalendarDayUtc(dateParts: { year: number; month: number; day: number }) {
+  return new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day, 23, 59, 59, 999));
+}
+
+function clampWindowEndForProviderLag(
+  windowStart: Date,
+  windowEnd: Date,
+  lagDays: number,
+  timeZone: string,
+) {
+  const todayInProviderTime = getTimeZoneDateParts(new Date(), timeZone);
+  const availableEnd = endOfCalendarDayUtc(
+    addCalendarDays(todayInProviderTime ?? getTimeZoneDateParts(new Date(), "UTC")!, -lagDays),
+  );
+  const effectiveEnd = windowEnd > availableEnd ? availableEnd : windowEnd;
+
+  if (effectiveEnd < windowStart) {
+    return null;
+  }
+
+  return {
+    windowStart,
+    windowEnd: effectiveEnd,
+    availableEnd,
+    timeZone,
+  };
+}
+
 function splitScopes(value: string | null | undefined) {
   return (value ?? "")
     .split(/[,\s]+/)
     .map((scope) => scope.trim())
     .filter(Boolean);
+}
+
+function readNonNegativeInteger(value: string | undefined, fallback: number) {
+  if (typeof value === "undefined" || !value.trim()) return fallback;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function optionalEnvWithDefault(value: string | undefined, fallback: string | null) {
@@ -335,6 +523,9 @@ type MotiveConfig = {
   driversPath: string;
   fuelPurchasesPath: string;
   iftaTripsPath: string;
+  iftaSummaryPath: string;
+  iftaDataLagDays: number;
+  iftaRollupTimeZone: string;
   webhookSecret: string | null;
 };
 
@@ -364,6 +555,11 @@ function getMotiveConfig() {
     fuelPurchasesPath:
       process.env.MOTIVE_FUEL_PURCHASES_PATH?.trim() || "/v1/fuel_purchases",
     iftaTripsPath: process.env.MOTIVE_IFTA_TRIPS_PATH?.trim() || "/v1/ifta/trips",
+    iftaSummaryPath:
+      process.env.MOTIVE_IFTA_SUMMARY_PATH?.trim() || "/v1/ifta/summary",
+    iftaDataLagDays: readNonNegativeInteger(process.env.MOTIVE_IFTA_DATA_LAG_DAYS, 3),
+    iftaRollupTimeZone:
+      process.env.MOTIVE_IFTA_ROLLUP_TIME_ZONE?.trim() || "America/Los_Angeles",
     webhookSecret: process.env.MOTIVE_WEBHOOK_SECRET?.trim() || null,
   } satisfies MotiveConfig;
 }
@@ -423,6 +619,37 @@ class MotiveAdapter implements ELDProviderAdapter {
     }
 
     return payload;
+  }
+
+  private async requestPaginatedCollection(input: {
+    accessToken: string;
+    path: string;
+    query?: URLSearchParams;
+    candidates: string[];
+    perPage?: number;
+    maxPages?: number;
+  }) {
+    const perPage = input.perPage ?? 100;
+    const maxPages = input.maxPages ?? 200;
+    const records: unknown[] = [];
+
+    for (let pageNo = 1; pageNo <= maxPages; pageNo += 1) {
+      const query = new URLSearchParams(input.query);
+      query.set("per_page", String(perPage));
+      query.set("page_no", String(pageNo));
+
+      const payload = await this.requestJson({
+        accessToken: input.accessToken,
+        path: input.path,
+        query,
+      });
+      const pageRecords = extractCollection(payload, input.candidates);
+      records.push(...pageRecords);
+
+      if (pageRecords.length < perPage) break;
+    }
+
+    return records;
   }
 
   private mapVehicle(candidate: unknown): ProviderVehicleRecord | null {
@@ -492,24 +719,51 @@ class MotiveAdapter implements ELDProviderAdapter {
     };
   }
 
-  private mapTrip(candidate: unknown): ProviderIftaTripRecord | null {
-    const unwrapped = unwrapEntityRecord(candidate, ["ifta_trip", "trip"]);
+  private mapTrip(
+    candidate: unknown,
+    fallbackWindow?: { windowStart: Date; windowEnd: Date; index: number },
+  ): ProviderIftaTripRecord | null {
+    const unwrapped = unwrapEntityRecord(candidate, [
+      "ifta_trip",
+      "iftaTrip",
+      "trip",
+      "ifta_report",
+      "iftaReport",
+      "report",
+    ]);
     if (!unwrapped) return null;
     const { record, payload } = unwrapped;
 
-    const externalTripId = readString(record, "id", "trip_id", "tripId");
+    const vehicleRecord = readNestedRecord(record, "vehicle");
+    const externalVehicleId =
+      readString(record, "vehicle_id", "vehicleId") ??
+      (vehicleRecord ? readString(vehicleRecord, "id", "vehicle_id", "vehicleId") : null);
+    const tripDate =
+      parseOptionalDate(
+        readString(record, "date", "trip_date", "tripDate", "started_at", "start_time", "startDate", "start_date"),
+      ) ?? fallbackWindow?.windowStart ?? null;
+    const jurisdiction = normalizeJurisdictionCode(
+      readString(record, "jurisdiction", "state", "state_code", "stateCode", "jurisdiction_code"),
+    );
+    const externalTripId =
+      readString(record, "id", "trip_id", "tripId", "ifta_trip_id", "iftaTripId") ??
+      (externalVehicleId && jurisdiction && fallbackWindow
+        ? [
+            "trip",
+            externalVehicleId,
+            jurisdiction,
+            fallbackWindow.windowStart.toISOString().slice(0, 10),
+            fallbackWindow.windowEnd.toISOString().slice(0, 10),
+            fallbackWindow.index,
+          ].join(":")
+        : null);
     if (!externalTripId) return null;
 
-    const vehicleRecord = readNestedRecord(record, "vehicle");
     return {
       externalTripId,
-      externalVehicleId:
-        readString(record, "vehicle_id", "vehicleId") ??
-        (vehicleRecord ? readString(vehicleRecord, "id", "vehicle_id", "vehicleId") : null),
-      tripDate:
-        parseOptionalDate(readString(record, "date", "trip_date", "tripDate", "started_at", "start_time")) ??
-        null,
-      jurisdiction: normalizeJurisdictionCode(readString(record, "jurisdiction", "state", "jurisdiction_code")),
+      externalVehicleId,
+      tripDate,
+      jurisdiction,
       startOdometer: toNullableDecimalString(
         readNumber(record, "start_odometer", "startOdometer"),
         2,
@@ -526,7 +780,85 @@ class MotiveAdapter implements ELDProviderAdapter {
         readNumber(record, "calibrated_end_odometer", "calibratedEndOdometer"),
         2,
       ),
-      miles: toNullableDecimalString(readNumber(record, "miles", "distance"), 2),
+      miles: toNullableDecimalString(
+        readDistanceMiles(record, "miles", "distance", "total_miles", "totalMiles", "taxable_miles", "taxableMiles"),
+        2,
+      ),
+      payloadJson: payload as Prisma.InputJsonValue,
+    };
+  }
+
+  private mapSummaryTrip(
+    candidate: unknown,
+    windowStart: Date,
+    windowEnd: Date,
+  ): ProviderIftaTripRecord | null {
+    const unwrapped = unwrapEntityRecord(candidate, [
+      "ifta_report",
+      "iftaReport",
+      "report",
+      "mileage_report",
+      "mileageReport",
+      "vehicle_mileage",
+      "vehicleMileage",
+      "ifta_summary",
+      "iftaSummary",
+      "summary",
+      "mileage_summary",
+      "mileageSummary",
+    ]);
+    if (!unwrapped) return null;
+    const { record, payload } = unwrapped;
+
+    const vehicleRecord = readNestedRecord(record, "vehicle");
+    const externalVehicleId =
+      (vehicleRecord ? readString(vehicleRecord, "id", "vehicle_id", "vehicleId") : null) ??
+      readString(record, "vehicle_id", "vehicleId", "id");
+    const jurisdiction = normalizeJurisdictionCode(
+      readString(
+        record,
+        "jurisdiction",
+        "state",
+        "state_code",
+        "stateCode",
+        "jurisdiction_code",
+        "jurisdictionCode",
+      ),
+    );
+    const distanceMiles = readDistanceMiles(
+      record,
+      "distance",
+      "miles",
+      "total_distance",
+      "totalDistance",
+      "total_miles",
+      "totalMiles",
+      "taxable_miles",
+      "taxableMiles",
+    );
+
+    if (!externalVehicleId || !jurisdiction || distanceMiles === null) return null;
+
+    const startDate = windowStart.toISOString().slice(0, 10);
+    const endDate = windowEnd.toISOString().slice(0, 10);
+    const externalTripId = [
+      "summary",
+      externalVehicleId,
+      jurisdiction,
+      startDate,
+      endDate,
+    ].join(":");
+
+    return {
+      externalTripId,
+      externalVehicleId,
+      tripDate: windowStart,
+      jurisdiction,
+      startOdometer: null,
+      endOdometer: null,
+      calibratedStart: null,
+      calibratedEnd: null,
+      miles: toNullableDecimalString(distanceMiles, 2),
       payloadJson: payload as Prisma.InputJsonValue,
     };
   }
@@ -719,10 +1051,47 @@ class MotiveAdapter implements ELDProviderAdapter {
   }
 
   async syncFuelPurchases(input: ProviderSyncWindowContext): Promise<FuelSyncResult> {
+    const effectiveWindow = clampWindowEndForProviderLag(
+      input.windowStart,
+      input.windowEnd,
+      this.getConfig().iftaDataLagDays,
+      this.getConfig().iftaRollupTimeZone,
+    );
+    if (!effectiveWindow) {
+      return {
+        phase: "fuel_purchases",
+        purchases: [],
+        recordsRead: 0,
+        recordsCreated: 0,
+        recordsUpdated: 0,
+        recordsFailed: 0,
+        summaryJson: {
+          provider: this.provider,
+          endpoint: this.getConfig().fuelPurchasesPath,
+          requestedWindowStart: input.windowStart.toISOString(),
+          requestedWindowEnd: input.windowEnd.toISOString(),
+          providerAvailableEnd: endOfCalendarDayUtc(
+            addCalendarDays(
+              getTimeZoneDateParts(new Date(), this.getConfig().iftaRollupTimeZone) ??
+                getTimeZoneDateParts(new Date(), "UTC")!,
+              -this.getConfig().iftaDataLagDays,
+            ),
+          ).toISOString(),
+          providerRollupTimeZone: this.getConfig().iftaRollupTimeZone,
+          skippedReason: "Requested window starts after Motive available data end.",
+        },
+      };
+    }
+
     const payload = await this.requestJson({
       accessToken: input.accessToken,
       path: this.getConfig().fuelPurchasesPath,
-      query: buildWindowParams(input.windowStart, input.windowEnd),
+      query: buildProviderWindowParams(
+        effectiveWindow.windowStart,
+        effectiveWindow.windowEnd,
+        input.providerStartDate,
+        input.providerEndDate,
+      ),
     });
     const purchases = extractCollection(payload, ["fuel_purchases", "fuelPurchases", "results"])
       .map((purchase) => this.mapFuelPurchase(purchase))
@@ -738,34 +1107,148 @@ class MotiveAdapter implements ELDProviderAdapter {
       summaryJson: {
         provider: this.provider,
         endpoint: this.getConfig().fuelPurchasesPath,
-        windowStart: input.windowStart.toISOString(),
-        windowEnd: input.windowEnd.toISOString(),
+        requestedWindowStart: input.windowStart.toISOString(),
+        requestedWindowEnd: input.windowEnd.toISOString(),
+        windowStart: effectiveWindow.windowStart.toISOString(),
+        windowEnd: effectiveWindow.windowEnd.toISOString(),
+        providerAvailableEnd: effectiveWindow.availableEnd.toISOString(),
+        providerRollupTimeZone: effectiveWindow.timeZone,
+        providerStartDate: input.providerStartDate ?? null,
+        providerEndDate: input.providerEndDate ?? null,
       },
     };
   }
 
   async syncIftaDistance(input: ProviderSyncWindowContext): Promise<DistanceSyncResult> {
-    const payload = await this.requestJson({
+    const effectiveWindow = clampWindowEndForProviderLag(
+      input.windowStart,
+      input.windowEnd,
+      this.getConfig().iftaDataLagDays,
+      this.getConfig().iftaRollupTimeZone,
+    );
+    if (!effectiveWindow) {
+      return {
+        phase: "ifta_distance",
+        trips: [],
+        recordsRead: 0,
+        recordsCreated: 0,
+        recordsUpdated: 0,
+        recordsFailed: 0,
+        summaryJson: {
+          provider: this.provider,
+          endpoint: this.getConfig().iftaSummaryPath,
+          source: "motive_ifta_summary",
+          requestedWindowStart: input.windowStart.toISOString(),
+          requestedWindowEnd: input.windowEnd.toISOString(),
+          providerAvailableEnd: endOfCalendarDayUtc(
+            addCalendarDays(
+              getTimeZoneDateParts(new Date(), this.getConfig().iftaRollupTimeZone) ??
+                getTimeZoneDateParts(new Date(), "UTC")!,
+              -this.getConfig().iftaDataLagDays,
+            ),
+          ).toISOString(),
+          providerRollupTimeZone: this.getConfig().iftaRollupTimeZone,
+          skippedReason: "Requested window starts after Motive available data end.",
+        },
+      };
+    }
+
+    const providerStartDate =
+      input.providerStartDate ??
+      formatDateInTimeZone(effectiveWindow.windowStart, effectiveWindow.timeZone);
+    const providerEndDate =
+      input.providerEndDate ??
+      formatDateInTimeZone(effectiveWindow.windowEnd, effectiveWindow.timeZone);
+    const summaryRecords = await this.requestPaginatedCollection({
       accessToken: input.accessToken,
-      path: this.getConfig().iftaTripsPath,
-      query: buildWindowParams(input.windowStart, input.windowEnd),
+      path: this.getConfig().iftaSummaryPath,
+      query: buildExplicitDateWindowParams(providerStartDate, providerEndDate),
+      candidates: [
+        "vehicles",
+        "vehicle_summaries",
+        "vehicleSummaries",
+        "ifta_reports",
+        "iftaReports",
+        "reports",
+        "mileage_reports",
+        "mileageReports",
+        "vehicle_mileages",
+        "vehicleMileages",
+        "ifta_summaries",
+        "ifta_summary",
+        "iftaSummaries",
+        "summaries",
+        "summary",
+        "mileage_summaries",
+        "mileageSummaries",
+        "records",
+        "items",
+        "results",
+      ],
     });
-    const trips = extractCollection(payload, ["trips", "ifta_trips", "results"])
-      .map((trip) => this.mapTrip(trip))
+    const flattenedSummaryRecords = flattenIftaSummaryRecords(summaryRecords);
+    let trips = flattenedSummaryRecords
+      .map((trip) => this.mapSummaryTrip(trip, effectiveWindow.windowStart, effectiveWindow.windowEnd))
       .filter((trip): trip is ProviderIftaTripRecord => Boolean(trip));
+    let fallbackRecords: unknown[] = [];
+
+    if (trips.length === 0) {
+      fallbackRecords = await this.requestPaginatedCollection({
+        accessToken: input.accessToken,
+        path: this.getConfig().iftaTripsPath,
+        query: buildProviderWindowParams(
+          effectiveWindow.windowStart,
+          effectiveWindow.windowEnd,
+          providerStartDate,
+          providerEndDate,
+        ),
+        candidates: [
+          "ifta_trips",
+          "iftaTrips",
+          "trips",
+          "reports",
+          "ifta_reports",
+          "iftaReports",
+          "records",
+          "items",
+          "results",
+        ],
+      });
+      trips = fallbackRecords
+        .map((trip, index) =>
+          this.mapTrip(trip, {
+            windowStart: effectiveWindow.windowStart,
+            windowEnd: effectiveWindow.windowEnd,
+            index,
+          }),
+        )
+        .filter((trip): trip is ProviderIftaTripRecord => Boolean(trip));
+    }
 
     return {
       phase: "ifta_distance",
       trips,
-      recordsRead: trips.length,
+      recordsRead: trips.length > 0 ? trips.length : flattenedSummaryRecords.length + fallbackRecords.length,
       recordsCreated: 0,
       recordsUpdated: 0,
       recordsFailed: 0,
       summaryJson: {
         provider: this.provider,
-        endpoint: this.getConfig().iftaTripsPath,
-        windowStart: input.windowStart.toISOString(),
-        windowEnd: input.windowEnd.toISOString(),
+        endpoint: this.getConfig().iftaSummaryPath,
+        source: "motive_ifta_summary",
+        requestedWindowStart: input.windowStart.toISOString(),
+        requestedWindowEnd: input.windowEnd.toISOString(),
+        windowStart: effectiveWindow.windowStart.toISOString(),
+        windowEnd: effectiveWindow.windowEnd.toISOString(),
+        providerAvailableEnd: effectiveWindow.availableEnd.toISOString(),
+        providerRollupTimeZone: effectiveWindow.timeZone,
+        queryStartDate: providerStartDate,
+        queryEndDate: providerEndDate,
+        summaryRecordsRead: flattenedSummaryRecords.length,
+        fallbackEndpoint: trips.length > 0 && fallbackRecords.length > 0
+          ? this.getConfig().iftaTripsPath
+          : null,
+        fallbackRecordsRead: fallbackRecords.length,
       },
     };
   }

@@ -66,3 +66,19 @@ export function parseOptionalString(value: unknown) {
   const normalized = value.trim();
   return normalized.length ? normalized : null;
 }
+
+export function parseOptionalIsoDateOnly(value: unknown) {
+  const normalized = parseOptionalString(value);
+  if (!normalized) return null;
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw new IftaAutomationError("Date must use YYYY-MM-DD format.", 400, "INVALID_DATE");
+  }
+
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== normalized) {
+    throw new IftaAutomationError("Date must be a valid calendar date.", 400, "INVALID_DATE");
+  }
+
+  return normalized;
+}

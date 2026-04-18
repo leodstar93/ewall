@@ -1,4 +1,4 @@
-import { IftaFilingStatus, IntegrationStatus, Prisma, SyncJobStatus } from "@prisma/client";
+import { IntegrationStatus, Prisma, SyncJobStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   summarizeSyncResults,
@@ -29,6 +29,8 @@ type RunSyncInput = {
   mode?: "FULL" | "INCREMENTAL";
   windowStart?: Date | null;
   windowEnd?: Date | null;
+  providerStartDate?: string | null;
+  providerEndDate?: string | null;
 };
 
 type PhaseResult =
@@ -60,6 +62,7 @@ export class SyncOrchestrator {
     const currentQuarterBounds = getQuarterBounds(currentQuarter.year, currentQuarter.quarter);
     const windowStart = input.windowStart ?? currentQuarterBounds.start;
     const windowEnd = input.windowEnd ?? currentQuarterBounds.end;
+    const shouldRebuildSelectedWindowOnly = Boolean(input.providerStartDate && input.providerEndDate);
     const phaseResults: PhaseResult[] = [];
     const phaseErrors: Array<{ phase: string; errorMessage: string }> = [];
     let syncedVehicleRecords: ProviderVehicleRecord[] = [];
@@ -79,17 +82,11 @@ export class SyncOrchestrator {
 
     const affectedQuarters = listIntersectingQuarters(windowStart, windowEnd);
     for (const quarter of affectedQuarters) {
-      const filing = await CanonicalNormalizationService.ensureFiling({
+      await CanonicalNormalizationService.ensureFiling({
         tenantId: input.tenantId,
         integrationAccountId: connection.account.id,
         year: quarter.year,
         quarter: quarter.quarter,
-      });
-      await prisma.iftaFiling.update({
-        where: { id: filing.id },
-        data: {
-          status: IftaFilingStatus.SYNCING,
-        },
       });
     }
 
@@ -166,6 +163,8 @@ export class SyncOrchestrator {
           metadataJson: connection.account.metadataJson,
           windowStart,
           windowEnd,
+          providerStartDate: input.providerStartDate,
+          providerEndDate: input.providerEndDate,
         }),
       async (result) => {
         if (!result) return;
@@ -178,6 +177,8 @@ export class SyncOrchestrator {
           ...(await RawIngestionService.upsertIftaTrips({
             integrationAccountId: connection.account.id,
             trips: result.trips,
+            replaceWindowStart: result.trips.length > 0 ? windowStart : null,
+            replaceWindowEnd: result.trips.length > 0 ? windowEnd : null,
           })),
         };
       },
@@ -194,6 +195,8 @@ export class SyncOrchestrator {
           metadataJson: connection.account.metadataJson,
           windowStart,
           windowEnd,
+          providerStartDate: input.providerStartDate,
+          providerEndDate: input.providerEndDate,
         }),
       async (result) => {
         if (!result) return;
@@ -245,12 +248,16 @@ export class SyncOrchestrator {
       });
       await CanonicalNormalizationService.rebuildFiling({
         filingId: filing.id,
+        preserveStatus: true,
+        windowStart: shouldRebuildSelectedWindowOnly ? windowStart : null,
+        windowEnd: shouldRebuildSelectedWindowOnly ? windowEnd : null,
       });
       await IftaCalculationEngine.calculateFiling({
         filingId: filing.id,
       });
       await IftaExceptionEngine.evaluateFiling({
         filingId: filing.id,
+        preserveFilingStatus: true,
       });
     }
 

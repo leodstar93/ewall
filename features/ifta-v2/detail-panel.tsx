@@ -36,6 +36,7 @@ type FilingDetailPanelProps = {
   loading: boolean;
   busyAction: string | null;
   onSyncLatest: (filing: FilingDetail) => void;
+  onSyncByDates?: (filing: FilingDetail) => void;
   onRebuild: (filing: FilingDetail) => void;
   onRecalculate: (filing: FilingDetail) => void;
   onSubmit: (filing: FilingDetail) => void;
@@ -218,6 +219,7 @@ export function FilingDetailPanel({
   loading,
   busyAction,
   onSyncLatest,
+  onSyncByDates,
   onRebuild,
   onRecalculate,
   onSubmit,
@@ -615,17 +617,30 @@ export function FilingDetailPanel({
 
           <div className="flex flex-wrap gap-2">
             {filing.integrationAccount?.provider && filing.status !== "APPROVED" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className={ucrSecondaryButtonClassName}
-                onClick={() => onSyncLatest(filing)}
-                disabled={busyAction === `sync:${filing.id}`}
-              >
-                {busyAction === `sync:${filing.id}`
-                  ? "Syncing..."
-                  : "Sync Latest"}
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={ucrSecondaryButtonClassName}
+                  onClick={() => onSyncLatest(filing)}
+                  disabled={busyAction === `sync:${filing.id}` || busyAction === "sync-dates"}
+                >
+                  {busyAction === `sync:${filing.id}`
+                    ? "Syncing..."
+                    : "Sync Latest"}
+                </Button>
+                {mode === "staff" && onSyncByDates ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={ucrSecondaryButtonClassName}
+                    onClick={() => onSyncByDates(filing)}
+                    disabled={busyAction === `sync:${filing.id}` || busyAction === "sync-dates"}
+                  >
+                    {busyAction === "sync-dates" ? "Syncing..." : "Sync by Dates"}
+                  </Button>
+                ) : null}
+              </>
             ) : null}
             {canRebuild ? (
               <Button

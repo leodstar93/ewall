@@ -1,3 +1,4 @@
+import { IftaFilingStatus } from "@prisma/client";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { assertFilingAccess, canReviewAllIfta } from "@/services/ifta-automation/access";
 import { FilingWorkflowService } from "@/services/ifta-automation/filing-workflow.service";
@@ -27,18 +28,43 @@ export async function POST(
       canReviewAll,
     });
 
+    const currentFiling = await prisma.iftaFiling.findUnique({
+      where: { id },
+      select: { id: true, status: true, assignedStaffUserId: true },
+    });
+
+    if (!currentFiling) {
+      return Response.json({ error: "IFTA filing not found." }, { status: 404 });
+    }
+
+    const nextStatus =
+      currentFiling.status === IftaFilingStatus.READY_FOR_REVIEW
+        ? IftaFilingStatus.IN_REVIEW
+        : currentFiling.status;
+    const statusChanged = currentFiling.status !== nextStatus;
+
     const filing = await prisma.iftaFiling.update({
       where: { id },
-      data: { assignedStaffUserId: userId },
-      select: { id: true, assignedStaffUserId: true },
+      data: {
+        assignedStaffUserId: userId,
+        ...(statusChanged ? { status: nextStatus } : {}),
+      },
+      select: { id: true, assignedStaffUserId: true, status: true },
     });
 
     await FilingWorkflowService.logAudit({
       filingId: id,
       actorUserId: userId,
       action: "filing.claimed",
-      message: "Filing assigned to staff member.",
-      payloadJson: { assignedStaffUserId: userId },
+      message: statusChanged
+        ? "Filing assigned to staff member and moved into processing."
+        : "Filing assigned to staff member.",
+      payloadJson: {
+        assignedStaffUserId: userId,
+        previousAssignedStaffUserId: currentFiling.assignedStaffUserId,
+        fromStatus: currentFiling.status,
+        toStatus: nextStatus,
+      },
     });
 
     return Response.json({ filing });

@@ -48,10 +48,15 @@ export class CanonicalNormalizationService {
 
   static async rebuildFiling(input: {
     filingId: string;
+    preserveStatus?: boolean;
+    windowStart?: Date | null;
+    windowEnd?: Date | null;
     db?: DbLike;
   }) {
     const db = resolveDb(input.db ?? null);
     const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
+    const sourceWindowStart = input.windowStart ?? filing.periodStart;
+    const sourceWindowEnd = input.windowEnd ?? filing.periodEnd;
 
     if (!canRebuildFiling(filing.status)) {
       throw new IftaAutomationError(
@@ -68,8 +73,8 @@ export class CanonicalNormalizationService {
             where: {
               integrationAccountId,
               tripDate: {
-                gte: filing.periodStart,
-                lte: filing.periodEnd,
+                gte: sourceWindowStart,
+                lte: sourceWindowEnd,
               },
             },
             orderBy: [{ tripDate: "asc" }, { createdAt: "asc" }],
@@ -78,8 +83,8 @@ export class CanonicalNormalizationService {
             where: {
               integrationAccountId,
               purchasedAt: {
-                gte: filing.periodStart,
-                lte: filing.periodEnd,
+                gte: sourceWindowStart,
+                lte: sourceWindowEnd,
               },
             },
             orderBy: [{ purchasedAt: "asc" }, { createdAt: "asc" }],
@@ -199,9 +204,14 @@ export class CanonicalNormalizationService {
     await db.iftaFiling.update({
       where: { id: filing.id },
       data: {
-        status: distanceLineCount > 0 || fuelLineCount > 0
-          ? IftaFilingStatus.DATA_READY
-          : filing.status,
+        ...(input.preserveStatus
+          ? {}
+          : {
+              status:
+                distanceLineCount > 0 || fuelLineCount > 0
+                  ? IftaFilingStatus.DATA_READY
+                  : filing.status,
+            }),
         lastSyncedAt: integrationAccountId ? new Date() : filing.lastSyncedAt,
       },
     });

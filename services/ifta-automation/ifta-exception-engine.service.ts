@@ -55,6 +55,7 @@ function getOpenLikeStatus(previousStatus: IftaExceptionStatus) {
 export class IftaExceptionEngine {
   static async evaluateFiling(input: {
     filingId: string;
+    preserveFilingStatus?: boolean;
     db?: DbLike;
   }) {
     const db = resolveDb(input.db ?? null);
@@ -399,7 +400,8 @@ export class IftaExceptionEngine {
       IftaFilingStatus.READY_FOR_REVIEW,
       IftaFilingStatus.REOPENED,
     ];
-    const shouldAutoUpdateStatus = autoManagedStatuses.includes(filing.status);
+    const shouldAutoUpdateStatus =
+      !input.preserveFilingStatus && autoManagedStatuses.includes(filing.status);
 
     if (shouldAutoUpdateStatus) {
       const hasData = filing.distanceLines.length > 0 || filing.fuelLines.length > 0;

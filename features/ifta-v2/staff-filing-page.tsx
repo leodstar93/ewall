@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { FilingDetailPanel } from "@/features/ifta-v2/detail-panel";
 import {
   type FilingDetail,
@@ -73,6 +74,23 @@ function parseDownloadFilename(header: string | null, fallback: string) {
   return filenameMatch?.[1] || fallback;
 }
 
+function dateInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+function addDaysToDateInput(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function minDateInput(left: string, right: string) {
+  if (!left) return right;
+  if (!right) return left;
+  return left <= right ? left : right;
+}
+
 export default function IftaAutomationStaffFilingPage({
   filingId,
   backHref = "/dashboard/ifta-v2",
@@ -89,7 +107,20 @@ export default function IftaAutomationStaffFilingPage({
   const [approveTarget, setApproveTarget] = useState<FilingDetail | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [approveBusy, setApproveBusy] = useState(false);
+  const [syncDatesModalOpen, setSyncDatesModalOpen] = useState(false);
+  const [syncDateStart, setSyncDateStart] = useState("");
+  const [syncDateEnd, setSyncDateEnd] = useState("");
   const receiptInputRef = useRef<HTMLInputElement>(null);
+
+  function openSyncDatesModal(currentFiling: FilingDetail) {
+    const periodStart = dateInputValue(currentFiling.periodStart);
+    const periodEnd = dateInputValue(currentFiling.periodEnd);
+    const availableEnd = addDaysToDateInput(new Date().toISOString().slice(0, 10), -3);
+
+    setSyncDateStart(periodStart);
+    setSyncDateEnd(minDateInput(periodEnd, availableEnd));
+    setSyncDatesModalOpen(true);
+  }
 
   async function loadFiling() {
     setLoading(true);
@@ -169,6 +200,48 @@ export default function IftaAutomationStaffFilingPage({
         });
       },
       `Sync requested for ${tenantCompanyName(currentFiling.tenant)} ${filingPeriodLabel(currentFiling)}.`,
+    );
+  }
+
+  async function handleSyncByDates(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!filing) return;
+
+    const provider = filing.integrationAccount?.provider;
+    if (!provider) {
+      setNotice({
+        tone: "error",
+        text: "This filing does not have a provider linked for sync.",
+      });
+      return;
+    }
+
+    if (!syncDateStart || !syncDateEnd || syncDateStart > syncDateEnd) {
+      setNotice({
+        tone: "error",
+        text: "Select a valid date range.",
+      });
+      return;
+    }
+
+    await runBusyAction(
+      "sync-dates",
+      async () => {
+        await requestJson("/api/v1/features/ifta-v2/integrations/sync", {
+          method: "POST",
+          body: JSON.stringify({
+            provider,
+            mode: "INCREMENTAL",
+            tenantId: filing.tenantId,
+            windowStart: `${syncDateStart}T00:00:00.000Z`,
+            windowEnd: `${syncDateEnd}T23:59:59.999Z`,
+            providerStartDate: syncDateStart,
+            providerEndDate: syncDateEnd,
+          }),
+        });
+        setSyncDatesModalOpen(false);
+      },
+      `Sync requested for ${tenantCompanyName(filing.tenant)} from ${syncDateStart} to ${syncDateEnd}.`,
     );
   }
 
@@ -469,6 +542,7 @@ export default function IftaAutomationStaffFilingPage({
           loading={loading}
           busyAction={busyAction}
           onSyncLatest={(currentFiling) => void handleSyncLatest(currentFiling)}
+          onSyncByDates={(currentFiling) => openSyncDatesModal(currentFiling)}
           onRebuild={(currentFiling) => void handleRebuild(currentFiling)}
           onRecalculate={(currentFiling) => void handleRecalculate(currentFiling)}
           onSubmit={() => {}}
@@ -580,6 +654,85 @@ export default function IftaAutomationStaffFilingPage({
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {syncDatesModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.45)" }}
+          onClick={() => {
+            if (busyAction === "sync-dates") return;
+            setSyncDatesModalOpen(false);
+          }}
+        >
+          <form
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-(--br) bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={handleSyncByDates}
+          >
+            <div
+              className="border-b border-(--br) px-6 py-5"
+              style={{ background: "var(--off)" }}
+            >
+              <div className="text-xs font-semibold uppercase tracking-widest text-(--r)">
+                ELD Sync
+              </div>
+              <div className="mt-1 text-base font-semibold text-(--b)">
+                Sync by Dates
+              </div>
+              {filing ? (
+                <div className="mt-1 text-sm text-zinc-500">
+                  {tenantCompanyName(filing.tenant)} - {filingPeriodLabel(filing)}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 px-6 py-5 sm:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  Start date
+                </span>
+                <Input
+                  type="date"
+                  value={syncDateStart}
+                  onChange={(event) => setSyncDateStart(event.target.value)}
+                  disabled={busyAction === "sync-dates"}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  End date
+                </span>
+                <Input
+                  type="date"
+                  value={syncDateEnd}
+                  min={syncDateStart || undefined}
+                  onChange={(event) => setSyncDateEnd(event.target.value)}
+                  disabled={busyAction === "sync-dates"}
+                />
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-(--br) px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setSyncDatesModalOpen(false)}
+                disabled={busyAction === "sync-dates"}
+                className="rounded-xl border border-(--br) px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!syncDateStart || !syncDateEnd || syncDateStart > syncDateEnd || busyAction === "sync-dates"}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: "var(--b)" }}
+              >
+                {busyAction === "sync-dates" ? "Syncing..." : "Sync"}
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
     </>

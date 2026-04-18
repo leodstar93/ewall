@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import DashboardTable, {
   type ColumnDef,
 } from "@/app/v2/(protected)/dashboard/components/ui/Table";
@@ -57,6 +57,23 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function dateInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+function addDaysToDateInput(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function minDateInput(left: string, right: string) {
+  if (!left) return right;
+  if (!right) return left;
+  return left <= right ? left : right;
 }
 
 function buildJurisdictionRows(filing: FilingDetail | null) {
@@ -236,6 +253,22 @@ export default function IftaAutomationTruckerFilingPage({
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentBusy, setDocumentBusy] = useState(false);
+  const [syncDatesModalOpen, setSyncDatesModalOpen] = useState(false);
+  const [syncDateStart, setSyncDateStart] = useState("");
+  const [syncDateEnd, setSyncDateEnd] = useState("");
+
+  function openSyncDatesModal() {
+    if (!filing) return;
+
+    const periodStart = dateInputValue(filing.periodStart);
+    const periodEnd = dateInputValue(filing.periodEnd);
+    const defaultStart = periodStart ? addDaysToDateInput(periodStart, -1) : "";
+    const availableEnd = addDaysToDateInput(new Date().toISOString().slice(0, 10), -3);
+
+    setSyncDateStart(defaultStart);
+    setSyncDateEnd(minDateInput(periodEnd, availableEnd));
+    setSyncDatesModalOpen(true);
+  }
 
   async function loadFiling() {
     setLoading(true);
@@ -444,6 +477,13 @@ export default function IftaAutomationTruckerFilingPage({
 
   async function handleSyncLatest() {
     if (!filing) return;
+    if (!canUseEldSync) {
+      setNotice({
+        tone: "error",
+        text: "Only staff can sync ELD data.",
+      });
+      return;
+    }
 
     const provider = filing.integrationAccount?.provider;
     if (!provider) {
@@ -478,6 +518,67 @@ export default function IftaAutomationTruckerFilingPage({
       setNotice({
         tone: "error",
         text: getErrorMessage(error, "Could not start the ELD sync for this filing."),
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleSyncByDates(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!filing) return;
+    if (!canUseEldSync) {
+      setNotice({
+        tone: "error",
+        text: "Only staff can sync ELD data.",
+      });
+      return;
+    }
+
+    const provider = filing.integrationAccount?.provider;
+    if (!provider) {
+      setNotice({
+        tone: "error",
+        text: "This filing does not have an ELD provider connected for sync.",
+      });
+      return;
+    }
+
+    if (!syncDateStart || !syncDateEnd || syncDateStart > syncDateEnd) {
+      setNotice({
+        tone: "error",
+        text: "Select a valid date range.",
+      });
+      return;
+    }
+
+    setBusyAction("sync-dates");
+    setNotice(null);
+
+    try {
+      await requestJson("/api/v1/features/ifta-v2/integrations/sync", {
+        method: "POST",
+        body: JSON.stringify({
+          provider,
+          mode: "INCREMENTAL",
+          tenantId: filing.tenantId,
+          windowStart: `${syncDateStart}T00:00:00.000Z`,
+          windowEnd: `${syncDateEnd}T23:59:59.999Z`,
+          providerStartDate: syncDateStart,
+          providerEndDate: syncDateEnd,
+        }),
+      });
+
+      await loadFiling();
+      setSyncDatesModalOpen(false);
+      setNotice({
+        tone: "success",
+        text: `ELD sync completed for ${syncDateStart} to ${syncDateEnd}.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: getErrorMessage(error, "Could not start the ELD sync for this date range."),
       });
     } finally {
       setBusyAction(null);
@@ -556,6 +657,7 @@ export default function IftaAutomationTruckerFilingPage({
   const canEdit = canTruckerEditFilingStatus(filing.status);
   const roles = Array.isArray(session?.user?.roles) ? session.user.roles : [];
   const canViewAudit = roles.includes("STAFF");
+  const canUseEldSync = roles.includes("STAFF") || roles.includes("ADMIN");
   const conversation = buildConversation(filing);
   const auditRows = buildAuditRows(filing);
   const companyName =
@@ -681,15 +783,25 @@ export default function IftaAutomationTruckerFilingPage({
               </p>
             </div>
             <div className="flex flex-wrap gap-[10px] lg:justify-end">
-              {filing.status === "DRAFT" ? (
-                <button
-                  type="button"
-                  onClick={() => void handleSyncLatest()}
-                  disabled={busyAction === "sync-quarter"}
-                  className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {busyAction === "sync-quarter" ? "Syncing..." : "Sync ELD Quarter"}
-                </button>
+              {canUseEldSync && filing.integrationAccount?.provider && filing.status !== "APPROVED" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleSyncLatest()}
+                    disabled={busyAction === "sync-quarter" || busyAction === "sync-dates"}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {busyAction === "sync-quarter" ? "Syncing..." : "Sync Latest"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openSyncDatesModal}
+                    disabled={busyAction === "sync-quarter" || busyAction === "sync-dates"}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {busyAction === "sync-dates" ? "Syncing..." : "Sync by Dates"}
+                  </button>
+                </>
               ) : null}
               {canEdit ? (
                 <button
@@ -1014,6 +1126,83 @@ export default function IftaAutomationTruckerFilingPage({
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {/* Sync dates modal */}
+      {syncDatesModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-5 py-6"
+          style={{ background: "rgba(0,26,69,0.32)", backdropFilter: "blur(6px)" }}
+          onClick={() => {
+            if (busyAction === "sync-dates") return;
+            setSyncDatesModalOpen(false);
+          }}
+        >
+          <form
+            className="grid w-full max-w-[520px] gap-4 rounded-[18px] border border-[var(--br)] p-[18px] shadow-[0_18px_40px_rgba(0,26,69,0.18)]"
+            style={{ background: "rgba(255,255,255,0.98)" }}
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={handleSyncByDates}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="mb-0 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">ELD Sync</p>
+                <h2 className="m-0 text-xl font-semibold text-[var(--b)]">Sync by Dates</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSyncDatesModalOpen(false)}
+                disabled={busyAction === "sync-dates"}
+                className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-[12px] font-bold text-[var(--text-primary)]">Start date</span>
+                <Input
+                  type="date"
+                  value={syncDateStart}
+                  onChange={(event) => setSyncDateStart(event.target.value)}
+                  disabled={busyAction === "sync-dates"}
+                  className="rounded-2xl border-zinc-300 font-semibold text-zinc-950 focus:border-zinc-400 focus:ring-zinc-500/10"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-[12px] font-bold text-[var(--text-primary)]">End date</span>
+                <Input
+                  type="date"
+                  value={syncDateEnd}
+                  min={syncDateStart || undefined}
+                  onChange={(event) => setSyncDateEnd(event.target.value)}
+                  disabled={busyAction === "sync-dates"}
+                  className="rounded-2xl border-zinc-300 font-semibold text-zinc-950 focus:border-zinc-400 focus:ring-zinc-500/10"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-[10px]">
+              <button
+                type="button"
+                onClick={() => setSyncDatesModalOpen(false)}
+                disabled={busyAction === "sync-dates"}
+                className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--br)] bg-white px-[14px] text-[12px] font-bold text-[var(--text-primary)] hover:bg-[var(--off)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!syncDateStart || !syncDateEnd || syncDateStart > syncDateEnd || busyAction === "sync-dates"}
+                className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                style={{ background: "var(--b)" }}
+              >
+                {busyAction === "sync-dates" ? "Syncing..." : "Sync"}
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
     </>

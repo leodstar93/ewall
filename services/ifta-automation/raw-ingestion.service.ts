@@ -162,6 +162,8 @@ export class RawIngestionService {
   static async upsertIftaTrips(input: {
     integrationAccountId: string;
     trips: ProviderIftaTripRecord[];
+    replaceWindowStart?: Date | null;
+    replaceWindowEnd?: Date | null;
     db?: DbLike;
   }): Promise<IngestionSummary> {
     const db = resolveDb(input.db ?? null);
@@ -169,6 +171,18 @@ export class RawIngestionService {
     let recordsCreated = 0;
     let recordsUpdated = 0;
     let recordsFailed = 0;
+
+    if (input.replaceWindowStart && input.replaceWindowEnd) {
+      await db.rawIftaTrip.deleteMany({
+        where: {
+          integrationAccountId: input.integrationAccountId,
+          tripDate: {
+            gte: input.replaceWindowStart,
+            lte: input.replaceWindowEnd,
+          },
+        },
+      });
+    }
 
     for (const trip of input.trips) {
       try {
