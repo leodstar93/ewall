@@ -417,8 +417,11 @@ export function unifiedStatusForIftaFiling(
     case "IN_REVIEW":
     case "SNAPSHOT_READY":
       return "IN_PROCESS";
+    case "PENDING_APPROVAL":
+      return "PENDING_PAYMENT";
     case "APPROVED":
       return "APPROVED";
+    case "FINALIZED":
     case "ARCHIVED":
       return "FINALIZED";
     default:
@@ -448,7 +451,7 @@ export function visibleStatusForIftaFiling(
 
 export function iftaVisibleStatusLabel(status: IftaVisibleStatus) {
   if (status === "NEEDS_ATTENTION") return "Need attention";
-  if (status === "APPROVED") return "Finalized";
+  if (status === "PENDING_PAYMENT") return "Pending approval";
 
   return unifiedWorkflowStatusLabel(status);
 }
@@ -503,7 +506,7 @@ export function canTruckerEditFilingStatus(status: string | null | undefined) {
 }
 
 export function isStaffQueueFilingStatus(status: string | null | undefined) {
-  return ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY", "APPROVED"].includes(status ?? "");
+  return ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY", "PENDING_APPROVAL", "APPROVED", "FINALIZED"].includes(status ?? "");
 }
 
 export function assignedReviewerLabel(
@@ -520,7 +523,7 @@ export function summarizeFilingMetrics(filings: FilingListItem[]) {
     totalFilings: filings.length,
     readyForReview: filings.filter((filing) => filing.status === "READY_FOR_REVIEW").length,
     needsReview: filings.filter((filing) => filing.status === "NEEDS_REVIEW").length,
-    approved: filings.filter((filing) => filing.status === "APPROVED").length,
+    approved: filings.filter((filing) => filing.status === "APPROVED" || filing.status === "FINALIZED").length,
     totalNetTax: filings.reduce((sum, filing) => sum + toNumber(filing.totalNetTax), 0),
   };
 }

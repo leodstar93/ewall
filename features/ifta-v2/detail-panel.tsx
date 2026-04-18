@@ -44,6 +44,7 @@ type FilingDetailPanelProps = {
   onRequestChanges: (filing: FilingDetail) => void;
   onCreateSnapshot: (filing: FilingDetail) => void;
   onApprove: (filing: FilingDetail) => void;
+  onFinalize: (filing: FilingDetail) => void;
   onReopen: (filing: FilingDetail) => void;
   onDownload: (filing: FilingDetail, format: "pdf" | "excel") => void;
   onUploadDocument: (filing: FilingDetail, file: File) => Promise<void>;
@@ -228,6 +229,7 @@ export function FilingDetailPanel({
   onRequestChanges,
   onCreateSnapshot,
   onApprove,
+  onFinalize,
   onReopen,
   onDownload,
   onUploadDocument,
@@ -330,10 +332,11 @@ export function FilingDetailPanel({
   const canApprove =
     mode === "staff" &&
     !hasOpenBlockingOrError &&
-    filing.status !== "CHANGES_REQUESTED" &&
-    filing.status !== "APPROVED" &&
-    filing.status !== "ARCHIVED";
-  const canReopen = mode === "staff" && filing.status === "APPROVED";
+    filing.status === "SNAPSHOT_READY";
+  const canFinalize = mode === "staff" && filing.status === "APPROVED";
+  const canReopen =
+    mode === "staff" &&
+    (filing.status === "APPROVED" || filing.status === "FINALIZED");
   const ucrPrimaryButtonClassName =
     "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[var(--b)] !bg-[var(--b)] !text-white hover:!bg-[var(--bd)]";
   const ucrSecondaryButtonClassName =
@@ -716,8 +719,20 @@ export function FilingDetailPanel({
                 disabled={busyAction === `approve:${filing.id}`}
               >
                 {busyAction === `approve:${filing.id}`
-                  ? "Approving..."
-                  : "Approve Filing"}
+                  ? "Sending..."
+                  : "Send for Approval"}
+              </Button>
+            ) : null}
+            {canFinalize ? (
+              <Button
+                size="sm"
+                className={ucrPrimaryButtonClassName}
+                onClick={() => onFinalize(filing)}
+                disabled={busyAction === `finalize:${filing.id}`}
+              >
+                {busyAction === `finalize:${filing.id}`
+                  ? "Finalizing..."
+                  : "Finalize Filing"}
               </Button>
             ) : null}
             {canReopen ? (

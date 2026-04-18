@@ -7,7 +7,7 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireApiPermission("ifta:approve");
+  const guard = await requireApiPermission("ifta:write");
   if (!guard.ok) return guard.res;
 
   try {
@@ -23,7 +23,7 @@ export async function POST(
       userId,
       canReviewAll,
     });
-    const filing = await FilingWorkflowService.sendForApproval({
+    const filing = await FilingWorkflowService.clientApprove({
       filingId: id,
       actorUserId: userId,
     });

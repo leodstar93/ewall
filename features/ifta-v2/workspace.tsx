@@ -801,6 +801,23 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     );
   }
 
+  async function handleFinalize(filing: FilingDetail) {
+    if (!window.confirm(`Finalize ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)}?`)) {
+      return;
+    }
+
+    await runBusyAction(
+      `finalize:${filing.id}`,
+      async () => {
+        await requestJson(`/api/v1/features/ifta-v2/filings/${filing.id}/finalize`, {
+          method: "POST",
+        });
+      },
+      `Filing ${filingPeriodLabel(filing)} has been finalized.`,
+      filing.id,
+    );
+  }
+
   async function handleReopen(filing: FilingDetail) {
     const note = window.prompt(
       "Optional note for reopening this approved filing:",
@@ -1354,6 +1371,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
             onRequestChanges={(filing) => void handleRequestChanges(filing)}
             onCreateSnapshot={(filing) => void handleCreateSnapshot(filing)}
             onApprove={(filing) => void handleApprove(filing)}
+            onFinalize={(filing) => void handleFinalize(filing)}
             onReopen={(filing) => void handleReopen(filing)}
             onDownload={(filing, format) => void handleDownload(filing, format)}
             onUploadDocument={(filing, file) => handleUploadDocument(filing, file)}

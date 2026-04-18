@@ -23,13 +23,13 @@ export async function POST(
       userId,
       canReviewAll,
     });
-    const filing = await FilingWorkflowService.sendForApproval({
+    const filing = await FilingWorkflowService.finalize({
       filingId: id,
       actorUserId: userId,
     });
 
     return Response.json({ filing });
   } catch (error) {
-    return handleIftaAutomationError(error, "Failed to approve IFTA filing.");
+    return handleIftaAutomationError(error, "Failed to finalize IFTA filing.");
   }
 }

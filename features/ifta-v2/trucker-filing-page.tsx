@@ -436,6 +436,37 @@ export default function IftaAutomationTruckerFilingPage({
     }
   }
 
+  async function handleClientApprove() {
+    if (!filing) return;
+
+    setBusyAction("client-approve");
+    setNotice(null);
+
+    try {
+      const response = await fetch(
+        `/api/v1/features/ifta-v2/filings/${filing.id}/client-approve`,
+        { method: "POST" },
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not approve this filing.");
+      }
+
+      await loadFiling();
+      setNotice({
+        tone: "success",
+        text: `You have approved ${filingPeriodLabel(filing)}.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: getErrorMessage(error, "Could not approve this filing."),
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleUploadDocument() {
     if (!filing || !documentFile || documentBusy) return;
 
@@ -821,6 +852,17 @@ export default function IftaAutomationTruckerFilingPage({
                   {busyAction === "submit" ? "Submitting..." : "Submit"}
                 </button>
               ) : null}
+              {filing.status === "PENDING_APPROVAL" ? (
+                <button
+                  type="button"
+                  onClick={() => void handleClientApprove()}
+                  disabled={busyAction === "client-approve"}
+                  className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ background: "var(--b)" }}
+                >
+                  {busyAction === "client-approve" ? "Approving..." : "Approve Filing"}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -835,7 +877,9 @@ export default function IftaAutomationTruckerFilingPage({
                 color: "var(--b)",
               }}
             >
-              This filing is locked because it has already been submitted for review.
+              {filing.status === "PENDING_APPROVAL"
+                ? "This filing is awaiting your approval. Review the summary above and click Approve Filing to confirm."
+                : "This filing is locked because it has already been submitted for review."}
             </div>
           ) : null}
         </div>

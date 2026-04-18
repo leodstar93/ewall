@@ -171,15 +171,46 @@ export async function notifyIftaAutomationChangesRequested(
   });
 }
 
+export async function notifyIftaAutomationPendingApproval(
+  filing: IftaAutomationFilingDetail,
+) {
+  await safeCreateNotificationsForTenantMembers({
+    filing,
+    level: NotificationLevel.WARNING,
+    title: `IFTA ${filing.year} Q${filing.quarter} requires your approval`,
+    message:
+      "Your IFTA filing is ready for your review and approval. Please review the summary and approve to continue.",
+    href: clientHref(filing.id),
+    actionLabel: "Review & approve",
+    metadataJson: buildNotificationMetadata(filing),
+  });
+}
+
+export async function notifyIftaAutomationClientApproved(
+  filing: IftaAutomationFilingDetail,
+) {
+  await safeCreateStaffNotifications({
+    roleNames: STAFF_ROLE_NAMES,
+    excludeUserIds: [],
+    category: NotificationCategory.IFTA,
+    level: NotificationLevel.SUCCESS,
+    title: `IFTA approved by client`,
+    message: `${carrierLabel(filing)} approved ${filingLabel(filing)}. Ready to finalize.`,
+    href: staffHref(filing.id),
+    actionLabel: "Finalize filing",
+    metadataJson: buildNotificationMetadata(filing),
+  });
+}
+
 export async function notifyIftaAutomationApproved(
   filing: IftaAutomationFilingDetail,
 ) {
   await safeCreateNotificationsForTenantMembers({
     filing,
     level: NotificationLevel.SUCCESS,
-    title: `IFTA ${filing.year} Q${filing.quarter} approved`,
+    title: `IFTA ${filing.year} Q${filing.quarter} finalized`,
     message:
-      "Your IFTA filing was approved. The frozen report is now available to download.",
+      "Your IFTA filing has been finalized. The frozen report is now available to download.",
     href: clientHref(filing.id),
     actionLabel: "View filing",
     metadataJson: buildNotificationMetadata(filing, {

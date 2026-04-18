@@ -22,6 +22,8 @@ import { IftaExceptionEngine } from "@/services/ifta-automation/ifta-exception-e
 import {
   notifyIftaAutomationApproved,
   notifyIftaAutomationChangesRequested,
+  notifyIftaAutomationClientApproved,
+  notifyIftaAutomationPendingApproval,
   notifyIftaAutomationReopened,
   notifyIftaAutomationSubmitted,
   notifyIftaAutomationUnderReview,
@@ -506,7 +508,7 @@ export class FilingWorkflowService {
     return snapshot;
   }
 
-  static async approve(input: {
+  static async sendForApproval(input: {
     filingId: string;
     actorUserId?: string | null;
     db?: DbLike;
@@ -514,13 +516,21 @@ export class FilingWorkflowService {
     const db = resolveDb(input.db ?? null);
     const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
 
-    if (filing.status === IftaFilingStatus.APPROVED) {
+    if (filing.status === IftaFilingStatus.PENDING_APPROVAL) {
       return filing;
+    }
+
+    if (filing.status !== IftaFilingStatus.SNAPSHOT_READY) {
+      throw new IftaAutomationError(
+        "A snapshot must be created before sending the filing for approval.",
+        409,
+        "IFTA_SEND_FOR_APPROVAL_INVALID_STATUS",
+      );
     }
 
     if (hasBlockingOpenExceptions(filing.exceptions)) {
       throw new IftaAutomationError(
-        "Blocking IFTA exceptions must be resolved before approval.",
+        "Blocking IFTA exceptions must be resolved before sending for approval.",
         409,
         "IFTA_APPROVAL_BLOCKED",
       );
@@ -534,7 +544,7 @@ export class FilingWorkflowService {
       )
     ) {
       throw new IftaAutomationError(
-        "Open IFTA errors must be resolved before approval.",
+        "Open IFTA errors must be resolved before sending for approval.",
         409,
         "IFTA_APPROVAL_HAS_ERRORS",
       );
@@ -567,6 +577,44 @@ export class FilingWorkflowService {
     const updated = await db.iftaFiling.update({
       where: { id: filing.id },
       data: {
+        status: IftaFilingStatus.PENDING_APPROVAL,
+      },
+    });
+
+    await this.logAudit({
+      filingId: filing.id,
+      actorUserId: input.actorUserId,
+      action: "filing.send_for_approval",
+      message: `Sent filing for client approval with snapshot version ${snapshot.version}.`,
+      db,
+    });
+
+    await notifyIftaAutomationPendingApproval(
+      await getIftaAutomationFilingOrThrow(filing.id, db),
+    );
+
+    return updated;
+  }
+
+  static async clientApprove(input: {
+    filingId: string;
+    actorUserId?: string | null;
+    db?: DbLike;
+  }) {
+    const db = resolveDb(input.db ?? null);
+    const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
+
+    if (filing.status !== IftaFilingStatus.PENDING_APPROVAL) {
+      throw new IftaAutomationError(
+        "Only filings pending approval can be approved by the client.",
+        409,
+        "IFTA_CLIENT_APPROVE_INVALID_STATUS",
+      );
+    }
+
+    const updated = await db.iftaFiling.update({
+      where: { id: filing.id },
+      data: {
         status: IftaFilingStatus.APPROVED,
         approvedAt: new Date(),
       },
@@ -575,8 +623,46 @@ export class FilingWorkflowService {
     await this.logAudit({
       filingId: filing.id,
       actorUserId: input.actorUserId,
-      action: "filing.approve",
-      message: `Approved filing with snapshot version ${snapshot.version}.`,
+      action: "filing.client_approve",
+      message: "Client approved the filing.",
+      db,
+    });
+
+    await notifyIftaAutomationClientApproved(
+      await getIftaAutomationFilingOrThrow(filing.id, db),
+    );
+
+    return updated;
+  }
+
+  static async finalize(input: {
+    filingId: string;
+    actorUserId?: string | null;
+    db?: DbLike;
+  }) {
+    const db = resolveDb(input.db ?? null);
+    const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
+
+    if (filing.status !== IftaFilingStatus.APPROVED) {
+      throw new IftaAutomationError(
+        "Only client-approved filings can be finalized.",
+        409,
+        "IFTA_FINALIZE_INVALID_STATUS",
+      );
+    }
+
+    const updated = await db.iftaFiling.update({
+      where: { id: filing.id },
+      data: {
+        status: IftaFilingStatus.FINALIZED,
+      },
+    });
+
+    await this.logAudit({
+      filingId: filing.id,
+      actorUserId: input.actorUserId,
+      action: "filing.finalize",
+      message: "Filing finalized by staff.",
       db,
     });
 
@@ -596,9 +682,12 @@ export class FilingWorkflowService {
     const db = resolveDb(input.db ?? null);
     const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
 
-    if (filing.status !== IftaFilingStatus.APPROVED) {
+    if (
+      filing.status !== IftaFilingStatus.APPROVED &&
+      filing.status !== IftaFilingStatus.FINALIZED
+    ) {
       throw new IftaAutomationError(
-        "Only approved filings can be reopened.",
+        "Only approved or finalized filings can be reopened.",
         409,
         "IFTA_REOPEN_INVALID_STATUS",
       );

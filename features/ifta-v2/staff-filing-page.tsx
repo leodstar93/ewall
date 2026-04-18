@@ -112,13 +112,9 @@ export default function IftaAutomationStaffFilingPage({
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [approveTarget, setApproveTarget] = useState<FilingDetail | null>(null);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [approveBusy, setApproveBusy] = useState(false);
   const [syncDatesModalOpen, setSyncDatesModalOpen] = useState(false);
   const [syncDateStart, setSyncDateStart] = useState("");
   const [syncDateEnd, setSyncDateEnd] = useState("");
-  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   function openSyncDatesModal(currentFiling: FilingDetail) {
     const periodStart = dateInputValue(currentFiling.periodStart);
@@ -311,55 +307,32 @@ export default function IftaAutomationStaffFilingPage({
     );
   }
 
-  function handleApprove(currentFiling: FilingDetail) {
-    setApproveTarget(currentFiling);
-    setReceiptFile(null);
+  async function handleApprove(currentFiling: FilingDetail) {
+    await runBusyAction(
+      `approve:${currentFiling.id}`,
+      async () => {
+        await requestJson(`/api/v1/features/ifta-v2/filings/${currentFiling.id}/approve`, {
+          method: "POST",
+        });
+      },
+      `Filing ${filingPeriodLabel(currentFiling)} sent to client for approval.`,
+    );
   }
 
-  async function handleApproveSubmit() {
-    if (!approveTarget || !receiptFile) return;
-
-    setApproveBusy(true);
-    setNotice(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", receiptFile);
-      formData.append("type", "ifta-payment-receipt");
-
-      const uploadRes = await fetch(
-        `/api/v1/features/ifta-v2/filings/${approveTarget.id}/documents`,
-        { method: "POST", body: formData },
-      );
-      const uploadData = (await uploadRes.json().catch(() => ({}))) as { error?: string };
-      if (!uploadRes.ok) {
-        throw new Error(uploadData.error || "Failed to upload the payment receipt.");
-      }
-
-      await requestJson(`/api/v1/features/ifta-v2/filings/${approveTarget.id}/approve`, {
-        method: "POST",
-      });
-
-      const approved = approveTarget;
-      setApproveTarget(null);
-      setReceiptFile(null);
-      setNotice({
-        tone: "success",
-        text: `Filing ${filingPeriodLabel(approved)} is now approved.`,
-      });
-      await loadFiling();
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Could not approve this filing.",
-      });
-    } finally {
-      setApproveBusy(false);
-    }
+  async function handleFinalize(currentFiling: FilingDetail) {
+    await runBusyAction(
+      `finalize:${currentFiling.id}`,
+      async () => {
+        await requestJson(`/api/v1/features/ifta-v2/filings/${currentFiling.id}/finalize`, {
+          method: "POST",
+        });
+      },
+      `Filing ${filingPeriodLabel(currentFiling)} has been finalized.`,
+    );
   }
 
   async function handleReopen(currentFiling: FilingDetail) {
-    const note = window.prompt("Optional note for reopening this approved filing:", "");
+    const note = window.prompt("Optional note for reopening this filing:", "");
     if (note === null) return;
 
     await runBusyAction(
@@ -557,7 +530,8 @@ export default function IftaAutomationStaffFilingPage({
           onSubmit={() => {}}
           onRequestChanges={(currentFiling) => void handleRequestChanges(currentFiling)}
           onCreateSnapshot={(currentFiling) => void handleCreateSnapshot(currentFiling)}
-          onApprove={(currentFiling) => handleApprove(currentFiling)}
+          onApprove={(currentFiling) => void handleApprove(currentFiling)}
+          onFinalize={(currentFiling) => void handleFinalize(currentFiling)}
           onReopen={(currentFiling) => void handleReopen(currentFiling)}
           onDownload={(currentFiling, format) => void handleDownload(currentFiling, format)}
           onUploadDocument={(currentFiling, file) => handleUploadDocument(currentFiling, file)}
@@ -569,102 +543,6 @@ export default function IftaAutomationStaffFilingPage({
           }
         />
       </div>
-
-      {approveTarget ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.45)" }}
-        >
-          <div
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-(--br) shadow-2xl"
-            style={{ background: "#fff" }}
-          >
-            {/* Header */}
-            <div
-              className="border-b border-(--br) px-6 py-5"
-              style={{ background: "var(--off)" }}
-            >
-              <div className="text-xs font-semibold uppercase tracking-widest text-(--r)">
-                IFTA
-              </div>
-              <div className="mt-1 text-base font-semibold text-(--b)">
-                Approve Filing — Upload Payment Receipt
-              </div>
-              <div className="mt-1 text-sm text-zinc-500">
-                {tenantCompanyName(approveTarget.tenant)} · {filingPeriodLabel(approveTarget)}
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="space-y-4 px-6 py-5">
-              <p className="text-sm text-zinc-600">
-                Upload the IFTA payment receipt to complete approval. The document will be
-                auto-classified and attached to this filing.
-              </p>
-
-              <input
-                ref={receiptInputRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv"
-                className="hidden"
-                onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
-              />
-
-              {receiptFile ? (
-                <div className="flex items-center justify-between rounded-xl border border-(--br) bg-(--off) px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-(--b)">
-                      {receiptFile.name}
-                    </div>
-                    <div className="text-xs text-zinc-400">
-                      {(receiptFile.size / 1024).toFixed(0)} KB
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setReceiptFile(null)}
-                    className="ml-3 shrink-0 text-xs text-zinc-400 hover:text-zinc-700"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => receiptInputRef.current?.click()}
-                  className="w-full rounded-xl border border-dashed border-(--br) px-4 py-6 text-center text-sm text-zinc-500 transition hover:border-(--b) hover:text-(--b)"
-                >
-                  Click to select payment receipt
-                </button>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-3 border-t border-(--br) px-6 py-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setApproveTarget(null);
-                  setReceiptFile(null);
-                }}
-                disabled={approveBusy}
-                className="rounded-xl border border-(--br) px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleApproveSubmit()}
-                disabled={!receiptFile || approveBusy}
-                className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
-                style={{ background: "var(--b)" }}
-              >
-                {approveBusy ? "Approving..." : "Upload & Approve"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {syncDatesModalOpen ? (
         <div
