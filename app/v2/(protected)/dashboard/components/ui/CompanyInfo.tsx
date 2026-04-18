@@ -9,6 +9,7 @@ import {
 
 interface Props {
   data: CompanyProfileFormData & { email: string };
+  onSave?: (form: CompanyProfileFormData) => Promise<CompanyProfileFormData | void>;
 }
 
 function buildSafeProfile(data: Partial<CompanyProfileFormData> | null | undefined) {
@@ -31,7 +32,7 @@ function compactAddress(data: CompanyProfileFormData) {
   return fieldValue(data.address);
 }
 
-export default function CompanyInfoPanel({ data }: Props) {
+export default function CompanyInfoPanel({ data, onSave }: Props) {
   const safeInitialData = useMemo(() => buildSafeProfile(data), [data]);
   const [form, setForm] = useState<CompanyProfileFormData>(safeInitialData);
   const [saved, setSaved] = useState<CompanyProfileFormData>(safeInitialData);
@@ -78,25 +79,32 @@ export default function CompanyInfoPanel({ data }: Props) {
       setIsSaving(true);
       setMessage(null);
 
-      const response = await fetch("/api/settings/company", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      let nextPayload: CompanyProfileFormData | void;
+      if (onSave) {
+        nextPayload = await onSave(form);
+      } else {
+        const response = await fetch("/api/settings/company", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
 
-      const payload = (await response.json().catch(() => ({}))) as
-        | CompanyProfileFormData
-        | { error?: string };
+        const payload = (await response.json().catch(() => ({}))) as
+          | CompanyProfileFormData
+          | { error?: string };
 
-      if (!response.ok) {
-        throw new Error(
-          "error" in payload
-            ? payload.error || "Could not save company profile."
-            : "Could not save company profile.",
-        );
+        if (!response.ok) {
+          throw new Error(
+            "error" in payload
+              ? payload.error || "Could not save company profile."
+              : "Could not save company profile.",
+          );
+        }
+
+        nextPayload = payload as CompanyProfileFormData;
       }
 
-      const next = buildSafeProfile(payload as CompanyProfileFormData);
+      const next = buildSafeProfile(nextPayload ?? form);
       setForm(next);
       setSaved(next);
       setIsEditing(false);

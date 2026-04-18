@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ChangeEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import EldProviderCredentialsForm from "@/components/settings/EldProviderCredentialsForm";
-import CompanyProfileForm from "@/components/settings/company/CompanyProfileForm";
+import CompanyInfoPanel from "@/app/v2/(protected)/dashboard/components/ui/CompanyInfo";
 import {
   emptyEldProviderCredentialsState,
   type EldProviderCredentialsFormData,
@@ -155,7 +155,6 @@ type TabId =
   | "documents";
 
 const tabs: Array<{ id: TabId; label: string }> = [
-  { id: "personal", label: "Personal Info" },
   { id: "company", label: "Company" },
   { id: "eld", label: "ELD Provider" },
   { id: "payments", label: "Payments" },
@@ -369,7 +368,7 @@ export default function TruckerProfileAdminClient({
 }: {
   truckerId: string;
 }) {
-  const [activeTab, setActiveTab] = useState<TabId>("personal");
+  const [activeTab, setActiveTab] = useState<TabId>("company");
   const [profile, setProfile] = useState<ManagedTruckerProfile | null>(null);
   const [personal, setPersonal] = useState<PersonalInfo>(emptyPersonalState);
   const [initialPersonal, setInitialPersonal] = useState<PersonalInfo>(emptyPersonalState);
@@ -438,6 +437,13 @@ export default function TruckerProfileAdminClient({
         (tab) => tab.id !== "billing" || Boolean(profile?.billing.subscriptionsEnabled),
       ),
     [profile?.billing.subscriptionsEnabled],
+  );
+  const companyPanelData = useMemo(
+    () => ({
+      ...company,
+      email: personal.email,
+    }),
+    [company, personal.email],
   );
   const truckRows = useMemo(() => buildTruckRows(profile?.trucks ?? []), [profile?.trucks]);
   const documentRows = useMemo(
@@ -536,7 +542,7 @@ export default function TruckerProfileAdminClient({
       return;
     }
 
-    setActiveTab("personal");
+    setActiveTab("company");
   }, [activeTab, availableTabs]);
 
   const handlePersonalChange = (
@@ -678,6 +684,39 @@ export default function TruckerProfileAdminClient({
     } finally {
       setSavingCompany(false);
     }
+  };
+
+  const handleSaveCompanyPanel = async (nextCompany: CompanyProfileFormData) => {
+    const normalizedCompany = syncAddressFields(nextCompany);
+    const response = await fetch(`/api/v1/admin/truckers/${truckerId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company: normalizedCompany }),
+    });
+
+    const payload = (await response.json().catch(() => ({}))) as
+      | ManagedTruckerProfile
+      | { error?: string };
+
+    if (!response.ok) {
+      throw new Error(
+        "error" in payload && payload.error
+          ? payload.error
+          : "Failed to save company profile.",
+      );
+    }
+
+    const updatedProfile = payload as ManagedTruckerProfile;
+    applyServerProfile(updatedProfile, {
+      preservePersonal: personalDirty,
+      preserveEldProvider: eldProviderDirty,
+    });
+    setSearchMessage(null);
+
+    return syncAddressFields({
+      ...emptyCompanyProfileState,
+      ...updatedProfile.company,
+    });
   };
 
   const handleSearchSafer = async () => {
@@ -1104,21 +1143,6 @@ export default function TruckerProfileAdminClient({
           </div>
         </div>
 
-        {/* Quick stats row */}
-        <div style={{ padding: "0 20px 16px", display: "grid", gap: 12, gridTemplateColumns: "repeat(4, 1fr)" }}>
-          {[
-            { label: "USDOT", value: company.dotNumber || "Not set" },
-            { label: "Company", value: company.companyName || company.legalName || company.dbaName || "Not set" },
-            { label: "Joined", value: formatDateTime(profile.createdAt) },
-            { label: "Last update", value: formatDateTime(profile.updatedAt) },
-          ].map(({ label, value }) => (
-            <div key={label} style={{ borderRadius: 10, border: "1px solid var(--brl)", background: "var(--off)", padding: "10px 14px" }}>
-              <div className={tableStyles.subtitle} style={{ fontSize: 11, marginBottom: 4 }}>{label}</div>
-              <div className={tableStyles.nameCell} style={{ fontSize: 13 }}>{value}</div>
-            </div>
-          ))}
-        </div>
-
         {pageError ? (
           <div style={{ padding: "0 20px 16px" }}>
             <InlineAlert tone="error" message={pageError} />
@@ -1251,72 +1275,10 @@ export default function TruckerProfileAdminClient({
       ) : null}
 
       {activeTab === "company" ? (
-        <PanelCard
-          title="Company and compliance profile"
-          description="Edit carrier data the same way the customer would from their own settings page."
-        >
-          <div className="space-y-6">
-            {companyMessage ? (
-              <InlineAlert tone={companyMessage.tone} message={companyMessage.message} />
-            ) : null}
-
-            {searchMessage ? (
-              <InlineAlert tone={searchMessage.tone} message={searchMessage.message} />
-            ) : null}
-
-            <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-4">
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                <Field label="USDOT number">
-                  <input
-                    name="dotNumber"
-                    value={company.dotNumber}
-                    onChange={handleCompanyChange}
-                    className={textInputClassName()}
-                    inputMode="numeric"
-                  />
-                </Field>
-
-                <button
-                  type="button"
-                  onClick={() => void handleSearchSafer()}
-                  className="rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-                  disabled={searchingSafer || !company.dotNumber.trim()}
-                >
-                  {searchingSafer ? "Searching..." : "Search SAFER"}
-                </button>
-              </div>
-            </div>
-
-            <CompanyProfileForm form={company} onChange={handleCompanyChange} />
-
-            
-
-            {companyDirty ? (
-              <StickyActions>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCompany(initialCompany);
-                    setCompanyMessage(null);
-                    setSearchMessage(null);
-                  }}
-                  className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
-                  disabled={savingCompany || searchingSafer}
-                >
-                  Reset
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveCompany()}
-                  className="rounded-2xl bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-                  disabled={savingCompany || searchingSafer}
-                >
-                  {savingCompany ? "Saving..." : "Save company profile"}
-                </button>
-              </StickyActions>
-            ) : null}
-          </div>
-        </PanelCard>
+        <CompanyInfoPanel
+          data={companyPanelData}
+          onSave={handleSaveCompanyPanel}
+        />
       ) : null}
 
       {activeTab === "eld" ? (

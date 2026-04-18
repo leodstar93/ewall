@@ -107,19 +107,6 @@ function buildNavGroups(
     groups.push({ heading: workspaceHeading, items: workspaceItems });
   }
 
-  const sandboxItems: NavItem[] = [];
-  if (
-    isAdmin &&
-    (hasPermission(permissions, roles, "sandbox:access") ||
-      hasPermission(permissions, roles, "sandbox:manage"))
-  ) {
-    sandboxItems.push({ href: "/v2/admin/sandbox", label: "Sandbox" });
-  }
-
-  if (sandboxItems.length > 0) {
-    groups.push({ heading: isAdmin ? "Sandbox" : "Tools", items: sandboxItems });
-  }
-
   return groups;
 }
 
