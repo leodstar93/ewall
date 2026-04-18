@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { toast } from "react-toastify";
+import Swal from "sweetalert2";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,28 +20,6 @@ import {
   statusLabel,
   tenantCompanyName,
 } from "@/features/ifta-v2/shared";
-
-type Notice = {
-  tone: "success" | "error" | "info";
-  text: string;
-};
-
-function NoticeBanner({ notice }: { notice: Notice | null }) {
-  if (!notice) return null;
-
-  const toneClassName =
-    notice.tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : notice.tone === "error"
-        ? "border-rose-200 bg-rose-50 text-rose-800"
-        : "border-sky-200 bg-sky-50 text-sky-800";
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClassName}`}>
-      {notice.text}
-    </div>
-  );
-}
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) {
@@ -111,7 +91,6 @@ export default function IftaAutomationStaffFilingPage({
   const [filing, setFiling] = useState<FilingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [syncDatesModalOpen, setSyncDatesModalOpen] = useState(false);
   const [syncDateStart, setSyncDateStart] = useState("");
   const [syncDateEnd, setSyncDateEnd] = useState("");
@@ -135,10 +114,7 @@ export default function IftaAutomationStaffFilingPage({
       );
       setFiling(data.filing);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not load this IFTA filing."),
-      });
+      toast.error(getErrorMessage(error, "Could not load this IFTA filing."));
       setFiling(null);
     } finally {
       setLoading(false);
@@ -158,22 +134,15 @@ export default function IftaAutomationStaffFilingPage({
     },
   ) {
     setBusyAction(actionKey);
-    setNotice(null);
 
     try {
       await work();
       if (options?.reloadAfterSuccess ?? true) {
         await loadFiling();
       }
-      setNotice({
-        tone: "success",
-        text: successText,
-      });
+      toast.success(successText);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "The requested IFTA action could not be completed."),
-      });
+      toast.error(getErrorMessage(error, "The requested IFTA action could not be completed."));
     } finally {
       setBusyAction(null);
     }
@@ -182,10 +151,7 @@ export default function IftaAutomationStaffFilingPage({
   async function handleSyncLatest(currentFiling: FilingDetail) {
     const provider = currentFiling.integrationAccount?.provider;
     if (!provider) {
-      setNotice({
-        tone: "error",
-        text: "This filing does not have a provider linked for sync.",
-      });
+      toast.error("This filing does not have a provider linked for sync.");
       return;
     }
 
@@ -213,18 +179,12 @@ export default function IftaAutomationStaffFilingPage({
 
     const provider = filing.integrationAccount?.provider;
     if (!provider) {
-      setNotice({
-        tone: "error",
-        text: "This filing does not have a provider linked for sync.",
-      });
+      toast.error("This filing does not have a provider linked for sync.");
       return;
     }
 
     if (!syncDateStart || !syncDateEnd || syncDateStart > syncDateEnd) {
-      setNotice({
-        tone: "error",
-        text: "Select a valid date range.",
-      });
+      toast.error("Select a valid date range.");
       return;
     }
 
@@ -274,11 +234,16 @@ export default function IftaAutomationStaffFilingPage({
   }
 
   async function handleRequestChanges(currentFiling: FilingDetail) {
-    const note = window.prompt(
-      "Add an internal note for the carrier before requesting changes:",
-      currentFiling.notesInternal || "",
-    );
-    if (note === null) return;
+    const result = await Swal.fire({
+      title: "Request Changes",
+      input: "textarea",
+      inputLabel: "Add an internal note for the carrier:",
+      inputValue: currentFiling.notesInternal || "",
+      showCancelButton: true,
+      confirmButtonText: "Send",
+    });
+    if (!result.isConfirmed) return;
+    const note = result.value ?? "";
 
     await runBusyAction(
       `request-changes:${currentFiling.id}`,
@@ -332,8 +297,16 @@ export default function IftaAutomationStaffFilingPage({
   }
 
   async function handleReopen(currentFiling: FilingDetail) {
-    const note = window.prompt("Optional note for reopening this filing:", "");
-    if (note === null) return;
+    const result = await Swal.fire({
+      title: "Reopen Filing",
+      input: "textarea",
+      inputLabel: "Optional note for reopening this filing:",
+      inputValue: "",
+      showCancelButton: true,
+      confirmButtonText: "Reopen",
+    });
+    if (!result.isConfirmed) return;
+    const note = result.value ?? "";
 
     await runBusyAction(
       `reopen:${currentFiling.id}`,
@@ -352,17 +325,21 @@ export default function IftaAutomationStaffFilingPage({
     exception: FilingException,
     action: "ack" | "resolve" | "ignore",
   ) {
-    const note =
-      action === "resolve" || action === "ignore"
-        ? window.prompt(
-            action === "resolve"
-              ? `Resolution note for ${exception.code}:`
-              : `Reason for ignoring ${exception.code}:`,
-            exception.resolutionNote || "",
-          )
-        : "";
-
-    if (note === null) return;
+    let note = "";
+    if (action === "resolve" || action === "ignore") {
+      const result = await Swal.fire({
+        title: action === "resolve" ? "Resolve Exception" : "Ignore Exception",
+        input: "textarea",
+        inputLabel: action === "resolve"
+          ? `Resolution note for ${exception.code}:`
+          : `Reason for ignoring ${exception.code}:`,
+        inputValue: exception.resolutionNote || "",
+        showCancelButton: true,
+        confirmButtonText: action === "resolve" ? "Resolve" : "Ignore",
+      });
+      if (!result.isConfirmed) return;
+      note = result.value ?? "";
+    }
 
     await runBusyAction(
       `exception:${action}:${exception.id}`,
@@ -397,7 +374,6 @@ export default function IftaAutomationStaffFilingPage({
 
   async function handleDownload(currentFiling: FilingDetail, format: "pdf" | "excel") {
     setBusyAction(`download:${format}:${currentFiling.id}`);
-    setNotice(null);
 
     try {
       const response = await fetch(
@@ -427,15 +403,9 @@ export default function IftaAutomationStaffFilingPage({
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      setNotice({
-        tone: "success",
-        text: `${format.toUpperCase()} export is ready for ${filingPeriodLabel(currentFiling)}.`,
-      });
+      toast.success(`${format.toUpperCase()} export is ready for ${filingPeriodLabel(currentFiling)}.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not generate the IFTA export."),
-      });
+      toast.error(getErrorMessage(error, "Could not generate the IFTA export."));
     } finally {
       setBusyAction(null);
     }
@@ -494,7 +464,6 @@ export default function IftaAutomationStaffFilingPage({
   if (!filing) {
     return (
       <div className="space-y-4">
-        <NoticeBanner notice={notice} />
         <Card className="p-8">
           <div className="space-y-4">
             <div className="text-lg font-semibold text-gray-950">IFTA filing unavailable</div>
@@ -516,7 +485,6 @@ export default function IftaAutomationStaffFilingPage({
   return (
     <>
       <div className="space-y-6">
-        <NoticeBanner notice={notice} />
         <FilingDetailPanel
           mode="staff"
           filing={filing}

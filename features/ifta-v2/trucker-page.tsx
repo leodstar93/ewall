@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,6 @@ import {
   visibleStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
-
-type Notice = {
-  tone: "success" | "error" | "info";
-  text: string;
-};
 
 function DownloadIcon() {
   return (
@@ -58,23 +54,6 @@ type FilingSortKey =
   | "updated";
 
 type FilingSortDirection = "asc" | "desc";
-
-function NoticeBanner({ notice }: { notice: Notice | null }) {
-  if (!notice) return null;
-
-  const toneClassName =
-    notice.tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : notice.tone === "error"
-        ? "border-rose-200 bg-rose-50 text-rose-800"
-        : "border-sky-200 bg-sky-50 text-sky-800";
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClassName}`}>
-      {notice.text}
-    </div>
-  );
-}
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
   const response = await fetch(input, {
@@ -161,7 +140,6 @@ export default function IftaAutomationTruckerPage({
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createYear, setCreateYear] = useState(String(currentQuarter.year));
   const [createQuarter, setCreateQuarter] = useState(String(currentQuarter.quarter));
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [sortKey, setSortKey] = useState<FilingSortKey>("period");
@@ -178,10 +156,7 @@ export default function IftaAutomationTruckerPage({
       const data = await requestJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings");
       setFilings(Array.isArray(data.filings) ? data.filings : []);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Could not load your IFTA filings.",
-      });
+      toast.error(error instanceof Error ? error.message : "Could not load your IFTA filings.");
     } finally {
       setLoading(false);
     }
@@ -300,23 +275,16 @@ export default function IftaAutomationTruckerPage({
     const quarter = Number(createQuarter);
 
     if (!Number.isInteger(year) || year < 2020) {
-      setNotice({
-        tone: "error",
-        text: "Year must be a valid four-digit value.",
-      });
+      toast.error("Year must be a valid four-digit value.");
       return;
     }
 
     if (![1, 2, 3, 4].includes(quarter)) {
-      setNotice({
-        tone: "error",
-        text: "Quarter must be between 1 and 4.",
-      });
+      toast.error("Quarter must be between 1 and 4.");
       return;
     }
 
     setCreating(true);
-    setNotice(null);
 
     try {
       const data = await requestJson<{ filing: FilingListItem }>("/api/v1/features/ifta-v2/filings", {
@@ -329,17 +297,13 @@ export default function IftaAutomationTruckerPage({
 
       router.push(`${detailHrefBase}/${data.filing.id}`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Could not create the IFTA filing.",
-      });
+      toast.error(error instanceof Error ? error.message : "Could not create the IFTA filing.");
       setCreating(false);
     }
   }
 
   async function handleDownloadApprovedReport(filing: FilingListItem) {
     setDownloadingFilingId(filing.id);
-    setNotice(null);
 
     try {
       const response = await fetch(
@@ -369,18 +333,13 @@ export default function IftaAutomationTruckerPage({
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      setNotice({
-        tone: "success",
-        text: `Downloaded the approved report for ${filingPeriodLabel(filing)}.`,
-      });
+      toast.success(`Downloaded the approved report for ${filingPeriodLabel(filing)}.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Could not download the approved IFTA report.",
-      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not download the approved IFTA report.",
+      );
     } finally {
       setDownloadingFilingId(null);
     }
@@ -416,14 +375,6 @@ export default function IftaAutomationTruckerPage({
           </div>
         </div>
       </div>
-
-      {notice ? (
-        <div className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-4">
-            <NoticeBanner notice={notice} />
-          </div>
-        </div>
-      ) : null}
 
       {showCreateForm ? (
         <Card className="overflow-hidden">

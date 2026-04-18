@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import DashboardTable, {
   type ColumnDef,
 } from "@/app/v2/(protected)/dashboard/components/ui/Table";
@@ -22,11 +23,6 @@ import {
   providerLabel,
   toNumber,
 } from "@/features/ifta-v2/shared";
-
-type Notice = {
-  tone: "success" | "error" | "info";
-  text: string;
-};
 
 type JurisdictionEditorRow = {
   id: string;
@@ -146,23 +142,6 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
     }));
 }
 
-function NoticeBanner({ notice }: { notice: Notice | null }) {
-  if (!notice) return null;
-
-  const toneClassName =
-    notice.tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : notice.tone === "error"
-        ? "border-rose-200 bg-rose-50 text-rose-800"
-        : "border-sky-200 bg-sky-50 text-sky-800";
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClassName}`}>
-      {notice.text}
-    </div>
-  );
-}
-
 function buildConversation(filing: FilingDetail | null) {
   if (!filing) {
     return [] as ConversationMessage[];
@@ -249,7 +228,6 @@ export default function IftaAutomationTruckerFilingPage({
   );
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
@@ -285,10 +263,7 @@ export default function IftaAutomationTruckerFilingPage({
       setJurisdictionRows(buildJurisdictionRows(data.filing));
       setEditingRowId(null);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Could not load this IFTA filing.",
-      });
+      toast.error(error instanceof Error ? error.message : "Could not load this IFTA filing.");
       setFiling(null);
       setJurisdictionRows([]);
       setEditingRowId(null);
@@ -337,10 +312,7 @@ export default function IftaAutomationTruckerFilingPage({
     setJurisdictionRows(buildJurisdictionRows(data.filing));
 
     if (!options?.quiet) {
-      setNotice({
-        tone: "success",
-        text: "Jurisdiction miles were updated.",
-      });
+      toast.success("Jurisdiction miles were updated.");
     }
 
     return data.filing;
@@ -370,10 +342,7 @@ export default function IftaAutomationTruckerFilingPage({
     setJurisdictionRows(buildJurisdictionRows(data.filing));
 
     if (!options?.quiet) {
-      setNotice({
-        tone: "success",
-        text: "Jurisdiction gallons were updated.",
-      });
+      toast.success("Jurisdiction gallons were updated.");
     }
 
     return data.filing;
@@ -384,21 +353,14 @@ export default function IftaAutomationTruckerFilingPage({
 
     if (editingRowId === rowId) {
       setBusyAction("save-manual-fuel");
-      setNotice(null);
 
       try {
         await persistManualDistance({ quiet: true });
         await persistManualGallons({ quiet: true });
         setEditingRowId(null);
-        setNotice({
-          tone: "success",
-          text: "Gallons updated for the selected jurisdiction.",
-        });
+        toast.success("Gallons updated for the selected jurisdiction.");
       } catch (error) {
-        setNotice({
-          tone: "error",
-          text: getErrorMessage(error, "Could not save jurisdiction gallons."),
-        });
+        toast.error(getErrorMessage(error, "Could not save jurisdiction gallons."));
       } finally {
         setBusyAction(null);
       }
@@ -413,7 +375,6 @@ export default function IftaAutomationTruckerFilingPage({
     if (!filing) return;
 
     setBusyAction("submit");
-    setNotice(null);
 
     try {
       await persistManualDistance({ quiet: true });
@@ -422,15 +383,9 @@ export default function IftaAutomationTruckerFilingPage({
         method: "POST",
       });
       await loadFiling();
-      setNotice({
-        tone: "success",
-        text: "The filing was submitted for staff review.",
-      });
+      toast.success("The filing was submitted for staff review.");
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not submit this filing for review."),
-      });
+      toast.error(getErrorMessage(error, "Could not submit this filing for review."));
     } finally {
       setBusyAction(null);
     }
@@ -440,7 +395,6 @@ export default function IftaAutomationTruckerFilingPage({
     if (!filing) return;
 
     setBusyAction("client-approve");
-    setNotice(null);
 
     try {
       const response = await fetch(
@@ -453,15 +407,9 @@ export default function IftaAutomationTruckerFilingPage({
       }
 
       await loadFiling();
-      setNotice({
-        tone: "success",
-        text: `You have approved ${filingPeriodLabel(filing)}.`,
-      });
+      toast.success(`You have approved ${filingPeriodLabel(filing)}.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not approve this filing."),
-      });
+      toast.error(getErrorMessage(error, "Could not approve this filing."));
     } finally {
       setBusyAction(null);
     }
@@ -471,7 +419,6 @@ export default function IftaAutomationTruckerFilingPage({
     if (!filing || !documentFile || documentBusy) return;
 
     setDocumentBusy(true);
-    setNotice(null);
 
     try {
       const formData = new FormData();
@@ -496,15 +443,9 @@ export default function IftaAutomationTruckerFilingPage({
       await loadFiling();
       setDocumentModalOpen(false);
       setDocumentFile(null);
-      setNotice({
-        tone: "success",
-        text: `Document uploaded for ${filingPeriodLabel(filing)}.`,
-      });
+      toast.success(`Document uploaded for ${filingPeriodLabel(filing)}.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not upload the document."),
-      });
+      toast.error(getErrorMessage(error, "Could not upload the document."));
     } finally {
       setDocumentBusy(false);
     }
@@ -513,24 +454,17 @@ export default function IftaAutomationTruckerFilingPage({
   async function handleSyncLatest() {
     if (!filing) return;
     if (!canUseEldSync) {
-      setNotice({
-        tone: "error",
-        text: "Only staff can sync ELD data.",
-      });
+      toast.error("Only staff can sync ELD data.");
       return;
     }
 
     const provider = filing.integrationAccount?.provider;
     if (!provider) {
-      setNotice({
-        tone: "error",
-        text: "This filing does not have an ELD provider connected for sync.",
-      });
+      toast.error("This filing does not have an ELD provider connected for sync.");
       return;
     }
 
     setBusyAction("sync-quarter");
-    setNotice(null);
 
     try {
       await requestJson("/api/v1/features/ifta-v2/integrations/sync", {
@@ -545,15 +479,9 @@ export default function IftaAutomationTruckerFilingPage({
       });
 
       await loadFiling();
-      setNotice({
-        tone: "success",
-        text: `ELD sync requested for ${filingPeriodLabel(filing)}.`,
-      });
+      toast.success(`ELD sync requested for ${filingPeriodLabel(filing)}.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not start the ELD sync for this filing."),
-      });
+      toast.error(getErrorMessage(error, "Could not start the ELD sync for this filing."));
     } finally {
       setBusyAction(null);
     }
@@ -563,32 +491,22 @@ export default function IftaAutomationTruckerFilingPage({
     event.preventDefault();
     if (!filing) return;
     if (!canUseEldSync) {
-      setNotice({
-        tone: "error",
-        text: "Only staff can sync ELD data.",
-      });
+      toast.error("Only staff can sync ELD data.");
       return;
     }
 
     const provider = filing.integrationAccount?.provider;
     if (!provider) {
-      setNotice({
-        tone: "error",
-        text: "This filing does not have an ELD provider connected for sync.",
-      });
+      toast.error("This filing does not have an ELD provider connected for sync.");
       return;
     }
 
     if (!syncDateStart || !syncDateEnd || syncDateStart > syncDateEnd) {
-      setNotice({
-        tone: "error",
-        text: "Select a valid date range.",
-      });
+      toast.error("Select a valid date range.");
       return;
     }
 
     setBusyAction("sync-dates");
-    setNotice(null);
 
     try {
       await requestJson("/api/v1/features/ifta-v2/integrations/sync", {
@@ -606,15 +524,9 @@ export default function IftaAutomationTruckerFilingPage({
 
       await loadFiling();
       setSyncDatesModalOpen(false);
-      setNotice({
-        tone: "success",
-        text: `ELD sync completed for ${syncDateStart} to ${syncDateEnd}.`,
-      });
+      toast.success(`ELD sync completed for ${syncDateStart} to ${syncDateEnd}.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not start the ELD sync for this date range."),
-      });
+      toast.error(getErrorMessage(error, "Could not start the ELD sync for this date range."));
     } finally {
       setBusyAction(null);
     }
@@ -624,7 +536,6 @@ export default function IftaAutomationTruckerFilingPage({
     if (!filing || !chatDraft.trim()) return;
 
     setChatBusy(true);
-    setNotice(null);
 
     try {
       const data = await requestJson<{ ok: boolean; audit: FilingAudit }>(
@@ -645,15 +556,9 @@ export default function IftaAutomationTruckerFilingPage({
             }
           : current,
       );
-      setNotice({
-        tone: "success",
-        text: "Message sent to the staff team.",
-      });
+      toast.success("Message sent to the staff team.");
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not send your message."),
-      });
+      toast.error(getErrorMessage(error, "Could not send your message."));
     } finally {
       setChatBusy(false);
     }
@@ -670,7 +575,6 @@ export default function IftaAutomationTruckerFilingPage({
   if (!filing) {
     return (
       <div className="space-y-4">
-        <NoticeBanner notice={notice} />
         <Card className="p-8">
           <div className="space-y-4">
             <div className="text-lg font-semibold text-gray-950">IFTA filing unavailable</div>
@@ -865,8 +769,6 @@ export default function IftaAutomationTruckerFilingPage({
               ) : null}
             </div>
           </div>
-
-          <NoticeBanner notice={notice} />
 
           {!canEdit ? (
             <div

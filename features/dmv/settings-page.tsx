@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Swal from "sweetalert2";
 
 type RequirementTemplate = {
   id: string;
@@ -129,13 +130,14 @@ export default function DmvSettingsPage() {
   }
 
   async function deleteTemplate(template: RequirementTemplate) {
-    const confirmed = window.confirm(
-      `Delete the requirement template "${template.name}" (${template.code})?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
+    const result = await Swal.fire({
+      title: "Delete Template",
+      text: `Delete the requirement template "${template.name}" (${template.code})?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+    });
+    if (!result.isConfirmed) return;
 
     try {
       setDeletingTemplateId(template.id);
@@ -164,13 +166,14 @@ export default function DmvSettingsPage() {
   }
 
   async function deleteFee(fee: FeeRule) {
-    const confirmed = window.confirm(
-      `Delete the fee rule for ${fee.registrationType || "all types"} / ${fee.jurisdictionCode || "all jurisdictions"}?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
+    const result = await Swal.fire({
+      title: "Delete Fee Rule",
+      text: `Delete the fee rule for ${fee.registrationType || "all types"} / ${fee.jurisdictionCode || "all jurisdictions"}?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+    });
+    if (!result.isConfirmed) return;
 
     try {
       setDeletingFeeId(fee.id);

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Swal from "sweetalert2";
 import {
   ReportSummary,
   formatNumber,
@@ -86,9 +87,14 @@ export default function IftaDashboardPage({
   const deleteReport = useCallback(
     async (report: ReportSummary) => {
       if (report.status !== "DRAFT") return;
-      if (!window.confirm("Delete this draft report? This action cannot be undone.")) {
-        return;
-      }
+      const result = await Swal.fire({
+        title: "Delete Draft",
+        text: "Delete this draft report? This action cannot be undone.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Delete",
+      });
+      if (!result.isConfirmed) return;
 
       try {
         setDeletingId(report.id);

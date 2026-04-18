@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Swal from "sweetalert2";
 import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
@@ -311,9 +312,14 @@ export default function IftaManualReportPage(props: {
 
   const deleteReport = async () => {
     if (!payload?.permissions.canDelete) return;
-    if (!window.confirm("Delete this draft report? This action cannot be undone.")) {
-      return;
-    }
+    const result = await Swal.fire({
+      title: "Delete Draft",
+      text: "Delete this draft report? This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+    });
+    if (!result.isConfirmed) return;
 
     setBusy(true);
     setError(null);

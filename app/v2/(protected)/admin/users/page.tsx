@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -86,7 +87,6 @@ export default function AdminUsersPage() {
   const [newUserForm, setNewUserForm] = useState({ email: "", name: "", password: "", roles: [] as string[] });
   const [inviteForm, setInviteForm] = useState({ email: "", roleNames: ["TRUCKER", "USER"] as string[], note: "" });
   const [formError, setFormError] = useState("");
-  const [toast, setToast] = useState<{ tone: "success" | "error"; msg: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
@@ -117,12 +117,6 @@ export default function AdminUsersPage() {
   }, [showModal]);
 
   useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2200);
-    return () => clearTimeout(t);
-  }, [toast]);
-
-  useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -137,7 +131,7 @@ export default function AdminUsersPage() {
         }
       } catch (error) {
         console.error("Error fetching data:", error);
-        setToast({ tone: "error", msg: "Failed to load users/roles." });
+        toast.error("Failed to load users/roles.");
       } finally {
         setLoading(false);
       }
@@ -226,12 +220,12 @@ export default function AdminUsersPage() {
             : u,
         ),
       );
-      setToast({ tone: "success", msg: "Roles updated." });
+      toast.success("Roles updated.");
       setShowModal(false);
       setSelectedUser(null);
     } catch (e) {
       console.error(e);
-      setToast({ tone: "error", msg: "Error updating roles." });
+      toast.error("Error updating roles.");
     } finally {
       setBusy(false);
     }
@@ -248,13 +242,13 @@ export default function AdminUsersPage() {
       const res = await fetch(`/api/v1/users/${selectedUser.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete user");
       setUsers((prev) => prev.filter((u) => u.id !== selectedUser.id));
-      setToast({ tone: "success", msg: "User deleted." });
+      toast.success("User deleted.");
       setShowModal(false);
       setSelectedUser(null);
       setConfirmText("");
     } catch (e) {
       console.error(e);
-      setToast({ tone: "error", msg: "Error deleting user." });
+      toast.error("Error deleting user.");
     } finally {
       setBusy(false);
     }
@@ -278,7 +272,7 @@ export default function AdminUsersPage() {
       }
       const newUser = await res.json();
       setUsers((prev) => [newUser, ...prev]);
-      setToast({ tone: "success", msg: "User created." });
+      toast.success("User created.");
       setShowModal(false);
     } catch (e) {
       console.error(e);
@@ -310,7 +304,7 @@ export default function AdminUsersPage() {
         setFormError(err.error || "Failed to send invitation.");
         return;
       }
-      setToast({ tone: "success", msg: `Invitation sent to ${inviteForm.email}.` });
+      toast.success(`Invitation sent to ${inviteForm.email}.`);
       setShowModal(false);
     } catch {
       setFormError("Network error. Please try again.");
@@ -338,12 +332,12 @@ export default function AdminUsersPage() {
           !selectedIds.has(u.id) ? u : { ...u, roles: selectedRoles.map((roleId) => ({ role: roles.find((r) => r.id === roleId)! })) },
         ),
       );
-      setToast({ tone: "success", msg: "Roles updated for selected users." });
+      toast.success("Roles updated for selected users.");
       setShowModal(false);
       clearSelection();
     } catch (e) {
       console.error(e);
-      setToast({ tone: "error", msg: "Bulk role update failed." });
+      toast.error("Bulk role update failed.");
     } finally {
       setBusy(false);
     }
@@ -364,13 +358,13 @@ export default function AdminUsersPage() {
         ),
       );
       setUsers((prev) => prev.filter((u) => !selectedIds.has(u.id)));
-      setToast({ tone: "success", msg: "Selected users deleted." });
+      toast.success("Selected users deleted.");
       setShowModal(false);
       clearSelection();
       setConfirmText("");
     } catch (e) {
       console.error(e);
-      setToast({ tone: "error", msg: "Bulk delete failed." });
+      toast.error("Bulk delete failed.");
     } finally {
       setBusy(false);
     }
@@ -379,9 +373,9 @@ export default function AdminUsersPage() {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setToast({ tone: "success", msg: "Copied." });
+      toast.success("Copied.");
     } catch {
-      setToast({ tone: "error", msg: "Copy failed." });
+      toast.error("Copy failed.");
     }
   };
 
@@ -392,11 +386,11 @@ export default function AdminUsersPage() {
       if (updatedSession?.user?.id !== user.id) throw new Error("Could not start impersonation for this user.");
       const nextRoles = Array.isArray(updatedSession.user.roles) ? updatedSession.user.roles : [];
       const destination = getPostLoginRedirectPath(nextRoles);
-      setToast({ tone: "success", msg: `Now acting as ${user.name || user.email}.` });
+      toast.success(`Now acting as ${user.name || user.email}.`);
       window.location.assign(destination);
     } catch (error) {
       console.error(error);
-      setToast({ tone: "error", msg: "Could not login as this user." });
+      toast.error("Could not login as this user.");
     } finally {
       setImpersonatingUserId(null);
     }
@@ -562,9 +556,6 @@ export default function AdminUsersPage() {
 
   return (
     <div className="w-full min-w-0 space-y-4">
-      {/* Toast */}
-      {toast && <Alert tone={toast.tone}>{toast.msg}</Alert>}
-
       {/* Bulk bar */}
       {selectedCount > 0 && (
         <div className={tableStyles.card} style={{ padding: "10px 16px" }}>

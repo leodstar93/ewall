@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
+import Swal from "sweetalert2";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,13 +43,6 @@ type IftaWorkspaceProps = {
   mode: IftaAutomationMode;
 };
 
-type NoticeTone = "success" | "error" | "info";
-
-type Notice = {
-  tone: NoticeTone;
-  text: string;
-};
-
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -81,18 +76,6 @@ function parseDownloadFilename(header: string | null, fallback: string) {
   return filenameMatch?.[1] || fallback;
 }
 
-function noticeClasses(tone: NoticeTone) {
-  if (tone === "success") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-800";
-  }
-
-  if (tone === "error") {
-    return "border-rose-200 bg-rose-50 text-rose-800";
-  }
-
-  return "border-sky-200 bg-sky-50 text-sky-800";
-}
-
 function pickPreferredFilingId(
   filings: FilingListItem[],
   preferredId: string | null,
@@ -108,16 +91,6 @@ function pickPreferredFilingId(
   );
 
   return currentQuarterFiling?.id || filings[0]?.id || null;
-}
-
-function NoticeBanner({ notice }: { notice: Notice | null }) {
-  if (!notice) return null;
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${noticeClasses(notice.tone)}`}>
-      {notice.text}
-    </div>
-  );
 }
 
 function MetricTile({
@@ -269,7 +242,6 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailReloadKey, setDetailReloadKey] = useState(0);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
@@ -365,10 +337,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     }
 
     if (eldError) {
-      setNotice({
-        tone: "error",
-        text: `${providerLabel(provider)} connection was not completed: ${statusLabel(eldError)}.`,
-      });
+      toast.error(`${providerLabel(provider)} connection was not completed: ${statusLabel(eldError)}.`);
     } else if (connected) {
       const syncMessage =
         syncStatus === "success"
@@ -376,17 +345,16 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
           : syncStatus
             ? `Initial sync reported: ${syncStatus}.`
             : "Initial sync started.";
-      setNotice({
-        tone: syncStatus === "success" ? "success" : "info",
-        text: `${providerLabel(provider)} is connected. ${syncMessage}${
-          syncJobId ? ` Job ${syncJobId} is available in sync history.` : ""
-        }`,
-      });
+      const message = `${providerLabel(provider)} is connected. ${syncMessage}${
+        syncJobId ? ` Job ${syncJobId} is available in sync history.` : ""
+      }`;
+      if (syncStatus === "success") {
+        toast.success(message);
+      } else {
+        toast.info(message);
+      }
     } else if (pending) {
-      setNotice({
-        tone: "info",
-        text: `${providerLabel(provider)} returned a Motive company. Confirm it before the integration is activated.`,
-      });
+      toast.info(`${providerLabel(provider)} returned a Motive company. Confirm it before the integration is activated.`);
     }
 
     params.delete("eldProvider");
@@ -499,10 +467,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
         setSelectedFiling(null);
       }
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not load the IFTA automation workspace."),
-      });
+      toast.error(getErrorMessage(error, "Could not load the IFTA automation workspace."));
     } finally {
       if (isInitial) {
         setLoadingWorkspace(false);
@@ -535,10 +500,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
       .catch((error) => {
         if (!active) return;
         setSelectedFiling(null);
-        setNotice({
-          tone: "error",
-          text: getErrorMessage(error, "Could not load the selected filing."),
-        });
+        toast.error(getErrorMessage(error, "Could not load the selected filing."));
       })
       .finally(() => {
         if (!active) return;
@@ -557,20 +519,13 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     preferredFilingId?: string | null,
   ) {
     setBusyAction(actionKey);
-    setNotice(null);
 
     try {
       await work();
-      setNotice({
-        tone: "success",
-        text: successText,
-      });
+      toast.success(successText);
       await refreshWorkspace({ preferredFilingId: preferredFilingId ?? selectedFilingId });
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "The requested IFTA action could not be completed."),
-      });
+      toast.error(getErrorMessage(error, "The requested IFTA action could not be completed."));
     } finally {
       setBusyAction(null);
     }
@@ -578,7 +533,6 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
 
   async function handleConnect(provider: EldProviderCode) {
     setBusyAction(`connect:${provider}`);
-    setNotice(null);
 
     try {
       const data = await requestJson<{ authorizationUrl: string }>(
@@ -594,10 +548,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
 
       window.location.assign(data.authorizationUrl);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not start the ELD OAuth flow."),
-      });
+      toast.error(getErrorMessage(error, "Could not start the ELD OAuth flow."));
       setBusyAction(null);
     }
   }
@@ -623,9 +574,14 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   }
 
   async function handleDisconnect(provider: EldProviderCode) {
-    if (!window.confirm(`Disconnect ${providerLabel(provider)} from this carrier?`)) {
-      return;
-    }
+    const result = await Swal.fire({
+      title: "Disconnect ELD",
+      text: `Disconnect ${providerLabel(provider)} from this carrier?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Disconnect",
+    });
+    if (!result.isConfirmed) return;
 
     await runBusyAction(
       `disconnect:${provider}`,
@@ -643,23 +599,16 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     const year = Number(createYear);
     const quarter = Number(createQuarter);
     if (!Number.isInteger(year) || year < 2020) {
-      setNotice({
-        tone: "error",
-        text: "Year must be a valid four-digit value.",
-      });
+      toast.error("Year must be a valid four-digit value.");
       return;
     }
 
     if (![1, 2, 3, 4].includes(quarter)) {
-      setNotice({
-        tone: "error",
-        text: "Quarter must be between 1 and 4.",
-      });
+      toast.error("Quarter must be between 1 and 4.");
       return;
     }
 
     setBusyAction("create-filing");
-    setNotice(null);
 
     try {
       const data = await requestJson<{ filing: FilingListItem }>(
@@ -674,16 +623,10 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
         },
       );
 
-      setNotice({
-        tone: "success",
-        text: `Filing ${filingPeriodLabel(data.filing)} is ready in the workspace.`,
-      });
+      toast.success(`Filing ${filingPeriodLabel(data.filing)} is ready in the workspace.`);
       await refreshWorkspace({ preferredFilingId: data.filing.id });
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not create the IFTA filing."),
-      });
+      toast.error(getErrorMessage(error, "Could not create the IFTA filing."));
     } finally {
       setBusyAction(null);
     }
@@ -752,11 +695,16 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   }
 
   async function handleRequestChanges(filing: FilingDetail) {
-    const note = window.prompt(
-      "Add an internal note for the carrier before requesting changes:",
-      filing.notesInternal || "",
-    );
-    if (note === null) return;
+    const result = await Swal.fire({
+      title: "Request Changes",
+      input: "textarea",
+      inputLabel: "Add an internal note for the carrier:",
+      inputValue: filing.notesInternal || "",
+      showCancelButton: true,
+      confirmButtonText: "Send",
+    });
+    if (!result.isConfirmed) return;
+    const note = result.value ?? "";
 
     await runBusyAction(
       `request-changes:${filing.id}`,
@@ -785,9 +733,14 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   }
 
   async function handleApprove(filing: FilingDetail) {
-    if (!window.confirm(`Approve ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)}?`)) {
-      return;
-    }
+    const result = await Swal.fire({
+      title: "Send for Approval",
+      text: `Send ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)} to the client for approval?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Send",
+    });
+    if (!result.isConfirmed) return;
 
     await runBusyAction(
       `approve:${filing.id}`,
@@ -802,9 +755,14 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   }
 
   async function handleFinalize(filing: FilingDetail) {
-    if (!window.confirm(`Finalize ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)}?`)) {
-      return;
-    }
+    const result = await Swal.fire({
+      title: "Finalize Filing",
+      text: `Finalize ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)}?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Finalize",
+    });
+    if (!result.isConfirmed) return;
 
     await runBusyAction(
       `finalize:${filing.id}`,
@@ -819,11 +777,16 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   }
 
   async function handleReopen(filing: FilingDetail) {
-    const note = window.prompt(
-      "Optional note for reopening this approved filing:",
-      "",
-    );
-    if (note === null) return;
+    const result = await Swal.fire({
+      title: "Reopen Filing",
+      input: "textarea",
+      inputLabel: "Optional note for reopening this filing:",
+      inputValue: "",
+      showCancelButton: true,
+      confirmButtonText: "Reopen",
+    });
+    if (!result.isConfirmed) return;
+    const note = result.value ?? "";
 
     await runBusyAction(
       `reopen:${filing.id}`,
@@ -843,17 +806,21 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     exception: FilingException,
     action: "ack" | "resolve" | "ignore",
   ) {
-    const note =
-      action === "resolve" || action === "ignore"
-        ? window.prompt(
-            action === "resolve"
-              ? `Resolution note for ${exception.code}:`
-              : `Reason for ignoring ${exception.code}:`,
-            exception.resolutionNote || "",
-          )
-        : "";
-
-    if (note === null) return;
+    let note = "";
+    if (action === "resolve" || action === "ignore") {
+      const result = await Swal.fire({
+        title: action === "resolve" ? "Resolve Exception" : "Ignore Exception",
+        input: "textarea",
+        inputLabel: action === "resolve"
+          ? `Resolution note for ${exception.code}:`
+          : `Reason for ignoring ${exception.code}:`,
+        inputValue: exception.resolutionNote || "",
+        showCancelButton: true,
+        confirmButtonText: action === "resolve" ? "Resolve" : "Ignore",
+      });
+      if (!result.isConfirmed) return;
+      note = result.value ?? "";
+    }
 
     await runBusyAction(
       `exception:${action}:${exception.id}`,
@@ -875,7 +842,6 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
 
   async function handleDownload(filing: FilingDetail, format: "pdf" | "excel") {
     setBusyAction(`download:${format}:${filing.id}`);
-    setNotice(null);
 
     try {
       const response = await fetch(
@@ -905,15 +871,9 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      setNotice({
-        tone: "success",
-        text: `${format.toUpperCase()} export is ready for ${filingPeriodLabel(filing)}.`,
-      });
+      toast.success(`${format.toUpperCase()} export is ready for ${filingPeriodLabel(filing)}.`);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: getErrorMessage(error, "Could not generate the IFTA export."),
-      });
+      toast.error(getErrorMessage(error, "Could not generate the IFTA export."));
     } finally {
       setBusyAction(null);
     }
@@ -1025,8 +985,6 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
           </div>
         </div>
       </Card>
-
-      <NoticeBanner notice={notice} />
 
       <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
         <div className="space-y-6">

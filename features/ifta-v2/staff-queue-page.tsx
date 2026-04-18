@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
 import Link from "next/link";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { Badge } from "@/components/ui/badge";
@@ -23,11 +24,6 @@ import {
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
 
-type Notice = {
-  tone: "success" | "error" | "info";
-  text: string;
-};
-
 type StaffQueueSortKey =
   | "carrier"
   | "period"
@@ -38,23 +34,6 @@ type StaffQueueSortKey =
   | "updated";
 
 type StaffQueueSortDirection = "asc" | "desc";
-
-function NoticeBanner({ notice }: { notice: Notice | null }) {
-  if (!notice) return null;
-
-  const toneClassName =
-    notice.tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : notice.tone === "error"
-        ? "border-rose-200 bg-rose-50 text-rose-800"
-        : "border-sky-200 bg-sky-50 text-sky-800";
-
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClassName}`}>
-      {notice.text}
-    </div>
-  );
-}
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
   const response = await fetch(input, {
@@ -124,7 +103,6 @@ export default function IftaAutomationStaffQueuePage() {
   const [filings, setFilings] = useState<FilingListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [providerFilter, setProviderFilter] = useState("");
@@ -142,10 +120,7 @@ export default function IftaAutomationStaffQueuePage() {
       const data = await requestJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings");
       setFilings(Array.isArray(data.filings) ? data.filings : []);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Could not load the staff IFTA queue.",
-      });
+      toast.error(error instanceof Error ? error.message : "Could not load the staff IFTA queue.");
     } finally {
       setLoading(false);
     }
@@ -331,7 +306,6 @@ export default function IftaAutomationStaffQueuePage() {
   async function assignToMe(filingId: string) {
     const actionKey = `claim:${filingId}`;
     setBusyAction(actionKey);
-    setNotice(null);
 
     try {
       await requestJson(`/api/v1/features/ifta-v2/filings/${filingId}/claim`, {
@@ -339,10 +313,7 @@ export default function IftaAutomationStaffQueuePage() {
       });
       await loadFilings();
     } catch (error) {
-      setNotice({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Could not assign this filing.",
-      });
+      toast.error(error instanceof Error ? error.message : "Could not assign this filing.");
     } finally {
       setBusyAction(null);
     }
@@ -391,14 +362,6 @@ export default function IftaAutomationStaffQueuePage() {
           </div>
         </div>
       </div>
-
-      {notice ? (
-        <div className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-4">
-            <NoticeBanner notice={notice} />
-          </div>
-        </div>
-      ) : null}
 
       <div className="rounded-2xl border bg-white shadow-sm">
         <div className="space-y-4 p-6">

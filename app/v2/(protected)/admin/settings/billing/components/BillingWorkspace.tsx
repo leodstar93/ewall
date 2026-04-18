@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { BillingSettingsForm } from "./BillingSettingsForm";
 import { CouponsTab } from "./CouponsTab";
 import { GrantsTab } from "./GrantsTab";
@@ -15,8 +16,6 @@ import type {
 } from "./types";
 import tableStyles from "@/app/v2/(protected)/admin/components/ui/DataTable.module.css";
 
-type Toast = { id: string; tone: "success" | "error"; message: string };
-
 const tabs = [
   { id: "control", label: "Billing Control" },
   { id: "plans", label: "Plans" },
@@ -29,7 +28,6 @@ export function BillingWorkspace() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]["id"]>("control");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [toasts, setToasts] = useState<Toast[]>([]);
   const [settings, setSettings] = useState<BillingSettingsRecord | null>(null);
   const [plans, setPlans] = useState<BillingPlanRecord[]>([]);
   const [modules, setModules] = useState<BillingModuleRecord[]>([]);
@@ -37,14 +35,11 @@ export function BillingWorkspace() {
   const [grants, setGrants] = useState<BillingGrantsPayload | null>(null);
 
   const notify = (message: string, tone: "success" | "error") => {
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    setToasts((current) => [...current, { id, tone, message }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 2400);
+    if (tone === "success") {
+      toast.success(message);
+    } else {
+      toast.error(message);
+    }
   };
 
   const loadAll = async () => {
@@ -98,36 +93,6 @@ export function BillingWorkspace() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {toasts.length > 0 && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            zIndex: 100,
-          }}
-        >
-          {toasts.map((toast) => (
-            <div
-              key={toast.id}
-              style={{
-                padding: "10px 16px",
-                borderRadius: 8,
-                fontSize: 13,
-                background: toast.tone === "success" ? "#f0fdf4" : "#fef2f2",
-                border: `1px solid ${toast.tone === "success" ? "#bbf7d0" : "#fecaca"}`,
-                color: toast.tone === "success" ? "#15803d" : "#b91c1c",
-              }}
-            >
-              {toast.message}
-            </div>
-          ))}
-        </div>
-      )}
-
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {tabs.map((tab) => (
           <button
