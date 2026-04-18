@@ -28,6 +28,48 @@ function inferIftaDocumentType(mimeType: string | null | undefined): string {
   return "ifta-supporting-document";
 }
 
+function getSafeFileExtension(fileName: string) {
+  const match = /(\.[A-Za-z0-9]+)$/.exec(fileName.trim());
+  return match?.[1]?.toLowerCase() || "";
+}
+
+function slugifySegment(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase() || "";
+  return normalized
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function buildIftaAutomationAutoDocumentName(input: {
+  type: string;
+  actorRole: "admin" | "staff" | "client" | "user";
+  originalFileName: string;
+  companyName?: string | null;
+  createdAt?: Date;
+  includeExtension?: boolean;
+}) {
+  const dateStamp = (input.createdAt ?? new Date()).toISOString().slice(0, 10);
+  const companySlug = slugifySegment(input.companyName);
+  const actorRole = input.actorRole === "admin" ? "staff" : input.actorRole;
+  const baseName = [
+    "ifta-v2",
+    slugifySegment(input.type) || "supporting-document",
+    companySlug,
+    actorRole,
+    dateStamp,
+  ]
+    .filter(Boolean)
+    .join("-");
+
+  if (!input.includeExtension) {
+    return baseName;
+  }
+
+  const extension = getSafeFileExtension(input.originalFileName);
+  return extension ? `${baseName}${extension}` : baseName;
+}
+
 export type IftaAutomationDocumentRecord = {
   id: string;
   name: string;
@@ -154,6 +196,7 @@ export async function saveIftaAutomationDocument(input: {
     null;
 
   const iftaDocumentType = input.overrideType?.trim() || inferIftaDocumentType(input.file.type);
+  const documentCreatedAt = new Date();
 
   const classification = autoClassifyDocument({
     originalFileName: input.file.name,
@@ -161,19 +204,35 @@ export async function saveIftaAutomationDocument(input: {
     providedCategory: iftaDocumentType,
     companyName,
     uploaderRole: input.actorRole,
+    createdAt: documentCreatedAt,
+  });
+  const documentName = buildIftaAutomationAutoDocumentName({
+    type: classification.category || iftaDocumentType,
+    actorRole: input.actorRole,
+    originalFileName: input.file.name,
+    companyName,
+    createdAt: documentCreatedAt,
+  });
+  const downloadFileName = buildIftaAutomationAutoDocumentName({
+    type: classification.category || iftaDocumentType,
+    actorRole: input.actorRole,
+    originalFileName: input.file.name,
+    companyName,
+    createdAt: documentCreatedAt,
+    includeExtension: true,
   });
 
   const document = await createStoredDocument({
     db: resolvedDb,
     userId: input.actorUserId,
     file: input.file,
-    name: input.file.name.trim() || classification.displayName,
+    name: documentName,
     description: input.description?.trim() || null,
     category: buildIftaAutomationDocumentCategory({
       filingId: input.filingId,
-      type: iftaDocumentType,
+      type: classification.category || iftaDocumentType,
     }),
-    fileName: classification.storedFileName,
+    fileName: downloadFileName,
   });
 
   await FilingWorkflowService.logAudit({
