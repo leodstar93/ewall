@@ -70,6 +70,12 @@
 
 .searchBox input::placeholder { color: #bbb; }
 
+.topActions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 @media (max-width: 700px) {
   .searchBox { width: 140px; }
 }

@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import type { NavGroup } from "./LayoutWrap";
 import styles from "./Topbar.module.css";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 interface Props {
   onToggleSidebar: () => void;
@@ -65,6 +66,10 @@ export default function Topbar({
           value={searchValue}
           onChange={(event) => onSearch(event.target.value)}
         />
+      </div>
+
+      <div className={styles.topActions}>
+        <NotificationBell />
       </div>
     </header>
   );

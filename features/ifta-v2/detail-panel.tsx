@@ -1067,6 +1067,11 @@ export function FilingDetailPanel({
               data={exceptionRows}
               columns={exceptionColumns}
               title="Exceptions"
+              getRowStyle={(row) =>
+                mode === "staff" && row.status === "RESOLVED"
+                  ? { background: "#ecfdf5" }
+                  : undefined
+              }
             />
           )
         ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import styles from "./DataTable.module.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -31,6 +31,7 @@ interface Props<T extends object> {
   title?: ReactNode;
   toolbar?: ReactNode;
   hideHeader?: boolean;
+  getRowStyle?: (row: T) => CSSProperties | undefined;
   /** Keys used for full-text search. Defaults to all string columns. */
   searchKeys?: (keyof T & string)[];
 }
@@ -49,6 +50,7 @@ export default function Table<T extends object>({
   title,
   toolbar,
   hideHeader = false,
+  getRowStyle,
   searchKeys,
 }: Props<T>) {
   const firstKey = columns[0]?.key ?? "";
@@ -188,7 +190,7 @@ export default function Table<T extends object>({
               slice.map((row, rowIndex) => {
                 const r = row as Record<string, unknown>;
                 return (
-                  <tr key={rowIndex}>
+                  <tr key={rowIndex} style={getRowStyle?.(row)}>
                     {columns.map((col) => (
                       <td key={col.key} className={col.cellClass}>
                         {col.render
