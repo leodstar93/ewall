@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import IftaTaxRateEditDialog from "@/components/ifta/IftaTaxRateEditDialog";
-import IftaTaxRateImportButton from "@/components/ifta/IftaTaxRateImportButton";
-import IftaTaxRateValidationSummary from "@/components/ifta/IftaTaxRateValidationSummary";
 import type {
   IftaTaxRateImportResult,
   IftaTaxRateTableRow,
@@ -82,6 +80,120 @@ function matchesSourceFilter(row: IftaTaxRateTableRow, filter: RateSourceFilter)
   if (filter === "manual") return row.source === "MANUAL_ADMIN";
   if (filter === "official") return Boolean(row.taxRate) && row.source !== "MANUAL_ADMIN";
   return true;
+}
+
+function IftaTaxRatesOverviewCard(props: {
+  filters: TaxRateFilterState;
+  validation: IftaTaxRateValidationResult | null;
+  lastImport: IftaTaxRateImportResult | null;
+  busy: boolean;
+  onImportSelected: () => Promise<void>;
+  onImportBoth: () => Promise<void>;
+  onValidate: () => Promise<void>;
+}) {
+  const totalJurisdictions = props.validation?.totalJurisdictions ?? 0;
+  const existingRates = props.validation?.existingRates ?? 0;
+  const missingRates = props.validation?.missing.length ?? 0;
+  const coverage = totalJurisdictions > 0
+    ? Math.round((existingRates / totalJurisdictions) * 100)
+    : 0;
+  const inserted = props.lastImport?.insertedRows ?? 0;
+  const updated = props.lastImport?.updatedRows ?? 0;
+  const skipped = props.lastImport?.skippedRows ?? 0;
+  const importTotal = Math.max(inserted + updated + skipped, 1);
+  const insertedPct = (inserted / importTotal) * 100;
+  const updatedPct = (updated / importTotal) * 100;
+  const missingCodes = props.validation?.missing.slice(0, 5).map((item) => item.code).join(", ");
+
+  return (
+    <div
+      className={tableStyles.card}
+      style={{
+        minHeight: 96,
+        maxHeight: 112,
+        padding: "12px 16px",
+        display: "grid",
+        gridTemplateColumns: "minmax(160px, 1.1fr) minmax(180px, 1fr) minmax(220px, 1.4fr) auto",
+        gap: 14,
+        alignItems: "center",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--b)" }}>IFTA tax rates</div>
+        <div style={{ marginTop: 4, fontSize: 11, color: "#777" }}>
+          {props.filters.year} {props.filters.quarter} - {props.filters.fuelType === "DI" ? "Diesel" : "Gasoline"}
+          {props.filters.usOnly ? " - U.S. only" : ""}
+        </div>
+        <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ border: "1px solid var(--brl)", borderRadius: 999, padding: "3px 8px", fontSize: 11, color: "#666" }}>
+            {totalJurisdictions || "-"} jurisdictions
+          </span>
+          <span style={{ border: "1px solid var(--brl)", borderRadius: 999, padding: "3px 8px", fontSize: 11, color: missingRates > 0 ? "#b45309" : "#15803d" }}>
+            {missingRates} missing
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <div
+          aria-label={`Coverage ${coverage}%`}
+          style={{
+            width: 58,
+            height: 58,
+            borderRadius: "50%",
+            background: `conic-gradient(#15803d ${coverage * 3.6}deg, #fde68a 0deg)`,
+            display: "grid",
+            placeItems: "center",
+            flex: "0 0 auto",
+          }}
+        >
+          <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--w)", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, color: "var(--b)" }}>
+            {coverage}%
+          </div>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--b)" }}>Coverage</div>
+          <div style={{ marginTop: 3, fontSize: 11, color: "#777" }}>
+            {existingRates || 0} ready / {totalJurisdictions || 0} total
+          </div>
+          <div style={{ marginTop: 5, fontSize: 11, color: missingRates > 0 ? "#b45309" : "#15803d", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {missingRates > 0 ? `Urgent: ${missingCodes}${missingRates > 5 ? "..." : ""}` : "Complete rate set"}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--b)" }}>Last import</div>
+          <div style={{ fontSize: 11, color: props.lastImport?.success ? "#15803d" : "#777" }}>
+            {props.lastImport ? (props.lastImport.success ? "Success" : "Review") : "No import yet"}
+          </div>
+        </div>
+        <div style={{ marginTop: 8, height: 8, borderRadius: 999, overflow: "hidden", background: "var(--off)", display: "flex" }}>
+          <div style={{ width: `${insertedPct}%`, background: "#2563eb" }} />
+          <div style={{ width: `${updatedPct}%`, background: "#15803d" }} />
+          <div style={{ flex: 1, background: "#cbd5e1" }} />
+        </div>
+        <div style={{ marginTop: 7, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, fontSize: 11, color: "#666" }}>
+          <span>In {inserted}</span>
+          <span>Up {updated}</span>
+          <span>Sk {skipped}</span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <button type="button" onClick={() => void props.onImportSelected()} disabled={props.busy} className={`${tableStyles.btn} ${tableStyles.btnPrimary}`} style={{ opacity: props.busy ? 0.6 : 1 }}>
+          {props.busy ? "Working..." : "Import fuel"}
+        </button>
+        <button type="button" onClick={() => void props.onImportBoth()} disabled={props.busy} className={tableStyles.btn} style={{ opacity: props.busy ? 0.6 : 1 }}>
+          Both
+        </button>
+        <button type="button" onClick={() => void props.onValidate()} disabled={props.busy} className={tableStyles.btn} style={{ opacity: props.busy ? 0.6 : 1 }}>
+          Validate
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function IftaTaxRatesSettingsClient() {
@@ -312,8 +424,15 @@ export default function IftaTaxRatesSettingsClient() {
       {error ? <div style={{ borderRadius: 10, border: "1px solid #fecaca", background: "#fef2f2", padding: "10px 14px", fontSize: 13, color: "#b91c1c" }}>{error}</div> : null}
       {message ? <div style={{ borderRadius: 10, border: "1px solid #bbf7d0", background: "#f0fdf4", padding: "10px 14px", fontSize: 13, color: "#15803d" }}>{message}</div> : null}
 
-      <IftaTaxRateImportButton onImportSelected={() => handleImport([filters.fuelType])} onImportBoth={() => handleImport(["DI", "GA"])} busy={busy} lastResult={lastImport} />
-      <IftaTaxRateValidationSummary result={validation} busy={busy} onValidate={handleValidate} />
+      <IftaTaxRatesOverviewCard
+        filters={filters}
+        validation={validation}
+        lastImport={lastImport}
+        busy={busy}
+        onImportSelected={() => handleImport([filters.fuelType])}
+        onImportBoth={() => handleImport(["DI", "GA"])}
+        onValidate={handleValidate}
+      />
 
       {loading ? (
         <div className={tableStyles.card}><div style={{ padding: 20, fontSize: 13, color: "#aaa" }}>Loading tax rates...</div></div>
