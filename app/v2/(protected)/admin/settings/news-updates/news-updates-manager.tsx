@@ -15,6 +15,7 @@ type NewsUpdate = {
   description: string;
   cta: string;
   href: string | null;
+  imageUrl: string | null;
   gradient: string;
   audience: Audience;
   isActive: boolean;
@@ -34,6 +35,7 @@ type FormState = {
   description: string;
   cta: string;
   href: string;
+  imageUrl: string;
   gradient: string;
   audience: Audience;
   isActive: boolean;
@@ -65,6 +67,7 @@ const emptyForm: FormState = {
   description: "",
   cta: "",
   href: "",
+  imageUrl: "",
   gradient: gradientOptions[0].value,
   audience: "ALL",
   isActive: true,
@@ -96,6 +99,7 @@ function toForm(update: NewsUpdate): FormState {
     description: update.description,
     cta: update.cta,
     href: update.href ?? "",
+    imageUrl: update.imageUrl ?? "",
     gradient: update.gradient,
     audience: update.audience,
     isActive: update.isActive,
@@ -134,6 +138,7 @@ export default function NewsUpdatesManager() {
           update.description,
           update.cta,
           update.href ?? "",
+          update.imageUrl ?? "",
           update.audience,
           update.isActive ? "active" : "hidden inactive",
         ]
@@ -366,6 +371,18 @@ export default function NewsUpdatesManager() {
                 style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
               />
             </label>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
+              Image URL
+              <input
+                value={form.imageUrl}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, imageUrl: event.target.value }))
+                }
+                placeholder="https://..."
+                style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
+              />
+            </label>
           </div>
 
           <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
@@ -479,17 +496,34 @@ export default function NewsUpdatesManager() {
               gap: 6,
             }}
           >
-            <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.75 }}>
-              {form.eyebrow || "Eyebrow"}
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>
-              {form.title || "Slide title"}
-            </div>
-            <div style={{ fontSize: 13, opacity: 0.86 }}>
-              {form.description || "Slide description preview."}
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>
-              {form.cta || "CTA"} -&gt;
+            <div style={{ display: "grid", gridTemplateColumns: form.imageUrl.trim() ? "minmax(0, 1fr) 170px" : "1fr", gap: 16, alignItems: "center" }}>
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.75 }}>
+                  {form.eyebrow || "Eyebrow"}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>
+                  {form.title || "Slide title"}
+                </div>
+                <div style={{ fontSize: 13, opacity: 0.86 }}>
+                  {form.description || "Slide description preview."}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>
+                  {form.cta || "CTA"} -&gt;
+                </div>
+              </div>
+              {form.imageUrl.trim() ? (
+                <div
+                  style={{
+                    height: 96,
+                    borderRadius: 10,
+                    backgroundImage: `url("${form.imageUrl.trim()}")`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    border: "1px solid rgba(255,255,255,0.28)",
+                    boxShadow: "0 16px 36px rgba(0,0,0,0.22)",
+                  }}
+                />
+              ) : null}
             </div>
           </div>
 

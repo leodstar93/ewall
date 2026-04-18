@@ -35,6 +35,7 @@ export interface AdSlide {
   description: string;
   cta: string;
   href?: string;
+  imageUrl?: string;
   gradient: string;
 }
 

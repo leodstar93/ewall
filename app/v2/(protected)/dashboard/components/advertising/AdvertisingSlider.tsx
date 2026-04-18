@@ -65,9 +65,6 @@ export default function AdvertisingSlider({
               className={`${styles.slide} ${index === current ? styles.active : ""}`}
               style={{ background: slide.gradient }}
             >
-              <div className={styles.icon}>
-                {slideIcons[index % slideIcons.length]}
-              </div>
               <div className={styles.text}>
                 <div className={styles.eyebrow}>{slide.eyebrow}</div>
                 <div className={styles.title}>{slide.title}</div>
@@ -83,6 +80,15 @@ export default function AdvertisingSlider({
                 >
                   {slide.cta} {"->"}
                 </button>
+              </div>
+              <div className={styles.visual}>
+                {slide.imageUrl ? (
+                  <img src={slide.imageUrl} alt="" className={styles.image} />
+                ) : (
+                  <div className={styles.icon}>
+                    {slideIcons[index % slideIcons.length]}
+                  </div>
+                )}
               </div>
             </div>
           ))}

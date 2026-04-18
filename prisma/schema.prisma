@@ -335,6 +335,7 @@ model NewsUpdate {
   description String
   cta         String
   href        String?
+  imageUrl    String?
   gradient    String
   audience    String   @default("ALL")
   isActive   Boolean  @default(true)

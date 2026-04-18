@@ -350,6 +350,48 @@ const BILLING_PLANS = [
   },
 ] as const;
 
+const NEWS_UPDATES = [
+  {
+    id: "news-update-ifta-automation",
+    eyebrow: "IFTA",
+    title: "IFTA automation ready for the next quarter",
+    description:
+      "Sync ELD miles, review jurisdiction totals, resolve exceptions, and keep filing work moving from one dashboard.",
+    cta: "Open IFTA",
+    href: "/v2/dashboard/ifta-v2",
+    imageUrl: "/brand/truckers-unidos-logo.png",
+    gradient: "linear-gradient(135deg, #002868 0%, #1a3f8f 100%)",
+    audience: "ALL",
+    sortOrder: 0,
+  },
+  {
+    id: "news-update-ucr-concierge",
+    eyebrow: "UCR",
+    title: "UCR concierge workflow is live",
+    description:
+      "Customers can submit and pay while staff tracks assignments, receipts, corrections, and finalization in one place.",
+    cta: "Review UCR",
+    href: "/v2/dashboard/ucr",
+    imageUrl: "/brand/truckers-unidos-logo.png",
+    gradient: "linear-gradient(135deg, #b22234 0%, #d94a5a 100%)",
+    audience: "ALL",
+    sortOrder: 1,
+  },
+  {
+    id: "news-update-documents",
+    eyebrow: "Documents",
+    title: "Document history stays organized",
+    description:
+      "Uploaded receipts, permits, reports, and classified filing documents stay searchable across customer and staff views.",
+    cta: "Browse docs",
+    href: "/v2/dashboard/documents",
+    imageUrl: "/brand/truckers-unidos-logo.png",
+    gradient: "linear-gradient(135deg, #002868 0%, #b22234 100%)",
+    audience: "ALL",
+    sortOrder: 2,
+  },
+] as const;
+
 const SAMPLE_UCR_BRACKETS = [
   { minVehicles: 0, maxVehicles: 2, feeAmount: "46.00" },
   { minVehicles: 3, maxVehicles: 5, feeAmount: "138.00" },
@@ -733,6 +775,39 @@ async function upsertBillingCatalog() {
   }
 }
 
+async function upsertNewsUpdates() {
+  for (const update of NEWS_UPDATES) {
+    await prisma.newsUpdate.upsert({
+      where: { id: update.id },
+      update: {
+        eyebrow: update.eyebrow,
+        title: update.title,
+        description: update.description,
+        cta: update.cta,
+        href: update.href,
+        imageUrl: update.imageUrl,
+        gradient: update.gradient,
+        audience: update.audience,
+        isActive: true,
+        sortOrder: update.sortOrder,
+      },
+      create: {
+        id: update.id,
+        eyebrow: update.eyebrow,
+        title: update.title,
+        description: update.description,
+        cta: update.cta,
+        href: update.href,
+        imageUrl: update.imageUrl,
+        gradient: update.gradient,
+        audience: update.audience,
+        isActive: true,
+        sortOrder: update.sortOrder,
+      },
+    });
+  }
+}
+
 async function upsertSampleUcrBrackets() {
   const years = [new Date().getFullYear(), new Date().getFullYear() + 1];
 
@@ -870,6 +945,7 @@ async function main() {
   await ensureOrganizationsForAllUsers();
   await upsertBillingSettings();
   await upsertBillingCatalog();
+  await upsertNewsUpdates();
 
   console.log("✅ Seed completed.");
   console.log(`👤 Admin: ${admin.email}`);

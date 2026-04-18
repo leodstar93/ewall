@@ -13,6 +13,7 @@ export type NewsUpdateRecord = {
   description: string;
   cta: string;
   href: string | null;
+  imageUrl: string | null;
   gradient: string;
   audience: NewsUpdateAudience;
   isActive: boolean;
@@ -86,6 +87,7 @@ function formatNewsUpdate(record: {
   description: string;
   cta: string;
   href: string | null;
+  imageUrl: string | null;
   gradient: string;
   audience: string;
   isActive: boolean;
@@ -109,6 +111,7 @@ function toSlide(record: NewsUpdateRecord): AdSlide {
     description: record.description,
     cta: record.cta,
     href: record.href ?? undefined,
+    imageUrl: record.imageUrl ?? undefined,
     gradient: record.gradient,
   };
 }
@@ -142,6 +145,7 @@ export async function createNewsUpdate(input: Record<string, unknown>) {
       description: readString(input, "description", "Description", 320),
       cta: readString(input, "cta", "CTA", 80),
       href: readOptionalString(input, "href", "Link"),
+      imageUrl: readOptionalString(input, "imageUrl", "Image URL"),
       gradient: readOptionalString(input, "gradient", "Gradient") ?? DEFAULT_GRADIENT,
       audience: normalizeAudience(input),
       isActive: readBoolean(input, "isActive", true),
@@ -166,6 +170,7 @@ export async function updateNewsUpdate(id: string, input: Record<string, unknown
       description: readString(input, "description", "Description", 320),
       cta: readString(input, "cta", "CTA", 80),
       href: readOptionalString(input, "href", "Link"),
+      imageUrl: readOptionalString(input, "imageUrl", "Image URL"),
       gradient: readOptionalString(input, "gradient", "Gradient") ?? DEFAULT_GRADIENT,
       audience: normalizeAudience(input),
       isActive: readBoolean(input, "isActive", true),
