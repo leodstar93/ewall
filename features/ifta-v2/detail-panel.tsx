@@ -662,7 +662,7 @@ export function FilingDetailPanel({
               >
                 {busyAction === `submit:${filing.id}`
                   ? "Submitting..."
-                  : "Submit For Review"}
+                  : "Submit"}
               </Button>
             ) : null}
             {canRequestChanges ? (

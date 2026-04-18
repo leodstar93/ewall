@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import Table, { type ColumnDef } from "../components/ui/Table";
+import Table, { type ColumnDef, type TableAction } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 import {
   currentQuarterInput,
@@ -29,14 +29,6 @@ type IftaTableRow = FilingListItem & {
   sortPeriod: number;
   sortUpdatedAt: number;
   sortNetTax: number;
-};
-
-const panelStyle: CSSProperties = {
-  border: "1px solid var(--brl)",
-  borderRadius: "var(--radius-lg)",
-  background:
-    "linear-gradient(135deg, color-mix(in srgb, var(--b) 7%, white), color-mix(in srgb, var(--r) 10%, white))",
-  padding: 20,
 };
 
 const fieldStyle: CSSProperties = {
@@ -90,6 +82,7 @@ export default function IftaV2DashboardClient() {
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [createYear, setCreateYear] = useState(String(currentQuarter.year));
   const [createQuarter, setCreateQuarter] = useState(String(currentQuarter.quarter));
@@ -97,6 +90,11 @@ export default function IftaV2DashboardClient() {
   const [statusFilter, setStatusFilter] = useState<"" | IftaVisibleStatus>("");
   const [providerFilter, setProviderFilter] = useState<"" | EldProviderCode>("");
   const deferredSearch = useDeferredValue(search);
+
+  function openCreateModal() {
+    setError("");
+    setShowCreateModal(true);
+  }
 
   async function loadFilings() {
     try {
@@ -154,6 +152,7 @@ export default function IftaV2DashboardClient() {
         throw new Error(payload.error || "Could not create this IFTA filing.");
       }
 
+      setShowCreateModal(false);
       router.push(`/v2/dashboard/ifta-v2/${payload.filing.id}`);
     } catch (createError) {
       setError(
@@ -351,112 +350,20 @@ export default function IftaV2DashboardClient() {
     },
   ];
 
+  const tableActions: TableAction[] = [
+    {
+      label: "Refresh",
+      onClick: () => void loadFilings(),
+    },
+    {
+      label: "New filing",
+      variant: "primary",
+      onClick: openCreateModal,
+    },
+  ];
+
   return (
     <div className="w-full min-w-0 space-y-4">
-      <section style={panelStyle}>
-        <div
-          style={{
-            display: "grid",
-            gap: 16,
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            alignItems: "end",
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "var(--r)",
-                fontWeight: 700,
-              }}
-            >
-              Trucker workspace
-            </span>
-            <h1 style={{ margin: 0, fontSize: 24, color: "var(--b)" }}>IFTA v2</h1>
-            <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: 14 }}>
-              Create quarterly filings, review imported mileage and gallons, then open the filing
-              when you are ready to continue.
-            </p>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-              alignItems: "end",
-            }}
-          >
-            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span className={tableStyles.subtitle} style={{ fontSize: 11 }}>
-                Year
-              </span>
-              <input
-                value={createYear}
-                onChange={(event) => setCreateYear(event.target.value)}
-                inputMode="numeric"
-                style={fieldStyle}
-              />
-            </label>
-
-            <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span className={tableStyles.subtitle} style={{ fontSize: 11 }}>
-                Quarter
-              </span>
-              <select
-                value={createQuarter}
-                onChange={(event) => setCreateQuarter(event.target.value)}
-                style={fieldStyle}
-              >
-                <option value="1">Q1</option>
-                <option value="2">Q2</option>
-                <option value="3">Q3</option>
-                <option value="4">Q4</option>
-              </select>
-            </label>
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => void createFiling()}
-                disabled={creating}
-                style={{
-                  border: "1px solid var(--b)",
-                  background: "var(--b)",
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {creating ? "Opening..." : "New filing"}
-              </button>
-              <Link
-                href="/settings?tab=integrations"
-                style={{
-                  border: "1px solid var(--br)",
-                  background: "#fff",
-                  color: "var(--b)",
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Integrations
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {error ? (
         <div
           style={{
@@ -494,12 +401,7 @@ export default function IftaV2DashboardClient() {
           data={filteredRows}
           columns={columns}
           title="My IFTA filings"
-          actions={[
-            {
-              label: "Refresh",
-              onClick: () => void loadFilings(),
-            },
-          ]}
+          actions={tableActions}
           toolbar={
             <div
               style={{
@@ -570,6 +472,132 @@ export default function IftaV2DashboardClient() {
           }
         />
       )}
+
+      {showCreateModal ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(2px)",
+          }}
+          onClick={() => {
+            if (!creating) setShowCreateModal(false);
+          }}
+        >
+          <form
+            className={tableStyles.card}
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void createFiling();
+            }}
+          >
+            <div className={tableStyles.header}>
+              <div>
+                <div className={tableStyles.title}>New IFTA filing</div>
+                <div className={tableStyles.subtitle}>Select the filing period to start.</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className={tableStyles.btn}
+                disabled={creating}
+                aria-label="Close"
+              >
+                x
+              </button>
+            </div>
+
+            <div style={{ padding: 16, display: "grid", gap: 14 }}>
+              {error ? (
+                <div
+                  style={{
+                    borderRadius: 10,
+                    border: "1px solid #fecaca",
+                    background: "#fef2f2",
+                    padding: "10px 12px",
+                    fontSize: 13,
+                    color: "#b91c1c",
+                  }}
+                >
+                  {error}
+                </div>
+              ) : null}
+
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span
+                  className={tableStyles.subtitle}
+                  style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+                >
+                  Year
+                </span>
+                <input
+                  value={createYear}
+                  onChange={(event) => setCreateYear(event.target.value)}
+                  inputMode="numeric"
+                  style={fieldStyle}
+                  autoFocus
+                />
+              </label>
+
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span
+                  className={tableStyles.subtitle}
+                  style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: "0.1em" }}
+                >
+                  Quarter
+                </span>
+                <select
+                  value={createQuarter}
+                  onChange={(event) => setCreateQuarter(event.target.value)}
+                  style={fieldStyle}
+                >
+                  <option value="1">Q1</option>
+                  <option value="2">Q2</option>
+                  <option value="3">Q3</option>
+                  <option value="4">Q4</option>
+                </select>
+              </label>
+            </div>
+
+            <div
+              className={tableStyles.header}
+              style={{
+                borderBottom: "none",
+                borderTop: "1px solid var(--brl)",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className={tableStyles.btn}
+                disabled={creating}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
+                disabled={creating}
+              >
+                {creating ? "Opening..." : "Create filing"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

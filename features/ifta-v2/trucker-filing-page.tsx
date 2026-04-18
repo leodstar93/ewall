@@ -699,7 +699,7 @@ export default function IftaAutomationTruckerFilingPage({
                   className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
                   style={{ background: "var(--b)" }}
                 >
-                  {busyAction === "submit" ? "Submitting..." : "Submit For Review"}
+                  {busyAction === "submit" ? "Submitting..." : "Submit"}
                 </button>
               ) : null}
             </div>
