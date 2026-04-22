@@ -10,6 +10,7 @@ import { ImpersonationBanner } from "@/app/v2/components/auth/ImpersonationBanne
 
 interface Props {
   children: ReactNode;
+  subscriptionsEnabled: boolean;
 }
 
 type NavItem = {
@@ -30,33 +31,48 @@ function buildNavGroups(
   permissions: string[],
   _isAdmin: boolean,
   _isStaff: boolean,
+  subscriptionsEnabled: boolean,
 ): NavGroup[] {
+  const principalItems: NavItem[] = [
+    { href: "/v2/dashboard", label: "Dashboard" },
+    {
+      href: "/v2/dashboard/profile",
+      label: "Profile",
+      permission: "settings:read",
+    },
+    {
+      href: "/v2/dashboard/security",
+      label: "Security",
+      permission: "settings:read",
+    },
+    {
+      href: "/v2/dashboard/payments",
+      label: "Payments",
+      permission: "billing:manage",
+    },
+    ...(subscriptionsEnabled
+      ? [
+          {
+            href: "/v2/dashboard/subscriptions",
+            label: "Subscriptions",
+            permission: "billing:read",
+          },
+        ]
+      : []),
+    {
+      href: "/v2/dashboard/integrations",
+      label: "ELD Integrations",
+      permission: "eld:connect",
+    },
+  ].filter((item) => {
+    if (!item.permission) return true;
+    return hasPermission(permissions, roles, item.permission);
+  });
+
   const groups: NavGroup[] = [
     {
       heading: "Principal",
-      items: [
-        { href: "/v2/dashboard", label: "Dashboard" },
-        {
-          href: "/v2/dashboard/profile",
-          label: "Profile",
-          permission: "settings:read",
-        },
-        {
-          href: "/v2/dashboard/security",
-          label: "Security",
-          permission: "settings:read",
-        },
-        {
-          href: "/v2/dashboard/payments",
-          label: "Payments",
-          permission: "billing:manage",
-        },
-        {
-          href: "/v2/dashboard/integrations",
-          label: "ELD Integrations",
-          permission: "eld:connect",
-        },
-      ],
+      items: principalItems,
     },
   ];
 
@@ -88,7 +104,7 @@ function buildNavGroups(
   return groups;
 }
 
-export default function LayoutWrap({ children }: Props) {
+export default function LayoutWrap({ children, subscriptionsEnabled }: Props) {
   const { data: session } = useSession();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -97,7 +113,13 @@ export default function LayoutWrap({ children }: Props) {
   const isAdmin = roles.includes("ADMIN");
   const isStaff = roles.includes("STAFF");
 
-  const navGroups = buildNavGroups(roles, permissions, isAdmin, isStaff);
+  const navGroups = buildNavGroups(
+    roles,
+    permissions,
+    isAdmin,
+    isStaff,
+    subscriptionsEnabled,
+  );
 
   return (
     <div className={styles.wrapper}>

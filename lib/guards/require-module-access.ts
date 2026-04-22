@@ -15,11 +15,10 @@ export async function requireModuleAccess(moduleSlug: string) {
 
   if (!access.allowed) {
     const params = new URLSearchParams({
-      tab: "billing",
       blockedModule: moduleSlug,
       reason: access.reason,
     });
-    redirect(`/settings?${params.toString()}`);
+    redirect(`/v2/dashboard/subscriptions?${params.toString()}`);
   }
 
   return {
