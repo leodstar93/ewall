@@ -124,13 +124,6 @@ function statusTone(status: string) {
   return styles.badgeNeutral;
 }
 
-function sourceLabel(source: string | null) {
-  if (source === "plan") return "Plan";
-  if (source === "grant") return "Admin grant";
-  if (source === "free_module") return "Included";
-  return "Access";
-}
-
 export default function SubscriptionsClient({
   subscriptionsEnabled,
 }: {
@@ -516,45 +509,6 @@ export default function SubscriptionsClient({
             >
               {checkoutLoading ? "Processing..." : "Pay Subscription"}
             </button>
-          </section>
-
-          <section className={styles.modulesPanel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.sectionLabel}>Access</p>
-                <h2>Modules</h2>
-              </div>
-            </div>
-
-            <div className={styles.moduleColumns}>
-              <div>
-                <h3>Included</h3>
-                {overview.includedModules.length === 0 ? (
-                  <p className={styles.muted}>No active entitlements yet.</p>
-                ) : (
-                  <div className={styles.moduleList}>
-                    {overview.includedModules.map((module) => (
-                      <span key={module.id}>
-                        {module.name} · {sourceLabel(module.accessSource)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3>Needs Subscription</h3>
-                {overview.blockedPremiumModules.length === 0 ? (
-                  <p className={styles.muted}>No protected modules are currently blocked.</p>
-                ) : (
-                  <div className={styles.moduleList}>
-                    {overview.blockedPremiumModules.map((module) => (
-                      <span key={module.id}>{module.name}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
           </section>
         </div>
       ) : null}
