@@ -10,8 +10,12 @@ export async function requireModuleAccess(moduleSlug: string) {
     redirect("/login");
   }
 
+  const roles = Array.isArray(session.user.roles) ? session.user.roles : [];
+  const bypassSubscription = roles.includes("ADMIN") || roles.includes("STAFF");
   const organization = await ensureUserOrganization(session.user.id);
-  const access = await getModuleAccess(organization.id, moduleSlug);
+  const access = await getModuleAccess(organization.id, moduleSlug, {
+    bypassSubscription,
+  });
 
   if (!access.allowed) {
     const params = new URLSearchParams({

@@ -21,7 +21,7 @@ export type ModuleAccessResult = {
     | "FREE_MODULE"
     | "NO_ORGANIZATION"
     | "NO_ACTIVE_SUBSCRIPTION";
-  source?: "plan" | "grant" | "billing_disabled" | "free_module";
+  source?: "plan" | "grant" | "billing_disabled" | "free_module" | "internal_role";
 };
 
 function isActiveGrantWindow(grant: { startsAt: Date | null; endsAt: Date | null }, now: Date) {
@@ -60,6 +60,7 @@ function isSubscriptionAccessible(
 export async function getModuleAccess(
   organizationId: string,
   moduleSlug: string,
+  options?: { bypassSubscription?: boolean },
 ): Promise<ModuleAccessResult> {
   const [settings, module] = await Promise.all([
     ensureBillingSettings(),
@@ -84,6 +85,14 @@ export async function getModuleAccess(
     return {
       allowed: false,
       reason: "MODULE_INACTIVE",
+    };
+  }
+
+  if (options?.bypassSubscription) {
+    return {
+      allowed: true,
+      reason: "OK",
+      source: "internal_role",
     };
   }
 
