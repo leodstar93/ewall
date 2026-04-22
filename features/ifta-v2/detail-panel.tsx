@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import DashboardTable, {
   type ColumnDef,
 } from "@/app/v2/(protected)/dashboard/components/ui/Table";
@@ -152,6 +152,28 @@ type AuditRow = {
   event: string;
   detail: string;
   createdAt: string;
+  summaryDiff: JurisdictionSummaryAuditDiff | null;
+};
+
+type JurisdictionSummaryAuditSnapshotRow = {
+  jurisdiction: string;
+  totalMiles: string;
+  taxableGallons: string;
+  taxPaidGallons: string;
+  taxRate: string;
+  netTax: string;
+};
+
+type JurisdictionSummaryAuditChange = {
+  jurisdiction: string;
+  before: JurisdictionSummaryAuditSnapshotRow;
+  after: JurisdictionSummaryAuditSnapshotRow;
+};
+
+type JurisdictionSummaryAuditDiff = {
+  added: JurisdictionSummaryAuditSnapshotRow[];
+  changed: JurisdictionSummaryAuditChange[];
+  removed: JurisdictionSummaryAuditSnapshotRow[];
 };
 
 type ConversationMessage = {
@@ -208,6 +230,214 @@ function formatAuditAction(action: string) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function isAuditPayloadRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function auditPayloadString(value: unknown) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function parseJurisdictionSummaryAuditRow(
+  value: unknown,
+): JurisdictionSummaryAuditSnapshotRow | null {
+  if (!isAuditPayloadRecord(value)) return null;
+  const jurisdiction = auditPayloadString(value.jurisdiction).trim().toUpperCase();
+  if (!jurisdiction) return null;
+
+  return {
+    jurisdiction,
+    totalMiles: auditPayloadString(value.totalMiles),
+    taxableGallons: auditPayloadString(value.taxableGallons),
+    taxPaidGallons: auditPayloadString(value.taxPaidGallons),
+    taxRate: auditPayloadString(value.taxRate),
+    netTax: auditPayloadString(value.netTax),
+  };
+}
+
+function parseJurisdictionSummaryAuditChange(
+  value: unknown,
+): JurisdictionSummaryAuditChange | null {
+  if (!isAuditPayloadRecord(value)) return null;
+  const before = parseJurisdictionSummaryAuditRow(value.before);
+  const after = parseJurisdictionSummaryAuditRow(value.after);
+  const jurisdiction = auditPayloadString(value.jurisdiction).trim().toUpperCase();
+
+  if (!before || !after) return null;
+
+  return {
+    jurisdiction: jurisdiction || after.jurisdiction || before.jurisdiction,
+    before,
+    after,
+  };
+}
+
+function parseJurisdictionSummaryAuditDiff(
+  audit: FilingDetail["audits"][number],
+): JurisdictionSummaryAuditDiff | null {
+  if (audit.action !== "filing.jurisdiction_summary.replace") return null;
+  const payload = audit.payloadJson;
+  if (!isAuditPayloadRecord(payload)) return null;
+
+  const added = Array.isArray(payload.added)
+    ? payload.added
+        .map(parseJurisdictionSummaryAuditRow)
+        .filter((row): row is JurisdictionSummaryAuditSnapshotRow => Boolean(row))
+    : [];
+  const changed = Array.isArray(payload.changed)
+    ? payload.changed
+        .map(parseJurisdictionSummaryAuditChange)
+        .filter((row): row is JurisdictionSummaryAuditChange => Boolean(row))
+    : [];
+  const removed = Array.isArray(payload.removed)
+    ? payload.removed
+        .map(parseJurisdictionSummaryAuditRow)
+        .filter((row): row is JurisdictionSummaryAuditSnapshotRow => Boolean(row))
+    : [];
+
+  if (added.length === 0 && changed.length === 0 && removed.length === 0) {
+    return null;
+  }
+
+  return { added, changed, removed };
+}
+
+function formatAuditDetail(audit: FilingDetail["audits"][number]) {
+  const summaryDiff = parseJurisdictionSummaryAuditDiff(audit);
+
+  if (summaryDiff) {
+    return (
+      audit.message?.trim() ||
+      `Manual jurisdiction summary edit saved: ${summaryDiff.added.length} added, ${summaryDiff.changed.length} changed, ${summaryDiff.removed.length} removed.`
+    );
+  }
+
+  return audit.message?.trim() || "No additional details.";
+}
+
+function AuditValueTransition({
+  before,
+  after,
+}: {
+  before: string;
+  after: string;
+}) {
+  const beforeValue = before || "0";
+  const afterValue = after || "0";
+  const changed = beforeValue !== afterValue;
+
+  return (
+    <span className={changed ? "font-semibold text-gray-950" : "text-gray-500"}>
+      {beforeValue} <span className="text-gray-400">-&gt;</span> {afterValue}
+    </span>
+  );
+}
+
+function AuditSummaryRowValues({
+  row,
+}: {
+  row: JurisdictionSummaryAuditSnapshotRow;
+}) {
+  return (
+    <>
+      <td className="px-3 py-2 text-gray-700">{row.totalMiles || "0.00"}</td>
+      <td className="px-3 py-2 text-gray-700">{row.taxableGallons || "0.000"}</td>
+      <td className="px-3 py-2 text-gray-700">{row.taxPaidGallons || "0.000"}</td>
+      <td className="px-3 py-2 text-gray-700">{row.netTax || "0.00"}</td>
+    </>
+  );
+}
+
+function AuditSummaryDiffPanel({
+  diff,
+}: {
+  diff: JurisdictionSummaryAuditDiff;
+}) {
+  return (
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <div className="flex flex-wrap gap-2 text-xs font-semibold text-gray-700">
+        <span className="rounded-full bg-white px-3 py-1">
+          {diff.added.length} added
+        </span>
+        <span className="rounded-full bg-white px-3 py-1">
+          {diff.changed.length} changed
+        </span>
+        <span className="rounded-full bg-white px-3 py-1">
+          {diff.removed.length} removed
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table className="min-w-full border-collapse text-xs">
+          <thead className="bg-gray-100 text-left uppercase tracking-[0.08em] text-gray-500">
+            <tr>
+              <th className="px-3 py-2 font-semibold">Change</th>
+              <th className="px-3 py-2 font-semibold">Jurisdiction</th>
+              <th className="px-3 py-2 font-semibold">Total Miles</th>
+              <th className="px-3 py-2 font-semibold">Taxable Gallons</th>
+              <th className="px-3 py-2 font-semibold">Tax-Paid Gallons</th>
+              <th className="px-3 py-2 font-semibold">Net Tax</th>
+            </tr>
+          </thead>
+          <tbody>
+            {diff.added.map((row) => (
+              <tr key={`added-${row.jurisdiction}`} className="border-t border-gray-200">
+                <td className="px-3 py-2 font-semibold text-green-700">Added</td>
+                <td className="px-3 py-2 font-semibold text-gray-950">{row.jurisdiction}</td>
+                <AuditSummaryRowValues row={row} />
+              </tr>
+            ))}
+            {diff.changed.map((change) => (
+              <tr
+                key={`changed-${change.jurisdiction}`}
+                className="border-t border-gray-200"
+              >
+                <td className="px-3 py-2 font-semibold text-blue-700">Changed</td>
+                <td className="px-3 py-2 font-semibold text-gray-950">
+                  {change.jurisdiction}
+                </td>
+                <td className="px-3 py-2">
+                  <AuditValueTransition
+                    before={change.before.totalMiles}
+                    after={change.after.totalMiles}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <AuditValueTransition
+                    before={change.before.taxableGallons}
+                    after={change.after.taxableGallons}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <AuditValueTransition
+                    before={change.before.taxPaidGallons}
+                    after={change.after.taxPaidGallons}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <AuditValueTransition
+                    before={change.before.netTax}
+                    after={change.after.netTax}
+                  />
+                </td>
+              </tr>
+            ))}
+            {diff.removed.map((row) => (
+              <tr key={`removed-${row.jurisdiction}`} className="border-t border-gray-200">
+                <td className="px-3 py-2 font-semibold text-red-700">Removed</td>
+                <td className="px-3 py-2 font-semibold text-gray-950">{row.jurisdiction}</td>
+                <AuditSummaryRowValues row={row} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function buildConversation(filing: FilingDetail) {
@@ -378,6 +608,7 @@ export function FilingDetailPanel({
   const [jurisdictionDraft, setJurisdictionDraft] =
     useState<JurisdictionSummaryDraftState | null>(null);
   const [summaryEditing, setSummaryEditing] = useState(false);
+  const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
 
   const vehicleLabelById = useMemo(() => {
     return new Map(
@@ -721,8 +952,9 @@ export function FilingDetailPanel({
     .map((audit) => ({
       id: audit.id,
       event: formatAuditAction(audit.action),
-      detail: audit.message?.trim() || "No additional details.",
+      detail: formatAuditDetail(audit),
       createdAt: formatDateTime(audit.createdAt),
+      summaryDiff: parseJurisdictionSummaryAuditDiff(audit),
     }));
   const conversation = buildConversation(filing);
   const documentBusy = busyAction === `document:upload:${filing.id}`;
@@ -1434,17 +1666,43 @@ export function FilingDetailPanel({
                           </tr>
                         ) : (
                           auditRows.map((row) => (
-                            <tr key={row.id} className="border-t border-gray-200">
-                              <td className="px-4 py-3 font-medium text-gray-900">
-                                {row.event}
-                              </td>
-                              <td className="px-4 py-3 text-gray-600">
-                                {row.detail}
-                              </td>
-                              <td className="px-4 py-3 text-gray-600">
-                                {row.createdAt}
-                              </td>
-                            </tr>
+                            <Fragment key={row.id}>
+                              <tr className="border-t border-gray-200">
+                                <td className="px-4 py-3 font-medium text-gray-900">
+                                  {row.event}
+                                </td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  <div className="flex flex-col gap-2">
+                                    <span>{row.detail}</span>
+                                    {row.summaryDiff ? (
+                                      <button
+                                        type="button"
+                                        className="w-fit text-xs font-semibold text-[var(--b)] transition hover:text-[var(--r)]"
+                                        onClick={() =>
+                                          setExpandedAuditId((current) =>
+                                            current === row.id ? null : row.id,
+                                          )
+                                        }
+                                      >
+                                        {expandedAuditId === row.id
+                                          ? "Hide before/after"
+                                          : "Show before/after"}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-gray-600">
+                                  {row.createdAt}
+                                </td>
+                              </tr>
+                              {row.summaryDiff && expandedAuditId === row.id ? (
+                                <tr className="border-t border-gray-100 bg-gray-50/60">
+                                  <td colSpan={3} className="px-4 py-4">
+                                    <AuditSummaryDiffPanel diff={row.summaryDiff} />
+                                  </td>
+                                </tr>
+                              ) : null}
+                            </Fragment>
                           ))
                         )}
                       </tbody>

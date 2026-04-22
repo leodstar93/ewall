@@ -44,6 +44,71 @@ const SEND_FOR_APPROVAL_STATUSES = new Set<IftaFilingStatus>([
   IftaFilingStatus.SNAPSHOT_READY,
 ]);
 
+type JurisdictionSummaryAuditRow = {
+  jurisdiction: string;
+  totalMiles: string;
+  taxableGallons: string;
+  taxPaidGallons: string;
+  taxRate: string;
+  netTax: string;
+};
+
+function buildJurisdictionSummaryAuditDiff(
+  beforeRows: JurisdictionSummaryAuditRow[],
+  afterRows: JurisdictionSummaryAuditRow[],
+) {
+  const beforeByJurisdiction = new Map(
+    beforeRows.map((row) => [row.jurisdiction, row]),
+  );
+  const afterByJurisdiction = new Map(
+    afterRows.map((row) => [row.jurisdiction, row]),
+  );
+  const added = afterRows.filter(
+    (row) => !beforeByJurisdiction.has(row.jurisdiction),
+  );
+  const removed = beforeRows.filter(
+    (row) => !afterByJurisdiction.has(row.jurisdiction),
+  );
+  const changed = afterRows
+    .map((after) => {
+      const before = beforeByJurisdiction.get(after.jurisdiction);
+      if (!before) return null;
+
+      const hasChanged =
+        before.totalMiles !== after.totalMiles ||
+        before.taxableGallons !== after.taxableGallons ||
+        before.taxPaidGallons !== after.taxPaidGallons ||
+        before.taxRate !== after.taxRate ||
+        before.netTax !== after.netTax;
+
+      return hasChanged ? { jurisdiction: after.jurisdiction, before, after } : null;
+    })
+    .filter(
+      (change): change is {
+        jurisdiction: string;
+        before: JurisdictionSummaryAuditRow;
+        after: JurisdictionSummaryAuditRow;
+      } => Boolean(change),
+    );
+
+  return { added, changed, removed };
+}
+
+function formatJurisdictionSummaryAuditMessage(input: {
+  rowCount: number;
+  addedCount: number;
+  changedCount: number;
+  removedCount: number;
+}) {
+  const parts = [
+    `${input.addedCount} added`,
+    `${input.changedCount} changed`,
+    `${input.removedCount} removed`,
+  ];
+
+  return `Manual jurisdiction summary edit saved: ${input.rowCount} row${input.rowCount === 1 ? "" : "s"} total (${parts.join(", ")}).`;
+}
+
 export class FilingWorkflowService {
   static async logAudit(input: {
     filingId: string;
@@ -397,6 +462,15 @@ export class FilingWorkflowService {
     const existingByJurisdiction = new Map(
       filing.jurisdictionSummaries.map((summary) => [summary.jurisdiction, summary]),
     );
+    const beforeSummaryRows: JurisdictionSummaryAuditRow[] =
+      filing.jurisdictionSummaries.map((summary) => ({
+        jurisdiction: summary.jurisdiction,
+        totalMiles: toDecimalString(summary.totalMiles, 2),
+        taxableGallons: toDecimalString(summary.taxableGallons, 3),
+        taxPaidGallons: toDecimalString(summary.taxPaidGallons, 3),
+        taxRate: toDecimalString(summary.taxRate, 5),
+        netTax: toDecimalString(summary.netTax, 2),
+      }));
     const normalizedLines: Array<{
       jurisdiction: string;
       totalMiles: number;
@@ -580,13 +654,36 @@ export class FilingWorkflowService {
       db,
     });
 
+    const afterSummaryRows: JurisdictionSummaryAuditRow[] = summaryRows.map((row) => ({
+      jurisdiction: row.jurisdiction,
+      totalMiles: row.totalMiles,
+      taxableGallons: row.taxableGallons,
+      taxPaidGallons: row.taxPaidGallons,
+      taxRate: row.taxRate,
+      netTax: row.netTax,
+    }));
+    const auditDiff = buildJurisdictionSummaryAuditDiff(
+      beforeSummaryRows,
+      afterSummaryRows,
+    );
+
     await this.logAudit({
       filingId: filing.id,
       actorUserId: input.actorUserId,
       action: "filing.jurisdiction_summary.replace",
-      message: `Updated ${normalizedLines.length} jurisdiction summary row${normalizedLines.length === 1 ? "" : "s"}.`,
+      message: formatJurisdictionSummaryAuditMessage({
+        rowCount: summaryRows.length,
+        addedCount: auditDiff.added.length,
+        changedCount: auditDiff.changed.length,
+        removedCount: auditDiff.removed.length,
+      }),
       payloadJson: {
-        jurisdictions: summaryRows.map((row) => ({
+        before: beforeSummaryRows,
+        after: afterSummaryRows,
+        added: auditDiff.added,
+        changed: auditDiff.changed,
+        removed: auditDiff.removed,
+        jurisdictions: afterSummaryRows.map((row) => ({
           jurisdiction: row.jurisdiction,
           totalMiles: row.totalMiles,
           taxableGallons: row.taxableGallons,
