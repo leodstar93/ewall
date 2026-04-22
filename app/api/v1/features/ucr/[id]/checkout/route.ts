@@ -10,6 +10,12 @@ import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { ensureUserOrganization } from "@/lib/services/organization.service";
 import { createCheckoutSession } from "@/services/ucr/createCheckoutSession";
+import {
+  buildUcrCustomerPaymentIdempotencyKey,
+  createPendingUcrCustomerPaymentAttempt,
+  isRecentPendingUcrPaymentAttempt,
+  markUcrCustomerPaymentAttemptFailed,
+} from "@/services/ucr/customerPaymentAttempts";
 import { createPricingSnapshot } from "@/services/ucr/createPricingSnapshot";
 import { finalizeCustomerPayment } from "@/services/ucr/finalizeCustomerPayment";
 import { handleStripeCheckoutCompleted } from "@/services/ucr/handleStripeCheckoutCompleted";
@@ -36,7 +42,7 @@ function getStripeChargeId(paymentIntent: { latest_charge?: string | { id?: stri
 }
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const guard = await requireApiPermission("ucr:checkout");
@@ -45,6 +51,14 @@ export async function POST(
   const { id } = await params;
 
   try {
+    const body = (await request.json().catch(() => ({}))) as {
+      idempotencyKey?: string;
+    };
+    const requestIdempotencyKey =
+      request.headers.get("idempotency-key")?.trim() ||
+      body.idempotencyKey?.trim() ||
+      null;
+
     const filing = await prisma.uCRFiling.findUnique({
       where: { id },
       include: {
@@ -162,22 +176,73 @@ export async function POST(
       defaultPaymentMethod?.provider === "paypal" &&
       defaultPaymentMethod.providerPaymentMethodId
     ) {
-      const order = await createPayPalTokenOrder({
-        paymentTokenId: defaultPaymentMethod.providerPaymentMethodId,
-        amountCents: Math.round(chargeAmount * 100),
-        currency: "usd",
-        referenceId: pricedFiling.id,
-        customId: organizationId,
-        description: isAdditionalPayment
-          ? `Additional UCR balance for ${pricedFiling.year} filing`
-          : `UCR ${pricedFiling.year} filing`,
-        invoiceId: `${pricedFiling.id}-${Date.now()}`,
+      const paymentIdempotencyKey = buildUcrCustomerPaymentIdempotencyKey({
+        filingId: pricedFiling.id,
+        source: "paypal_saved_method",
+        amount: chargeAmount,
+        customerPaidAmount: pricedFiling.customerPaidAmount,
+        requestIdempotencyKey,
       });
-      const completedOrder =
-        order.status === "COMPLETED" ? order : await capturePayPalOrder(order.id);
-      const captureId = getCompletedPayPalCaptureId(completedOrder);
+      const pendingAttempt = await createPendingUcrCustomerPaymentAttempt({
+        filingId: pricedFiling.id,
+        provider: "paypal",
+        source: "paypal_saved_method",
+        idempotencyKey: paymentIdempotencyKey,
+        amount: chargeAmount.toFixed(2),
+      });
+
+      if (pendingAttempt.state === "succeeded") {
+        const updated = await prisma.uCRFiling.findUniqueOrThrow({
+          where: { id: pricedFiling.id },
+        });
+
+        return Response.json({
+          paymentStatus: "SUCCEEDED",
+          provider: "paypal",
+          filing: updated,
+        });
+      }
+
+      if (pendingAttempt.state !== "created") {
+        return Response.json(
+          { error: "A customer payment is already being processed for this filing." },
+          { status: 409 },
+        );
+      }
+
+      let completedOrder: Awaited<ReturnType<typeof createPayPalTokenOrder>>;
+      let captureId: string | null = null;
+
+      try {
+        const order = await createPayPalTokenOrder({
+          paymentTokenId: defaultPaymentMethod.providerPaymentMethodId,
+          amountCents: Math.round(chargeAmount * 100),
+          currency: "usd",
+          referenceId: pricedFiling.id,
+          customId: organizationId,
+          description: isAdditionalPayment
+            ? `Additional UCR balance for ${pricedFiling.year} filing`
+            : `UCR ${pricedFiling.year} filing`,
+          invoiceId: paymentIdempotencyKey,
+          idempotencyKey: paymentIdempotencyKey,
+        });
+        completedOrder =
+          order.status === "COMPLETED" ? order : await capturePayPalOrder(order.id);
+        captureId = getCompletedPayPalCaptureId(completedOrder);
+      } catch (error) {
+        await markUcrCustomerPaymentAttemptFailed({
+          idempotencyKey: paymentIdempotencyKey,
+          failureMessage:
+            error instanceof Error ? error.message : "PayPal payment could not be completed.",
+        });
+        throw error;
+      }
 
       if (completedOrder.status !== "COMPLETED" || !captureId) {
+        await markUcrCustomerPaymentAttemptFailed({
+          idempotencyKey: paymentIdempotencyKey,
+          failureMessage: `PayPal payment returned status ${completedOrder.status ?? "UNKNOWN"}.`,
+        });
         throw new UcrServiceError(
           `PayPal payment returned status ${completedOrder.status ?? "UNKNOWN"}.`,
           409,
@@ -191,6 +256,8 @@ export async function POST(
         provider: "paypal",
         source: "paypal_saved_method",
         chargedAmount: chargeAmount.toFixed(2),
+        idempotencyKey: paymentIdempotencyKey,
+        customerPaymentAttemptId: pendingAttempt.attempt.id,
         externalOrderId: completedOrder.id,
         externalPaymentId: captureId,
         successMessage: isAdditionalPayment
@@ -210,6 +277,40 @@ export async function POST(
       defaultPaymentMethod?.provider === "stripe" &&
       defaultPaymentMethod.providerPaymentMethodId
     ) {
+      const paymentIdempotencyKey = buildUcrCustomerPaymentIdempotencyKey({
+        filingId: pricedFiling.id,
+        source: "stripe_saved_method",
+        amount: chargeAmount,
+        customerPaidAmount: pricedFiling.customerPaidAmount,
+        requestIdempotencyKey,
+      });
+      const pendingAttempt = await createPendingUcrCustomerPaymentAttempt({
+        filingId: pricedFiling.id,
+        provider: "stripe",
+        source: "stripe_saved_method",
+        idempotencyKey: paymentIdempotencyKey,
+        amount: chargeAmount.toFixed(2),
+      });
+
+      if (pendingAttempt.state === "succeeded") {
+        const updated = await prisma.uCRFiling.findUniqueOrThrow({
+          where: { id: pricedFiling.id },
+        });
+
+        return Response.json({
+          paymentStatus: "SUCCEEDED",
+          provider: "stripe",
+          filing: updated,
+        });
+      }
+
+      if (pendingAttempt.state !== "created") {
+        return Response.json(
+          { error: "A customer payment is already being processed for this filing." },
+          { status: 409 },
+        );
+      }
+
       try {
         const paymentIntent = await chargeStripePaymentMethod({
           customerId: defaultPaymentMethod.providerCustomerId,
@@ -224,7 +325,9 @@ export async function POST(
             year: String(pricedFiling.year),
             organizationId,
             chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
+            idempotencyKey: paymentIdempotencyKey,
           },
+          idempotencyKey: paymentIdempotencyKey,
         });
 
         if (paymentIntent.status === "succeeded") {
@@ -234,6 +337,8 @@ export async function POST(
             provider: "stripe",
             source: "stripe_saved_method",
             chargedAmount: chargeAmount.toFixed(2),
+            idempotencyKey: paymentIdempotencyKey,
+            customerPaymentAttemptId: pendingAttempt.attempt.id,
             stripePaymentIntentId: paymentIntent.id,
             stripeChargeId: getStripeChargeId(paymentIntent),
             successMessage: isAdditionalPayment
@@ -249,20 +354,88 @@ export async function POST(
         }
 
         stripeFallbackReason = `Saved Stripe payment method returned status ${paymentIntent.status}.`;
+        await markUcrCustomerPaymentAttemptFailed({
+          idempotencyKey: paymentIdempotencyKey,
+          failureMessage: stripeFallbackReason,
+        });
       } catch (error) {
         stripeFallbackReason =
           error instanceof Error
             ? error.message
             : "Saved Stripe payment method could not be charged.";
+        await markUcrCustomerPaymentAttemptFailed({
+          idempotencyKey: paymentIdempotencyKey,
+          failureMessage: stripeFallbackReason,
+        });
       }
     }
 
-    const session = await createCheckoutSession({
+    const checkoutIdempotencyKey = buildUcrCustomerPaymentIdempotencyKey({
       filingId: pricedFiling.id,
-      userId: pricedFiling.userId,
-      userEmail: pricedFiling.user.email,
-      userName: pricedFiling.user.name,
+      source: "stripe_checkout",
+      amount: chargeAmount,
+      customerPaidAmount: pricedFiling.customerPaidAmount,
+      requestIdempotencyKey,
     });
+    const checkoutAttempt = await createPendingUcrCustomerPaymentAttempt({
+      filingId: pricedFiling.id,
+      provider: "stripe",
+      source: "stripe_checkout",
+      idempotencyKey: checkoutIdempotencyKey,
+      amount: chargeAmount.toFixed(2),
+      metaJson: {
+        fallbackReason: stripeFallbackReason,
+      },
+    });
+
+    if (checkoutAttempt.state === "succeeded") {
+      const updated = await prisma.uCRFiling.findUniqueOrThrow({
+        where: { id: pricedFiling.id },
+      });
+
+      return Response.json({
+        paymentStatus: "SUCCEEDED",
+        provider: "stripe",
+        filing: updated,
+      });
+    }
+
+    if (
+      checkoutAttempt.state === "pending" &&
+      checkoutAttempt.attempt.checkoutUrl &&
+      (!checkoutAttempt.attempt.expiresAt || checkoutAttempt.attempt.expiresAt > new Date())
+    ) {
+      return Response.json({
+        checkoutUrl: checkoutAttempt.attempt.checkoutUrl,
+        checkoutSessionId: checkoutAttempt.attempt.stripeCheckoutSessionId,
+        provider: "stripe",
+      });
+    }
+
+    if (checkoutAttempt.state !== "created") {
+      return Response.json(
+        { error: "A customer payment is already being processed for this filing." },
+        { status: isRecentPendingUcrPaymentAttempt(checkoutAttempt.attempt) ? 409 : 400 },
+      );
+    }
+
+    let session;
+    try {
+      session = await createCheckoutSession({
+        filingId: pricedFiling.id,
+        idempotencyKey: checkoutIdempotencyKey,
+        userId: pricedFiling.userId,
+        userEmail: pricedFiling.user.email,
+        userName: pricedFiling.user.name,
+      });
+    } catch (error) {
+      await markUcrCustomerPaymentAttemptFailed({
+        idempotencyKey: checkoutIdempotencyKey,
+        failureMessage:
+          error instanceof Error ? error.message : "Stripe Checkout session could not be created.",
+      });
+      throw error;
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.uCRFiling.update({
@@ -292,6 +465,22 @@ export async function POST(
           chargeAmount: chargeAmount.toFixed(2),
           chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
           fallbackReason: stripeFallbackReason,
+        },
+      });
+
+      await tx.uCRCustomerPaymentAttempt.update({
+        where: { id: checkoutAttempt.attempt.id },
+        data: {
+          stripeCheckoutSessionId: session.id,
+          checkoutUrl: session.url ?? null,
+          expiresAt: session.expires_at ? new Date(session.expires_at * 1000) : null,
+          metaJson: {
+            stripeCheckoutSessionId: session.id,
+            amountTotal: session.amount_total,
+            chargeAmount: chargeAmount.toFixed(2),
+            chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
+            fallbackReason: stripeFallbackReason,
+          },
         },
       });
 

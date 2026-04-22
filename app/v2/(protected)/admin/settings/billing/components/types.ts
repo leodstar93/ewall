@@ -108,3 +108,54 @@ export type BillingGrantsPayload = {
   moduleGrants: BillingModuleGrantRecord[];
   planGrants: BillingPlanGrantRecord[];
 };
+
+export type BillingPaymentAttemptLogRecord = {
+  id: string;
+  rawId: string;
+  kind: "subscription" | "ucr";
+  source: string;
+  provider: string;
+  status: string;
+  amountCents: number;
+  currency: string;
+  organization: {
+    id: string;
+    name: string;
+    dotNumber: string;
+  } | null;
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  filing: {
+    id: string;
+    year: number;
+    legalName: string;
+    dotNumber: string;
+  } | null;
+  subscription: {
+    id: string;
+    planName: string;
+    planCode: string;
+  } | null;
+  paymentMethod: string;
+  idempotencyKey: string;
+  externalPaymentId: string;
+  externalOrderId: string;
+  failureCode: string;
+  failureMessage: string;
+  billedForStart: string | null;
+  billedForEnd: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BillingPaymentLogsPayload = {
+  logs: BillingPaymentAttemptLogRecord[];
+  limit: number;
+  sources: {
+    subscriptionCharges: number;
+    ucrCustomerPaymentAttempts: number;
+  };
+};

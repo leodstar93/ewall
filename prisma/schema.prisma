@@ -437,6 +437,7 @@ model BillingCharge {
   amountCents     Int
   currency        String   @default("USD")
   status          String
+  idempotencyKey  String?  @unique
   externalPaymentId String?
   externalOrderId String?
   failureCode     String?
@@ -1547,6 +1548,7 @@ model UCRFiling {
   workItems       UCRWorkItem[]
   events          UCRFilingEvent[]
   transitions     UCRStatusTransition[]
+  customerPaymentAttempts UCRCustomerPaymentAttempt[]
 
   @@unique([userId, filingYear])
   @@index([userId, filingYear])
@@ -1556,6 +1558,33 @@ model UCRFiling {
   @@index([assignedToStaffId])
   @@index([customerPaymentStatus])
   @@index([officialPaymentStatus])
+}
+
+model UCRCustomerPaymentAttempt {
+  id                      String   @id @default(cuid())
+  filingId                String
+  provider                String
+  source                  String
+  status                  String
+  idempotencyKey          String   @unique
+  amount                  Decimal  @db.Decimal(10, 2)
+  currency                String   @default("USD")
+  stripeCheckoutSessionId String?  @unique
+  stripePaymentIntentId   String?  @unique
+  stripeChargeId          String?
+  externalOrderId         String?  @unique
+  externalPaymentId       String?  @unique
+  checkoutUrl             String?
+  expiresAt               DateTime?
+  failureMessage          String?
+  metaJson                Json?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  filing UCRFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([filingId, createdAt])
+  @@index([filingId, status])
 }
 
 model UCRDocument {

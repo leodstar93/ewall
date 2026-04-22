@@ -73,19 +73,27 @@ export async function chargeStripePaymentMethod(input: {
   currency: string;
   metadata?: Record<string, string>;
   receiptEmail?: string | null;
+  idempotencyKey?: string | null;
 }) {
   const stripe = getStripe();
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: input.amountCents,
-    currency: input.currency.toLowerCase(),
-    customer: input.customerId ?? undefined,
-    payment_method: input.paymentMethodId,
-    confirm: true,
-    off_session: true,
-    receipt_email: input.receiptEmail ?? undefined,
-    metadata: input.metadata,
-  });
+  const paymentIntent = await stripe.paymentIntents.create(
+    {
+      amount: input.amountCents,
+      currency: input.currency.toLowerCase(),
+      customer: input.customerId ?? undefined,
+      payment_method: input.paymentMethodId,
+      confirm: true,
+      off_session: true,
+      receipt_email: input.receiptEmail ?? undefined,
+      metadata: input.metadata,
+    },
+    input.idempotencyKey
+      ? {
+          idempotencyKey: input.idempotencyKey,
+        }
+      : undefined,
+  );
 
   return paymentIntent;
 }

@@ -215,6 +215,11 @@ export default function UcrDetailClient({ filingId }: Props) {
   const [chatBusy, setChatBusy] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
   const [checkoutSyncing, setCheckoutSyncing] = useState(false);
+  const checkoutIdempotencyKeyRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`,
+  );
 
   const load = useCallback(async () => {
     try {
@@ -335,6 +340,11 @@ export default function UcrDetailClient({ filingId }: Props) {
 
       const response = await fetch(`/api/v1/features/ucr/${filingId}/checkout`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": checkoutIdempotencyKeyRef.current,
+        },
+        body: JSON.stringify({ idempotencyKey: checkoutIdempotencyKeyRef.current }),
       });
       const data = (await response.json().catch(() => ({}))) as {
         checkoutUrl?: string;
@@ -352,6 +362,10 @@ export default function UcrDetailClient({ filingId }: Props) {
       }
 
       if (data.paymentStatus === "SUCCEEDED") {
+        checkoutIdempotencyKeyRef.current =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`;
         await load();
         return;
       }
@@ -490,7 +504,7 @@ export default function UcrDetailClient({ filingId }: Props) {
 
   const filing = payload?.filing ?? null;
   const permissions = payload?.permissions ?? null;
-  const timeline = payload?.timeline ?? [];
+  const timeline = useMemo(() => payload?.timeline ?? [], [payload?.timeline]);
   const conversation = payload?.conversation ?? [];
   const canViewAudit = Boolean(permissions?.canViewAudit);
 

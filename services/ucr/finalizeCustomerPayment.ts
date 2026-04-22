@@ -1,5 +1,9 @@
-import { UCRCustomerPaymentStatus, UCRFilingStatus } from "@prisma/client";
+import { Prisma, UCRCustomerPaymentStatus, UCRFilingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  findSucceededUcrCustomerPaymentAttempt,
+  markUcrCustomerPaymentAttemptSucceeded,
+} from "@/services/ucr/customerPaymentAttempts";
 import { createWorkItem } from "@/services/ucr/createWorkItem";
 import { logUcrEvent } from "@/services/ucr/logUcrEvent";
 import {
@@ -23,6 +27,8 @@ type FinalizeCustomerPaymentInput = {
   stripeChargeId?: string | null;
   externalOrderId?: string | null;
   externalPaymentId?: string | null;
+  idempotencyKey?: string | null;
+  customerPaymentAttemptId?: string | null;
   chargedAmount: number | string;
   successMessage: string;
 };
@@ -33,7 +39,40 @@ export async function finalizeCustomerPayment(
 export async function finalizeCustomerPayment(
   input: FinalizeCustomerPaymentInput,
 ) {
-  const result = await prisma.$transaction(async (tx) => {
+  const existingAttempt = await findSucceededUcrCustomerPaymentAttempt({
+    idempotencyKey: input.idempotencyKey,
+    stripeCheckoutSessionId: input.stripeCheckoutSessionId,
+    stripePaymentIntentId: input.stripePaymentIntentId,
+    externalOrderId: input.externalOrderId,
+    externalPaymentId: input.externalPaymentId,
+  });
+
+  if (existingAttempt) {
+    const filing = await prisma.uCRFiling.findUniqueOrThrow({
+      where: { id: input.filingId },
+      include: {
+        pricingSnapshot: {
+          select: {
+            total: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return {
+      processed: false as const,
+      filing,
+    };
+  }
+
+  const runTransaction = () => prisma.$transaction(async (tx) => {
     const filing = await tx.uCRFiling.findUnique({
       where: { id: input.filingId },
       include: {
@@ -134,6 +173,20 @@ export async function finalizeCustomerPayment(
       },
     });
 
+    await markUcrCustomerPaymentAttemptSucceeded(tx, {
+      filingId: filing.id,
+      provider: input.provider,
+      source: input.source,
+      amount: input.chargedAmount,
+      idempotencyKey: input.idempotencyKey ?? null,
+      customerPaymentAttemptId: input.customerPaymentAttemptId ?? null,
+      stripeCheckoutSessionId: input.stripeCheckoutSessionId ?? null,
+      stripePaymentIntentId: input.stripePaymentIntentId ?? null,
+      stripeChargeId: input.stripeChargeId ?? null,
+      externalOrderId: input.externalOrderId ?? null,
+      externalPaymentId: input.externalPaymentId ?? null,
+    });
+
     await logUcrEvent({ db: tx }, {
       filingId: filing.id,
       actorUserId: input.actorUserId ?? null,
@@ -189,6 +242,42 @@ export async function finalizeCustomerPayment(
       filing: updated,
     };
   });
+
+  let result: Awaited<ReturnType<typeof runTransaction>>;
+
+  try {
+    result = await runTransaction();
+  } catch (error) {
+    if (
+      (error instanceof UcrServiceError && error.code === "PAYMENT_ALREADY_RECORDED") ||
+      (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
+    ) {
+      const filing = await prisma.uCRFiling.findUniqueOrThrow({
+        where: { id: input.filingId },
+        include: {
+          pricingSnapshot: {
+            select: {
+              total: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      result = {
+        processed: false as const,
+        filing,
+      };
+    } else {
+      throw error;
+    }
+  }
 
   if (
     result.processed &&

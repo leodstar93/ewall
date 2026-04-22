@@ -272,6 +272,158 @@ function formatSubscriptionSummary(subscription: {
   };
 }
 
+function formatBillingPaymentMethod(paymentMethod: null | {
+  provider: string;
+  brand: string | null;
+  last4: string | null;
+  paypalEmail: string | null;
+  label: string | null;
+}) {
+  if (!paymentMethod) return "";
+
+  if (paymentMethod.provider === "paypal") {
+    return paymentMethod.paypalEmail
+      ? `PayPal ${paymentMethod.paypalEmail}`
+      : "PayPal";
+  }
+
+  const brand = paymentMethod.brand || paymentMethod.provider;
+  return paymentMethod.last4 ? `${brand} ending ${paymentMethod.last4}` : brand;
+}
+
+function formatSubscriptionChargeLog(charge: {
+  id: string;
+  organizationId: string;
+  subscriptionId: string;
+  paymentMethodId: string | null;
+  provider: BillingProvider;
+  amountCents: number;
+  currency: string;
+  status: string;
+  idempotencyKey: string | null;
+  externalPaymentId: string | null;
+  externalOrderId: string | null;
+  failureCode: string | null;
+  failureMessage: string | null;
+  billedForStart: Date | null;
+  billedForEnd: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  organization: { id: string; name: string | null; dotNumber: string | null };
+  subscription: {
+    id: string;
+    plan: { id: string; code: string; name: string } | null;
+  };
+  paymentMethod: null | {
+    provider: string;
+    brand: string | null;
+    last4: string | null;
+    paypalEmail: string | null;
+    label: string | null;
+  };
+}) {
+  return {
+    id: `subscription:${charge.id}`,
+    rawId: charge.id,
+    kind: "subscription" as const,
+    source: "subscription_charge",
+    provider: charge.provider,
+    status: charge.status,
+    amountCents: charge.amountCents,
+    currency: charge.currency,
+    organization: {
+      id: charge.organization.id,
+      name: charge.organization.name ?? "Unnamed company",
+      dotNumber: charge.organization.dotNumber ?? "",
+    },
+    customer: null,
+    filing: null,
+    subscription: {
+      id: charge.subscription.id,
+      planName: charge.subscription.plan?.name ?? "",
+      planCode: charge.subscription.plan?.code ?? "",
+    },
+    paymentMethod: formatBillingPaymentMethod(charge.paymentMethod),
+    idempotencyKey: charge.idempotencyKey ?? "",
+    externalPaymentId: charge.externalPaymentId ?? "",
+    externalOrderId: charge.externalOrderId ?? "",
+    failureCode: charge.failureCode ?? "",
+    failureMessage: charge.failureMessage ?? "",
+    billedForStart: charge.billedForStart?.toISOString() ?? null,
+    billedForEnd: charge.billedForEnd?.toISOString() ?? null,
+    createdAt: charge.createdAt.toISOString(),
+    updatedAt: charge.updatedAt.toISOString(),
+  };
+}
+
+function formatUcrCustomerPaymentAttemptLog(attempt: {
+  id: string;
+  filingId: string;
+  provider: string;
+  source: string;
+  status: string;
+  idempotencyKey: string;
+  amount: { toString(): string };
+  currency: string;
+  stripeCheckoutSessionId: string | null;
+  stripePaymentIntentId: string | null;
+  stripeChargeId: string | null;
+  externalOrderId: string | null;
+  externalPaymentId: string | null;
+  failureMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  filing: {
+    id: string;
+    year: number;
+    legalName: string;
+    dotNumber: string | null;
+    usdotNumber: string | null;
+    organization: { id: string; name: string | null; dotNumber: string | null } | null;
+    user: { id: string; name: string | null; email: string | null };
+  };
+}) {
+  return {
+    id: `ucr:${attempt.id}`,
+    rawId: attempt.id,
+    kind: "ucr" as const,
+    source: attempt.source,
+    provider: attempt.provider,
+    status: attempt.status,
+    amountCents: Math.round(Number(attempt.amount) * 100),
+    currency: attempt.currency,
+    organization: attempt.filing.organization
+      ? {
+          id: attempt.filing.organization.id,
+          name: attempt.filing.organization.name ?? "Unnamed company",
+          dotNumber: attempt.filing.organization.dotNumber ?? "",
+        }
+      : null,
+    customer: {
+      id: attempt.filing.user.id,
+      name: attempt.filing.user.name ?? "",
+      email: attempt.filing.user.email ?? "",
+    },
+    filing: {
+      id: attempt.filing.id,
+      year: attempt.filing.year,
+      legalName: attempt.filing.legalName,
+      dotNumber: attempt.filing.dotNumber ?? attempt.filing.usdotNumber ?? "",
+    },
+    subscription: null,
+    paymentMethod: "",
+    idempotencyKey: attempt.idempotencyKey,
+    externalPaymentId: attempt.externalPaymentId ?? attempt.stripePaymentIntentId ?? "",
+    externalOrderId: attempt.externalOrderId ?? attempt.stripeCheckoutSessionId ?? "",
+    failureCode: "",
+    failureMessage: attempt.failureMessage ?? "",
+    billedForStart: null,
+    billedForEnd: null,
+    createdAt: attempt.createdAt.toISOString(),
+    updatedAt: attempt.updatedAt.toISOString(),
+  };
+}
+
 export async function getAdminBillingSettings() {
   return getBillingSettings();
 }
@@ -874,6 +1026,92 @@ export async function listBillingGrants() {
   return {
     moduleGrants: moduleGrants.map(formatModuleGrant),
     planGrants: planGrants.map(formatPlanGrant),
+  };
+}
+
+export async function listBillingPaymentAttemptLogs(input?: { limit?: number }) {
+  const limit = Math.min(Math.max(input?.limit ?? 200, 1), 500);
+
+  const [subscriptionCharges, ucrAttempts] = await Promise.all([
+    prisma.billingCharge.findMany({
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            dotNumber: true,
+          },
+        },
+        subscription: {
+          select: {
+            id: true,
+            plan: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
+        paymentMethod: {
+          select: {
+            provider: true,
+            brand: true,
+            last4: true,
+            paypalEmail: true,
+            label: true,
+          },
+        },
+      },
+    }),
+    prisma.uCRCustomerPaymentAttempt.findMany({
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        filing: {
+          select: {
+            id: true,
+            year: true,
+            legalName: true,
+            dotNumber: true,
+            usdotNumber: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                dotNumber: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const logs = [
+    ...subscriptionCharges.map(formatSubscriptionChargeLog),
+    ...ucrAttempts.map(formatUcrCustomerPaymentAttemptLog),
+  ]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, limit);
+
+  return {
+    logs,
+    limit,
+    sources: {
+      subscriptionCharges: subscriptionCharges.length,
+      ucrCustomerPaymentAttempts: ucrAttempts.length,
+    },
   };
 }
 

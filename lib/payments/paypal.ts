@@ -227,11 +227,17 @@ export async function createPayPalTokenOrder(input: {
   customId?: string | null;
   description?: string | null;
   invoiceId?: string | null;
+  idempotencyKey?: string | null;
 }) {
   const value = (input.amountCents / 100).toFixed(2);
 
   return paypalFetch<PayPalOrderResponse>("/v2/checkout/orders", {
     method: "POST",
+    headers: input.idempotencyKey
+      ? {
+          "PayPal-Request-Id": input.idempotencyKey,
+        }
+      : undefined,
     body: JSON.stringify({
       intent: "CAPTURE",
       purchase_units: [

@@ -10,6 +10,7 @@ import {
 
 type CreateCheckoutSessionInput = {
   filingId: string;
+  idempotencyKey?: string | null;
   userId: string;
   userEmail?: string | null;
   userName?: string | null;
@@ -90,72 +91,77 @@ export async function createCheckoutSession(
     );
   }
 
-  return stripe.checkout.sessions.create({
-    mode: "payment",
-    customer: customerId,
-    success_url: `${appBaseUrl}/v2/dashboard/ucr/${filing.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appBaseUrl}/v2/dashboard/ucr/${filing.id}?checkout=cancelled`,
-    submit_type: "pay",
-    metadata: {
-      filingId: filing.id,
-      filingType: "UCR",
-      userId: filing.userId,
-      year: String(filing.year),
-      organizationId: filing.organizationId ?? "",
-      chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
-    },
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: "usd",
-          unit_amount: Math.round(
-            Number(isAdditionalPayment ? chargeAmount : filing.ucrAmount) * 100,
-          ),
-          product_data: {
-            name: isAdditionalPayment ? "Additional UCR balance" : `UCR ${filing.year} filing`,
-            description: `${filing.legalName} | ${filing.vehicleCount ?? 0} vehicles`,
-          },
-        },
-      },
-      ...(!isAdditionalPayment && Number(filing.serviceFee) > 0
-        ? [
-            {
-              quantity: 1,
-              price_data: {
-                currency: "usd",
-                unit_amount: Math.round(Number(filing.serviceFee) * 100),
-                product_data: {
-                  name: "UCR concierge service fee",
-                },
-              },
-            },
-          ]
-        : []),
-      ...(!isAdditionalPayment && Number(filing.processingFee) > 0
-        ? [
-            {
-              quantity: 1,
-              price_data: {
-                currency: "usd",
-                unit_amount: Math.round(Number(filing.processingFee) * 100),
-                product_data: {
-                  name: "UCR payment processing fee",
-                },
-              },
-            },
-          ]
-        : []),
-    ],
-    payment_intent_data: {
-      receipt_email: input.userEmail ?? undefined,
+  return stripe.checkout.sessions.create(
+    {
+      mode: "payment",
+      customer: customerId,
+      success_url: `${appBaseUrl}/v2/dashboard/ucr/${filing.id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appBaseUrl}/v2/dashboard/ucr/${filing.id}?checkout=cancelled`,
+      submit_type: "pay",
       metadata: {
         filingId: filing.id,
         filingType: "UCR",
         userId: filing.userId,
         year: String(filing.year),
+        organizationId: filing.organizationId ?? "",
         chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
+        idempotencyKey: input.idempotencyKey ?? "",
+      },
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: Math.round(
+              Number(isAdditionalPayment ? chargeAmount : filing.ucrAmount) * 100,
+            ),
+            product_data: {
+              name: isAdditionalPayment ? "Additional UCR balance" : `UCR ${filing.year} filing`,
+              description: `${filing.legalName} | ${filing.vehicleCount ?? 0} vehicles`,
+            },
+          },
+        },
+        ...(!isAdditionalPayment && Number(filing.serviceFee) > 0
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: "usd",
+                  unit_amount: Math.round(Number(filing.serviceFee) * 100),
+                  product_data: {
+                    name: "UCR concierge service fee",
+                  },
+                },
+              },
+            ]
+          : []),
+        ...(!isAdditionalPayment && Number(filing.processingFee) > 0
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: "usd",
+                  unit_amount: Math.round(Number(filing.processingFee) * 100),
+                  product_data: {
+                    name: "UCR payment processing fee",
+                  },
+                },
+              },
+            ]
+          : []),
+      ],
+      payment_intent_data: {
+        receipt_email: input.userEmail ?? undefined,
+        metadata: {
+          filingId: filing.id,
+          filingType: "UCR",
+          userId: filing.userId,
+          year: String(filing.year),
+          chargeType: isAdditionalPayment ? "balance_due" : "full_payment",
+          idempotencyKey: input.idempotencyKey ?? "",
+        },
       },
     },
-  });
+    input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
+  );
 }

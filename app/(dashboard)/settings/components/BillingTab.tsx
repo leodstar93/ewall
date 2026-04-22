@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   EmptyState,
   Field,
@@ -86,6 +86,11 @@ export default function BillingTab({
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const checkoutIdempotencyKeyRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`,
+  );
 
   const formatPaymentMethodLabel = (method: BillingOverview["paymentMethods"][number]) => {
     if (method.provider === "paypal") {
@@ -175,11 +180,15 @@ export default function BillingTab({
       setError("");
       const response = await fetch("/api/v1/billing/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": checkoutIdempotencyKeyRef.current,
+        },
         body: JSON.stringify({
           planId: selectedPlanId,
           paymentMethodId: selectedPaymentMethodId,
           couponCode: couponCode.trim() || undefined,
+          idempotencyKey: checkoutIdempotencyKeyRef.current,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as {
@@ -199,6 +208,10 @@ export default function BillingTab({
         tone: "success",
         message: `${selectedPaymentMethod?.provider === "paypal" ? "PayPal" : "Stripe"} subscription activated${amountLabel}.`,
       });
+      checkoutIdempotencyKeyRef.current =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`;
     } catch (checkoutError) {
       const message =
         checkoutError instanceof Error

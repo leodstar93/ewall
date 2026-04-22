@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import { BillingSettingsForm } from "./BillingSettingsForm";
 import { CouponsTab } from "./CouponsTab";
 import { GrantsTab } from "./GrantsTab";
+import { LogsTab } from "./LogsTab";
 import { ModulesTab } from "./ModulesTab";
 import { PlansTab } from "./PlansTab";
 import type {
@@ -22,6 +23,7 @@ const tabs = [
   { id: "modules", label: "Modules" },
   { id: "coupons", label: "Coupons" },
   { id: "grants", label: "Grants" },
+  { id: "logs", label: "Logs" },
 ] as const;
 
 export function BillingWorkspace() {
@@ -183,6 +185,8 @@ export function BillingWorkspace() {
           }}
         />
       ) : null}
+
+      {!loading && activeTab === "logs" ? <LogsTab /> : null}
     </div>
   );
 }

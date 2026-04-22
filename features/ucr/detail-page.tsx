@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import UcrFilingForm from "@/features/ucr/filing-form";
 import {
@@ -49,6 +49,11 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
   const [officialConfirmation, setOfficialConfirmation] = useState("");
   const [officialPaidAt, setOfficialPaidAt] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const checkoutIdempotencyKeyRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`,
+  );
 
   const apiBasePath =
     props.apiBasePath ?? (props.mode === "staff" ? "/api/v1/admin/ucr" : "/api/v1/features/ucr");
@@ -96,6 +101,11 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
       setError(null);
       const response = await fetch(`/api/v1/features/ucr/${props.filingId}/checkout`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": checkoutIdempotencyKeyRef.current,
+        },
+        body: JSON.stringify({ idempotencyKey: checkoutIdempotencyKeyRef.current }),
       });
       const data = (await response.json().catch(() => ({}))) as {
         checkoutUrl?: string;
@@ -113,6 +123,10 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
       }
 
       if (data.paymentStatus === "SUCCEEDED") {
+        checkoutIdempotencyKeyRef.current =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`;
         await load();
         return;
       }

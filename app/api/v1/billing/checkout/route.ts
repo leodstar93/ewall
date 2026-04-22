@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       provider?: string;
       paymentMethodId?: string;
       couponCode?: string;
+      idempotencyKey?: string;
     };
 
     if (!body.planId) {
@@ -90,6 +91,10 @@ export async function POST(request: Request) {
       paymentMethodId,
       couponCode: coupon?.code ?? null,
       receiptEmail: guard.session.user?.email ?? null,
+      requestIdempotencyKey:
+        request.headers.get("idempotency-key")?.trim() ||
+        body.idempotencyKey?.trim() ||
+        null,
     });
 
     return Response.json({

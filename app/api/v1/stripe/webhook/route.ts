@@ -4,7 +4,6 @@ import { syncStripeSubscription } from "@/lib/services/billing-sync.service";
 import { SettingsValidationError } from "@/lib/services/settings-errors";
 import { prisma } from "@/lib/prisma";
 import { handleStripeCheckoutCompleted } from "@/services/ucr/handleStripeCheckoutCompleted";
-import { logUcrEvent } from "@/services/ucr/logUcrEvent";
 
 function extractOrganizationId(metadata: Record<string, string> | null | undefined) {
   const organizationId = metadata?.organizationId?.trim();
@@ -51,6 +50,24 @@ export async function POST(request: Request) {
               data: {
                 customerPaymentStatus: "FAILED",
                 status: "NEEDS_ATTENTION",
+                stripePaymentIntentId: paymentIntent.id,
+              },
+            });
+
+            await prisma.uCRCustomerPaymentAttempt.updateMany({
+              where: {
+                OR: [
+                  { stripePaymentIntentId: paymentIntent.id },
+                  paymentIntent.metadata?.idempotencyKey
+                    ? { idempotencyKey: paymentIntent.metadata.idempotencyKey }
+                    : undefined,
+                ].filter(Boolean) as { stripePaymentIntentId?: string; idempotencyKey?: string }[],
+                status: "PENDING",
+              },
+              data: {
+                status: "FAILED",
+                failureMessage:
+                  paymentIntent.last_payment_error?.message ?? "Stripe payment failed.",
                 stripePaymentIntentId: paymentIntent.id,
               },
             });
