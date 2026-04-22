@@ -47,11 +47,22 @@ type OverviewActivity = {
   href: string;
 };
 
-async function fetchJson<T>(url: string) {
+async function fetchJson<T>(
+  url: string,
+  options?: { fallbackOnModuleAccessRequired?: T },
+) {
   const response = await fetch(url, { cache: "no-store" });
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
 
   if (!response.ok) {
+    if (
+      response.status === 402 &&
+      payload.error === "module access required" &&
+      options?.fallbackOnModuleAccessRequired
+    ) {
+      return options.fallbackOnModuleAccessRequired;
+    }
+
     throw new Error(payload.error || `Request failed for ${url}`);
   }
 
@@ -143,8 +154,12 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
           await Promise.allSettled([
             fetchJson<{ trucks: TruckRecord[] }>("/api/v1/features/ifta/trucks"),
             fetchJson<{ documents: DocumentItem[] }>("/api/v1/features/documents"),
-            fetchJson<{ filings: UcrFiling[] }>("/api/v1/features/ucr"),
-            fetchJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings"),
+            fetchJson<{ filings: UcrFiling[] }>("/api/v1/features/ucr", {
+              fallbackOnModuleAccessRequired: { filings: [] },
+            }),
+            fetchJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings", {
+              fallbackOnModuleAccessRequired: { filings: [] },
+            }),
             fetchJson<{ slides: AdSlide[] }>("/api/v1/news-updates?audience=TRUCKER"),
           ]);
 
