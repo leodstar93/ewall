@@ -2,6 +2,15 @@ import { SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureBillingSettings } from "@/lib/services/billing-settings.service";
 
+const BUILTIN_SUBSCRIPTION_MODULES = new Set(["ifta", "ucr"]);
+
+export function isSubscriptionProtectedModule(module: {
+  slug: string;
+  requiresSubscription: boolean;
+}) {
+  return module.requiresSubscription || BUILTIN_SUBSCRIPTION_MODULES.has(module.slug);
+}
+
 export type ModuleAccessResult = {
   allowed: boolean;
   reason:
@@ -78,7 +87,7 @@ export async function getModuleAccess(
     };
   }
 
-  if (!settings.subscriptionsRequired) {
+  if (!settings.subscriptionsEnabled || !settings.subscriptionsRequired) {
     return {
       allowed: true,
       reason: "SUBSCRIPTIONS_DISABLED",
@@ -86,7 +95,7 @@ export async function getModuleAccess(
     };
   }
 
-  if (!module.requiresSubscription) {
+  if (!isSubscriptionProtectedModule({ slug: moduleSlug, requiresSubscription: module.requiresSubscription })) {
     return {
       allowed: true,
       reason: "FREE_MODULE",

@@ -4,7 +4,10 @@ import {
   SubscriptionStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getModuleAccess } from "@/lib/services/entitlements.service";
+import {
+  getModuleAccess,
+  isSubscriptionProtectedModule,
+} from "@/lib/services/entitlements.service";
 import {
   ensureBillingSettings,
   getBillingSettings,
@@ -1440,7 +1443,7 @@ export async function getCustomerBillingOverview(userId: string) {
         accessSource: item.access.source ?? null,
       })),
     blockedPremiumModules: moduleAccessResults
-      .filter((item) => item.module.requiresSubscription && !item.access.allowed)
+      .filter((item) => isSubscriptionProtectedModule(item.module) && !item.access.allowed)
       .map((item) => ({
         ...formatModule(item.module),
         blockedReason: item.access.reason,

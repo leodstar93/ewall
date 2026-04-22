@@ -83,12 +83,12 @@ export function BillingSettingsForm({
     {
       key: "subscriptionsEnabled",
       title: "Enable subscriptions",
-      hint: "Expose checkout and subscription controls without forcing entitlement checks yet.",
+      hint: "Expose checkout and subscription controls. Use the require switch below to block module access.",
     },
     {
       key: "subscriptionsRequired",
-      title: "Require subscriptions for premium modules",
-      hint: "When disabled, premium modules remain accessible even if billing exists.",
+      title: "Require subscription access",
+      hint: "When enabled, IFTA v2, UCR, and any premium modules require an active plan or grant.",
     },
     {
       key: "allowStripe",
@@ -134,6 +134,22 @@ export function BillingSettingsForm({
             }}
           >
             {error}
+          </div>
+        ) : null}
+
+        {form.subscriptionsEnabled && !form.subscriptionsRequired ? (
+          <div
+            style={{
+              borderRadius: 10,
+              border: "1px solid #fde68a",
+              background: "#fffbeb",
+              padding: "10px 14px",
+              fontSize: 13,
+              color: "#92400e",
+            }}
+          >
+            Subscriptions are enabled for checkout, but module access is still open until
+            subscription access is required.
           </div>
         ) : null}
 
