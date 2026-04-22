@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import DashboardTable, {
   type ColumnDef,
 } from "@/app/v2/(protected)/dashboard/components/ui/Table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { US_JURISDICTIONS } from "@/features/ifta/constants/us-jurisdictions";
 import {
   type FilingDetail,
   type FilingException,
@@ -28,6 +29,7 @@ import {
   severityTone,
   statusLabel,
   tenantCompanyName,
+  toNumber,
 } from "@/features/ifta-v2/shared";
 
 type FilingDetailPanelProps = {
@@ -36,6 +38,7 @@ type FilingDetailPanelProps = {
   loading: boolean;
   busyAction: string | null;
   canViewAudit?: boolean;
+  canEditJurisdictionSummary?: boolean;
   onSyncLatest: (filing: FilingDetail) => void;
   onSyncByDates?: (filing: FilingDetail) => void;
   onRebuild: (filing: FilingDetail) => void;
@@ -48,6 +51,10 @@ type FilingDetailPanelProps = {
   onDownload: (filing: FilingDetail, format: "pdf" | "excel") => void;
   onUploadDocument: (filing: FilingDetail, file: File) => Promise<void>;
   onSendChatMessage: (filing: FilingDetail, message: string) => Promise<void>;
+  onSaveJurisdictionSummary?: (
+    filing: FilingDetail,
+    rows: JurisdictionSummaryEditInput[],
+  ) => Promise<void>;
   onExceptionAction: (
     filing: FilingDetail,
     exception: FilingException,
@@ -72,6 +79,27 @@ type JurisdictionSummaryRow = {
   taxRate: string;
   netTax: string;
 };
+
+export type JurisdictionSummaryEditInput = {
+  id?: string | null;
+  jurisdiction: string;
+  totalMiles: string;
+  taxableGallons: string;
+  taxPaidGallons: string;
+};
+
+type JurisdictionSummaryDraftRow = JurisdictionSummaryEditInput & {
+  draftId: string;
+};
+
+type JurisdictionSummaryDraftState = {
+  filingId: string;
+  rows: JurisdictionSummaryDraftRow[];
+};
+
+const validIftaJurisdictions = US_JURISDICTIONS.filter(
+  (jurisdiction) => jurisdiction.isActive && jurisdiction.isIftaMember,
+).sort((left, right) => left.name.localeCompare(right.name));
 
 type VehicleTableRow = {
   id: string;
@@ -214,12 +242,117 @@ function buildConversation(filing: FilingDetail) {
     });
 }
 
+function toEditableDecimal(value: string | number | null | undefined, precision: number) {
+  return toNumber(value).toFixed(precision);
+}
+
+function buildJurisdictionSummaryDraftRows(
+  filing: FilingDetail | null,
+): JurisdictionSummaryDraftRow[] {
+  return (filing?.jurisdictionSummaries ?? []).map((summary) => ({
+    draftId: summary.id,
+    id: summary.id,
+    jurisdiction: summary.jurisdiction,
+    totalMiles: toEditableDecimal(summary.totalMiles, 2),
+    taxableGallons: toEditableDecimal(summary.taxableGallons, 3),
+    taxPaidGallons: toEditableDecimal(summary.taxPaidGallons, 3),
+  }));
+}
+
+function JurisdictionSearchSelect({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = validIftaJurisdictions.find(
+    (jurisdiction) => jurisdiction.code === value,
+  );
+  const filtered = validIftaJurisdictions
+    .filter((jurisdiction) => {
+      const normalizedQuery = query.trim().toLowerCase();
+      if (!normalizedQuery) return true;
+
+      return (
+        jurisdiction.code.toLowerCase().includes(normalizedQuery) ||
+        jurisdiction.name.toLowerCase().includes(normalizedQuery)
+      );
+    })
+    .slice(0, 12);
+
+  return (
+    <div className="relative w-56">
+      <button
+        type="button"
+        onClick={() => {
+          if (disabled) return;
+          setOpen((current) => !current);
+        }}
+        disabled={disabled}
+        className="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+      >
+        <span className="truncate">
+          {selected ? `${selected.code} - ${selected.name}` : "Select jurisdiction"}
+        </span>
+        <span className="text-xs text-gray-500">v</span>
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-11 z-20 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+          <div className="border-b border-gray-200 p-2">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              autoFocus
+              className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-[var(--b)]"
+              placeholder="Search state"
+            />
+          </div>
+          <div className="max-h-72 overflow-auto py-1">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-sm text-gray-500">
+                No jurisdictions found.
+              </div>
+            ) : (
+              filtered.map((jurisdiction) => (
+                <button
+                  key={jurisdiction.code}
+                  type="button"
+                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-gray-50 ${
+                    jurisdiction.code === value ? "bg-gray-100" : ""
+                  }`}
+                  onClick={() => {
+                    onChange(jurisdiction.code);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                >
+                  <span className="font-semibold text-gray-900">
+                    {jurisdiction.code}
+                  </span>
+                  <span className="flex-1 text-gray-600">{jurisdiction.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function FilingDetailPanel({
   mode,
   filing,
   loading,
   busyAction,
   canViewAudit = false,
+  canEditJurisdictionSummary = false,
   onSyncLatest,
   onSyncByDates,
   onRebuild,
@@ -232,6 +365,7 @@ export function FilingDetailPanel({
   onDownload,
   onUploadDocument,
   onSendChatMessage,
+  onSaveJurisdictionSummary,
   onExceptionAction,
 }: FilingDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
@@ -239,13 +373,9 @@ export function FilingDetailPanel({
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [chatDraft, setChatDraft] = useState("");
-
-  useEffect(() => {
-    setActiveTab("overview");
-    setDocumentModalOpen(false);
-    setDocumentFile(null);
-    setChatDraft("");
-  }, [filing?.id]);
+  const [jurisdictionDraft, setJurisdictionDraft] =
+    useState<JurisdictionSummaryDraftState | null>(null);
+  const [summaryEditing, setSummaryEditing] = useState(false);
 
   const vehicleLabelById = useMemo(() => {
     return new Map(
@@ -332,6 +462,21 @@ export function FilingDetailPanel({
   const canReopen =
     mode === "staff" &&
     (filing.status === "APPROVED" || filing.status === "FINALIZED");
+  const filingIdForDraft = filing.id;
+  const jurisdictionBaselineRows = buildJurisdictionSummaryDraftRows(filing);
+  const jurisdictionDraftRows =
+    jurisdictionDraft?.filingId === filingIdForDraft
+      ? jurisdictionDraft.rows
+      : jurisdictionBaselineRows;
+  const canEditSummary =
+    canEditJurisdictionSummary &&
+    Boolean(onSaveJurisdictionSummary) &&
+    !["APPROVED", "FINALIZED", "ARCHIVED"].includes(filing.status);
+  const canEditCurrentSummary = canEditSummary && summaryEditing;
+  const summaryBusy = busyAction === `summary:${filing.id}`;
+  const summaryDirty =
+    JSON.stringify(jurisdictionDraftRows) !==
+    JSON.stringify(jurisdictionBaselineRows);
   const ucrPrimaryButtonClassName =
     "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[var(--b)] !bg-[var(--b)] !text-white hover:!bg-[var(--bd)]";
   const ucrSecondaryButtonClassName =
@@ -575,6 +720,66 @@ export function FilingDetailPanel({
   const documentBusy = busyAction === `document:upload:${filing.id}`;
   const chatBusy = busyAction === `chat:${filing.id}`;
 
+  function updateJurisdictionDraftRow(
+    draftId: string,
+    field: keyof Pick<
+      JurisdictionSummaryDraftRow,
+      "jurisdiction" | "totalMiles" | "taxableGallons"
+    >,
+    value: string,
+  ) {
+    setJurisdictionDraft((current) => {
+      const currentRows =
+        current?.filingId === filingIdForDraft ? current.rows : jurisdictionBaselineRows;
+
+      return {
+        filingId: filingIdForDraft,
+        rows: currentRows.map((row) =>
+          row.draftId === draftId
+            ? {
+                ...row,
+                [field]: field === "jurisdiction" ? value.toUpperCase() : value,
+              }
+            : row,
+        ),
+      };
+    });
+  }
+
+  function addJurisdictionDraftRow() {
+    setJurisdictionDraft((current) => {
+      const currentRows =
+        current?.filingId === filingIdForDraft ? current.rows : jurisdictionBaselineRows;
+
+      return {
+        filingId: filingIdForDraft,
+        rows: [
+          ...currentRows,
+          {
+            draftId: `new-${Date.now()}`,
+            id: null,
+            jurisdiction: "",
+            totalMiles: "0.00",
+            taxableGallons: "0.000",
+            taxPaidGallons: "0.000",
+          },
+        ],
+      };
+    });
+  }
+
+  function removeJurisdictionDraftRow(draftId: string) {
+    setJurisdictionDraft((current) => {
+      const currentRows =
+        current?.filingId === filingIdForDraft ? current.rows : jurisdictionBaselineRows;
+
+      return {
+        filingId: filingIdForDraft,
+        rows: currentRows.filter((row) => row.draftId !== draftId),
+      };
+    });
+  }
+
   async function handleUploadDocument() {
     if (!filing || !documentFile || documentBusy) return;
     await onUploadDocument(filing, documentFile);
@@ -586,6 +791,22 @@ export function FilingDetailPanel({
     if (!filing || !chatDraft.trim() || chatBusy) return;
     await onSendChatMessage(filing, chatDraft.trim());
     setChatDraft("");
+  }
+
+  async function handleSaveJurisdictionSummary() {
+    if (!filing || !onSaveJurisdictionSummary || summaryBusy) return;
+    await onSaveJurisdictionSummary(
+      filing,
+      jurisdictionDraftRows.map((row) => ({
+        id: row.id,
+        jurisdiction: row.jurisdiction.trim().toUpperCase(),
+        totalMiles: row.totalMiles.trim(),
+        taxableGallons: row.taxableGallons.trim(),
+        taxPaidGallons: row.taxPaidGallons.trim(),
+      })),
+    );
+    setJurisdictionDraft(null);
+    setSummaryEditing(false);
   }
 
   return (
@@ -785,13 +1006,201 @@ export function FilingDetailPanel({
       <div className="p-6">
         {activeTab === "overview" ? (
           <div className="space-y-6">
-            {filing.jurisdictionSummaries.length === 0 ? (
-              <EmptyPanel message="No jurisdiction summary has been calculated for this filing yet." />
+            {canEditCurrentSummary ? (
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
+                      IFTA
+                    </div>
+                    <h3 className="mt-1 text-base font-semibold text-gray-950">
+                      Jurisdiction Summary
+                    </h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={ucrSecondaryButtonClassName}
+                      onClick={addJurisdictionDraftRow}
+                      disabled={summaryBusy}
+                    >
+                      Add Row
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={ucrSecondaryButtonClassName}
+                      onClick={() => {
+                        setJurisdictionDraft(null);
+                        setSummaryEditing(false);
+                      }}
+                      disabled={summaryBusy}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className={ucrPrimaryButtonClassName}
+                      onClick={() => void handleSaveJurisdictionSummary()}
+                      disabled={summaryBusy || !summaryDirty}
+                    >
+                      {summaryBusy ? "Saving..." : "Save Summary"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto border-t border-gray-200">
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead
+                      className="text-left text-xs uppercase tracking-[0.08em] text-white/80"
+                      style={{ background: "var(--b)" }}
+                    >
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Jurisdiction</th>
+                        <th className="px-4 py-3 font-medium">Total Miles</th>
+                        <th className="px-4 py-3 font-medium">Taxable Gallons</th>
+                        <th className="px-4 py-3 font-medium">Tax-Paid Gallons</th>
+                        <th className="px-4 py-3 font-medium">Tax Rate</th>
+                        <th className="px-4 py-3 font-medium">Net Tax</th>
+                        <th className="px-4 py-3 font-medium">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jurisdictionDraftRows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            className="px-4 py-6 text-center text-sm text-gray-500"
+                          >
+                            No jurisdiction rows yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        jurisdictionDraftRows.map((row) => {
+                          const existing = filing.jurisdictionSummaries.find(
+                            (summary) => summary.id === row.id,
+                          );
+
+                          return (
+                            <tr key={row.draftId} className="border-t border-gray-200">
+                              <td className="px-4 py-3">
+                                <JurisdictionSearchSelect
+                                  value={row.jurisdiction}
+                                  disabled={summaryBusy}
+                                  onChange={(nextJurisdiction) =>
+                                    updateJurisdictionDraftRow(
+                                      row.draftId,
+                                      "jurisdiction",
+                                      nextJurisdiction,
+                                    )
+                                  }
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={row.totalMiles}
+                                  onChange={(event) =>
+                                    updateJurisdictionDraftRow(
+                                      row.draftId,
+                                      "totalMiles",
+                                      event.target.value,
+                                    )
+                                  }
+                                  disabled={summaryBusy}
+                                  className="h-10 w-32 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+                                  aria-label="Total miles"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.001"
+                                  value={row.taxableGallons}
+                                  onChange={(event) =>
+                                    updateJurisdictionDraftRow(
+                                      row.draftId,
+                                      "taxableGallons",
+                                      event.target.value,
+                                    )
+                                  }
+                                  disabled={summaryBusy}
+                                  className="h-10 w-36 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+                                  aria-label="Taxable gallons"
+                                />
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">
+                                {row.taxPaidGallons}
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">
+                                {existing
+                                  ? formatNumber(existing.taxRate, {
+                                      maximumFractionDigits: 5,
+                                    })
+                                  : "0"}
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">
+                                {existing ? formatMoney(existing.netTax) : "$0.00"}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className={ucrSecondaryButtonClassName}
+                                  onClick={() => removeJurisdictionDraftRow(row.draftId)}
+                                  disabled={summaryBusy}
+                                >
+                                  Remove
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : filing.jurisdictionSummaries.length === 0 ? (
+              <div className="space-y-3">
+                {canEditSummary ? (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={ucrSecondaryButtonClassName}
+                      onClick={() => setSummaryEditing(true)}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                ) : null}
+                <EmptyPanel message="No jurisdiction summary has been calculated for this filing yet." />
+              </div>
             ) : (
               <DashboardTable
                 data={jurisdictionSummaryRows}
                 columns={jurisdictionSummaryColumns}
                 title="Jurisdiction Summary"
+                actions={
+                  canEditSummary
+                    ? [
+                        {
+                          label: "Edit",
+                          onClick: () => setSummaryEditing(true),
+                        },
+                      ]
+                    : undefined
+                }
               />
             )}
 

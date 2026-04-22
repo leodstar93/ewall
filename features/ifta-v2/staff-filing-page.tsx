@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { FilingDetailPanel } from "@/features/ifta-v2/detail-panel";
+import type { JurisdictionSummaryEditInput } from "@/features/ifta-v2/detail-panel";
 import {
   type FilingDetail,
   type FilingException,
@@ -88,6 +89,7 @@ export default function IftaAutomationStaffFilingPage({
     ? session.user.permissions
     : [];
   const canViewAudit = canReadAudit(roles, permissions);
+  const canEditJurisdictionSummary = roles.includes("ADMIN");
   const [filing, setFiling] = useState<FilingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -441,6 +443,33 @@ export default function IftaAutomationStaffFilingPage({
     );
   }
 
+  async function handleSaveJurisdictionSummary(
+    currentFiling: FilingDetail,
+    rows: JurisdictionSummaryEditInput[],
+  ) {
+    await runBusyAction(
+      `summary:${currentFiling.id}`,
+      async () => {
+        await requestJson(
+          `/api/v1/features/ifta-v2/filings/${currentFiling.id}/manual-summary`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              lines: rows.map((row) => ({
+                id: row.id ?? null,
+                jurisdiction: row.jurisdiction,
+                totalMiles: row.totalMiles,
+                taxableGallons: row.taxableGallons,
+                taxPaidGallons: row.taxPaidGallons,
+              })),
+            }),
+          },
+        );
+      },
+      `Jurisdiction summary saved for ${filingPeriodLabel(currentFiling)}.`,
+    );
+  }
+
   if (loading) {
     return (
       <Card className="p-8">
@@ -474,11 +503,13 @@ export default function IftaAutomationStaffFilingPage({
     <>
       <div className="space-y-6">
         <FilingDetailPanel
+          key={filing.id}
           mode="staff"
           filing={filing}
           loading={loading}
           busyAction={busyAction}
           canViewAudit={canViewAudit}
+          canEditJurisdictionSummary={canEditJurisdictionSummary}
           onSyncLatest={(currentFiling) => void handleSyncLatest(currentFiling)}
           onSyncByDates={(currentFiling) => openSyncDatesModal(currentFiling)}
           onRebuild={(currentFiling) => void handleRebuild(currentFiling)}
@@ -492,6 +523,9 @@ export default function IftaAutomationStaffFilingPage({
           onUploadDocument={(currentFiling, file) => handleUploadDocument(currentFiling, file)}
           onSendChatMessage={(currentFiling, message) =>
             handleSendChatMessage(currentFiling, message)
+          }
+          onSaveJurisdictionSummary={(currentFiling, rows) =>
+            handleSaveJurisdictionSummary(currentFiling, rows)
           }
           onExceptionAction={(currentFiling, exception, action) =>
             void handleExceptionAction(currentFiling, exception, action)

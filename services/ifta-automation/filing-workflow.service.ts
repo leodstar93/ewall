@@ -1,4 +1,5 @@
 import {
+  FuelType,
   IftaExceptionSeverity,
   IftaFilingStatus,
 } from "@prisma/client";
@@ -8,12 +9,15 @@ import {
   IftaAutomationError,
   canStartStaffReview,
   canTruckerEditFiling,
+  decimalToNumber,
   getIftaAutomationFilingOrThrow,
   hasBlockingOpenExceptions,
   isOpenExceptionStatus,
   normalizeJurisdictionCode,
   parseOptionalDate,
+  quarterNumberToEnum,
   resolveDb,
+  roundNumber,
   toDecimalString,
 } from "@/services/ifta-automation/shared";
 import { CanonicalNormalizationService } from "@/services/ifta-automation/canonical-normalization.service";
@@ -354,6 +358,241 @@ export class FilingWorkflowService {
         jurisdictions: Array.from(mergedLines.entries()).map(([jurisdiction, taxableMiles]) => ({
           jurisdiction,
           taxableMiles: toDecimalString(taxableMiles, 2),
+        })),
+      },
+      db,
+    });
+
+    return getIftaAutomationFilingOrThrow(filing.id, db);
+  }
+
+  static async replaceJurisdictionSummary(input: {
+    filingId: string;
+    actorUserId?: string | null;
+    lines: Array<{
+      id?: string | null;
+      jurisdiction: string;
+      totalMiles: number;
+      taxableGallons: number;
+      taxPaidGallons?: number | null;
+    }>;
+    db?: DbLike;
+  }) {
+    const db = resolveDb(input.db ?? null);
+    const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
+
+    if (
+      filing.status === IftaFilingStatus.APPROVED ||
+      filing.status === IftaFilingStatus.FINALIZED ||
+      filing.status === IftaFilingStatus.ARCHIVED
+    ) {
+      throw new IftaAutomationError(
+        "Approved or finalized IFTA filings must be reopened before editing the jurisdiction summary.",
+        409,
+        "IFTA_SUMMARY_EDIT_BLOCKED",
+      );
+    }
+
+    const existingById = new Map(filing.jurisdictionSummaries.map((summary) => [summary.id, summary]));
+    const existingByJurisdiction = new Map(
+      filing.jurisdictionSummaries.map((summary) => [summary.jurisdiction, summary]),
+    );
+    const normalizedLines: Array<{
+      jurisdiction: string;
+      totalMiles: number;
+      taxableGallons: number;
+      taxPaidGallons: number;
+    }> = [];
+    const seenJurisdictions = new Set<string>();
+
+    for (const line of input.lines) {
+      const jurisdiction = normalizeJurisdictionCode(line.jurisdiction);
+      const totalMiles = Number(line.totalMiles);
+      const taxableGallons = Number(line.taxableGallons);
+      const existing =
+        (line.id ? existingById.get(line.id) : null) ??
+        (jurisdiction ? existingByJurisdiction.get(jurisdiction) : null);
+      const taxPaidGallons =
+        typeof line.taxPaidGallons === "number"
+          ? line.taxPaidGallons
+          : decimalToNumber(existing?.taxPaidGallons ?? 0);
+
+      if (!jurisdiction || jurisdiction.length < 2 || jurisdiction.length > 3) {
+        throw new IftaAutomationError(
+          "Each jurisdiction summary row needs a valid jurisdiction code.",
+          400,
+          "INVALID_IFTA_SUMMARY_JURISDICTION",
+        );
+      }
+
+      if (seenJurisdictions.has(jurisdiction)) {
+        throw new IftaAutomationError(
+          `Jurisdiction ${jurisdiction} appears more than once.`,
+          400,
+          "DUPLICATE_IFTA_SUMMARY_JURISDICTION",
+        );
+      }
+
+      if (!Number.isFinite(totalMiles) || totalMiles < 0) {
+        throw new IftaAutomationError(
+          "Total miles must be zero or greater.",
+          400,
+          "INVALID_IFTA_SUMMARY_MILES",
+        );
+      }
+
+      if (!Number.isFinite(taxableGallons) || taxableGallons < 0) {
+        throw new IftaAutomationError(
+          "Taxable gallons must be zero or greater.",
+          400,
+          "INVALID_IFTA_SUMMARY_TAXABLE_GALLONS",
+        );
+      }
+
+      if (!Number.isFinite(taxPaidGallons) || taxPaidGallons < 0) {
+        throw new IftaAutomationError(
+          "Tax-paid gallons must be zero or greater.",
+          400,
+          "INVALID_IFTA_SUMMARY_TAX_PAID_GALLONS",
+        );
+      }
+
+      seenJurisdictions.add(jurisdiction);
+      normalizedLines.push({
+        jurisdiction,
+        totalMiles: roundNumber(totalMiles, 2),
+        taxableGallons: roundNumber(taxableGallons, 3),
+        taxPaidGallons: roundNumber(taxPaidGallons, 3),
+      });
+    }
+
+    if (normalizedLines.length > 0) {
+      const validJurisdictions = await db.jurisdiction.findMany({
+        where: {
+          code: {
+            in: normalizedLines.map((line) => line.jurisdiction),
+          },
+          isActive: true,
+          isIftaMember: true,
+        },
+        select: { code: true },
+      });
+      const validCodes = new Set(validJurisdictions.map((jurisdiction) => jurisdiction.code));
+      const invalidCodes = normalizedLines
+        .map((line) => line.jurisdiction)
+        .filter((jurisdiction) => !validCodes.has(jurisdiction));
+
+      if (invalidCodes.length > 0) {
+        throw new IftaAutomationError(
+          `Invalid IFTA jurisdiction: ${invalidCodes.join(", ")}.`,
+          400,
+          "INVALID_IFTA_SUMMARY_JURISDICTION",
+        );
+      }
+    }
+
+    const rateRows = normalizedLines.length
+      ? await db.iftaTaxRate.findMany({
+          where: {
+            year: filing.year,
+            quarter: quarterNumberToEnum(filing.quarter),
+            fuelType: FuelType.DI,
+            jurisdiction: {
+              code: {
+                in: normalizedLines.map((line) => line.jurisdiction),
+              },
+            },
+          },
+          include: {
+            jurisdiction: {
+              select: { code: true },
+            },
+          },
+        })
+      : [];
+    const rateByJurisdiction = new Map(
+      rateRows.map((rate) => [rate.jurisdiction.code, decimalToNumber(rate.taxRate)]),
+    );
+
+    await db.iftaJurisdictionSummary.deleteMany({
+      where: { filingId: filing.id },
+    });
+
+    let totalDistance = 0;
+    let totalFuelGallons = 0;
+    let totalTaxDue = 0;
+    let totalTaxCredit = 0;
+    let totalNetTax = 0;
+    const summaryRows = normalizedLines.map((line) => {
+      const taxRate = roundNumber(rateByJurisdiction.get(line.jurisdiction) ?? 0, 5);
+      const taxDue = roundNumber(line.taxableGallons * taxRate, 2);
+      const taxCredit = roundNumber(line.taxPaidGallons * taxRate, 2);
+      const netTax = roundNumber(taxDue - taxCredit, 2);
+
+      totalDistance += line.totalMiles;
+      totalFuelGallons += line.taxPaidGallons;
+      totalTaxDue += taxDue;
+      totalTaxCredit += taxCredit;
+      totalNetTax += netTax;
+
+      return {
+        filingId: filing.id,
+        jurisdiction: line.jurisdiction,
+        totalMiles: toDecimalString(line.totalMiles, 2),
+        taxableGallons: toDecimalString(line.taxableGallons, 3),
+        taxPaidGallons: toDecimalString(line.taxPaidGallons, 3),
+        taxRate: toDecimalString(taxRate, 5),
+        taxDue: toDecimalString(taxDue, 2),
+        taxCredit: toDecimalString(taxCredit, 2),
+        netTax: toDecimalString(netTax, 2),
+      };
+    });
+
+    if (summaryRows.length > 0) {
+      await db.iftaJurisdictionSummary.createMany({
+        data: summaryRows,
+      });
+    }
+
+    totalDistance = roundNumber(totalDistance, 2);
+    totalFuelGallons = roundNumber(totalFuelGallons, 3);
+    totalTaxDue = roundNumber(totalTaxDue, 2);
+    totalTaxCredit = roundNumber(totalTaxCredit, 2);
+    totalNetTax = roundNumber(totalNetTax, 2);
+    const fleetMpg =
+      totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 4) : 0;
+
+    await db.iftaFiling.update({
+      where: { id: filing.id },
+      data: {
+        totalDistance: toDecimalString(totalDistance, 2),
+        totalFuelGallons: toDecimalString(totalFuelGallons, 3),
+        fleetMpg: toDecimalString(fleetMpg, 4),
+        totalTaxDue: toDecimalString(totalTaxDue, 2),
+        totalTaxCredit: toDecimalString(totalTaxCredit, 2),
+        totalNetTax: toDecimalString(totalNetTax, 2),
+        lastCalculatedAt: new Date(),
+      },
+    });
+
+    await IftaExceptionEngine.evaluateFiling({
+      filingId: filing.id,
+      db,
+    });
+
+    await this.logAudit({
+      filingId: filing.id,
+      actorUserId: input.actorUserId,
+      action: "filing.jurisdiction_summary.replace",
+      message: `Updated ${normalizedLines.length} jurisdiction summary row${normalizedLines.length === 1 ? "" : "s"}.`,
+      payloadJson: {
+        jurisdictions: summaryRows.map((row) => ({
+          jurisdiction: row.jurisdiction,
+          totalMiles: row.totalMiles,
+          taxableGallons: row.taxableGallons,
+          taxPaidGallons: row.taxPaidGallons,
+          taxRate: row.taxRate,
+          netTax: row.netTax,
         })),
       },
       db,

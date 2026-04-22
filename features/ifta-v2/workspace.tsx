@@ -1305,6 +1305,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
           </Card>
 
           <FilingDetailPanel
+            key={selectedFiling?.id ?? "empty"}
             mode={mode}
             filing={selectedFiling}
             loading={loadingDetail}
