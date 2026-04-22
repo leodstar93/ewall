@@ -470,6 +470,30 @@ export default function IftaAutomationStaffFilingPage({
     );
   }
 
+  async function handleResetJurisdictionSummaryOverride(currentFiling: FilingDetail) {
+    const result = await Swal.fire({
+      title: "Reset Manual Override",
+      text: "This will remove the manual jurisdiction summary override and recalculate the summary from synced and manual source lines.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Reset Override",
+    });
+    if (!result.isConfirmed) return;
+
+    await runBusyAction(
+      `summary-reset:${currentFiling.id}`,
+      async () => {
+        await requestJson(
+          `/api/v1/features/ifta-v2/filings/${currentFiling.id}/manual-summary`,
+          {
+            method: "DELETE",
+          },
+        );
+      },
+      `Manual jurisdiction summary override was reset for ${filingPeriodLabel(currentFiling)}.`,
+    );
+  }
+
   if (loading) {
     return (
       <Card className="p-8">
@@ -526,6 +550,9 @@ export default function IftaAutomationStaffFilingPage({
           }
           onSaveJurisdictionSummary={(currentFiling, rows) =>
             handleSaveJurisdictionSummary(currentFiling, rows)
+          }
+          onResetJurisdictionSummaryOverride={(currentFiling) =>
+            handleResetJurisdictionSummaryOverride(currentFiling)
           }
           onExceptionAction={(currentFiling, exception, action) =>
             void handleExceptionAction(currentFiling, exception, action)

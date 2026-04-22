@@ -55,12 +55,27 @@ export async function GET(
     const documents = await listIftaAutomationDocuments(id, prisma);
     const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
     const canViewAudit = canReadAudit(roles, guard.perms);
+    const latestSummaryOverrideAudit = await prisma.iftaAuditLog.findFirst({
+      where: {
+        filingId: id,
+        action: {
+          in: [
+            "filing.jurisdiction_summary.replace",
+            "filing.jurisdiction_summary.reset",
+          ],
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { action: true },
+    });
 
     return Response.json({
       filing: {
         ...filing,
         audits: canViewAudit ? filing.audits : [],
         documents,
+        manualSummaryOverrideActive:
+          latestSummaryOverrideAudit?.action === "filing.jurisdiction_summary.replace",
       },
     });
   } catch (error) {

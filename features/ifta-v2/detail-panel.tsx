@@ -55,6 +55,7 @@ type FilingDetailPanelProps = {
     filing: FilingDetail,
     rows: JurisdictionSummaryEditInput[],
   ) => Promise<void>;
+  onResetJurisdictionSummaryOverride?: (filing: FilingDetail) => Promise<void>;
   onExceptionAction: (
     filing: FilingDetail,
     exception: FilingException,
@@ -366,6 +367,7 @@ export function FilingDetailPanel({
   onUploadDocument,
   onSendChatMessage,
   onSaveJurisdictionSummary,
+  onResetJurisdictionSummaryOverride,
   onExceptionAction,
 }: FilingDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
@@ -472,8 +474,14 @@ export function FilingDetailPanel({
     canEditJurisdictionSummary &&
     Boolean(onSaveJurisdictionSummary) &&
     !["APPROVED", "FINALIZED", "ARCHIVED"].includes(filing.status);
+  const canResetSummaryOverride =
+    canEditJurisdictionSummary &&
+    Boolean(onResetJurisdictionSummaryOverride) &&
+    filing.manualSummaryOverrideActive === true &&
+    !["APPROVED", "FINALIZED", "ARCHIVED"].includes(filing.status);
   const canEditCurrentSummary = canEditSummary && summaryEditing;
   const summaryBusy = busyAction === `summary:${filing.id}`;
+  const summaryResetBusy = busyAction === `summary-reset:${filing.id}`;
   const summaryDirty =
     JSON.stringify(jurisdictionDraftRows) !==
     JSON.stringify(jurisdictionBaselineRows);
@@ -808,6 +816,35 @@ export function FilingDetailPanel({
     setJurisdictionDraft(null);
     setSummaryEditing(false);
   }
+
+  async function handleResetJurisdictionSummaryOverride() {
+    if (!filing || !onResetJurisdictionSummaryOverride || summaryResetBusy) return;
+    await onResetJurisdictionSummaryOverride(filing);
+    setJurisdictionDraft(null);
+    setSummaryEditing(false);
+  }
+
+  const jurisdictionSummaryActions =
+    canEditSummary || canResetSummaryOverride
+      ? [
+          ...(canEditSummary
+            ? [
+                {
+                  label: "Edit",
+                  onClick: () => setSummaryEditing(true),
+                },
+              ]
+            : []),
+          ...(canResetSummaryOverride
+            ? [
+                {
+                  label: summaryResetBusy ? "Resetting..." : "Reset Manual Override",
+                  onClick: () => void handleResetJurisdictionSummaryOverride(),
+                },
+              ]
+            : []),
+        ]
+      : undefined;
 
   return (
     <Card className="overflow-hidden">
@@ -1171,17 +1208,31 @@ export function FilingDetailPanel({
               </div>
             ) : filing.jurisdictionSummaries.length === 0 ? (
               <div className="space-y-3">
-                {canEditSummary ? (
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className={ucrSecondaryButtonClassName}
-                      onClick={() => setSummaryEditing(true)}
-                    >
-                      Edit
-                    </Button>
+                {canEditSummary || canResetSummaryOverride ? (
+                  <div className="flex justify-end gap-2">
+                    {canEditSummary ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={ucrSecondaryButtonClassName}
+                        onClick={() => setSummaryEditing(true)}
+                      >
+                        Edit
+                      </Button>
+                    ) : null}
+                    {canResetSummaryOverride ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={ucrSecondaryButtonClassName}
+                        onClick={() => void handleResetJurisdictionSummaryOverride()}
+                        disabled={summaryResetBusy}
+                      >
+                        {summaryResetBusy ? "Resetting..." : "Reset Manual Override"}
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
                 <EmptyPanel message="No jurisdiction summary has been calculated for this filing yet." />
@@ -1191,16 +1242,7 @@ export function FilingDetailPanel({
                 data={jurisdictionSummaryRows}
                 columns={jurisdictionSummaryColumns}
                 title="Jurisdiction Summary"
-                actions={
-                  canEditSummary
-                    ? [
-                        {
-                          label: "Edit",
-                          onClick: () => setSummaryEditing(true),
-                        },
-                      ]
-                    : undefined
-                }
+                actions={jurisdictionSummaryActions}
               />
             )}
 

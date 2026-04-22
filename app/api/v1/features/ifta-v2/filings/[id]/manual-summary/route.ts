@@ -76,3 +76,43 @@ export async function PUT(
     return handleIftaAutomationError(error, "Failed to save jurisdiction summary rows.");
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const guard = await requireApiPermission("ifta:write");
+  if (!guard.ok) return guard.res;
+
+  try {
+    const { id } = await context.params;
+    const userId = guard.session.user.id ?? "";
+    if (!userId) {
+      return Response.json({ error: "Invalid session." }, { status: 400 });
+    }
+
+    const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
+    if (!roles.includes("ADMIN")) {
+      return Response.json(
+        { error: "Only admins can reset jurisdiction summary overrides." },
+        { status: 403 },
+      );
+    }
+
+    const canReviewAll = canReviewAllIfta(guard.perms, guard.isAdmin);
+    await assertFilingAccess({
+      filingId: id,
+      userId,
+      canReviewAll,
+    });
+
+    const filing = await FilingWorkflowService.resetJurisdictionSummaryOverride({
+      filingId: id,
+      actorUserId: userId,
+    });
+
+    return Response.json({ filing });
+  } catch (error) {
+    return handleIftaAutomationError(error, "Failed to reset jurisdiction summary override.");
+  }
+}

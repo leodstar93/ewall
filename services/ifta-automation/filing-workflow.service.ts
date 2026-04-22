@@ -601,6 +601,46 @@ export class FilingWorkflowService {
     return getIftaAutomationFilingOrThrow(filing.id, db);
   }
 
+  static async resetJurisdictionSummaryOverride(input: {
+    filingId: string;
+    actorUserId?: string | null;
+    db?: DbLike;
+  }) {
+    const db = resolveDb(input.db ?? null);
+    const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
+
+    if (
+      filing.status === IftaFilingStatus.APPROVED ||
+      filing.status === IftaFilingStatus.FINALIZED ||
+      filing.status === IftaFilingStatus.ARCHIVED
+    ) {
+      throw new IftaAutomationError(
+        "Approved or finalized IFTA filings must be reopened before resetting the jurisdiction summary override.",
+        409,
+        "IFTA_SUMMARY_RESET_BLOCKED",
+      );
+    }
+
+    await this.logAudit({
+      filingId: filing.id,
+      actorUserId: input.actorUserId,
+      action: "filing.jurisdiction_summary.reset",
+      message: "Reset manual jurisdiction summary override.",
+      db,
+    });
+
+    await IftaCalculationEngine.calculateFiling({
+      filingId: filing.id,
+      db,
+    });
+    await IftaExceptionEngine.evaluateFiling({
+      filingId: filing.id,
+      db,
+    });
+
+    return getIftaAutomationFilingOrThrow(filing.id, db);
+  }
+
   static async submitForReview(input: {
     filingId: string;
     actorUserId?: string | null;

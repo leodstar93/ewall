@@ -240,6 +240,7 @@ export type FilingDetail = FilingListItem & {
   distanceLines: DistanceLine[];
   fuelLines: FuelLine[];
   jurisdictionSummaries: JurisdictionSummary[];
+  manualSummaryOverrideActive?: boolean;
   exceptions: FilingException[];
   snapshots: FilingSnapshot[];
   audits: FilingAudit[];
