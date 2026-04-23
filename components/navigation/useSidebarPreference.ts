@@ -8,16 +8,22 @@ const AUTO_COLLAPSE_QUERY = "(min-width: 960px) and (max-width: 1239px)";
 type SidebarPreference = "collapsed" | "expanded" | null;
 
 export function useSidebarPreference() {
-  const [sidebarPreference, setSidebarPreference] = useState<SidebarPreference>(null);
-  const [isViewportCompact, setIsViewportCompact] = useState(false);
+  const [sidebarPreference, setSidebarPreference] = useState<SidebarPreference>(() => {
+    if (typeof window === "undefined") return null;
+
+    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    return stored === "collapsed" || stored === "expanded" ? stored : null;
+  });
+  const [isViewportCompact, setIsViewportCompact] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(AUTO_COLLAPSE_QUERY).matches;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const media = window.matchMedia(AUTO_COLLAPSE_QUERY);
     const syncViewport = () => setIsViewportCompact(media.matches);
-
-    syncViewport();
 
     if (typeof media.addEventListener === "function") {
       media.addEventListener("change", syncViewport);
@@ -26,15 +32,6 @@ export function useSidebarPreference() {
 
     media.addListener(syncViewport);
     return () => media.removeListener(syncViewport);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (stored === "collapsed" || stored === "expanded") {
-      setSidebarPreference(stored);
-    }
   }, []);
 
   useEffect(() => {

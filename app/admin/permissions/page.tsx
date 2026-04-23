@@ -900,7 +900,7 @@ export default function AdminPermissionsPage() {
 
                 <div className="mt-5 rounded-2xl border bg-zinc-50 p-4">
                   <p className="text-sm text-zinc-700">
-                    You're about to delete{" "}
+                    You&apos;re about to delete{" "}
                     <span className="font-mono font-semibold text-zinc-900">
                       {selectedPermission.key}
                     </span>

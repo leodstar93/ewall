@@ -575,7 +575,7 @@ export default function AdminPermissionsPage() {
                   <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn} aria-label="Close">✕</button>
                 </div>
                 <div style={{ padding: "16px", background: "var(--off)", borderBottom: "1px solid var(--brl)", fontSize: 13, color: "#555" }}>
-                  You're about to delete <code style={{ fontWeight: 600, color: "var(--b)" }}>{selectedPermission.key}</code>.
+                  You&apos;re about to delete <code style={{ fontWeight: 600, color: "var(--b)" }}>{selectedPermission.key}</code>.
                 </div>
                 <div className={tableStyles.header} style={{ borderTop: "none", borderBottom: "none", justifyContent: "flex-end", gap: 8 }}>
                   <button type="button" onClick={() => setShowModal(false)} className={tableStyles.btn}>Cancel</button>

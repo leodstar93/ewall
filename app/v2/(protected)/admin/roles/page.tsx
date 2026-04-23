@@ -354,8 +354,8 @@ export default function AdminRolesPage() {
                   <button onClick={() => setShowModal(false)} className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-50" aria-label="Close">x</button>
                 </div>
                 <div className="mt-5 rounded-2xl border bg-zinc-50 p-4">
-                  <p className="text-sm text-zinc-700">You're about to delete <span className="font-semibold text-zinc-900">{selectedRole.name}</span>.</p>
-                  <p className="mt-2 text-xs text-zinc-500">Tip: unassign users first if you're reorganizing access.</p>
+                  <p className="text-sm text-zinc-700">You&apos;re about to delete <span className="font-semibold text-zinc-900">{selectedRole.name}</span>.</p>
+                  <p className="mt-2 text-xs text-zinc-500">Tip: unassign users first if you&apos;re reorganizing access.</p>
                 </div>
                 <div className="mt-6 flex gap-3">
                   <button onClick={() => setShowModal(false)} className="flex-1 rounded-xl border bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-50">Cancel</button>

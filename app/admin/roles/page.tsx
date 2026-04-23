@@ -704,14 +704,14 @@ export default function AdminRolesPage() {
 
                 <div className="mt-5 rounded-2xl border bg-zinc-50 p-4">
                   <p className="text-sm text-zinc-700">
-                    You're about to delete{" "}
+                    You&apos;re about to delete{" "}
                     <span className="font-semibold text-zinc-900">
                       {selectedRole.name}
                     </span>
                     .
                   </p>
                   <p className="mt-2 text-xs text-zinc-500">
-                    Tip: unassign users first if you're reorganizing access.
+                    Tip: unassign users first if you&apos;re reorganizing access.
                   </p>
                 </div>
 

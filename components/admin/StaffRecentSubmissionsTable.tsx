@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
@@ -153,11 +153,8 @@ export default function StaffRecentSubmissionsTable({
     [sortedRows, page, pageSize],
   );
 
-  useEffect(() => {
-    setPage(1);
-  }, [activeFilter, sortDirection, sortKey, pageSize]);
-
   function handleSortClick(nextKey: SortKey) {
+    setPage(1);
     if (sortKey === nextKey) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
       return;
@@ -165,6 +162,22 @@ export default function StaffRecentSubmissionsTable({
 
     setSortKey(nextKey);
     setSortDirection(nextKey === "submittedAt" ? "desc" : "asc");
+  }
+
+  function handleFilterClick(nextFilter: ModuleFilter) {
+    setActiveFilter(nextFilter);
+    setPage(1);
+  }
+
+  function handlePageSizeChange(nextPageSize: number) {
+    setPageSize(
+      DEFAULT_PAGE_SIZE_OPTIONS.includes(
+        nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
+      )
+        ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
+        : 10,
+    );
+    setPage(1);
   }
 
   return (
@@ -183,7 +196,7 @@ export default function StaffRecentSubmissionsTable({
                 <button
                   key={filter}
                   type="button"
-                  onClick={() => setActiveFilter(filter)}
+                  onClick={() => handleFilterClick(filter)}
                   className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition ${
                     isActive
                       ? "border-zinc-900 bg-zinc-900 text-white"
@@ -313,15 +326,7 @@ export default function StaffRecentSubmissionsTable({
           totalItems={paginatedRows.totalItems}
           itemLabel="filings"
           onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) =>
-            setPageSize(
-              DEFAULT_PAGE_SIZE_OPTIONS.includes(
-                nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number],
-              )
-                ? (nextPageSize as (typeof DEFAULT_PAGE_SIZE_OPTIONS)[number])
-                : 10,
-            )
-          }
+          onPageSizeChange={handlePageSizeChange}
         />
       </div>
     </section>
