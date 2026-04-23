@@ -1,6 +1,5 @@
 import { Prisma } from "@prisma/client";
 import { canEdit2290Filing } from "@/lib/form2290-workflow";
-import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import {
   assert2290FilingAccess,

@@ -15,8 +15,7 @@ export async function GET(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Users can only see their own accounts, admins can see any user's accounts
-  const isAdmin = session.user.roles?.includes("ADMIN");
+  // Users can only see their own accounts.
   const isOwnAccount = session.user.id === id;
 
   if (!isOwnAccount) {

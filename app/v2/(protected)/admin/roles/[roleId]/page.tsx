@@ -88,7 +88,6 @@ export default function RoleDetailPage() {
     };
 
     if (isAdmin && roleId) fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleId, isAdmin]);
 
   // ─── Action handlers ───────────────────────────────────────────────────────
@@ -108,8 +107,8 @@ export default function RoleDetailPage() {
       } else {
         pushToast({ type: "error", message: "Failed to update role description" });
       }
-    } catch (error) {
-      console.error("Error updating role:", error);
+    } catch (updateError) {
+      console.error("Error updating role:", updateError);
       pushToast({ type: "error", message: "An error occurred" });
     }
   };
@@ -134,7 +133,7 @@ export default function RoleDetailPage() {
         setSelectedPermissions(selectedPermissions);
         pushToast({ type: "error", message: "Failed to update permissions" });
       }
-    } catch (error) {
+    } catch {
       setSelectedPermissions(selectedPermissions);
       pushToast({ type: "error", message: "An error occurred" });
     }

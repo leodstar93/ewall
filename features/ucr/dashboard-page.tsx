@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
 import {
   UcrFiling,
@@ -47,7 +47,7 @@ export default function UcrDashboardPage({
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
   const [activeStatus, setActiveStatus] = useState<StatusFilter>("ALL");
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -71,11 +71,11 @@ export default function UcrDashboardPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [apiBasePath]);
 
   useEffect(() => {
     void load();
-  }, [apiBasePath]);
+  }, [load]);
 
   const filteredFilings = useMemo(() => {
     if (activeStatus === "ALL") return filings;

@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import Swal from "sweetalert2";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { FilingDetailPanel } from "@/features/ifta-v2/detail-panel";
@@ -14,11 +13,6 @@ import {
   type FilingDetail,
   type FilingException,
   filingPeriodLabel,
-  filingTone,
-  formatDate,
-  openExceptionCount,
-  providerLabel,
-  statusLabel,
   tenantCompanyName,
 } from "@/features/ifta-v2/shared";
 
@@ -107,7 +101,7 @@ export default function IftaAutomationStaffFilingPage({
     setSyncDatesModalOpen(true);
   }
 
-  async function loadFiling() {
+  const loadFiling = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -121,11 +115,11 @@ export default function IftaAutomationStaffFilingPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [filingId]);
 
   useEffect(() => {
     void loadFiling();
-  }, [filingId]);
+  }, [loadFiling]);
 
   async function runBusyAction(
     actionKey: string,

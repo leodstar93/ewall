@@ -15,8 +15,7 @@ export async function DELETE(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Users can only unlink their own accounts, admins can unlink any user's accounts
-  const isAdmin = session.user.roles?.includes("ADMIN");
+  // Users can only unlink their own accounts.
   const isOwnAccount = session.user.id === id;
 
   if (!isOwnAccount) {

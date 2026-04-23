@@ -134,7 +134,6 @@ export default function AdminPermissionsPage() {
     };
 
     if (isAdmin) fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   const filteredSortedPermissions = useMemo(() => {

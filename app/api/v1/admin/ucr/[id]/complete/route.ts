@@ -113,7 +113,7 @@ export async function POST(
       await validateCompletion({ db: tx }, { filingId: id });
 
       const completedAt = new Date();
-      const filing = await transitionUcrStatus({ db: tx }, {
+      await transitionUcrStatus({ db: tx }, {
         filingId: id,
         toStatus: "COMPLETED",
         actorUserId: guard.session.user.id ?? "",

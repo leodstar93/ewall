@@ -411,7 +411,7 @@ export default function PaymentMethodsTab({
     return () => {
       active = false;
     };
-  }, [makeDefault, onNotify, pathname, paypalFlow, paypalStatus, router, searchParams]);
+  }, [loadData, makeDefault, onNotify, pathname, paypalFlow, paypalStatus, router, searchParams]);
 
   const handleDelete = async (id: string) => {
     const method = methods.find((entry) => entry.id === id) ?? null;

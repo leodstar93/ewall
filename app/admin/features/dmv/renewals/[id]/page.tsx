@@ -7,7 +7,7 @@ export default async function AdminDmvRenewalPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { session, perms, roles } = await getAuthz();
+  const { session, roles } = await getAuthz();
   if (!session) redirect("/login");
 
   const isAdmin = roles.includes("ADMIN");

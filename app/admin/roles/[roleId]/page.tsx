@@ -139,8 +139,8 @@ export default function RoleDetailPage() {
           message: "Failed to update role description",
         });
       }
-    } catch (error) {
-      console.error("Error updating role:", error);
+    } catch (updateError) {
+      console.error("Error updating role:", updateError);
       pushToast({
         type: "error",
         message: "An error occurred",
@@ -178,7 +178,7 @@ export default function RoleDetailPage() {
           message: "Failed to update permissions",
         });
       }
-    } catch (error) {
+    } catch {
       // Revert on error
       setSelectedPermissions(selectedPermissions);
       pushToast({

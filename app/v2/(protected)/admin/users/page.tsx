@@ -34,14 +34,6 @@ type ModalType = "roles" | "delete" | "add" | "invite" | "bulkRoles" | "bulkDele
 
 // ─── Small UI helpers (kept local) ───────────────────────────────────────────
 
-function Alert({ tone, children }: { tone: "success" | "error"; children: React.ReactNode }) {
-  const cls =
-    tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : "border-rose-200 bg-rose-50 text-rose-800";
-  return <div className={`rounded-2xl border px-4 py-3 text-sm ${cls}`}>{children}</div>;
-}
-
 function RoleBadge({ children }: { children: React.ReactNode }) {
   return (
     <span className="inline-flex items-center rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
@@ -53,18 +45,6 @@ function RoleBadge({ children }: { children: React.ReactNode }) {
 function getCompanyLegalName(user: User) {
   if (user.roles.some((r) => r.role.name === "STAFF")) return "STAFF";
   return user.companyProfile?.legalName || user.companyProfile?.companyName || "Not set";
-}
-
-function getImpersonationDestination(permissions: string[]) {
-  if (permissions.includes("settings:read")) return "/settings";
-  if (permissions.includes("dashboard:access")) return "/settings";
-  if (permissions.includes("documents:read")) return "/documents";
-  if (permissions.includes("truck:read")) return "/trucks";
-  if (permissions.includes("ifta:read")) return "/ifta";
-  if (permissions.includes("ucr:read")) return "/ucr";
-  if (permissions.includes("dmv:read")) return "/dmv";
-  if (permissions.includes("compliance2290:view")) return "/2290";
-  return "/settings";
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────

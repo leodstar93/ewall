@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
@@ -192,11 +192,11 @@ export default function IftaV2AdminClient() {
     });
   }, [assignmentFilter, currentUserId, deferredSearch, items, providerFilter, reviewerFilter, statusFilter]);
 
-  function openQueueFiling(filing: IftaTableRow) {
+  const openQueueFiling = useCallback((filing: IftaTableRow) => {
     router.push(`/v2/admin/features/ifta-v2/${filing.id}`);
-  }
+  }, [router]);
 
-  async function assignToMe(filing: IftaTableRow) {
+  const assignToMe = useCallback(async (filing: IftaTableRow) => {
     try {
       setBusyFilingId(filing.id);
       setError("");
@@ -222,7 +222,7 @@ export default function IftaV2AdminClient() {
     } finally {
       setBusyFilingId(null);
     }
-  }
+  }, []);
 
   const columns = useMemo<ColumnDef<IftaTableRow>[]>(
     () => [
@@ -333,7 +333,7 @@ export default function IftaV2AdminClient() {
         ),
       },
     ],
-    [busyFilingId, currentUserId, router],
+    [assignToMe, busyFilingId, currentUserId, openQueueFiling],
   );
 
   return (

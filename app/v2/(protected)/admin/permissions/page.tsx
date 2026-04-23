@@ -97,7 +97,6 @@ export default function AdminPermissionsPage() {
       }
     };
     if (isAdmin) fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // ─── Modal openers ─────────────────────────────────────────────────────────
@@ -276,7 +275,6 @@ export default function AdminPermissionsPage() {
         ),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

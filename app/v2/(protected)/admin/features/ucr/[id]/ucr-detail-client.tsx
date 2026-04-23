@@ -389,7 +389,6 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
 
   const filing = payload?.filing ?? null;
   const permissions = payload?.permissions ?? null;
-  const timeline = payload?.timeline ?? [];
   const conversation = payload?.conversation ?? [];
 
   const companyProfile = filing?.user?.companyProfile;
@@ -478,7 +477,7 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
   }, [filing]);
 
   const timelineRows = useMemo<TimelineRow[]>(() => {
-    return timeline.map((item) => ({
+    return (payload?.timeline ?? []).map((item) => ({
       id: item.id,
       event:
         item.kind === "transition"
@@ -487,7 +486,7 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
       detail: item.message || item.reason || item.fromStatus || "Status updated",
       date: formatDate(item.createdAt),
     }));
-  }, [timeline]);
+  }, [payload?.timeline]);
 
   if (loading) {
     return <div className={styles.loadingCard}>Loading UCR filing...</div>;

@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { getStatusTone } from "@/lib/ui/status-utils";
 import {
   complianceLabel,
-  Form2290ComplianceStatus,
   Form2290Filing,
   formatDate,
   getComplianceStateForFiling,
@@ -35,7 +34,6 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
   const showCreateButton = props.showCreateButton ?? true;
 
   const [filings, setFilings] = useState<Form2290Filing[]>([]);
-  const [statusCounts, setStatusCounts] = useState<Form2290ComplianceStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -55,25 +53,17 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
       const query = new URLSearchParams();
       if (statusFilter !== "all") query.set("status", statusFilter);
 
-      const [filingsResponse, statusResponse] = await Promise.all([
-        fetch(`${apiPath}?${query.toString()}`, { cache: "no-store" }),
-        fetch(`${apiPath}/compliance-status`, { cache: "no-store" }),
-      ]);
+      const filingsResponse = await fetch(`${apiPath}?${query.toString()}`, {
+        cache: "no-store",
+      });
 
       const filingsData = (await filingsResponse.json().catch(() => ({}))) as FilingsPayload;
-      const statusData = (await statusResponse.json().catch(() => ({}))) as
-        | Form2290ComplianceStatus
-        | { error?: string };
 
       if (!filingsResponse.ok) {
         throw new Error(filingsData.error || "Could not load Form 2290 queue.");
       }
-      if (!statusResponse.ok || "error" in statusData) {
-        throw new Error(("error" in statusData && statusData.error) || "Could not load queue metrics.");
-      }
 
       setFilings(Array.isArray(filingsData.filings) ? filingsData.filings : []);
-      setStatusCounts(statusData as Form2290ComplianceStatus);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load the review queue.");
     } finally {

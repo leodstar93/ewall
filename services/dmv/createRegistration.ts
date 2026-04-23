@@ -4,7 +4,6 @@ import {
   DmvRegistrationType,
   Prisma,
 } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import { buildRequirementSnapshot } from "@/services/dmv/buildRequirementSnapshot";
 import { deriveRegistrationType } from "@/services/dmv/deriveRegistrationType";

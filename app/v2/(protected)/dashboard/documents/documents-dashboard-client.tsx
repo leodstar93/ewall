@@ -3,7 +3,6 @@
 import { useDeferredValue, useEffect, useState, type CSSProperties } from "react";
 import Swal from "sweetalert2";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
-import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 
@@ -33,18 +32,6 @@ const fieldStyle: CSSProperties = {
   background: "#fff",
   color: "var(--b)",
 };
-
-function fileTone(fileType: string): "info" | "success" | "warning" | "light" {
-  const normalized = fileType.toLowerCase();
-
-  if (normalized.includes("pdf")) return "warning";
-  if (normalized.startsWith("image/")) return "success";
-  if (normalized.includes("sheet") || normalized.includes("excel") || normalized.includes("csv")) {
-    return "info";
-  }
-
-  return "light";
-}
 
 function formatFileSize(bytes: number) {
   if (!bytes) return "0 Bytes";

@@ -1,12 +1,11 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { Suspense } from "react";
 
 function LinkAccountPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const provider = searchParams.get("provider") || "google";
   const callbackUrl = searchParams.get("callbackUrl") || "/settings";

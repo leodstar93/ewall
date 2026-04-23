@@ -39,10 +39,6 @@ const ACTIVE_ACH_METHOD_STATUSES = [
   ACH_PAYMENT_METHOD_STATUSES.REVOKED,
 ] as const;
 
-type PaymentMethodRecord = Awaited<
-  ReturnType<typeof prisma.paymentMethod.findFirst>
->;
-
 type PaymentMethodSummary = {
   accountType: string | null;
   authorizationAcceptedAt: string | null;

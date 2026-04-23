@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireApiPermission } from "@/lib/rbac-api";
-import { buildSyncJobWhere, canReviewAllIfta, getActorTenant } from "@/services/ifta-automation/access";
+import { canReviewAllIfta, getActorTenant } from "@/services/ifta-automation/access";
 import {
   handleIftaAutomationError,
   parseOptionalIsoDate,

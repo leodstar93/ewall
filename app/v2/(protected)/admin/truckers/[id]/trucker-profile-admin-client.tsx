@@ -128,13 +128,6 @@ type ManagedTruckerProfile = {
   };
 };
 
-type SaferLookupResponse = {
-  found?: boolean;
-  company?: Partial<CompanyProfileFormData>;
-  warnings?: string[];
-  error?: string;
-};
-
 const emptyPersonalState: PersonalInfo = {
   name: "",
   email: "",
@@ -386,24 +379,14 @@ export default function TruckerProfileAdminClient({
   const [notFound, setNotFound] = useState(false);
 
   const [savingPersonal, setSavingPersonal] = useState(false);
-  const [savingCompany, setSavingCompany] = useState(false);
   const [savingEldProvider, setSavingEldProvider] = useState(false);
-  const [searchingSafer, setSearchingSafer] = useState(false);
 
   const [personalMessage, setPersonalMessage] = useState<{
     tone: "success" | "error";
     message: string;
   } | null>(null);
-  const [companyMessage, setCompanyMessage] = useState<{
-    tone: "success" | "error";
-    message: string;
-  } | null>(null);
   const [eldProviderMessage, setEldProviderMessage] = useState<{
     tone: "success" | "error";
-    message: string;
-  } | null>(null);
-  const [searchMessage, setSearchMessage] = useState<{
-    tone: "success" | "error" | "info";
     message: string;
   } | null>(null);
   const [truckMessage, setTruckMessage] = useState<{
@@ -552,16 +535,6 @@ export default function TruckerProfileAdminClient({
     setPersonal((current) => ({ ...current, [name]: value }));
   };
 
-  const handleCompanyChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = event.target;
-    setCompany((current) =>
-      syncAddressFields({
-        ...current,
-        [name]: value,
-      }),
-    );
-  };
-
   const handleEldProviderChange = (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -641,51 +614,6 @@ export default function TruckerProfileAdminClient({
     }
   };
 
-  const handleSaveCompany = async () => {
-    try {
-      setSavingCompany(true);
-      setCompanyMessage(null);
-
-      const response = await fetch(`/api/v1/admin/truckers/${truckerId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company }),
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as
-        | ManagedTruckerProfile
-        | { error?: string };
-
-      if (!response.ok) {
-        throw new Error(
-          "error" in payload && payload.error
-            ? payload.error
-            : "Failed to save company profile.",
-        );
-      }
-
-      applyServerProfile(payload as ManagedTruckerProfile, {
-        preservePersonal: personalDirty,
-        preserveEldProvider: eldProviderDirty,
-      });
-      setCompanyMessage({
-        tone: "success",
-        message: "Company profile updated for this client.",
-      });
-      setSearchMessage(null);
-    } catch (saveError) {
-      setCompanyMessage({
-        tone: "error",
-        message:
-          saveError instanceof Error
-            ? saveError.message
-            : "Failed to save company profile.",
-      });
-    } finally {
-      setSavingCompany(false);
-    }
-  };
-
   const handleSaveCompanyPanel = async (nextCompany: CompanyProfileFormData) => {
     const normalizedCompany = syncAddressFields(nextCompany);
     const response = await fetch(`/api/v1/admin/truckers/${truckerId}`, {
@@ -711,86 +639,11 @@ export default function TruckerProfileAdminClient({
       preservePersonal: personalDirty,
       preserveEldProvider: eldProviderDirty,
     });
-    setSearchMessage(null);
 
     return syncAddressFields({
       ...emptyCompanyProfileState,
       ...updatedProfile.company,
     });
-  };
-
-  const handleSearchSafer = async () => {
-    const dotNumber = company.dotNumber.trim();
-
-    if (!dotNumber) {
-      setSearchMessage({
-        tone: "error",
-        message: "Enter a USDOT number first.",
-      });
-      return;
-    }
-
-    try {
-      setSearchingSafer(true);
-      setSearchMessage({
-        tone: "info",
-        message: "Searching SAFER...",
-      });
-
-      const response = await fetch("/api/v1/integrations/safer/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dotNumber }),
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as SaferLookupResponse;
-
-      if (!response.ok) {
-        throw new Error(
-          payload.error ||
-            payload.warnings?.[0] ||
-            "We couldn't retrieve company data from SAFER right now.",
-        );
-      }
-
-      if (!payload.found || !payload.company) {
-        setSearchMessage({
-          tone: "info",
-          message: payload.warnings?.[0] || "No company found for this USDOT number.",
-        });
-        return;
-      }
-
-      setCompany((current) =>
-        syncAddressFields({
-          ...current,
-          legalName: payload.company?.legalName ?? current.legalName,
-          dbaName: payload.company?.dbaName ?? current.dbaName,
-          dotNumber: payload.company?.dotNumber ?? current.dotNumber,
-          mcNumber: payload.company?.mcNumber ?? current.mcNumber,
-          businessPhone: payload.company?.businessPhone ?? current.businessPhone,
-          address: payload.company?.address ?? current.address,
-          state: payload.company?.state ?? current.state,
-          trucksCount: payload.company?.trucksCount ?? current.trucksCount,
-          driversCount: payload.company?.driversCount ?? current.driversCount,
-        }),
-      );
-
-      setSearchMessage({
-        tone: "success",
-        message: "Company data loaded from SAFER. Review the fields and save the profile.",
-      });
-    } catch (searchError) {
-      setSearchMessage({
-        tone: "error",
-        message:
-          searchError instanceof Error
-            ? searchError.message
-            : "We couldn't retrieve company data from SAFER right now.",
-      });
-    } finally {
-      setSearchingSafer(false);
-    }
   };
 
   const handleSaveEldProvider = async () => {

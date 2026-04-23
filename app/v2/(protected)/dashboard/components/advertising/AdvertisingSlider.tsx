@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Ad creative URLs are managed content and keep their existing responsive sizing here. */
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AdSlide } from "@/lib/types";

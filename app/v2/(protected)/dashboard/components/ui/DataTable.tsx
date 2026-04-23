@@ -48,17 +48,6 @@ const columns: ColumnDef<Item>[] = [
   },
 ];
 
-function exportCSV(data: Item[]) {
-  const rows = [
-    ["#", "Nombre", "Categoria", "Estado", "Fecha", "Monto"],
-    ...data.map((row) => [row.id, row.name, row.category, row.status, row.date, row.amount]),
-  ];
-  const anchor = document.createElement("a");
-  anchor.href = `data:text/csv,${encodeURIComponent(rows.map((r) => r.join(",")).join("\n"))}`;
-  anchor.download = "items.csv";
-  anchor.click();
-}
-
 interface Props {
   data: Item[];
   searchQuery: string;

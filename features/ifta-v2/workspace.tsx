@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import Swal from "sweetalert2";
 import ClientPaginationControls from "@/components/shared/ClientPaginationControls";
@@ -34,7 +34,6 @@ import {
   statusLabel,
   summarizeFilingMetrics,
   tenantCompanyName,
-  toNumber,
   visibleStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
 import { DEFAULT_PAGE_SIZE_OPTIONS, paginateItems } from "@/lib/pagination";
@@ -236,6 +235,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   const [syncJobs, setSyncJobs] = useState<SyncJobSummary[]>([]);
   const [tenantName, setTenantName] = useState<string>("");
   const [selectedFilingId, setSelectedFilingId] = useState<string | null>(null);
+  const selectedFilingIdRef = useRef<string | null>(null);
   const [selectedFiling, setSelectedFiling] = useState<FilingDetail | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [refreshingWorkspace, setRefreshingWorkspace] = useState(false);
@@ -372,10 +372,14 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
     );
   }, [isStaff]);
 
-  async function refreshWorkspace(options?: {
+  useEffect(() => {
+    selectedFilingIdRef.current = selectedFilingId;
+  }, [selectedFilingId]);
+
+  const refreshWorkspace = useCallback(async (options?: {
     preferredFilingId?: string | null;
     initial?: boolean;
-  }) {
+  }) => {
     const isInitial = options?.initial ?? false;
 
     if (isInitial) {
@@ -455,12 +459,12 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
 
       const nextSelectedId = pickPreferredFilingId(
         nextFilings,
-        options?.preferredFilingId ?? selectedFilingId,
+        options?.preferredFilingId ?? selectedFilingIdRef.current,
       );
       setSelectedFilingId(nextSelectedId);
 
       if (nextSelectedId) {
-        if (nextSelectedId === selectedFilingId) {
+        if (nextSelectedId === selectedFilingIdRef.current) {
           setDetailReloadKey((currentValue) => currentValue + 1);
         }
       } else {
@@ -475,11 +479,11 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
         setRefreshingWorkspace(false);
       }
     }
-  }
+  }, [isStaff]);
 
   useEffect(() => {
     void refreshWorkspace({ initial: true });
-  }, [isStaff]);
+  }, [refreshWorkspace]);
 
   useEffect(() => {
     if (!selectedFilingId) {

@@ -3,7 +3,6 @@ import {
   DmvDocumentReviewStatus,
   DmvRegistrationStatus,
 } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import { deriveRequirementStatusFromLinks } from "@/services/dmv/deriveRequirementStatusFromLinks";
 import {

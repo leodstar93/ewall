@@ -228,7 +228,10 @@ async function staffDashboardMetrics() {
   const urgentCases = [...urgentUcr, ...urgentIfta]
     .sort((left, right) => right.score - left.score)
     .slice(0, 3)
-    .map(({ score: _score, ...item }) => item);
+    .map(({ score, ...item }) => {
+      void score;
+      return item;
+    });
 
   return {
     pending:

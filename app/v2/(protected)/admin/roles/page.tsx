@@ -76,7 +76,6 @@ export default function AdminRolesPage() {
       }
     };
     if (isAdmin) fetchRoles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   // ─── Modal openers ─────────────────────────────────────────────────────────
@@ -239,7 +238,6 @@ export default function AdminRolesPage() {
         },
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

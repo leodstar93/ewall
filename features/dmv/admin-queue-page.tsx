@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   canActivateRegistration,
   canApproveRegistration,
@@ -126,7 +126,7 @@ export default function DmvAdminQueuePage(props: DmvAdminQueuePageProps) {
   const [cronMessage, setCronMessage] = useState<string | null>(null);
   const [cronResult, setCronResult] = useState<CronRunResult | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -158,11 +158,11 @@ export default function DmvAdminQueuePage(props: DmvAdminQueuePageProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [activityApiPath, registrationsApiPath, showAutomationPanel]);
 
   useEffect(() => {
     void load();
-  }, [activityApiPath, registrationsApiPath, showAutomationPanel]);
+  }, [load]);
 
   const queue = useMemo(
     () =>

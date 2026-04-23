@@ -1,5 +1,4 @@
 import { Form2290Status } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import { is2290Expired } from "@/lib/form2290-workflow";
 import { resolveForm2290Db } from "@/services/form2290/shared";

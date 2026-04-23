@@ -114,7 +114,6 @@ export default function AdminRolesPage() {
     };
 
     if (isAdmin) fetchRoles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   const handleOpenAddModal = () => {

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
-import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 import type {
@@ -44,18 +43,6 @@ function formatFileSize(bytes: number) {
 function getInitials(item: AdminDocumentDirectoryItem) {
   const label = item.userName || item.userEmail || "U";
   return (label[0] || "U").toUpperCase();
-}
-
-function fileTone(fileType: string): "info" | "success" | "warning" | "light" {
-  const normalized = fileType.toLowerCase();
-
-  if (normalized.includes("pdf")) return "warning";
-  if (normalized.startsWith("image/")) return "success";
-  if (normalized.includes("sheet") || normalized.includes("excel") || normalized.includes("csv")) {
-    return "info";
-  }
-
-  return "light";
 }
 
 function normalizeSearchText(value: string) {

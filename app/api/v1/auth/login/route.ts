@@ -1,5 +1,4 @@
 import { signIn } from "@/auth";
-import { redirect } from "next/navigation";
 
 export async function POST(request: Request) {
   try {

@@ -1,5 +1,4 @@
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import {
   assert2290TruckAccess,

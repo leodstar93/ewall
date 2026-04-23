@@ -372,16 +372,6 @@ function formatDateInTimeZone(date: Date, timeZone: string) {
   ].join("-");
 }
 
-function buildDateWindowParams(windowStart: Date, windowEnd: Date, timeZone = "UTC") {
-  const startDate = formatDateInTimeZone(windowStart, timeZone);
-  const endDate = formatDateInTimeZone(windowEnd, timeZone);
-
-  return new URLSearchParams({
-    start_date: startDate,
-    end_date: endDate,
-  });
-}
-
 function buildExplicitDateWindowParams(startDate: string, endDate: string) {
   return new URLSearchParams({
     start_date: startDate,

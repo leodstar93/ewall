@@ -10,9 +10,6 @@ function normalizeFilter(value: string | string[] | undefined) {
   return value?.trim() ?? "";
 }
 
-const inputStyle =
-  "border: 1px solid var(--br); border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; width: 100%; color: var(--b);";
-
 export default async function FinancialAccessAuditPage({
   searchParams,
 }: {

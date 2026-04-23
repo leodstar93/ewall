@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import DashboardTable, {
   type ColumnDef,
@@ -252,7 +252,7 @@ export default function IftaAutomationTruckerFilingPage({
     setSyncDatesModalOpen(true);
   }
 
-  async function loadFiling() {
+  const loadFiling = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -270,11 +270,11 @@ export default function IftaAutomationTruckerFilingPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [filingId]);
 
   useEffect(() => {
     void loadFiling();
-  }, [filingId]);
+  }, [loadFiling]);
 
   function updateJurisdictionRow(rowId: string, value: string) {
     setJurisdictionRows((current) =>

@@ -147,25 +147,6 @@ function Banner({ tone, message }: InlineMessage) {
   );
 }
 
-function Badge({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: "success" | "info" | "neutral" | "warning";
-}) {
-  const className =
-    tone === "success"
-      ? styles.badgeSuccess
-      : tone === "info"
-        ? styles.badgeInfo
-        : tone === "warning"
-          ? styles.badgeWarning
-          : styles.badgeNeutral;
-
-  return <span className={`${styles.badge} ${className}`}>{label}</span>;
-}
-
 function StripeCardSetupForm({
   makeDefault,
   onSaved,
