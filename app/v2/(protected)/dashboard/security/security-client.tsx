@@ -173,7 +173,7 @@ export default function SecurityPageClient() {
     params.set("tab", "security");
     const callbackUrl = `${pathname}${params.toString() ? `?${params.toString()}` : ""}`;
     router.push(
-      `/auth/link-account?provider=google&callbackUrl=${encodeURIComponent(callbackUrl)}`,
+      `/v2/auth/link-account?provider=google&callbackUrl=${encodeURIComponent(callbackUrl)}`,
     );
   };
 

@@ -16,7 +16,7 @@ function LinkAccountPageContent() {
       sessionStorage.setItem("linkingAccount", "true");
       await signIn(provider, {
         redirect: true,
-        callbackUrl: `/auth/link-callback?provider=${provider}&callbackUrl=${encodeURIComponent(callbackUrl)}`,
+        callbackUrl: `/v2/auth/link-callback?provider=${provider}&callbackUrl=${encodeURIComponent(callbackUrl)}`,
       });
     };
 
