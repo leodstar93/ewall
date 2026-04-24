@@ -200,7 +200,7 @@ async function staffDashboardMetrics() {
         status: statusLabel(filing.status),
         ageLabel: ageLabel(anchorDate),
         priority: priority.label,
-        href: `/v2/admin/features/ucr/${filing.id}`,
+        href: `/admin/features/ucr/${filing.id}`,
         score: priority.base + Math.min(hours, 240) / 6,
       };
     });
@@ -220,7 +220,7 @@ async function staffDashboardMetrics() {
         status: statusLabel(filing.status),
         ageLabel: ageLabel(anchorDate),
         priority: priority.label,
-        href: `/v2/admin/features/ifta-v2/${filing.id}`,
+        href: `/admin/features/ifta-v2/${filing.id}`,
         score: priority.base + Math.min(hours, 240) / 6,
       };
     });

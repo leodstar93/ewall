@@ -22,7 +22,7 @@ export async function requireModuleAccess(moduleSlug: string) {
       blockedModule: moduleSlug,
       reason: access.reason,
     });
-    redirect(`/v2/dashboard/subscriptions?${params.toString()}`);
+    redirect(`/dashboard/subscriptions?${params.toString()}`);
   }
 
   return {

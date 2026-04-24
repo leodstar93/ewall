@@ -38,9 +38,9 @@ export function resolveSidebarIcon(
   const isDashboardRoot =
     label.includes("dashboard") ||
     href === "/admin" ||
-    href === "/v2/admin" ||
+    href === "/admin" ||
     href === "/panel" ||
-    href === "/v2/dashboard" ||
+    href === "/dashboard" ||
     section.includes("overview");
 
   if (isDashboardRoot) {

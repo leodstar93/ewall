@@ -43,7 +43,7 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      await signIn("google", { callbackUrl: "/v2/auth/post-login" });
+      await signIn("google", { callbackUrl: "/auth/post-login" });
     } catch {
       setError("Failed to sign in with Google");
       setIsLoading(false);

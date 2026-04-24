@@ -358,7 +358,7 @@ const NEWS_UPDATES = [
     description:
       "Sync ELD miles, review jurisdiction totals, resolve exceptions, and keep filing work moving from one dashboard.",
     cta: "Open IFTA",
-    href: "/v2/dashboard/ifta-v2",
+    href: "/dashboard/ifta-v2",
     imageUrl: "/brand/truckers-unidos-logo.png",
     template: "MIXED",
     gradient: "linear-gradient(135deg, #002868 0%, #1a3f8f 100%)",
@@ -372,7 +372,7 @@ const NEWS_UPDATES = [
     description:
       "Customers can submit and pay while staff tracks assignments, receipts, corrections, and finalization in one place.",
     cta: "Review UCR",
-    href: "/v2/dashboard/ucr",
+    href: "/dashboard/ucr",
     imageUrl: "/brand/truckers-unidos-logo.png",
     template: "MIXED",
     gradient: "linear-gradient(135deg, #b22234 0%, #d94a5a 100%)",
@@ -386,7 +386,7 @@ const NEWS_UPDATES = [
     description:
       "Uploaded receipts, permits, reports, and classified filing documents stay searchable across customer and staff views.",
     cta: "Browse docs",
-    href: "/v2/dashboard/documents",
+    href: "/dashboard/documents",
     imageUrl: "/brand/truckers-unidos-logo.png",
     template: "MIXED",
     gradient: "linear-gradient(135deg, #002868 0%, #b22234 100%)",

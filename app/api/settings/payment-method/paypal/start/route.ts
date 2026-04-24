@@ -16,15 +16,15 @@ function getPublicOrigin(request: Request) {
 
 function getPayPalReturnPath(request: Request) {
   const referer = request.headers.get("referer");
-  if (!referer) return "/v2/dashboard/payments";
+  if (!referer) return "/dashboard/payments";
 
   try {
     const pathname = new URL(referer).pathname;
-    if (pathname.startsWith("/v2/dashboard/payments")) {
-      return "/v2/dashboard/payments";
+    if (pathname.startsWith("/dashboard/payments")) {
+      return "/dashboard/payments";
     }
   } catch {
-    return "/v2/dashboard/payments";
+    return "/dashboard/payments";
   }
 
   return "/settings?tab=payments";

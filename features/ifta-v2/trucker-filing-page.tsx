@@ -6,7 +6,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "react-toastify";
 import DashboardTable, {
   type ColumnDef,
-} from "@/app/v2/(protected)/dashboard/components/ui/Table";
+} from "@/app/(v2)/(protected)/dashboard/components/ui/Table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

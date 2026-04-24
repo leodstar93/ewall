@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useRef, useState } from "react";
 import DashboardTable, {
   type ColumnDef,
-} from "@/app/v2/(protected)/dashboard/components/ui/Table";
+} from "@/app/(v2)/(protected)/dashboard/components/ui/Table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
