@@ -23,7 +23,7 @@ import {
   StatusBadge,
   StickyActions,
   textInputClassName,
-} from "@/app/(dashboard)/settings/components/settings-ui";
+} from "@/components/settings/settings-ui";
 import Table, { type ColumnDef } from "../../components/ui/Table";
 import tableStyles from "../../components/ui/DataTable.module.css";
 

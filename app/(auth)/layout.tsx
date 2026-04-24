@@ -27,14 +27,14 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
             </div>
           </Link>
           <p className={styles.authLead}>
-            Welcome back! Please sign in to your account.
+            Secure access for sign in, invitations, and account setup.
           </p>
         </div>
 
         <div className={styles.authCard}>{children}</div>
 
         <p className={styles.authFooter}>
-            By signing in, you agree to our{" "}
+            By continuing, you agree to our{" "}
             <a href="/terms" className={styles.authFooterLink}>
               Terms of Service
             </a>{" "}

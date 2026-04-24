@@ -1,6 +1,6 @@
 "use client";
 
-import { InlineAlert, StatusBadge } from "@/app/(dashboard)/settings/components/settings-ui";
+import { InlineAlert, StatusBadge } from "@/components/settings/settings-ui";
 import type { SaferCompanyNormalized } from "@/services/fmcsa/saferTypes";
 
 function formatFetchedAt(value: string) {

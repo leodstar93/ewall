@@ -7,7 +7,7 @@ import {
   Field,
   StatusBadge,
   textInputClassName,
-} from "@/app/(dashboard)/settings/components/settings-ui";
+} from "@/components/settings/settings-ui";
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("en-US", {

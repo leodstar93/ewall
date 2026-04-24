@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent } from "react";
-import { Field, textInputClassName } from "@/app/(dashboard)/settings/components/settings-ui";
+import { Field, textInputClassName } from "@/components/settings/settings-ui";
 import type { CompanyProfileFormData } from "./companyProfileTypes";
 
 export default function CompanyProfileForm({

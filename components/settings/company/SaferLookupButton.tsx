@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { InlineAlert } from "@/app/(dashboard)/settings/components/settings-ui";
+import { InlineAlert } from "@/components/settings/settings-ui";
 import type { SaferCompanyNormalized } from "@/services/fmcsa/saferTypes";
 
 export default function SaferLookupButton({

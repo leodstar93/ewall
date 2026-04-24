@@ -12,7 +12,7 @@ import {
   StatusBadge,
   StickyActions,
   textInputClassName,
-} from "@/app/(dashboard)/settings/components/settings-ui";
+} from "@/components/settings/settings-ui";
 import tableStyles from "../../components/ui/DataTable.module.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
