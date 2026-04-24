@@ -77,7 +77,7 @@ function buildNavGroups(
     },
     {
       href: "/admin/features/ifta-v2",
-      label: "IFTA Automation",
+      label: "IFTA",
       permission: "ifta:review",
       moduleKey: "ifta",
     },

@@ -84,7 +84,7 @@ function buildNavGroups(
     },
     {
       href: "/dashboard/ifta-v2",
-      label: "IFTA Automation",
+      label: "IFTA",
       permission: "ifta:read",
     },
     {

@@ -122,7 +122,7 @@ export const labModules: LabModule[] = [
   },
   {
     slug: "ifta-v2",
-    label: "IFTA Automation",
+    label: "IFTA",
     eyebrow: "Core workflow",
     title: "A cleaner filing workspace for sync, review, and approval.",
     summary:

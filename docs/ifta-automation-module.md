@@ -1,4 +1,4 @@
-# IFTA Automation Module
+# IFTA Module
 
 Current status: the provider-agnostic IFTA automation backend has been rebuilt around canonical filings, snapshots, and a Motive-first adapter.
 

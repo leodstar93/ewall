@@ -5,7 +5,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   dmv: "DMV",
   features: "Features",
   ifta: "IFTA",
-  "ifta-v2": "IFTA Automation",
+  "ifta-v2": "IFTA",
   panel: "Dashboard",
   permissions: "Permissions",
   profile: "Profile",

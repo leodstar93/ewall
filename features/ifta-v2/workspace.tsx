@@ -919,7 +919,7 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
       <Card className="overflow-hidden bg-gradient-to-br from-white via-gray-50 to-amber-50">
         <div className="p-8">
           <div className="text-xs uppercase tracking-[0.18em] text-gray-500">
-            IFTA Automation
+            IFTA
           </div>
           <h1 className="mt-3 text-3xl font-semibold text-gray-950">
             {isStaff ? "Staff Review Queue" : "Quarter Filing Workspace"}
