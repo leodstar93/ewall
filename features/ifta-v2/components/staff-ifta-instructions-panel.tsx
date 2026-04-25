@@ -35,6 +35,10 @@ function checklistItems(value: unknown) {
     .filter(Boolean);
 }
 
+function displayUrl(value: string) {
+  return value.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+}
+
 export function StaffIftaInstructionsPanel({
   instructions,
   loading,
@@ -125,8 +129,28 @@ export function StaffIftaInstructionsPanel({
               <div className="space-y-4">
                 {instructions.procedure ? (
                   <div className="rounded-2xl border border-gray-200 bg-white p-5">
-                    <div className="text-sm font-semibold text-gray-950">
-                      {instructions.procedure.title}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-gray-950">
+                          {instructions.procedure.title}
+                        </div>
+                        {instructions.procedure.portalUrl ? (
+                          <div className="mt-1 break-all text-xs text-gray-500">
+                            {displayUrl(instructions.procedure.portalUrl)}
+                          </div>
+                        ) : null}
+                      </div>
+                      {instructions.procedure.portalUrl ? (
+                        <a
+                          href={instructions.procedure.portalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[var(--r)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                          aria-label={`Open ${instructions.procedure.title} portal in a new tab`}
+                        >
+                          Open Portal
+                        </a>
+                      ) : null}
                     </div>
                     <div className="mt-2 grid gap-2 text-sm text-gray-600">
                       <div>
