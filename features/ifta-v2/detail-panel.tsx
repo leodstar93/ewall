@@ -719,9 +719,13 @@ export function FilingDetailPanel({
     JSON.stringify(jurisdictionDraftRows) !==
     JSON.stringify(jurisdictionBaselineRows);
   const ucrPrimaryButtonClassName =
-    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[var(--b)] !bg-[var(--b)] !text-white hover:!bg-[var(--bd)]";
+    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#1d4ed8] !bg-[#2563eb] !text-white hover:!bg-[#1d4ed8]";
   const ucrSecondaryButtonClassName =
-    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[var(--br)] !bg-white !text-[var(--text-primary)] hover:!bg-gray-50";
+    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#d4d4d8] !bg-[#fafafa] !text-[#27272a] hover:!bg-[#f4f4f5]";
+  const ucrInfoButtonClassName =
+    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#bfdbfe] !bg-[#eff6ff] !text-[#1d4ed8] hover:!bg-[#dbeafe]";
+  const ucrSuccessButtonClassName =
+    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#15803d] !bg-[#16a34a] !text-white hover:!bg-[#15803d]";
   const ucrWarningButtonClassName =
     "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#fcd34d] !bg-[#fffbeb] !text-[#92400e] hover:!bg-[#fef3c7]";
   const detailDescription = isStaffDescription(mode);
@@ -1136,7 +1140,7 @@ export function FilingDetailPanel({
                   <Button
                     variant="outline"
                     size="sm"
-                    className={ucrSecondaryButtonClassName}
+                    className={ucrInfoButtonClassName}
                     onClick={() => onOpenInstructions(filing)}
                   >
                     How to Proceed
@@ -1210,7 +1214,7 @@ export function FilingDetailPanel({
             {canFinalize ? (
               <Button
                 size="sm"
-                className={ucrPrimaryButtonClassName}
+                className={ucrSuccessButtonClassName}
                 onClick={() => onFinalize(filing)}
                 disabled={busyAction === `finalize:${filing.id}`}
               >
