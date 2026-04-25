@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import IftaTaxRateEditDialog from "@/components/ifta/IftaTaxRateEditDialog";
+import IftaProcessSettingsPanel from "./IftaProcessSettingsPanel";
 import type {
   IftaTaxRateImportResult,
   IftaTaxRateTableRow,
@@ -197,6 +198,7 @@ function IftaTaxRatesOverviewCard(props: {
 }
 
 export default function IftaTaxRatesSettingsClient() {
+  const [activeTab, setActiveTab] = useState<"rates" | "process">("rates");
   const [filters, setFilters] = useState<TaxRateFilterState>({
     year: new Date().getFullYear(),
     quarter: getQuarterFromDate(new Date()),
@@ -421,6 +423,35 @@ export default function IftaTaxRatesSettingsClient() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab("rates")}
+          className={
+            activeTab === "rates"
+              ? `${tableStyles.btn} ${tableStyles.btnPrimary}`
+              : tableStyles.btn
+          }
+        >
+          Tax Rates
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("process")}
+          className={
+            activeTab === "process"
+              ? `${tableStyles.btn} ${tableStyles.btnPrimary}`
+              : tableStyles.btn
+          }
+        >
+          IFTA Process
+        </button>
+      </div>
+
+      {activeTab === "process" ? <IftaProcessSettingsPanel /> : null}
+
+      {activeTab === "rates" ? (
+        <>
       {error ? <div style={{ borderRadius: 10, border: "1px solid #fecaca", background: "#fef2f2", padding: "10px 14px", fontSize: 13, color: "#b91c1c" }}>{error}</div> : null}
       {message ? <div style={{ borderRadius: 10, border: "1px solid #bbf7d0", background: "#f0fdf4", padding: "10px 14px", fontSize: 13, color: "#15803d" }}>{message}</div> : null}
 
@@ -455,6 +486,8 @@ export default function IftaTaxRatesSettingsClient() {
         onClose={() => setEditingRow(null)}
         onSave={handleSaveRate}
       />
+        </>
+      ) : null}
     </div>
   );
 }
