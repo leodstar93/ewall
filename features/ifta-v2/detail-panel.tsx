@@ -700,10 +700,15 @@ export function FilingDetailPanel({
       (exception.status === "OPEN" || exception.status === "ACKNOWLEDGED") &&
       (exception.severity === "BLOCKING" || exception.severity === "ERROR"),
   );
+  const isPendingClientApproval = filing.status === "PENDING_APPROVAL";
+  const staffActionsLocked = mode === "staff" && isPendingClientApproval;
+  const staffActionsLockedReason =
+    "This filing is pending client approval. Reopen or wait for the client response before making staff changes.";
   const canSubmit =
     mode === "trucker" && canTruckerEditFilingStatus(filing.status);
   const canRequestChanges =
     mode === "staff" &&
+    !staffActionsLocked &&
     ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY"].includes(filing.status);
   const canRebuild = mode !== "staff";
   const canSendForApproval =
@@ -753,11 +758,13 @@ export function FilingDetailPanel({
   const canEditSummary =
     canEditJurisdictionSummary &&
     Boolean(onSaveJurisdictionSummary) &&
+    !staffActionsLocked &&
     !["APPROVED", "FINALIZED", "ARCHIVED"].includes(filing.status);
   const canResetSummaryOverride =
     canEditJurisdictionSummary &&
     Boolean(onResetJurisdictionSummaryOverride) &&
     filing.manualSummaryOverrideActive === true &&
+    !staffActionsLocked &&
     !["APPROVED", "FINALIZED", "ARCHIVED"].includes(filing.status);
   const canEditCurrentSummary = canEditSummary && summaryEditing;
   const summaryBusy = busyAction === `summary:${filing.id}`;
@@ -964,7 +971,7 @@ export function FilingDetailPanel({
             size="sm"
             variant="ghost"
             onClick={() => onExceptionAction(filing, row.exception, "ack")}
-            disabled={busyAction === `exception:ack:${row.exception.id}`}
+            disabled={staffActionsLocked || busyAction === `exception:ack:${row.exception.id}`}
           >
             Ack
           </Button>
@@ -972,7 +979,7 @@ export function FilingDetailPanel({
             size="sm"
             variant="outline"
             onClick={() => onExceptionAction(filing, row.exception, "resolve")}
-            disabled={busyAction === `exception:resolve:${row.exception.id}`}
+            disabled={staffActionsLocked || busyAction === `exception:resolve:${row.exception.id}`}
           >
             Resolve
           </Button>
@@ -980,7 +987,7 @@ export function FilingDetailPanel({
             size="sm"
             variant="outline"
             onClick={() => onExceptionAction(filing, row.exception, "ignore")}
-            disabled={busyAction === `exception:ignore:${row.exception.id}`}
+            disabled={staffActionsLocked || busyAction === `exception:ignore:${row.exception.id}`}
           >
             Ignore
           </Button>
@@ -1019,10 +1026,10 @@ export function FilingDetailPanel({
       <button
         type="button"
         onClick={() => (onRefreshExceptions ?? onRecalculate)(filing)}
-        disabled={refreshExceptionsBusy}
+        disabled={refreshExceptionsBusy || staffActionsLocked}
         className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-base font-bold leading-none text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
         aria-label="Refresh exceptions"
-        title="Refresh exceptions"
+        title={staffActionsLocked ? staffActionsLockedReason : "Refresh exceptions"}
       >
         <span className={refreshExceptionsBusy ? "animate-spin" : ""} aria-hidden="true">
           ↻
@@ -1092,14 +1099,14 @@ export function FilingDetailPanel({
   }
 
   async function handleUploadDocument() {
-    if (!filing || !documentFile || documentBusy) return;
+    if (!filing || !documentFile || documentBusy || staffActionsLocked) return;
     await onUploadDocument(filing, documentFile);
     setDocumentModalOpen(false);
     setDocumentFile(null);
   }
 
   async function handleSendChatMessage() {
-    if (!filing || !chatDraft.trim() || chatBusy) return;
+    if (!filing || !chatDraft.trim() || chatBusy || staffActionsLocked) return;
     await onSendChatMessage(filing, chatDraft.trim());
     setChatDraft("");
   }
@@ -1179,27 +1186,39 @@ export function FilingDetailPanel({
           <div className="flex flex-wrap gap-2">
             {filing.integrationAccount?.provider && filing.status !== "APPROVED" ? (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={ucrSecondaryButtonClassName}
-                  onClick={() => onSyncLatest(filing)}
-                  disabled={busyAction === `sync:${filing.id}` || busyAction === "sync-dates"}
-                >
-                  {busyAction === `sync:${filing.id}`
-                    ? "Syncing..."
-                    : "Sync Latest"}
-                </Button>
-                {mode === "staff" && onSyncByDates ? (
+                <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>
                   <Button
                     variant="outline"
                     size="sm"
                     className={ucrSecondaryButtonClassName}
-                    onClick={() => onSyncByDates(filing)}
-                    disabled={busyAction === `sync:${filing.id}` || busyAction === "sync-dates"}
+                    onClick={() => onSyncLatest(filing)}
+                    disabled={
+                      staffActionsLocked ||
+                      busyAction === `sync:${filing.id}` ||
+                      busyAction === "sync-dates"
+                    }
                   >
-                    {busyAction === "sync-dates" ? "Syncing..." : "Sync by Dates"}
+                    {busyAction === `sync:${filing.id}`
+                      ? "Syncing..."
+                      : "Sync Latest"}
                   </Button>
+                </span>
+                {mode === "staff" && onSyncByDates ? (
+                  <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={ucrSecondaryButtonClassName}
+                      onClick={() => onSyncByDates(filing)}
+                      disabled={
+                        staffActionsLocked ||
+                        busyAction === `sync:${filing.id}` ||
+                        busyAction === "sync-dates"
+                      }
+                    >
+                      {busyAction === "sync-dates" ? "Syncing..." : "Sync by Dates"}
+                    </Button>
+                  </span>
                 ) : null}
                 {mode === "staff" && onOpenInstructions ? (
                   <Button
@@ -1227,17 +1246,22 @@ export function FilingDetailPanel({
               </Button>
             ) : null}
             {filing.status !== "APPROVED" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className={ucrSecondaryButtonClassName}
-                onClick={() => onRecalculate(filing)}
-                disabled={busyAction === `recalculate:${filing.id}`}
-              >
-                {busyAction === `recalculate:${filing.id}`
-                  ? "Calculating..."
-                  : "Recalculate"}
-              </Button>
+              <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={ucrSecondaryButtonClassName}
+                  onClick={() => onRecalculate(filing)}
+                  disabled={
+                    staffActionsLocked ||
+                    busyAction === `recalculate:${filing.id}`
+                  }
+                >
+                  {busyAction === `recalculate:${filing.id}`
+                    ? "Calculating..."
+                    : "Recalculate"}
+                </Button>
+              </span>
             ) : null}
             {canSubmit ? (
               <Button
@@ -1602,9 +1626,9 @@ export function FilingDetailPanel({
                       <button
                         type="button"
                         onClick={() => setDocumentModalOpen(true)}
-                        disabled={documentBusy}
+                        disabled={documentBusy || staffActionsLocked}
                         aria-label="Upload document"
-                        title="Upload document"
+                        title={staffActionsLocked ? staffActionsLockedReason : "Upload document"}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-600 text-lg font-semibold leading-none text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         +
@@ -1708,6 +1732,7 @@ export function FilingDetailPanel({
                     <textarea
                       value={chatDraft}
                       onChange={(event) => setChatDraft(event.target.value)}
+                      disabled={staffActionsLocked}
                       rows={5}
                       className="mt-2 w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)]"
                       placeholder={
@@ -1724,7 +1749,7 @@ export function FilingDetailPanel({
                       size="sm"
                       className={ucrSecondaryButtonClassName}
                       onClick={() => setChatDraft("")}
-                      disabled={chatBusy || !chatDraft.trim()}
+                      disabled={staffActionsLocked || chatBusy || !chatDraft.trim()}
                     >
                       Clear
                     </Button>
@@ -1733,7 +1758,7 @@ export function FilingDetailPanel({
                       size="sm"
                       className={ucrPrimaryButtonClassName}
                       onClick={() => void handleSendChatMessage()}
-                      disabled={chatBusy || !chatDraft.trim()}
+                      disabled={staffActionsLocked || chatBusy || !chatDraft.trim()}
                     >
                       {chatBusy ? "Sending..." : "Send message"}
                     </Button>
@@ -1941,7 +1966,7 @@ export function FilingDetailPanel({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6"
           onClick={() => {
-            if (documentBusy) return;
+            if (documentBusy || staffActionsLocked) return;
             setDocumentModalOpen(false);
             setDocumentFile(null);
           }}
@@ -1967,7 +1992,7 @@ export function FilingDetailPanel({
                   setDocumentModalOpen(false);
                   setDocumentFile(null);
                 }}
-                disabled={documentBusy}
+                disabled={documentBusy || staffActionsLocked}
               >
                 Close
               </Button>
@@ -1991,7 +2016,7 @@ export function FilingDetailPanel({
                   variant="outline"
                   size="sm"
                   onClick={() => documentInputRef.current?.click()}
-                  disabled={documentBusy}
+                  disabled={documentBusy || staffActionsLocked}
                 >
                   Choose file
                 </Button>
@@ -2012,14 +2037,14 @@ export function FilingDetailPanel({
                   setDocumentModalOpen(false);
                   setDocumentFile(null);
                 }}
-                disabled={documentBusy}
+                disabled={documentBusy || staffActionsLocked}
               >
                 Cancel
               </Button>
               <Button
                 type="button"
                 onClick={() => void handleUploadDocument()}
-                disabled={!documentFile || documentBusy}
+                disabled={!documentFile || documentBusy || staffActionsLocked}
               >
                 {documentBusy ? "Uploading..." : "Upload"}
               </Button>
