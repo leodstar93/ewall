@@ -290,6 +290,42 @@ export default function IftaAutomationStaffFilingPage({
     );
   }
 
+  async function handleRefreshExceptions(currentFiling: FilingDetail) {
+    setBusyAction(`recalculate:${currentFiling.id}`);
+
+    try {
+      await requestJson(`/api/v1/features/ifta-v2/filings/${currentFiling.id}/recalculate`, {
+        method: "POST",
+      });
+      const data = await requestJson<{ exceptions: FilingException[] }>(
+        `/api/v1/features/ifta-v2/filings/${currentFiling.id}/exceptions`,
+      );
+
+      setFiling((previous) => {
+        if (!previous || previous.id !== currentFiling.id) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          exceptions: data.exceptions,
+          _count: previous._count
+            ? {
+                ...previous._count,
+                exceptions: data.exceptions.length,
+              }
+            : previous._count,
+        };
+      });
+
+      toast.success(`Exceptions refreshed for ${filingPeriodLabel(currentFiling)}.`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not refresh IFTA exceptions."));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleFinalize(currentFiling: FilingDetail) {
     await runBusyAction(
       `finalize:${currentFiling.id}`,
@@ -595,6 +631,7 @@ export default function IftaAutomationStaffFilingPage({
           onOpenInstructions={() => setInstructionsModalOpen(true)}
           onRebuild={(currentFiling) => void handleRebuild(currentFiling)}
           onRecalculate={(currentFiling) => void handleRecalculate(currentFiling)}
+          onRefreshExceptions={(currentFiling) => void handleRefreshExceptions(currentFiling)}
           onSubmit={() => {}}
           onRequestChanges={(currentFiling) => void handleRequestChanges(currentFiling)}
           onApprove={(currentFiling) => void handleApprove(currentFiling)}

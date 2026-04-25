@@ -44,6 +44,7 @@ type FilingDetailPanelProps = {
   onOpenInstructions?: (filing: FilingDetail) => void;
   onRebuild: (filing: FilingDetail) => void;
   onRecalculate: (filing: FilingDetail) => void;
+  onRefreshExceptions?: (filing: FilingDetail) => void;
   onSubmit: (filing: FilingDetail) => void;
   onRequestChanges: (filing: FilingDetail) => void;
   onApprove: (filing: FilingDetail) => void;
@@ -590,6 +591,7 @@ export function FilingDetailPanel({
   onOpenInstructions,
   onRebuild,
   onRecalculate,
+  onRefreshExceptions,
   onSubmit,
   onRequestChanges,
   onApprove,
@@ -965,6 +967,24 @@ export function FilingDetailPanel({
   const conversation = buildConversation(filing);
   const documentBusy = busyAction === `document:upload:${filing.id}`;
   const chatBusy = busyAction === `chat:${filing.id}`;
+  const refreshExceptionsBusy = busyAction === `recalculate:${filing.id}`;
+  const exceptionsTitle = (
+    <div className="flex items-center gap-2">
+      <span>Exceptions</span>
+      <button
+        type="button"
+        onClick={() => (onRefreshExceptions ?? onRecalculate)(filing)}
+        disabled={refreshExceptionsBusy}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-base font-bold leading-none text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+        aria-label="Refresh exceptions"
+        title="Refresh exceptions"
+      >
+        <span className={refreshExceptionsBusy ? "animate-spin" : ""} aria-hidden="true">
+          ↻
+        </span>
+      </button>
+    </div>
+  );
 
   function updateJurisdictionDraftRow(
     draftId: string,
@@ -1282,7 +1302,23 @@ export function FilingDetailPanel({
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
-              {tab.label}
+              <span className="inline-flex items-center gap-2">
+                {tab.label}
+                {tab.value === "exceptions" && openExceptions > 0 ? (
+                  <span
+                    className={`inline-flex min-h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-bold leading-none ${
+                      activeTab === tab.value
+                        ? "bg-red-500 text-white"
+                        : "bg-red-600 text-white"
+                    }`}
+                    aria-label={`${openExceptions} unresolved exception${
+                      openExceptions === 1 ? "" : "s"
+                    }`}
+                  >
+                    {openExceptions.toLocaleString("en-US")}
+                  </span>
+                ) : null}
+              </span>
             </button>
           ))}
         </div>
@@ -1768,12 +1804,15 @@ export function FilingDetailPanel({
 
         {activeTab === "exceptions" ? (
           filing.exceptions.length === 0 ? (
-            <EmptyPanel message="No exceptions are attached to this filing." />
+            <div className="space-y-4">
+              {exceptionsTitle}
+              <EmptyPanel message="No exceptions are attached to this filing." />
+            </div>
           ) : (
             <DashboardTable
               data={exceptionRows}
               columns={exceptionColumns}
-              title="Exceptions"
+              title={exceptionsTitle}
               getRowStyle={(row) =>
                 mode === "staff" && row.status === "RESOLVED"
                   ? { background: "#ecfdf5" }
