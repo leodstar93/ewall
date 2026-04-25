@@ -8,6 +8,7 @@ import {
   TruckVehicleType,
 } from "@prisma/client";
 import { US_JURISDICTIONS } from "../features/ifta/constants/us-jurisdictions";
+import { seedIftaJurisdictionProcedures } from "./seed-ifta-jurisdiction-procedures";
 
 // Cambia estos valores si quieres
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@ewall.local";
@@ -945,6 +946,7 @@ async function main() {
   await upsertForm2290Defaults();
   await upsertDmvRequirementTemplates();
   await upsertDmvFeeRules();
+  await seedIftaJurisdictionProcedures(prisma);
 
   const admin = await upsertAdminUser();
   await ensureOrganizationsForAllUsers();

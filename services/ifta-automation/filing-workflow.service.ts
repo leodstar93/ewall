@@ -32,6 +32,7 @@ import {
   notifyIftaAutomationSubmitted,
   notifyIftaAutomationUnderReview,
 } from "@/services/ifta-automation/notifications";
+import { ensureFilingIftaSnapshots } from "@/services/ifta-automation/ifta-access.service";
 import { SnapshotService } from "@/services/ifta-automation/snapshot.service";
 
 const SEND_FOR_APPROVAL_STATUSES = new Set<IftaFilingStatus>([
@@ -753,6 +754,11 @@ export class FilingWorkflowService {
         "IFTA_FILING_SUBMIT_INVALID_STATUS",
       );
     }
+
+    await ensureFilingIftaSnapshots({
+      filingId: filing.id,
+      db,
+    });
 
     const updated = await db.iftaFiling.update({
       where: { id: filing.id },

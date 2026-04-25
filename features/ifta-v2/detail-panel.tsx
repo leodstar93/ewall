@@ -41,6 +41,7 @@ type FilingDetailPanelProps = {
   canEditJurisdictionSummary?: boolean;
   onSyncLatest: (filing: FilingDetail) => void;
   onSyncByDates?: (filing: FilingDetail) => void;
+  onOpenInstructions?: (filing: FilingDetail) => void;
   onRebuild: (filing: FilingDetail) => void;
   onRecalculate: (filing: FilingDetail) => void;
   onSubmit: (filing: FilingDetail) => void;
@@ -586,6 +587,7 @@ export function FilingDetailPanel({
   canEditJurisdictionSummary = false,
   onSyncLatest,
   onSyncByDates,
+  onOpenInstructions,
   onRebuild,
   onRecalculate,
   onSubmit,
@@ -1128,6 +1130,16 @@ export function FilingDetailPanel({
                     disabled={busyAction === `sync:${filing.id}` || busyAction === "sync-dates"}
                   >
                     {busyAction === "sync-dates" ? "Syncing..." : "Sync by Dates"}
+                  </Button>
+                ) : null}
+                {mode === "staff" && onOpenInstructions ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={ucrSecondaryButtonClassName}
+                    onClick={() => onOpenInstructions(filing)}
+                  >
+                    How to Proceed
                   </Button>
                 ) : null}
               </>

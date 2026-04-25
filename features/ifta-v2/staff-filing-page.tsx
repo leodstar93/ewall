@@ -7,6 +7,10 @@ import { toast } from "react-toastify";
 import Swal from "sweetalert2";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  StaffIftaInstructionsPanel,
+  type StaffIftaInstructions,
+} from "@/features/ifta-v2/components/staff-ifta-instructions-panel";
 import { FilingDetailPanel } from "@/features/ifta-v2/detail-panel";
 import type { JurisdictionSummaryEditInput } from "@/features/ifta-v2/detail-panel";
 import {
@@ -22,6 +26,15 @@ function getErrorMessage(error: unknown, fallback: string) {
   }
 
   return fallback;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
@@ -85,6 +98,8 @@ export default function IftaAutomationStaffFilingPage({
   const canViewAudit = canReadAudit(roles, permissions);
   const canEditJurisdictionSummary = roles.includes("ADMIN");
   const [filing, setFiling] = useState<FilingDetail | null>(null);
+  const [instructions, setInstructions] = useState<StaffIftaInstructions | null>(null);
+  const [instructionsModalOpen, setInstructionsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [syncDatesModalOpen, setSyncDatesModalOpen] = useState(false);
@@ -105,13 +120,20 @@ export default function IftaAutomationStaffFilingPage({
     setLoading(true);
 
     try {
-      const data = await requestJson<{ filing: FilingDetail }>(
-        `/api/v1/features/ifta-v2/filings/${filingId}`,
-      );
-      setFiling(data.filing);
+      const [filingData, instructionData] = await Promise.all([
+        requestJson<{ filing: FilingDetail }>(
+          `/api/v1/features/ifta-v2/filings/${filingId}`,
+        ),
+        requestJson<StaffIftaInstructions>(
+          `/api/v1/features/ifta-v2/filings/${filingId}/staff-instructions`,
+        ),
+      ]);
+      setFiling(filingData.filing);
+      setInstructions(instructionData);
     } catch (error) {
       toast.error(getErrorMessage(error, "Could not load this IFTA filing."));
       setFiling(null);
+      setInstructions(null);
     } finally {
       setLoading(false);
     }
@@ -331,8 +353,8 @@ export default function IftaAutomationStaffFilingPage({
         const data = await requestJson<{ exception: FilingException }>(
           `/api/v1/features/ifta-v2/exceptions/${exception.id}/${action}`,
           {
-          method: "POST",
-          body: action === "ack" ? undefined : JSON.stringify({ note }),
+            method: "POST",
+            body: action === "ack" ? undefined : JSON.stringify({ note }),
           },
         );
 
@@ -437,6 +459,46 @@ export default function IftaAutomationStaffFilingPage({
     );
   }
 
+  async function handleRevealPortalCredentials() {
+    if (!filing) return;
+
+    setBusyAction(`reveal:${filing.id}`);
+
+    try {
+      const payload = await requestJson<{
+        jurisdiction: string;
+        username: string | null;
+        password: string | null;
+        pin: string | null;
+        notes: string | null;
+      }>(`/api/v1/features/ifta-v2/filings/${filing.id}/reveal-portal-credentials`, {
+        method: "POST",
+      });
+
+      await Swal.fire({
+        title: `Portal Credentials - ${payload.jurisdiction}`,
+        html: `
+          <div style="text-align:left;display:grid;gap:12px;font-size:14px;">
+            <div><strong>Username:</strong><br>${escapeHtml(payload.username ?? "Not provided")}</div>
+            <div><strong>Password:</strong><br>${escapeHtml(payload.password ?? "Not provided")}</div>
+            <div><strong>PIN:</strong><br>${escapeHtml(payload.pin ?? "Not provided")}</div>
+            <div><strong>Notes:</strong><br>${escapeHtml(payload.notes ?? "Not provided")}</div>
+          </div>
+        `,
+        confirmButtonText: "Close",
+        width: 640,
+      });
+
+      toast.success("IFTA portal credentials were revealed and audit logged.");
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, "The stored IFTA portal credentials could not be revealed."),
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleSaveJurisdictionSummary(
     currentFiling: FilingDetail,
     rows: JurisdictionSummaryEditInput[],
@@ -530,6 +592,7 @@ export default function IftaAutomationStaffFilingPage({
           canEditJurisdictionSummary={canEditJurisdictionSummary}
           onSyncLatest={(currentFiling) => void handleSyncLatest(currentFiling)}
           onSyncByDates={(currentFiling) => openSyncDatesModal(currentFiling)}
+          onOpenInstructions={() => setInstructionsModalOpen(true)}
           onRebuild={(currentFiling) => void handleRebuild(currentFiling)}
           onRecalculate={(currentFiling) => void handleRecalculate(currentFiling)}
           onSubmit={() => {}}
@@ -553,6 +616,15 @@ export default function IftaAutomationStaffFilingPage({
           }
         />
       </div>
+
+      <StaffIftaInstructionsPanel
+        instructions={instructions}
+        loading={loading}
+        open={instructionsModalOpen}
+        onClose={() => setInstructionsModalOpen(false)}
+        revealBusy={Boolean(filing) && busyAction === `reveal:${filing.id}`}
+        onReveal={() => void handleRevealPortalCredentials()}
+      />
 
       {syncDatesModalOpen ? (
         <div

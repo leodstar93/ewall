@@ -6,6 +6,7 @@ import { getCurrentQuarter } from "@/services/ifta-automation/shared";
 import { handleIftaAutomationError, parseProvider } from "@/services/ifta-automation/http";
 import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
 import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
+import { ensureFilingIftaSnapshots } from "@/services/ifta-automation/ifta-access.service";
 import { SyncOrchestrator } from "@/services/ifta-automation/sync-orchestrator.service";
 import { FilingWorkflowService } from "@/services/ifta-automation/filing-workflow.service";
 
@@ -141,6 +142,10 @@ export async function POST(request: Request) {
       integrationAccountId: integrationAccount?.id ?? null,
       year,
       quarter,
+    });
+    await ensureFilingIftaSnapshots({
+      filingId: filing.id,
+      db: prisma,
     });
 
     let autoSync:

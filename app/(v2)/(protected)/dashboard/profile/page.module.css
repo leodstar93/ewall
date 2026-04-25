@@ -142,6 +142,29 @@
   color: #9ca3af;
 }
 
+.textarea {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid var(--br);
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  padding: 12px 13px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.textarea:focus {
+  border-color: var(--bm);
+  box-shadow: 0 0 0 3px rgba(26, 63, 143, 0.14);
+}
+
+.textarea::placeholder {
+  color: #9ca3af;
+}
+
 .formGrid {
   display: grid;
   gap: 16px;
@@ -159,6 +182,58 @@
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.iftaMetaGrid,
+.iftaModeGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.iftaMetaCard,
+.iftaModeCard {
+  border: 1px solid var(--br);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  padding: 14px;
+}
+
+.iftaMetaCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.iftaMetaValue {
+  color: var(--b);
+  font-size: 18px;
+}
+
+.iftaModeCard {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 12px;
+}
+
+.iftaModeCard input {
+  margin-top: 2px;
+}
+
+.iftaModeTitle {
+  color: var(--b);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.inlineActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .primaryButton,
@@ -277,11 +352,14 @@
   }
 
   .lookupBox,
+  .iftaMetaGrid,
+  .iftaModeGrid,
   .fieldsGrid,
   .loadingGrid {
     grid-template-columns: 1fr;
   }
 
+  .inlineActions,
   .actions {
     flex-direction: column-reverse;
   }

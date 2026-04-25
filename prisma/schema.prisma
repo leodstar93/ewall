@@ -105,6 +105,8 @@ model CompanyProfile {
   saferAutoFilled Boolean      @default(false)
   saferNeedsReview Boolean     @default(false)
   saferRawSnapshot Json?
+  iftaAccessMode IftaAccessMode @default(CONTACT_ME)
+  iftaAccessNote String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -115,6 +117,7 @@ model CompanyProfile {
   subscriptionGrants      SubscriptionGrant[]
   billingCharges          BillingCharge[]
   eldIntegrationAccounts  IntegrationAccount[]
+  iftaPortalCredentials   IftaPortalCredential[]
   iftaAutomationFilings   IftaFiling[]
   ucrFilings              UCRFiling[]
 
@@ -649,6 +652,11 @@ enum IftaFilingStatus {
   ARCHIVED
 }
 
+enum IftaAccessMode {
+  SAVED_IN_SYSTEM
+  CONTACT_ME
+}
+
 enum IftaExceptionSeverity {
   INFO
   WARNING
@@ -675,6 +683,21 @@ enum IftaSnapshotStatus {
   DRAFT
   FROZEN
   SUPERSEDED
+}
+
+enum IftaFilingMethod {
+  MANUAL_PORTAL
+  PDF_UPLOAD
+  CSV_UPLOAD
+  API
+}
+
+enum IftaJurisdictionPaymentMethod {
+  ACH
+  CARD
+  CHECK
+  MANUAL
+  UNKNOWN
 }
 
 enum UCRFilingStatus {
@@ -1118,6 +1141,12 @@ model IftaFiling {
   totalNetTax         Decimal?          @db.Decimal(14, 2)
   notesInternal       String?
   notesClientVisible  String?
+  baseJurisdictionSnapshot String?
+  iftaAccessModeSnapshot IftaAccessMode?
+  jurisdictionProcedureSnapshot Json?
+  staffPaymentReceiptUrl String?
+  staffPaymentConfirmationNumber String?
+  staffCompletedAt DateTime?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -1133,6 +1162,42 @@ model IftaFiling {
 
   @@unique([tenantId, year, quarter])
   @@index([tenantId, status])
+}
+
+model IftaPortalCredential {
+  id                String   @id @default(cuid())
+  companyProfileId  String
+  jurisdiction      String
+  usernameEncrypted String?
+  passwordEncrypted String?
+  pinEncrypted      String?
+  notesEncrypted    String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  companyProfile CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+
+  @@index([companyProfileId])
+  @@index([jurisdiction])
+  @@index([companyProfileId, jurisdiction, isActive])
+}
+
+model IftaJurisdictionProcedure {
+  id                       String                         @id @default(cuid())
+  jurisdiction             String                         @unique
+  title                    String
+  portalUrl                String?
+  filingMethod             IftaFilingMethod
+  paymentMethod            IftaJurisdictionPaymentMethod
+  requiresPortalLogin      Boolean                        @default(true)
+  requiresClientCredential Boolean                        @default(true)
+  supportsUpload           Boolean                        @default(false)
+  staffInstructions        Json
+  checklist                Json?
+  isActive                 Boolean                        @default(true)
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
 }
 
 model IftaFilingVehicle {

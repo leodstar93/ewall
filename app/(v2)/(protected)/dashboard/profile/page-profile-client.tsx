@@ -44,6 +44,28 @@ type SaferLookupResponse = {
   error?: string;
 };
 
+type IftaAccessMode = "SAVED_IN_SYSTEM" | "CONTACT_ME";
+
+type IftaAccessResponse = {
+  state: string | null;
+  iftaAccessMode: IftaAccessMode;
+  iftaAccessNote: string | null;
+  hasSavedCredential: boolean;
+  savedCredentialJurisdiction?: string;
+  error?: string;
+};
+
+type IftaAccessFormState = {
+  iftaAccessMode: IftaAccessMode;
+  iftaAccessNote: string;
+  credentialUsername: string;
+  credentialPassword: string;
+  credentialPin: string;
+  credentialNotes: string;
+  hasSavedCredential: boolean;
+  savedCredentialJurisdiction: string;
+};
+
 type FieldConfig = {
   name: EditableFieldName;
   label: string;
@@ -98,11 +120,26 @@ const fleetFields: FieldConfig[] = [
   { name: "driversCount", label: "Drivers count", placeholder: "0", inputMode: "numeric" },
 ];
 
+const emptyIftaAccessState: IftaAccessFormState = {
+  iftaAccessMode: "CONTACT_ME",
+  iftaAccessNote: "",
+  credentialUsername: "",
+  credentialPassword: "",
+  credentialPin: "",
+  credentialNotes: "",
+  hasSavedCredential: false,
+  savedCredentialJurisdiction: "",
+};
+
 export default function ProfilePageClient() {
   const [form, setForm] = useState<CompanyProfileFormData>(emptyCompanyProfileState);
   const [initialForm, setInitialForm] = useState<CompanyProfileFormData>(emptyCompanyProfileState);
+  const [iftaAccess, setIftaAccess] = useState<IftaAccessFormState>(emptyIftaAccessState);
+  const [initialIftaAccess, setInitialIftaAccess] =
+    useState<IftaAccessFormState>(emptyIftaAccessState);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [iftaSaving, setIftaSaving] = useState(false);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
   const [banner, setBanner] = useState<InlineMessage | null>(null);
@@ -115,24 +152,48 @@ export default function ProfilePageClient() {
         setLoading(true);
         setError("");
 
-        const response = await fetch("/api/settings/company", {
-          cache: "no-store",
-        });
+        const [profileResponse, iftaResponse] = await Promise.all([
+          fetch("/api/settings/company", {
+            cache: "no-store",
+          }),
+          fetch("/api/v1/company/ifta-access", {
+            cache: "no-store",
+          }),
+        ]);
 
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({}));
+        if (!profileResponse.ok) {
+          const payload = await profileResponse.json().catch(() => ({}));
           throw new Error(payload.error || "Failed to load profile.");
         }
 
-        const payload = (await response.json()) as CompanyProfileFormData;
+        if (!iftaResponse.ok) {
+          const payload = await iftaResponse.json().catch(() => ({}));
+          throw new Error(payload.error || "Failed to load IFTA access settings.");
+        }
+
+        const payload = (await profileResponse.json()) as CompanyProfileFormData;
+        const iftaPayload = (await iftaResponse.json()) as IftaAccessResponse;
         if (!active) return;
 
         const nextForm = syncAddressFields({
           ...emptyCompanyProfileState,
           ...payload,
         });
+        const nextIftaAccess: IftaAccessFormState = {
+          iftaAccessMode: iftaPayload.iftaAccessMode ?? "CONTACT_ME",
+          iftaAccessNote: iftaPayload.iftaAccessNote ?? "",
+          credentialUsername: "",
+          credentialPassword: "",
+          credentialPin: "",
+          credentialNotes: "",
+          hasSavedCredential: Boolean(iftaPayload.hasSavedCredential),
+          savedCredentialJurisdiction: iftaPayload.savedCredentialJurisdiction ?? "",
+        };
+
         setForm(nextForm);
         setInitialForm(nextForm);
+        setIftaAccess(nextIftaAccess);
+        setInitialIftaAccess(nextIftaAccess);
       } catch (loadError) {
         if (!active) return;
         setError(loadError instanceof Error ? loadError.message : "Failed to load profile.");
@@ -152,6 +213,18 @@ export default function ProfilePageClient() {
     () => JSON.stringify(form) !== JSON.stringify(initialForm),
     [form, initialForm],
   );
+  const iftaDirty = useMemo(
+    () => JSON.stringify(iftaAccess) !== JSON.stringify(initialIftaAccess),
+    [iftaAccess, initialIftaAccess],
+  );
+  const currentState = form.state.trim().toUpperCase();
+  const savedState = initialForm.state.trim().toUpperCase();
+  const companyStateDirty = currentState !== savedState;
+  const iftaBlockedReason = !currentState
+    ? "Complete your company state first."
+    : companyStateDirty
+      ? "Save your updated company state before configuring IFTA access."
+      : null;
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -167,6 +240,29 @@ export default function ProfilePageClient() {
   const handleReset = () => {
     setForm(initialForm);
     setError("");
+    setBanner(null);
+  };
+
+  const handleIftaModeChange = (mode: IftaAccessMode) => {
+    setIftaAccess((current) => ({
+      ...current,
+      iftaAccessMode: mode,
+    }));
+  };
+
+  const handleIftaInputChange = (
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value } = event.target;
+
+    setIftaAccess((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const handleResetIftaAccess = () => {
+    setIftaAccess(initialIftaAccess);
     setBanner(null);
   };
 
@@ -260,12 +356,32 @@ export default function ProfilePageClient() {
       }
 
       const payload = (await response.json()) as CompanyProfileFormData;
+      const iftaResponse = await fetch("/api/v1/company/ifta-access", {
+        cache: "no-store",
+      });
+      const iftaPayload = iftaResponse.ok
+        ? ((await iftaResponse.json()) as IftaAccessResponse)
+        : null;
       const nextForm = syncAddressFields({
         ...emptyCompanyProfileState,
         ...payload,
       });
+      const nextIftaAccess: IftaAccessFormState = iftaPayload
+        ? {
+            iftaAccessMode: iftaPayload.iftaAccessMode ?? "CONTACT_ME",
+            iftaAccessNote: iftaPayload.iftaAccessNote ?? "",
+            credentialUsername: "",
+            credentialPassword: "",
+            credentialPin: "",
+            credentialNotes: "",
+            hasSavedCredential: Boolean(iftaPayload.hasSavedCredential),
+            savedCredentialJurisdiction: iftaPayload.savedCredentialJurisdiction ?? "",
+          }
+        : initialIftaAccess;
       setForm(nextForm);
       setInitialForm(nextForm);
+      setIftaAccess(nextIftaAccess);
+      setInitialIftaAccess(nextIftaAccess);
       setBanner({
         tone: "success",
         message: "Your company profile has been updated.",
@@ -276,6 +392,82 @@ export default function ProfilePageClient() {
       setBanner({ tone: "error", message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveIftaAccess = async () => {
+    if (iftaBlockedReason) {
+      setBanner({ tone: "error", message: iftaBlockedReason });
+      return;
+    }
+
+    const requiresCredential =
+      iftaAccess.iftaAccessMode === "SAVED_IN_SYSTEM" &&
+      !iftaAccess.hasSavedCredential &&
+      (!iftaAccess.credentialUsername.trim() || !iftaAccess.credentialPassword.trim());
+
+    if (requiresCredential) {
+      setBanner({
+        tone: "error",
+        message: "Username and password are required when saving IFTA portal credentials.",
+      });
+      return;
+    }
+
+    try {
+      setIftaSaving(true);
+      setError("");
+
+      const response = await fetch("/api/v1/company/ifta-access", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          iftaAccessMode: iftaAccess.iftaAccessMode,
+          iftaAccessNote: iftaAccess.iftaAccessNote,
+          credential:
+            iftaAccess.iftaAccessMode === "SAVED_IN_SYSTEM"
+              ? {
+                  username: iftaAccess.credentialUsername,
+                  password: iftaAccess.credentialPassword,
+                  pin: iftaAccess.credentialPin,
+                  notes: iftaAccess.credentialNotes,
+                }
+              : undefined,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as IftaAccessResponse;
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to save IFTA access.");
+      }
+
+      const nextIftaAccess: IftaAccessFormState = {
+        iftaAccessMode: payload.iftaAccessMode ?? "CONTACT_ME",
+        iftaAccessNote: payload.iftaAccessNote ?? "",
+        credentialUsername: "",
+        credentialPassword: "",
+        credentialPin: "",
+        credentialNotes: "",
+        hasSavedCredential: Boolean(payload.hasSavedCredential),
+        savedCredentialJurisdiction: payload.savedCredentialJurisdiction ?? "",
+      };
+
+      setIftaAccess(nextIftaAccess);
+      setInitialIftaAccess(nextIftaAccess);
+      setBanner({
+        tone: "success",
+        message:
+          nextIftaAccess.iftaAccessMode === "SAVED_IN_SYSTEM"
+            ? "Your IFTA portal access settings were saved securely."
+            : "Your IFTA portal access settings were updated.",
+      });
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error ? saveError.message : "Failed to save IFTA access.";
+      setError(message);
+      setBanner({ tone: "error", message });
+    } finally {
+      setIftaSaving(false);
     }
   };
 
@@ -371,6 +563,180 @@ export default function ProfilePageClient() {
                 <h3 className={styles.panelTitle}>Operations snapshot</h3>
               </div>
               <div className={styles.fieldsGrid}>{fleetFields.map(renderField)}</div>
+            </section>
+
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <p className={styles.sectionEyebrow}>IFTA</p>
+                <h3 className={styles.panelTitle}>IFTA access</h3>
+                <p className={styles.sectionText}>
+                  Tell our staff whether they should use saved portal credentials or contact
+                  you when it is time to file.
+                </p>
+              </div>
+
+              <div className={styles.iftaMetaGrid}>
+                <div className={styles.iftaMetaCard}>
+                  <span className={styles.fieldLabel}>Base jurisdiction</span>
+                  <strong className={styles.iftaMetaValue}>{currentState || "Not set"}</strong>
+                  <span className={styles.fieldHint}>
+                    We use your company state as the IFTA base jurisdiction.
+                  </span>
+                </div>
+                <div className={styles.iftaMetaCard}>
+                  <span className={styles.fieldLabel}>Saved credential status</span>
+                  <strong className={styles.iftaMetaValue}>
+                    {iftaAccess.hasSavedCredential
+                      ? `Saved for ${iftaAccess.savedCredentialJurisdiction || currentState}`
+                      : "No saved credential"}
+                  </strong>
+                  <span className={styles.fieldHint}>
+                    ACH and card details are never stored here.
+                  </span>
+                </div>
+              </div>
+
+              {iftaBlockedReason ? (
+                <div className={`${styles.alert} ${styles.alertInfo}`}>
+                  {iftaBlockedReason}
+                </div>
+              ) : null}
+
+              <div className={styles.iftaModeGrid}>
+                <label className={styles.iftaModeCard}>
+                  <input
+                    type="radio"
+                    name="iftaAccessMode"
+                    value="SAVED_IN_SYSTEM"
+                    checked={iftaAccess.iftaAccessMode === "SAVED_IN_SYSTEM"}
+                    onChange={() => handleIftaModeChange("SAVED_IN_SYSTEM")}
+                    disabled={Boolean(iftaBlockedReason) || iftaSaving}
+                  />
+                  <div>
+                    <div className={styles.iftaModeTitle}>Save IFTA portal credentials securely</div>
+                    <div className={styles.fieldHint}>
+                      Staff can reveal the credentials only when they process this filing.
+                    </div>
+                  </div>
+                </label>
+
+                <label className={styles.iftaModeCard}>
+                  <input
+                    type="radio"
+                    name="iftaAccessMode"
+                    value="CONTACT_ME"
+                    checked={iftaAccess.iftaAccessMode === "CONTACT_ME"}
+                    onChange={() => handleIftaModeChange("CONTACT_ME")}
+                    disabled={Boolean(iftaBlockedReason) || iftaSaving}
+                  />
+                  <div>
+                    <div className={styles.iftaModeTitle}>Contact me when credentials are needed</div>
+                    <div className={styles.fieldHint}>
+                      Staff will call or message you for portal access when they are ready to file.
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <div className={styles.fieldsGrid}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>Client note</span>
+                  <textarea
+                    name="iftaAccessNote"
+                    value={iftaAccess.iftaAccessNote}
+                    onChange={handleIftaInputChange}
+                    className={styles.textarea}
+                    placeholder="Optional context for staff about access timing or availability."
+                    disabled={Boolean(iftaBlockedReason) || iftaSaving}
+                    rows={4}
+                  />
+                </label>
+              </div>
+
+              {iftaAccess.iftaAccessMode === "SAVED_IN_SYSTEM" ? (
+                <div className={styles.fieldsGrid}>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Portal username</span>
+                    <input
+                      name="credentialUsername"
+                      value={iftaAccess.credentialUsername}
+                      onChange={handleIftaInputChange}
+                      className={styles.input}
+                      placeholder={
+                        iftaAccess.hasSavedCredential
+                          ? "Leave blank to keep the saved username"
+                          : "Portal username"
+                      }
+                      disabled={Boolean(iftaBlockedReason) || iftaSaving}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Portal password</span>
+                    <input
+                      type="password"
+                      name="credentialPassword"
+                      value={iftaAccess.credentialPassword}
+                      onChange={handleIftaInputChange}
+                      className={styles.input}
+                      placeholder={
+                        iftaAccess.hasSavedCredential
+                          ? "Leave blank to keep the saved password"
+                          : "Portal password"
+                      }
+                      disabled={Boolean(iftaBlockedReason) || iftaSaving}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>PIN</span>
+                    <input
+                      name="credentialPin"
+                      value={iftaAccess.credentialPin}
+                      onChange={handleIftaInputChange}
+                      className={styles.input}
+                      placeholder="Optional portal PIN"
+                      disabled={Boolean(iftaBlockedReason) || iftaSaving}
+                    />
+                  </label>
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Credential notes</span>
+                    <textarea
+                      name="credentialNotes"
+                      value={iftaAccess.credentialNotes}
+                      onChange={handleIftaInputChange}
+                      className={styles.textarea}
+                      placeholder="Optional non-sensitive instructions for staff."
+                      disabled={Boolean(iftaBlockedReason) || iftaSaving}
+                      rows={4}
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              <div className={`${styles.alert} ${styles.alertInfo}`}>
+                We do not store ACH or card details for IFTA payments. Our staff will contact
+                you when payment information is needed.
+              </div>
+
+              {iftaDirty ? (
+                <div className={styles.inlineActions}>
+                  <button
+                    type="button"
+                    onClick={handleResetIftaAccess}
+                    disabled={iftaSaving}
+                    className={styles.secondaryButton}
+                  >
+                    Reset IFTA access
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveIftaAccess()}
+                    disabled={Boolean(iftaBlockedReason) || iftaSaving}
+                    className={styles.primaryButton}
+                  >
+                    {iftaSaving ? "Saving..." : "Save IFTA access"}
+                  </button>
+                </div>
+              ) : null}
             </section>
           </div>
         )}
