@@ -39,6 +39,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function countsAsTaxPaidGallons(taxPaid: boolean | null) {
+  return taxPaid !== false;
+}
+
 function parseManualSummaryOverrideRows(payload: unknown) {
   if (!isRecord(payload) || !Array.isArray(payload.jurisdictions)) return [];
 
@@ -108,7 +112,7 @@ export class IftaCalculationEngine {
 
     const totalFuelGallons = roundNumber(
       filing.fuelLines.reduce((sum, line) => {
-        return sum + (line.taxPaid ? decimalToNumber(line.gallons) : 0);
+        return sum + decimalToNumber(line.gallons);
       }, 0),
       3,
     );
@@ -154,7 +158,7 @@ export class IftaCalculationEngine {
         manualMiles: 0,
         taxPaidGallons: 0,
       };
-      if (line.taxPaid) {
+      if (countsAsTaxPaidGallons(line.taxPaid)) {
         current.taxPaidGallons += decimalToNumber(line.gallons);
       }
       jurisdictionMap.set(line.jurisdiction, current);
@@ -291,20 +295,28 @@ export class IftaCalculationEngine {
       where: { filingId: input.filingId },
     });
 
-    let totalDistance = 0;
-    let totalFuelGallons = 0;
+    const totalDistance = roundNumber(
+      overrideRows.reduce((sum, row) => sum + row.totalMiles, 0),
+      2,
+    );
+    const totalFuelGallons = roundNumber(
+      overrideRows.reduce((sum, row) => sum + row.taxPaidGallons, 0),
+      3,
+    );
+    const fleetMpg =
+      totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 4) : 0;
     let totalTaxDue = 0;
     let totalTaxCredit = 0;
     let totalNetTax = 0;
 
     const summaryRows = overrideRows.map((row) => {
+      const taxableGallons =
+        fleetMpg > 0 ? roundNumber(row.totalMiles / fleetMpg, 3) : 0;
       const taxRate = roundNumber(rateByJurisdiction.get(row.jurisdiction) ?? 0, 5);
-      const taxDue = roundNumber(row.taxableGallons * taxRate, 2);
+      const taxDue = roundNumber(taxableGallons * taxRate, 2);
       const taxCredit = roundNumber(row.taxPaidGallons * taxRate, 2);
       const netTax = roundNumber(taxDue - taxCredit, 2);
 
-      totalDistance += row.totalMiles;
-      totalFuelGallons += row.taxPaidGallons;
       totalTaxDue += taxDue;
       totalTaxCredit += taxCredit;
       totalNetTax += netTax;
@@ -313,7 +325,7 @@ export class IftaCalculationEngine {
         filingId: input.filingId,
         jurisdiction: row.jurisdiction,
         totalMiles: toDecimalString(row.totalMiles, 2),
-        taxableGallons: toDecimalString(row.taxableGallons, 3),
+        taxableGallons: toDecimalString(taxableGallons, 3),
         taxPaidGallons: toDecimalString(row.taxPaidGallons, 3),
         taxRate: toDecimalString(taxRate, 5),
         taxDue: toDecimalString(taxDue, 2),
@@ -326,13 +338,9 @@ export class IftaCalculationEngine {
       data: summaryRows,
     });
 
-    totalDistance = roundNumber(totalDistance, 2);
-    totalFuelGallons = roundNumber(totalFuelGallons, 3);
     totalTaxDue = roundNumber(totalTaxDue, 2);
     totalTaxCredit = roundNumber(totalTaxCredit, 2);
     totalNetTax = roundNumber(totalNetTax, 2);
-    const fleetMpg =
-      totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 4) : 0;
 
     await input.db.iftaFiling.update({
       where: { id: input.filingId },

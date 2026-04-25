@@ -475,7 +475,6 @@ export class FilingWorkflowService {
     const normalizedLines: Array<{
       jurisdiction: string;
       totalMiles: number;
-      taxableGallons: number;
       taxPaidGallons: number;
     }> = [];
     const seenJurisdictions = new Set<string>();
@@ -483,7 +482,6 @@ export class FilingWorkflowService {
     for (const line of input.lines) {
       const jurisdiction = normalizeJurisdictionCode(line.jurisdiction);
       const totalMiles = Number(line.totalMiles);
-      const taxableGallons = Number(line.taxableGallons);
       const existing =
         (line.id ? existingById.get(line.id) : null) ??
         (jurisdiction ? existingByJurisdiction.get(jurisdiction) : null);
@@ -516,14 +514,6 @@ export class FilingWorkflowService {
         );
       }
 
-      if (!Number.isFinite(taxableGallons) || taxableGallons < 0) {
-        throw new IftaAutomationError(
-          "Taxable gallons must be zero or greater.",
-          400,
-          "INVALID_IFTA_SUMMARY_TAXABLE_GALLONS",
-        );
-      }
-
       if (!Number.isFinite(taxPaidGallons) || taxPaidGallons < 0) {
         throw new IftaAutomationError(
           "Tax-paid gallons must be zero or greater.",
@@ -536,7 +526,6 @@ export class FilingWorkflowService {
       normalizedLines.push({
         jurisdiction,
         totalMiles: roundNumber(totalMiles, 2),
-        taxableGallons: roundNumber(taxableGallons, 3),
         taxPaidGallons: roundNumber(taxPaidGallons, 3),
       });
     }
@@ -593,19 +582,27 @@ export class FilingWorkflowService {
       where: { filingId: filing.id },
     });
 
-    let totalDistance = 0;
-    let totalFuelGallons = 0;
+    const totalDistance = roundNumber(
+      normalizedLines.reduce((sum, line) => sum + line.totalMiles, 0),
+      2,
+    );
+    const totalFuelGallons = roundNumber(
+      normalizedLines.reduce((sum, line) => sum + line.taxPaidGallons, 0),
+      3,
+    );
+    const fleetMpg =
+      totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 4) : 0;
     let totalTaxDue = 0;
     let totalTaxCredit = 0;
     let totalNetTax = 0;
     const summaryRows = normalizedLines.map((line) => {
+      const taxableGallons =
+        fleetMpg > 0 ? roundNumber(line.totalMiles / fleetMpg, 3) : 0;
       const taxRate = roundNumber(rateByJurisdiction.get(line.jurisdiction) ?? 0, 5);
-      const taxDue = roundNumber(line.taxableGallons * taxRate, 2);
+      const taxDue = roundNumber(taxableGallons * taxRate, 2);
       const taxCredit = roundNumber(line.taxPaidGallons * taxRate, 2);
       const netTax = roundNumber(taxDue - taxCredit, 2);
 
-      totalDistance += line.totalMiles;
-      totalFuelGallons += line.taxPaidGallons;
       totalTaxDue += taxDue;
       totalTaxCredit += taxCredit;
       totalNetTax += netTax;
@@ -614,7 +611,7 @@ export class FilingWorkflowService {
         filingId: filing.id,
         jurisdiction: line.jurisdiction,
         totalMiles: toDecimalString(line.totalMiles, 2),
-        taxableGallons: toDecimalString(line.taxableGallons, 3),
+        taxableGallons: toDecimalString(taxableGallons, 3),
         taxPaidGallons: toDecimalString(line.taxPaidGallons, 3),
         taxRate: toDecimalString(taxRate, 5),
         taxDue: toDecimalString(taxDue, 2),
@@ -629,13 +626,9 @@ export class FilingWorkflowService {
       });
     }
 
-    totalDistance = roundNumber(totalDistance, 2);
-    totalFuelGallons = roundNumber(totalFuelGallons, 3);
     totalTaxDue = roundNumber(totalTaxDue, 2);
     totalTaxCredit = roundNumber(totalTaxCredit, 2);
     totalNetTax = roundNumber(totalNetTax, 2);
-    const fleetMpg =
-      totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 4) : 0;
 
     await db.iftaFiling.update({
       where: { id: filing.id },

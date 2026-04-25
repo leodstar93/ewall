@@ -380,8 +380,8 @@ function AuditSummaryDiffPanel({
               <th className="px-3 py-2 font-semibold">Change</th>
               <th className="px-3 py-2 font-semibold">Jurisdiction</th>
               <th className="px-3 py-2 font-semibold">Total Miles</th>
+              <th className="px-3 py-2 font-semibold">Paid Gallons</th>
               <th className="px-3 py-2 font-semibold">Taxable Gallons</th>
-              <th className="px-3 py-2 font-semibold">Tax-Paid Gallons</th>
               <th className="px-3 py-2 font-semibold">Net Tax</th>
             </tr>
           </thead>
@@ -477,6 +477,29 @@ function buildConversation(filing: FilingDetail) {
 
 function toEditableDecimal(value: string | number | null | undefined, precision: number) {
   return toNumber(value).toFixed(precision);
+}
+
+function calculateDraftFleetMpg(rows: JurisdictionSummaryDraftRow[]) {
+  const totalMiles = rows.reduce((sum, row) => {
+    const value = Number(row.totalMiles);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+  const paidGallons = rows.reduce((sum, row) => {
+    const value = Number(row.taxPaidGallons);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  return paidGallons > 0 ? totalMiles / paidGallons : 0;
+}
+
+function calculateDraftTaxableGallons(row: JurisdictionSummaryDraftRow, fleetMpg: number) {
+  const totalMiles = Number(row.totalMiles);
+
+  if (!Number.isFinite(fleetMpg) || fleetMpg <= 0 || !Number.isFinite(totalMiles)) {
+    return "0.000";
+  }
+
+  return (totalMiles / fleetMpg).toFixed(3);
 }
 
 function buildJurisdictionSummaryDraftRows(
@@ -695,6 +718,27 @@ export function FilingDetailPanel({
       "REOPENED",
       "SNAPSHOT_READY",
     ].includes(filing.status);
+  const sendForApprovalBlockedReason = (() => {
+    if (mode !== "staff") return "";
+    if (hasOpenBlockingOrError) {
+      return "Resolve or ignore all open blocking/error exceptions before sending for approval.";
+    }
+    if (
+      ![
+        "DATA_READY",
+        "NEEDS_REVIEW",
+        "READY_FOR_REVIEW",
+        "IN_REVIEW",
+        "CHANGES_REQUESTED",
+        "REOPENED",
+        "SNAPSHOT_READY",
+      ].includes(filing.status)
+    ) {
+      return `Cannot send for approval while status is ${filingStatusLabel(filing.status)}.`;
+    }
+    return "";
+  })();
+  const showSendForApproval = mode === "staff" && !["APPROVED", "FINALIZED"].includes(filing.status);
   const canFinalize = mode === "staff" && filing.status === "APPROVED";
   const canReopen =
     mode === "staff" &&
@@ -705,6 +749,7 @@ export function FilingDetailPanel({
     jurisdictionDraft?.filingId === filingIdForDraft
       ? jurisdictionDraft.rows
       : jurisdictionBaselineRows;
+  const draftFleetMpg = calculateDraftFleetMpg(jurisdictionDraftRows);
   const canEditSummary =
     canEditJurisdictionSummary &&
     Boolean(onSaveJurisdictionSummary) &&
@@ -752,8 +797,8 @@ export function FilingDetailPanel({
       ),
     },
     { key: "totalMiles", label: "Total Miles", sortable: false },
+    { key: "taxPaidGallons", label: "Paid Gallons", sortable: false },
     { key: "taxableGallons", label: "Taxable Gallons", sortable: false },
-    { key: "taxPaidGallons", label: "Tax-Paid Gallons", sortable: false },
     { key: "taxRate", label: "Tax Rate", sortable: false },
     { key: "netTax", label: "Net Tax", sortable: false },
   ];
@@ -990,7 +1035,7 @@ export function FilingDetailPanel({
     draftId: string,
     field: keyof Pick<
       JurisdictionSummaryDraftRow,
-      "jurisdiction" | "totalMiles" | "taxableGallons"
+      "jurisdiction" | "totalMiles" | "taxPaidGallons"
     >,
     value: string,
   ) {
@@ -1067,7 +1112,7 @@ export function FilingDetailPanel({
         id: row.id,
         jurisdiction: row.jurisdiction.trim().toUpperCase(),
         totalMiles: row.totalMiles.trim(),
-        taxableGallons: row.taxableGallons.trim(),
+        taxableGallons: calculateDraftTaxableGallons(row, draftFleetMpg),
         taxPaidGallons: row.taxPaidGallons.trim(),
       })),
     );
@@ -1219,17 +1264,22 @@ export function FilingDetailPanel({
                   : "Need Attention"}
               </Button>
             ) : null}
-            {canSendForApproval ? (
-              <Button
-                size="sm"
-                className={ucrPrimaryButtonClassName}
-                onClick={() => onApprove(filing)}
-                disabled={busyAction === `approve:${filing.id}`}
-              >
-                {busyAction === `approve:${filing.id}`
-                  ? "Sending..."
-                  : "Send for Approval"}
-              </Button>
+            {showSendForApproval ? (
+              <span title={sendForApprovalBlockedReason || undefined}>
+                <Button
+                  size="sm"
+                  className={ucrPrimaryButtonClassName}
+                  onClick={() => onApprove(filing)}
+                  disabled={
+                    !canSendForApproval ||
+                    busyAction === `approve:${filing.id}`
+                  }
+                >
+                  {busyAction === `approve:${filing.id}`
+                    ? "Sending..."
+                    : "Send for Approval"}
+                </Button>
+              </span>
             ) : null}
             {canFinalize ? (
               <Button
@@ -1265,7 +1315,7 @@ export function FilingDetailPanel({
             value={formatNumber(filing.totalDistance)}
           />
           <MetricCard
-            label="Tax-Paid Gallons"
+            label="Paid Gallons"
             value={formatGallons(filing.totalFuelGallons)}
           />
           <MetricCard
@@ -1383,8 +1433,8 @@ export function FilingDetailPanel({
                       <tr>
                         <th className="px-4 py-3 font-medium">Jurisdiction</th>
                         <th className="px-4 py-3 font-medium">Total Miles</th>
+                        <th className="px-4 py-3 font-medium">Paid Gallons</th>
                         <th className="px-4 py-3 font-medium">Taxable Gallons</th>
-                        <th className="px-4 py-3 font-medium">Tax-Paid Gallons</th>
                         <th className="px-4 py-3 font-medium">Tax Rate</th>
                         <th className="px-4 py-3 font-medium">Net Tax</th>
                         <th className="px-4 py-3 font-medium">Action</th>
@@ -1444,21 +1494,29 @@ export function FilingDetailPanel({
                                   type="number"
                                   min="0"
                                   step="0.001"
-                                  value={row.taxableGallons}
+                                  value={row.taxPaidGallons}
                                   onChange={(event) =>
                                     updateJurisdictionDraftRow(
                                       row.draftId,
-                                      "taxableGallons",
+                                      "taxPaidGallons",
                                       event.target.value,
                                     )
                                   }
                                   disabled={summaryBusy}
                                   className="h-10 w-36 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
-                                  aria-label="Taxable gallons"
+                                  aria-label="Paid gallons"
                                 />
                               </td>
-                              <td className="px-4 py-3 text-gray-600">
-                                {row.taxPaidGallons}
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.001"
+                                  value={calculateDraftTaxableGallons(row, draftFleetMpg)}
+                                  disabled
+                                  className="h-10 w-36 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700"
+                                  aria-label="Taxable gallons"
+                                />
                               </td>
                               <td className="px-4 py-3 text-gray-600">
                                 {existing
