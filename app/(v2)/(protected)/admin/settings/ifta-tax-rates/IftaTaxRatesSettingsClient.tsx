@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
 import IftaTaxRateEditDialog from "@/components/ifta/IftaTaxRateEditDialog";
 import IftaProcessSettingsPanel from "./IftaProcessSettingsPanel";
 import type {
@@ -213,8 +214,6 @@ export default function IftaTaxRatesSettingsClient() {
   const [editingRow, setEditingRow] = useState<IftaTaxRateTableRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ year: String(filters.year), quarter: filters.quarter, fuelType: filters.fuelType, usOnly: String(filters.usOnly) });
@@ -239,11 +238,11 @@ export default function IftaTaxRatesSettingsClient() {
     let active = true;
     const run = async () => {
       try {
-        setLoading(true); setError(null);
+        setLoading(true);
         await loadRows(); await refreshValidation();
       } catch (err) {
         if (!active) return;
-        setError(err instanceof Error ? err.message : "Could not load IFTA tax rates.");
+        toast.error(err instanceof Error ? err.message : "Could not load IFTA tax rates.");
       } finally { if (active) setLoading(false); }
     };
     void run();
@@ -252,11 +251,13 @@ export default function IftaTaxRatesSettingsClient() {
 
   const runWithBusy = async (work: () => Promise<void>, success?: string) => {
     try {
-      setBusy(true); setError(null);
+      setBusy(true);
       await work();
-      if (success) { setMessage(success); window.setTimeout(() => setMessage(null), 2800); }
+      if (success) {
+        toast.success(success);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "The requested action failed.");
+      toast.error(err instanceof Error ? err.message : "The requested action failed.");
     } finally { setBusy(false); }
   };
 
@@ -452,9 +453,6 @@ export default function IftaTaxRatesSettingsClient() {
 
       {activeTab === "rates" ? (
         <>
-      {error ? <div style={{ borderRadius: 10, border: "1px solid #fecaca", background: "#fef2f2", padding: "10px 14px", fontSize: 13, color: "#b91c1c" }}>{error}</div> : null}
-      {message ? <div style={{ borderRadius: 10, border: "1px solid #bbf7d0", background: "#f0fdf4", padding: "10px 14px", fontSize: 13, color: "#15803d" }}>{message}</div> : null}
-
       <IftaTaxRatesOverviewCard
         filters={filters}
         validation={validation}

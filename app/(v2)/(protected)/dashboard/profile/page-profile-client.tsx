@@ -7,18 +7,12 @@ import {
   type ChangeEvent,
   type InputHTMLAttributes,
 } from "react";
+import { toast } from "react-toastify";
 import styles from "./page.module.css";
 import {
   emptyCompanyProfileState,
   type CompanyProfileFormData,
 } from "@/components/settings/company/companyProfileTypes";
-
-type MessageTone = "success" | "error" | "info";
-
-type InlineMessage = {
-  tone: MessageTone;
-  message: string;
-};
 
 type EditableFieldName =
   | "owner"
@@ -141,8 +135,6 @@ export default function ProfilePageClient() {
   const [saving, setSaving] = useState(false);
   const [iftaSaving, setIftaSaving] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [error, setError] = useState("");
-  const [banner, setBanner] = useState<InlineMessage | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -150,7 +142,6 @@ export default function ProfilePageClient() {
     const load = async () => {
       try {
         setLoading(true);
-        setError("");
 
         const [profileResponse, iftaResponse] = await Promise.all([
           fetch("/api/settings/company", {
@@ -196,7 +187,7 @@ export default function ProfilePageClient() {
         setInitialIftaAccess(nextIftaAccess);
       } catch (loadError) {
         if (!active) return;
-        setError(loadError instanceof Error ? loadError.message : "Failed to load profile.");
+        toast.error(loadError instanceof Error ? loadError.message : "Failed to load profile.");
       } finally {
         if (active) setLoading(false);
       }
@@ -239,8 +230,6 @@ export default function ProfilePageClient() {
 
   const handleReset = () => {
     setForm(initialForm);
-    setError("");
-    setBanner(null);
   };
 
   const handleIftaModeChange = (mode: IftaAccessMode) => {
@@ -263,21 +252,19 @@ export default function ProfilePageClient() {
 
   const handleResetIftaAccess = () => {
     setIftaAccess(initialIftaAccess);
-    setBanner(null);
   };
 
   const handleSearch = async () => {
     const dotNumber = form.dotNumber.trim();
 
     if (!dotNumber) {
-      setBanner({ tone: "error", message: "Enter a USDOT number before searching SAFER." });
+      toast.error("Enter a USDOT number before searching SAFER.");
       return;
     }
 
     try {
       setSearching(true);
-      setError("");
-      setBanner({ tone: "info", message: "Searching SAFER for your carrier details..." });
+      toast.info("Searching SAFER for your carrier details...");
 
       const response = await fetch("/api/v1/integrations/safer/lookup", {
         method: "POST",
@@ -296,10 +283,7 @@ export default function ProfilePageClient() {
       }
 
       if (!payload.found || !payload.company) {
-        setBanner({
-          tone: "info",
-          message: payload.warnings?.[0] || "No company was found for that USDOT number.",
-        });
+        toast.info(payload.warnings?.[0] || "No company was found for that USDOT number.");
         return;
       }
 
@@ -322,18 +306,13 @@ export default function ProfilePageClient() {
       });
 
       setForm(nextForm);
-      setBanner({
-        tone: "success",
-        message: "Carrier data loaded from SAFER. Review the values and save your profile.",
-      });
+      toast.success("Carrier data loaded from SAFER. Review the values and save your profile.");
     } catch (searchError) {
-      setBanner({
-        tone: "error",
-        message:
-          searchError instanceof Error
-            ? searchError.message
-            : "We couldn't retrieve company data from SAFER right now.",
-      });
+      toast.error(
+        searchError instanceof Error
+          ? searchError.message
+          : "We couldn't retrieve company data from SAFER right now.",
+      );
     } finally {
       setSearching(false);
     }
@@ -342,7 +321,6 @@ export default function ProfilePageClient() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      setError("");
 
       const response = await fetch("/api/settings/company", {
         method: "PUT",
@@ -382,14 +360,9 @@ export default function ProfilePageClient() {
       setInitialForm(nextForm);
       setIftaAccess(nextIftaAccess);
       setInitialIftaAccess(nextIftaAccess);
-      setBanner({
-        tone: "success",
-        message: "Your company profile has been updated.",
-      });
+      toast.success("Your company profile has been updated.");
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : "Failed to save profile.";
-      setError(message);
-      setBanner({ tone: "error", message });
+      toast.error(saveError instanceof Error ? saveError.message : "Failed to save profile.");
     } finally {
       setSaving(false);
     }
@@ -397,7 +370,7 @@ export default function ProfilePageClient() {
 
   const handleSaveIftaAccess = async () => {
     if (iftaBlockedReason) {
-      setBanner({ tone: "error", message: iftaBlockedReason });
+      toast.error(iftaBlockedReason);
       return;
     }
 
@@ -407,16 +380,12 @@ export default function ProfilePageClient() {
       (!iftaAccess.credentialUsername.trim() || !iftaAccess.credentialPassword.trim());
 
     if (requiresCredential) {
-      setBanner({
-        tone: "error",
-        message: "Username and password are required when saving IFTA portal credentials.",
-      });
+      toast.error("Username and password are required when saving IFTA portal credentials.");
       return;
     }
 
     try {
       setIftaSaving(true);
-      setError("");
 
       const response = await fetch("/api/v1/company/ifta-access", {
         method: "PUT",
@@ -454,18 +423,15 @@ export default function ProfilePageClient() {
 
       setIftaAccess(nextIftaAccess);
       setInitialIftaAccess(nextIftaAccess);
-      setBanner({
-        tone: "success",
-        message:
-          nextIftaAccess.iftaAccessMode === "SAVED_IN_SYSTEM"
-            ? "Your IFTA portal access settings were saved securely."
-            : "Your IFTA portal access settings were updated.",
-      });
+      toast.success(
+        nextIftaAccess.iftaAccessMode === "SAVED_IN_SYSTEM"
+          ? "Your IFTA portal access settings were saved securely."
+          : "Your IFTA portal access settings were updated.",
+      );
     } catch (saveError) {
-      const message =
-        saveError instanceof Error ? saveError.message : "Failed to save IFTA access.";
-      setError(message);
-      setBanner({ tone: "error", message });
+      toast.error(
+        saveError instanceof Error ? saveError.message : "Failed to save IFTA access.",
+      );
     } finally {
       setIftaSaving(false);
     }
@@ -488,21 +454,6 @@ export default function ProfilePageClient() {
 
   return (
     <div className={styles.page}>
-      {error ? <div className={`${styles.alert} ${styles.alertError}`}>{error}</div> : null}
-      {banner ? (
-        <div
-          className={`${styles.alert} ${
-            banner.tone === "success"
-              ? styles.alertSuccess
-              : banner.tone === "info"
-                ? styles.alertInfo
-                : styles.alertError
-          }`}
-        >
-          {banner.message}
-        </div>
-      ) : null}
-
       <section className={styles.shell}>
         <div className={styles.toolbar}>
           <div className={styles.lookupBox}>

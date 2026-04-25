@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
 import tableStyles from "@/app/(v2)/(protected)/admin/components/ui/DataTable.module.css";
 
 type ProcedureRow = {
@@ -111,8 +112,6 @@ export default function IftaProcessSettingsPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   const loadRows = useCallback(async () => {
     const response = await fetch("/api/v1/admin/settings/ifta-process", {
@@ -148,11 +147,10 @@ export default function IftaProcessSettingsPanel() {
     const run = async () => {
       try {
         setLoading(true);
-        setError(null);
         await loadRows();
       } catch (err) {
         if (!active) return;
-        setError(
+        toast.error(
           err instanceof Error ? err.message : "Could not load IFTA process settings.",
         );
       } finally {
@@ -205,7 +203,6 @@ export default function IftaProcessSettingsPanel() {
 
     try {
       setSaving(true);
-      setError(null);
 
       const response = await fetch(
         `/api/v1/admin/settings/ifta-process/${form.jurisdiction}`,
@@ -239,10 +236,9 @@ export default function IftaProcessSettingsPanel() {
       }
 
       await loadRows();
-      setMessage(`Saved process instructions for ${form.jurisdiction}.`);
-      window.setTimeout(() => setMessage(null), 2800);
+      toast.success(`Saved process instructions for ${form.jurisdiction}.`);
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof Error ? err.message : "Could not save IFTA process settings.",
       );
     } finally {
@@ -252,35 +248,6 @@ export default function IftaProcessSettingsPanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {error ? (
-        <div
-          style={{
-            borderRadius: 10,
-            border: "1px solid #fecaca",
-            background: "#fef2f2",
-            padding: "10px 14px",
-            fontSize: 13,
-            color: "#b91c1c",
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
-      {message ? (
-        <div
-          style={{
-            borderRadius: 10,
-            border: "1px solid #bbf7d0",
-            background: "#f0fdf4",
-            padding: "10px 14px",
-            fontSize: 13,
-            color: "#15803d",
-          }}
-        >
-          {message}
-        </div>
-      ) : null}
-
       <div
         className={tableStyles.card}
         style={{
@@ -404,7 +371,6 @@ export default function IftaProcessSettingsPanel() {
                     type="button"
                     onClick={() => {
                       setForm(initialForm);
-                      setError(null);
                     }}
                     disabled={!isDirty || saving}
                     className={tableStyles.btn}
