@@ -284,6 +284,9 @@ export default function IftaProcessSettingsPanel() {
       <div
         className={tableStyles.card}
         style={{
+          borderRadius: 0,
+          overflow: "visible",
+          padding: "12px 16px",
           display: "grid",
           gap: 16,
           gridTemplateColumns: "minmax(280px, 320px) minmax(0, 1fr)",
