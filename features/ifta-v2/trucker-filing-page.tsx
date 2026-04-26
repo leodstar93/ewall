@@ -10,17 +10,17 @@ import DashboardTable, {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { US_JURISDICTIONS } from "@/features/ifta/constants/us-jurisdictions";
 import {
   canTruckerEditFilingStatus,
   type FilingAudit,
   type FilingDetail,
-  filingStatusLabel,
   filingPeriodLabel,
   formatDate,
   formatDateTime,
+  formatMoney,
   formatNumber,
   iftaAutomationDocumentTypeLabel,
-  providerLabel,
   toNumber,
 } from "@/features/ifta-v2/shared";
 
@@ -30,6 +30,8 @@ type JurisdictionEditorRow = {
   miles: string;
   gallons: string;
   hasManualMiles: boolean;
+  hasManualGallons: boolean;
+  isManualDraft?: boolean;
 };
 
 type ConversationMessage = {
@@ -46,6 +48,10 @@ type AuditRow = {
   detail: string;
   createdAt: string;
 };
+
+const validIftaJurisdictions = US_JURISDICTIONS.filter(
+  (jurisdiction) => jurisdiction.isActive && jurisdiction.isIftaMember,
+).sort((left, right) => left.name.localeCompare(right.name));
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) {
@@ -70,6 +76,144 @@ function minDateInput(left: string, right: string) {
   if (!left) return right;
   if (!right) return left;
   return left <= right ? left : right;
+}
+
+function normalizeJurisdictionInput(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+}
+
+function rowHasManualValues(row: JurisdictionEditorRow) {
+  return Boolean(row.jurisdiction.trim() || row.miles.trim() || row.gallons.trim());
+}
+
+function validateManualJurisdictionRows(rows: JurisdictionEditorRow[]) {
+  for (const row of rows) {
+    if (!rowHasManualValues(row)) continue;
+
+    const jurisdiction = row.jurisdiction.trim().toUpperCase();
+    if (jurisdiction.length < 2 || jurisdiction.length > 3) {
+      throw new Error("Each manual summary row needs a valid jurisdiction code.");
+    }
+
+    const miles = Number(row.miles);
+    if (!Number.isFinite(miles) || miles < 0) {
+      throw new Error("Summary miles must be zero or greater.");
+    }
+
+    if (row.gallons.trim()) {
+      const gallons = Number(row.gallons);
+      if (!Number.isFinite(gallons) || gallons < 0) {
+        throw new Error("Gallons must be zero or greater.");
+      }
+    }
+  }
+}
+
+function calculateFleetMpg(rows: JurisdictionEditorRow[]) {
+  const totalMiles = rows.reduce((sum, row) => sum + Number(row.miles || 0), 0);
+  const totalGallons = rows.reduce((sum, row) => sum + Number(row.gallons || 0), 0);
+
+  if (!Number.isFinite(totalMiles) || !Number.isFinite(totalGallons) || totalGallons <= 0) {
+    return 0;
+  }
+
+  return totalMiles / totalGallons;
+}
+
+function calculateTaxableGallons(row: JurisdictionEditorRow, fleetMpg: number) {
+  const miles = Number(row.miles || 0);
+  if (!Number.isFinite(miles) || !Number.isFinite(fleetMpg) || fleetMpg <= 0) {
+    return "0.000";
+  }
+
+  return (miles / fleetMpg).toFixed(3);
+}
+
+function JurisdictionSearchSelect({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = validIftaJurisdictions.find(
+    (jurisdiction) => jurisdiction.code === value,
+  );
+  const filtered = validIftaJurisdictions
+    .filter((jurisdiction) => {
+      const normalizedQuery = query.trim().toLowerCase();
+      if (!normalizedQuery) return true;
+
+      return (
+        jurisdiction.code.toLowerCase().includes(normalizedQuery) ||
+        jurisdiction.name.toLowerCase().includes(normalizedQuery)
+      );
+    })
+    .slice(0, 12);
+
+  return (
+    <div className="relative w-56">
+      <button
+        type="button"
+        onClick={() => {
+          if (disabled) return;
+          setOpen((current) => !current);
+        }}
+        disabled={disabled}
+        className="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+      >
+        <span className="truncate">
+          {selected ? `${selected.code} - ${selected.name}` : "Select jurisdiction"}
+        </span>
+        <span className="text-xs text-gray-500">v</span>
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-11 z-20 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+          <div className="border-b border-gray-200 p-2">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              autoFocus
+              className="h-9 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none transition focus:border-[var(--b)]"
+              placeholder="Search state"
+            />
+          </div>
+          <div className="max-h-72 overflow-auto py-1">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-sm text-gray-500">
+                No jurisdictions found.
+              </div>
+            ) : (
+              filtered.map((jurisdiction) => (
+                <button
+                  key={jurisdiction.code}
+                  type="button"
+                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-gray-50 ${
+                    jurisdiction.code === value ? "bg-gray-100" : ""
+                  }`}
+                  onClick={() => {
+                    onChange(jurisdiction.code);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                >
+                  <span className="font-semibold text-gray-900">
+                    {jurisdiction.code}
+                  </span>
+                  <span className="flex-1 text-gray-600">{jurisdiction.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function canReadAudit(roles: string[], permissions: string[]) {
@@ -126,6 +270,7 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
   const jurisdictions = new Set<string>([
     ...summaryMiles.keys(),
     ...milesByJurisdiction.keys(),
+    ...manualMilesByJurisdiction.keys(),
     ...manualGallonsByJurisdiction.keys(),
   ]);
 
@@ -139,6 +284,7 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
         ? manualGallonsByJurisdiction.get(jurisdiction)!.toFixed(3)
         : "",
       hasManualMiles: manualMilesByJurisdiction.has(jurisdiction),
+      hasManualGallons: manualGallonsByJurisdiction.has(jurisdiction),
     }));
 }
 
@@ -282,17 +428,47 @@ export default function IftaAutomationTruckerFilingPage({
     );
   }
 
+  function updateJurisdictionCode(rowId: string, value: string) {
+    setJurisdictionRows((current) =>
+      current.map((row) =>
+        row.id === rowId ? { ...row, jurisdiction: normalizeJurisdictionInput(value) } : row,
+      ),
+    );
+  }
+
   function updateJurisdictionMiles(rowId: string, value: string) {
     setJurisdictionRows((current) =>
       current.map((row) => (row.id === rowId ? { ...row, miles: value, hasManualMiles: true } : row)),
     );
   }
 
-  async function persistManualDistance(options?: { quiet?: boolean }) {
+  function addJurisdictionRow() {
+    if (!canTruckerEditFilingStatus(filing?.status ?? "")) return;
+
+    const id = `manual-${Date.now()}`;
+    setJurisdictionRows((current) => [
+      ...current,
+      {
+        id,
+        jurisdiction: "",
+        miles: "",
+        gallons: "",
+        hasManualMiles: true,
+        hasManualGallons: true,
+        isManualDraft: true,
+      },
+    ]);
+    setEditingRowId(id);
+  }
+
+  async function persistManualDistance(options?: { quiet?: boolean; rows?: JurisdictionEditorRow[] }) {
     if (!filing) return null;
 
-    const payload = jurisdictionRows
-      .filter((row) => row.hasManualMiles)
+    const rows = options?.rows ?? jurisdictionRows;
+    validateManualJurisdictionRows(rows);
+
+    const payload = rows
+      .filter((row) => row.hasManualMiles && row.jurisdiction.trim())
       .map((row) => ({
         jurisdiction: row.jurisdiction.trim().toUpperCase(),
         taxableMiles: row.miles.trim(),
@@ -318,10 +494,13 @@ export default function IftaAutomationTruckerFilingPage({
     return data.filing;
   }
 
-  async function persistManualGallons(options?: { quiet?: boolean }) {
+  async function persistManualGallons(options?: { quiet?: boolean; rows?: JurisdictionEditorRow[] }) {
     if (!filing) return null;
 
-    const payload = jurisdictionRows
+    const rows = options?.rows ?? jurisdictionRows;
+    validateManualJurisdictionRows(rows);
+
+    const payload = rows
       .map((row) => ({
         jurisdiction: row.jurisdiction.trim().toUpperCase(),
         gallons: row.gallons.trim(),
@@ -348,6 +527,25 @@ export default function IftaAutomationTruckerFilingPage({
     return data.filing;
   }
 
+  async function handleRemoveJurisdictionRow(rowId: string) {
+    if (!canTruckerEditFilingStatus(filing?.status ?? "")) return;
+
+    const nextRows = jurisdictionRows.filter((row) => row.id !== rowId);
+    setBusyAction(`remove-${rowId}`);
+
+    try {
+      validateManualJurisdictionRows(nextRows);
+      await persistManualDistance({ quiet: true, rows: nextRows });
+      await persistManualGallons({ quiet: true, rows: nextRows });
+      setEditingRowId((current) => (current === rowId ? null : current));
+      toast.success("Manual summary row removed.");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not remove this summary row."));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleToggleRowEdit(rowId: string) {
     if (!canTruckerEditFilingStatus(filing?.status ?? "")) return;
 
@@ -358,9 +556,9 @@ export default function IftaAutomationTruckerFilingPage({
         await persistManualDistance({ quiet: true });
         await persistManualGallons({ quiet: true });
         setEditingRowId(null);
-        toast.success("Gallons updated for the selected jurisdiction.");
+        toast.success("Manual summary updated for the selected jurisdiction.");
       } catch (error) {
-        toast.error(getErrorMessage(error, "Could not save jurisdiction gallons."));
+        toast.error(getErrorMessage(error, "Could not save this jurisdiction summary."));
       } finally {
         setBusyAction(null);
       }
@@ -618,73 +816,13 @@ export default function IftaAutomationTruckerFilingPage({
     createdAt: formatDateTime(document.createdAt),
     href: `/api/v1/features/ifta-v2/documents/${document.id}/download`,
   }));
-  const tableColumns: ColumnDef<JurisdictionEditorRow>[] = [
-    {
-      key: "jurisdiction",
-      label: "Jurisdiction",
-      render: (value) => <span className="font-semibold text-zinc-900">{String(value ?? "")}</span>,
-    },
-    {
-      key: "miles",
-      label: "Summary Miles",
-      sortable: false,
-      render: (value, row) =>
-        editingRowId === row.id ? (
-          <Input
-            value={row.miles}
-            onChange={(event) => updateJurisdictionMiles(row.id, event.target.value)}
-            inputMode="decimal"
-            placeholder="0.00"
-            disabled={!canEdit}
-            className="max-w-[180px] rounded-2xl border-zinc-300 text-right font-semibold text-zinc-950 focus:border-zinc-400 focus:ring-zinc-500/10"
-          />
-        ) : (
-          <span className="text-zinc-700">{formatNumber(Number(value ?? 0))}</span>
-        ),
-    },
-    {
-      key: "gallons",
-      label: "Gallons",
-      sortable: false,
-      render: (value, row) =>
-        editingRowId === row.id ? (
-          <Input
-            value={row.gallons}
-            onChange={(event) => updateJurisdictionRow(row.id, event.target.value)}
-            inputMode="decimal"
-            placeholder="0.000"
-            disabled={!canEdit}
-            className="max-w-[180px] rounded-2xl border-zinc-300 text-right font-semibold text-zinc-950 focus:border-zinc-400 focus:ring-zinc-500/10"
-          />
-        ) : (
-          <span className="text-sm font-medium text-zinc-700">{String(value ?? "").trim() || "-"}</span>
-        ),
-    },
-    {
-      key: "actions",
-      label: "Actions",
-      sortable: false,
-      render: (_value, row) => {
-        const isEditing = editingRowId === row.id;
-
-        return (
-          <Button
-            variant={isEditing ? "primary" : "outline"}
-            size="sm"
-            className="rounded-2xl"
-            onClick={() => void handleToggleRowEdit(row.id)}
-            disabled={!canEdit || busyAction === "submit" || busyAction === "sync-quarter"}
-          >
-            {busyAction === "save-manual-fuel" && isEditing
-              ? "Saving..."
-              : isEditing
-                ? "Done"
-                : "Edit"}
-          </Button>
-        );
-      },
-    },
-  ];
+  const summaryByJurisdiction = new Map(
+    filing.jurisdictionSummaries.map((summary) => [
+      summary.jurisdiction.trim().toUpperCase(),
+      summary,
+    ]),
+  );
+  const fleetMpg = calculateFleetMpg(jurisdictionRows);
   const auditColumns: ColumnDef<AuditRow>[] = [
     {
       key: "event",
@@ -786,68 +924,196 @@ export default function IftaAutomationTruckerFilingPage({
           ) : null}
         </div>
 
-        {/* IFTA Resume */}
-        <div className="border-t border-[var(--br)] p-[18px]">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
-            Overview
-          </p>
-          <h2 className="mb-4 mt-0 text-xl font-semibold text-[var(--b)]">IFTA Resume</h2>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-[12px] border border-[var(--br)] bg-[var(--off)] px-4 py-3">
-              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                Status
-              </div>
-              <div className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                {filingStatusLabel(filing.status)}
-              </div>
-            </div>
-            <div className="rounded-[12px] border border-[var(--br)] bg-[var(--off)] px-4 py-3">
-              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                Provider
-              </div>
-              <div className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                {providerLabel(filing.integrationAccount?.provider)}
-              </div>
-            </div>
-            <div className="rounded-[12px] border border-[var(--br)] bg-[var(--off)] px-4 py-3">
-              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                Quarter Window
-              </div>
-              <div className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                {formatDate(filing.periodStart)} – {formatDate(filing.periodEnd)}
-              </div>
-            </div>
-            <div className="rounded-[12px] border border-[var(--br)] bg-[var(--off)] px-4 py-3">
-              <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                Jurisdictions
-              </div>
-              <div className="mt-2 text-[13px] font-semibold text-[var(--text-primary)]">
-                {jurisdictionRows.length} active row{jurisdictionRows.length === 1 ? "" : "s"}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Jurisdiction Summary */}
-        <div className="border-t border-[var(--br)] p-[18px]">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
-            Data
-          </p>
-          <h2 className="mb-4 mt-0 text-xl font-semibold text-[var(--b)]">Jurisdiction Summary</h2>
+        <div className="min-h-[520px] border-t border-[var(--br)] p-[18px]">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
+                Data
+              </p>
+              <h2 className="m-0 text-xl font-semibold text-[var(--b)]">Jurisdiction Summary</h2>
+            </div>
+            {canEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-2xl"
+                onClick={addJurisdictionRow}
+                disabled={Boolean(busyAction)}
+              >
+                Add jurisdiction
+              </Button>
+            ) : null}
+          </div>
           {jurisdictionRows.length === 0 ? (
             <div
-              className="rounded-[14px] border border-dashed px-4 py-10 text-center text-[13px] leading-relaxed"
+              className="flex min-h-[360px] flex-col items-center justify-center rounded-[14px] border border-dashed px-4 py-10 text-center text-[13px] leading-relaxed"
               style={{ borderColor: "var(--br)", background: "var(--off)", color: "var(--text-secondary)" }}
             >
-              No jurisdiction activity yet. If your ELD is connected, use{" "}
-              <span className="font-semibold" style={{ color: "var(--b)" }}>Sync ELD Quarter</span> first.
+              <div>No jurisdiction activity yet.</div>
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={addJurisdictionRow}
+                  disabled={Boolean(busyAction)}
+                  className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ background: "var(--b)" }}
+                >
+                  Add manual summary row
+                </button>
+              ) : null}
             </div>
           ) : (
-            <DashboardTable
-              data={jurisdictionRows}
-              columns={tableColumns}
-              title="Jurisdiction Summary"
-            />
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+              <div className="min-h-[360px] overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead
+                    className="text-left text-xs uppercase tracking-[0.08em] text-white/80"
+                    style={{ background: "var(--b)" }}
+                  >
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Jurisdiction</th>
+                      <th className="px-4 py-3 font-medium">Total Miles</th>
+                      <th className="px-4 py-3 font-medium">Paid Gallons</th>
+                      <th className="px-4 py-3 font-medium">Taxable Gallons</th>
+                      <th className="px-4 py-3 font-medium">Tax Rate</th>
+                      <th className="px-4 py-3 font-medium">Net Tax</th>
+                      <th className="px-4 py-3 font-medium">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jurisdictionRows.map((row) => {
+                      const isEditing = editingRowId === row.id;
+                      const isRemoving = busyAction === `remove-${row.id}`;
+                      const summary = summaryByJurisdiction.get(
+                        row.jurisdiction.trim().toUpperCase(),
+                      );
+
+                      return (
+                        <tr key={row.id} className="border-t border-gray-200">
+                          <td className="px-4 py-3">
+                            {isEditing || row.isManualDraft ? (
+                              <JurisdictionSearchSelect
+                                value={row.jurisdiction}
+                                disabled={!canEdit || busyAction === "save-manual-fuel"}
+                                onChange={(nextJurisdiction) =>
+                                  updateJurisdictionCode(row.id, nextJurisdiction)
+                                }
+                              />
+                            ) : (
+                              <span className="font-semibold text-zinc-900">
+                                {row.jurisdiction}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={row.miles}
+                                onChange={(event) =>
+                                  updateJurisdictionMiles(row.id, event.target.value)
+                                }
+                                disabled={!canEdit || busyAction === "save-manual-fuel"}
+                                className="h-10 w-32 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+                                aria-label="Total miles"
+                              />
+                            ) : (
+                              <span className="text-zinc-700">
+                                {formatNumber(Number(row.miles || 0))}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.001"
+                                value={row.gallons}
+                                onChange={(event) =>
+                                  updateJurisdictionRow(row.id, event.target.value)
+                                }
+                                disabled={!canEdit || busyAction === "save-manual-fuel"}
+                                className="h-10 w-36 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+                                aria-label="Paid gallons"
+                              />
+                            ) : (
+                              <span className="text-sm font-medium text-zinc-700">
+                                {row.gallons.trim() || "-"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.001"
+                              value={calculateTaxableGallons(row, fleetMpg)}
+                              disabled
+                              className="h-10 w-36 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700"
+                              aria-label="Taxable gallons"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {summary
+                              ? formatNumber(summary.taxRate, {
+                                  maximumFractionDigits: 5,
+                                })
+                              : "0"}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {summary ? formatMoney(summary.netTax) : "$0.00"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                variant={isEditing ? "primary" : "outline"}
+                                size="sm"
+                                className="rounded-2xl"
+                                onClick={() => void handleToggleRowEdit(row.id)}
+                                disabled={
+                                  !canEdit ||
+                                  busyAction === "submit" ||
+                                  busyAction === "sync-quarter" ||
+                                  isRemoving
+                                }
+                              >
+                                {busyAction === "save-manual-fuel" && isEditing
+                                  ? "Saving..."
+                                  : isEditing
+                                    ? "Done"
+                                    : "Edit"}
+                              </Button>
+                              {row.isManualDraft || row.hasManualMiles || row.hasManualGallons ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="rounded-2xl border-red-200 text-red-700 hover:bg-red-50"
+                                  onClick={() => void handleRemoveJurisdictionRow(row.id)}
+                                  disabled={
+                                    !canEdit ||
+                                    busyAction === "submit" ||
+                                    busyAction === "sync-quarter" ||
+                                    busyAction === "save-manual-fuel" ||
+                                    isRemoving
+                                  }
+                                >
+                                  {isRemoving ? "Removing..." : "Remove"}
+                                </Button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
 

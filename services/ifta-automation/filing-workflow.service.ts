@@ -302,6 +302,7 @@ export class FilingWorkflowService {
     });
     await IftaExceptionEngine.evaluateFiling({
       filingId: filing.id,
+      preserveFilingStatus: true,
       db,
     });
 
@@ -412,6 +413,7 @@ export class FilingWorkflowService {
     });
     await IftaExceptionEngine.evaluateFiling({
       filingId: filing.id,
+      preserveFilingStatus: true,
       db,
     });
 
