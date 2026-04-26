@@ -100,11 +100,15 @@ function validateManualJurisdictionRows(rows: JurisdictionEditorRow[]) {
       throw new Error("Summary miles must be zero or greater.");
     }
 
+    const gallons = row.gallons.trim() ? Number(row.gallons) : 0;
     if (row.gallons.trim()) {
-      const gallons = Number(row.gallons);
       if (!Number.isFinite(gallons) || gallons < 0) {
         throw new Error("Gallons must be zero or greater.");
       }
+    }
+
+    if (gallons > 0 && miles <= 0) {
+      throw new Error("Enter total miles greater than zero before saving paid gallons.");
     }
   }
 }
@@ -823,6 +827,169 @@ export default function IftaAutomationTruckerFilingPage({
     ]),
   );
   const fleetMpg = calculateFleetMpg(jurisdictionRows);
+  const jurisdictionSummaryColumns: ColumnDef<JurisdictionEditorRow>[] = [
+    {
+      key: "jurisdiction",
+      label: "Jurisdiction",
+      sortable: false,
+      render: (_value, row) => {
+        const isEditing = editingRowId === row.id;
+
+        return isEditing || row.isManualDraft ? (
+          <JurisdictionSearchSelect
+            value={row.jurisdiction}
+            disabled={!canEdit || busyAction === "save-manual-fuel"}
+            onChange={(nextJurisdiction) =>
+              updateJurisdictionCode(row.id, nextJurisdiction)
+            }
+          />
+        ) : (
+          <span className="font-semibold text-zinc-900">
+            {row.jurisdiction}
+          </span>
+        );
+      },
+    },
+    {
+      key: "miles",
+      label: "Total Miles",
+      sortable: false,
+      render: (_value, row) => {
+        const isEditing = editingRowId === row.id;
+
+        return isEditing ? (
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={row.miles}
+            onChange={(event) => updateJurisdictionMiles(row.id, event.target.value)}
+            disabled={!canEdit || busyAction === "save-manual-fuel"}
+            className="h-10 w-32 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+            aria-label="Total miles"
+          />
+        ) : (
+          <span className="text-zinc-700">
+            {formatNumber(Number(row.miles || 0))}
+          </span>
+        );
+      },
+    },
+    {
+      key: "gallons",
+      label: "Paid Gallons",
+      sortable: false,
+      render: (_value, row) => {
+        const isEditing = editingRowId === row.id;
+
+        return isEditing ? (
+          <input
+            type="number"
+            min="0"
+            step="0.001"
+            value={row.gallons}
+            onChange={(event) => updateJurisdictionRow(row.id, event.target.value)}
+            disabled={!canEdit || busyAction === "save-manual-fuel"}
+            className="h-10 w-36 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+            aria-label="Paid gallons"
+          />
+        ) : (
+          <span className="text-sm font-medium text-zinc-700">
+            {row.gallons.trim() || "-"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "taxableGallons",
+      label: "Taxable Gallons",
+      sortable: false,
+      render: (_value, row) => (
+        <span className="text-gray-600">{calculateTaxableGallons(row, fleetMpg)}</span>
+      ),
+    },
+    {
+      key: "taxRate",
+      label: "Tax Rate",
+      sortable: false,
+      render: (_value, row) => {
+        const summary = summaryByJurisdiction.get(row.jurisdiction.trim().toUpperCase());
+
+        return (
+          <span className="text-gray-600">
+            {summary
+              ? formatNumber(summary.taxRate, {
+                  maximumFractionDigits: 5,
+                })
+              : "0"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "netTax",
+      label: "Net Tax",
+      sortable: false,
+      render: (_value, row) => {
+        const summary = summaryByJurisdiction.get(row.jurisdiction.trim().toUpperCase());
+
+        return (
+          <span className="text-gray-600">
+            {summary ? formatMoney(summary.netTax) : "$0.00"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "actions",
+      label: "Action",
+      sortable: false,
+      render: (_value, row) => {
+        const isEditing = editingRowId === row.id;
+        const isRemoving = busyAction === `remove-${row.id}`;
+
+        return (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={isEditing ? "primary" : "outline"}
+              size="sm"
+              className="rounded-2xl"
+              onClick={() => void handleToggleRowEdit(row.id)}
+              disabled={
+                !canEdit ||
+                busyAction === "submit" ||
+                busyAction === "sync-quarter" ||
+                isRemoving
+              }
+            >
+              {busyAction === "save-manual-fuel" && isEditing
+                ? "Saving..."
+                : isEditing
+                  ? "Done"
+                  : "Edit"}
+            </Button>
+            {row.isManualDraft || row.hasManualMiles || row.hasManualGallons ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-2xl border-red-200 text-red-700 hover:bg-red-50"
+                onClick={() => void handleRemoveJurisdictionRow(row.id)}
+                disabled={
+                  !canEdit ||
+                  busyAction === "submit" ||
+                  busyAction === "sync-quarter" ||
+                  busyAction === "save-manual-fuel" ||
+                  isRemoving
+                }
+              >
+                {isRemoving ? "Removing..." : "Remove"}
+              </Button>
+            ) : null}
+          </div>
+        );
+      },
+    },
+  ];
   const auditColumns: ColumnDef<AuditRow>[] = [
     {
       key: "event",
@@ -925,7 +1092,7 @@ export default function IftaAutomationTruckerFilingPage({
         </div>
 
         {/* Jurisdiction Summary */}
-        <div className="min-h-[520px] border-t border-[var(--br)] p-[18px]">
+        <div className="border-t border-[var(--br)] p-[18px]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--r)]">
@@ -948,7 +1115,7 @@ export default function IftaAutomationTruckerFilingPage({
           </div>
           {jurisdictionRows.length === 0 ? (
             <div
-              className="flex min-h-[360px] flex-col items-center justify-center rounded-[14px] border border-dashed px-4 py-10 text-center text-[13px] leading-relaxed"
+              className="flex flex-col items-center justify-center rounded-[14px] border border-dashed px-4 py-10 text-center text-[13px] leading-relaxed"
               style={{ borderColor: "var(--br)", background: "var(--off)", color: "var(--text-secondary)" }}
             >
               <div>No jurisdiction activity yet.</div>
@@ -965,154 +1132,14 @@ export default function IftaAutomationTruckerFilingPage({
               ) : null}
             </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-              <div className="min-h-[360px] overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead
-                    className="text-left text-xs uppercase tracking-[0.08em] text-white/80"
-                    style={{ background: "var(--b)" }}
-                  >
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Jurisdiction</th>
-                      <th className="px-4 py-3 font-medium">Total Miles</th>
-                      <th className="px-4 py-3 font-medium">Paid Gallons</th>
-                      <th className="px-4 py-3 font-medium">Taxable Gallons</th>
-                      <th className="px-4 py-3 font-medium">Tax Rate</th>
-                      <th className="px-4 py-3 font-medium">Net Tax</th>
-                      <th className="px-4 py-3 font-medium">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jurisdictionRows.map((row) => {
-                      const isEditing = editingRowId === row.id;
-                      const isRemoving = busyAction === `remove-${row.id}`;
-                      const summary = summaryByJurisdiction.get(
-                        row.jurisdiction.trim().toUpperCase(),
-                      );
-
-                      return (
-                        <tr key={row.id} className="border-t border-gray-200">
-                          <td className="px-4 py-3">
-                            {isEditing || row.isManualDraft ? (
-                              <JurisdictionSearchSelect
-                                value={row.jurisdiction}
-                                disabled={!canEdit || busyAction === "save-manual-fuel"}
-                                onChange={(nextJurisdiction) =>
-                                  updateJurisdictionCode(row.id, nextJurisdiction)
-                                }
-                              />
-                            ) : (
-                              <span className="font-semibold text-zinc-900">
-                                {row.jurisdiction}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={row.miles}
-                                onChange={(event) =>
-                                  updateJurisdictionMiles(row.id, event.target.value)
-                                }
-                                disabled={!canEdit || busyAction === "save-manual-fuel"}
-                                className="h-10 w-32 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
-                                aria-label="Total miles"
-                              />
-                            ) : (
-                              <span className="text-zinc-700">
-                                {formatNumber(Number(row.miles || 0))}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.001"
-                                value={row.gallons}
-                                onChange={(event) =>
-                                  updateJurisdictionRow(row.id, event.target.value)
-                                }
-                                disabled={!canEdit || busyAction === "save-manual-fuel"}
-                                className="h-10 w-36 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
-                                aria-label="Paid gallons"
-                              />
-                            ) : (
-                              <span className="text-sm font-medium text-zinc-700">
-                                {row.gallons.trim() || "-"}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.001"
-                              value={calculateTaxableGallons(row, fleetMpg)}
-                              disabled
-                              className="h-10 w-36 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700"
-                              aria-label="Taxable gallons"
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {summary
-                              ? formatNumber(summary.taxRate, {
-                                  maximumFractionDigits: 5,
-                                })
-                              : "0"}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {summary ? formatMoney(summary.netTax) : "$0.00"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                variant={isEditing ? "primary" : "outline"}
-                                size="sm"
-                                className="rounded-2xl"
-                                onClick={() => void handleToggleRowEdit(row.id)}
-                                disabled={
-                                  !canEdit ||
-                                  busyAction === "submit" ||
-                                  busyAction === "sync-quarter" ||
-                                  isRemoving
-                                }
-                              >
-                                {busyAction === "save-manual-fuel" && isEditing
-                                  ? "Saving..."
-                                  : isEditing
-                                    ? "Done"
-                                    : "Edit"}
-                              </Button>
-                              {row.isManualDraft || row.hasManualMiles || row.hasManualGallons ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="rounded-2xl border-red-200 text-red-700 hover:bg-red-50"
-                                  onClick={() => void handleRemoveJurisdictionRow(row.id)}
-                                  disabled={
-                                    !canEdit ||
-                                    busyAction === "submit" ||
-                                    busyAction === "sync-quarter" ||
-                                    busyAction === "save-manual-fuel" ||
-                                    isRemoving
-                                  }
-                                >
-                                  {isRemoving ? "Removing..." : "Remove"}
-                                </Button>
-                              ) : null}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+            <div>
+              <DashboardTable
+                data={jurisdictionRows}
+                columns={jurisdictionSummaryColumns}
+                title="Jurisdiction Summary"
+                hideHeader
+                searchKeys={["jurisdiction"]}
+              />
             </div>
           )}
         </div>
