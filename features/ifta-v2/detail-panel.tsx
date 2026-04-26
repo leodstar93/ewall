@@ -116,7 +116,6 @@ type DistanceTableRow = {
   id: string;
   date: string;
   jurisdiction: string;
-  vehicle: string;
   taxableMiles: string;
   source: string;
 };
@@ -637,17 +636,6 @@ export function FilingDetailPanel({
   const [summaryEditing, setSummaryEditing] = useState(false);
   const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
 
-  const vehicleLabelById = useMemo(() => {
-    return new Map(
-      (filing?.vehicles ?? []).map((vehicle) => [
-        vehicle.id,
-        vehicle.unitNumber ||
-          vehicle.externalVehicle?.number ||
-          vehicle.vin ||
-          "Unmapped vehicle",
-      ]),
-    );
-  }, [filing?.vehicles]);
   const vehiclesWithDistance = useMemo(() => {
     if (!filing) return [];
 
@@ -848,9 +836,6 @@ export function FilingDetailPanel({
     id: line.id,
     date: formatDate(line.tripDate),
     jurisdiction: line.jurisdiction,
-    vehicle: line.filingVehicleId
-      ? vehicleLabelById.get(line.filingVehicleId) || "Mapped vehicle"
-      : "Unmapped vehicle",
     taxableMiles: formatNumber(line.taxableMiles),
     source: statusLabel(line.sourceType),
   }));
@@ -865,7 +850,6 @@ export function FilingDetailPanel({
         </span>
       ),
     },
-    { key: "vehicle", label: "Vehicle", sortable: false },
     { key: "taxableMiles", label: "Taxable Miles", sortable: false },
     { key: "source", label: "Source", sortable: false },
   ];

@@ -29,6 +29,7 @@ type JurisdictionEditorRow = {
   jurisdiction: string;
   miles: string;
   gallons: string;
+  entryDate: string;
   hasManualMiles: boolean;
   hasManualGallons: boolean;
   isManualDraft?: boolean;
@@ -64,6 +65,10 @@ function getErrorMessage(error: unknown, fallback: string) {
 function dateInputValue(value: string | null | undefined) {
   if (!value) return "";
   return value.slice(0, 10);
+}
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function addDaysToDateInput(value: string, days: number) {
@@ -248,6 +253,7 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
 
   const manualGallonsByJurisdiction = new Map<string, number>();
   const manualMilesByJurisdiction = new Map<string, number>();
+  const manualDateByJurisdiction = new Map<string, string>();
   for (const line of filing.fuelLines) {
     if (line.sourceType !== "MANUAL_ADJUSTMENT") continue;
 
@@ -258,6 +264,10 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
       jurisdiction,
       (manualGallonsByJurisdiction.get(jurisdiction) ?? 0) + toNumber(line.gallons),
     );
+    const purchasedAt = dateInputValue(line.purchasedAt);
+    if (purchasedAt && !manualDateByJurisdiction.has(jurisdiction)) {
+      manualDateByJurisdiction.set(jurisdiction, purchasedAt);
+    }
   }
   for (const line of filing.distanceLines) {
     if (line.sourceType !== "MANUAL_ADJUSTMENT") continue;
@@ -269,6 +279,10 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
       jurisdiction,
       (manualMilesByJurisdiction.get(jurisdiction) ?? 0) + toNumber(line.taxableMiles),
     );
+    const tripDate = dateInputValue(line.tripDate);
+    if (tripDate && !manualDateByJurisdiction.has(jurisdiction)) {
+      manualDateByJurisdiction.set(jurisdiction, tripDate);
+    }
   }
 
   const jurisdictions = new Set<string>([
@@ -287,6 +301,7 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
       gallons: manualGallonsByJurisdiction.has(jurisdiction)
         ? manualGallonsByJurisdiction.get(jurisdiction)!.toFixed(3)
         : "",
+      entryDate: manualDateByJurisdiction.get(jurisdiction) ?? todayInputValue(),
       hasManualMiles: manualMilesByJurisdiction.has(jurisdiction),
       hasManualGallons: manualGallonsByJurisdiction.has(jurisdiction),
     }));
@@ -428,7 +443,9 @@ export default function IftaAutomationTruckerFilingPage({
 
   function updateJurisdictionRow(rowId: string, value: string) {
     setJurisdictionRows((current) =>
-      current.map((row) => (row.id === rowId ? { ...row, gallons: value } : row)),
+      current.map((row) =>
+        row.id === rowId ? { ...row, gallons: value, hasManualGallons: true } : row,
+      ),
     );
   }
 
@@ -457,6 +474,7 @@ export default function IftaAutomationTruckerFilingPage({
         jurisdiction: "",
         miles: "",
         gallons: "",
+        entryDate: todayInputValue(),
         hasManualMiles: true,
         hasManualGallons: true,
         isManualDraft: true,
@@ -476,6 +494,7 @@ export default function IftaAutomationTruckerFilingPage({
       .map((row) => ({
         jurisdiction: row.jurisdiction.trim().toUpperCase(),
         taxableMiles: row.miles.trim(),
+        tripDate: row.entryDate,
       }));
 
     const data = await requestJson<{ filing: FilingDetail }>(
@@ -505,11 +524,12 @@ export default function IftaAutomationTruckerFilingPage({
     validateManualJurisdictionRows(rows);
 
     const payload = rows
+      .filter((row) => row.hasManualGallons && row.jurisdiction.trim() && row.gallons.trim())
       .map((row) => ({
         jurisdiction: row.jurisdiction.trim().toUpperCase(),
         gallons: row.gallons.trim(),
-      }))
-      .filter((row) => row.jurisdiction || row.gallons);
+        purchasedAt: row.entryDate,
+      }));
 
     const data = await requestJson<{ filing: FilingDetail }>(
       `/api/v1/features/ifta-v2/filings/${filing.id}/manual-fuel`,

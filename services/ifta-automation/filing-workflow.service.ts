@@ -233,7 +233,7 @@ export class FilingWorkflowService {
       const jurisdiction = normalizeJurisdictionCode(line.jurisdiction);
       const gallons = Number(line.gallons);
       const filingVehicleId = line.filingVehicleId?.trim() || null;
-      const purchasedAt = parseOptionalDate(line.purchasedAt);
+      const purchasedAt = parseOptionalDate(line.purchasedAt) ?? new Date();
 
       if (!jurisdiction || jurisdiction.length < 2 || jurisdiction.length > 3) {
         throw new IftaAutomationError(
@@ -255,7 +255,7 @@ export class FilingWorkflowService {
         continue;
       }
 
-      if (purchasedAt && (purchasedAt < filing.periodStart || purchasedAt > filing.periodEnd)) {
+      if (purchasedAt < filing.periodStart || purchasedAt > filing.periodEnd) {
         throw new IftaAutomationError(
           "Manual fuel purchase dates must stay inside the filing quarter.",
           400,
@@ -335,6 +335,7 @@ export class FilingWorkflowService {
     lines: Array<{
       jurisdiction: string;
       taxableMiles: number;
+      tripDate?: string | Date | null;
     }>;
     db?: DbLike;
   }) {
@@ -353,11 +354,13 @@ export class FilingWorkflowService {
     const normalizedLines: Array<{
       jurisdiction: string;
       taxableMiles: number;
+      tripDate: Date;
     }> = [];
 
     for (const line of input.lines) {
       const jurisdiction = normalizeJurisdictionCode(line.jurisdiction);
       const taxableMiles = Number(line.taxableMiles);
+      const tripDate = parseOptionalDate(line.tripDate) ?? new Date();
 
       if (!jurisdiction || jurisdiction.length < 2 || jurisdiction.length > 3) {
         throw new IftaAutomationError(
@@ -379,9 +382,18 @@ export class FilingWorkflowService {
         continue;
       }
 
+      if (tripDate < filing.periodStart || tripDate > filing.periodEnd) {
+        throw new IftaAutomationError(
+          "Manual distance dates must stay inside the filing quarter.",
+          400,
+          "IFTA_MANUAL_DISTANCE_OUTSIDE_PERIOD",
+        );
+      }
+
       normalizedLines.push({
         jurisdiction,
         taxableMiles,
+        tripDate,
       });
       mergedLines.set(jurisdiction, (mergedLines.get(jurisdiction) ?? 0) + taxableMiles);
     }
@@ -399,7 +411,7 @@ export class FilingWorkflowService {
           filingId: filing.id,
           filingVehicleId: null,
           jurisdiction: line.jurisdiction,
-          tripDate: null,
+          tripDate: line.tripDate,
           taxableMiles: toDecimalString(line.taxableMiles, 2),
           sourceType: IFTA_AUTOMATION_MANUAL_SOURCE_TYPE,
           sourceRefId: null,
@@ -426,6 +438,11 @@ export class FilingWorkflowService {
         jurisdictions: Array.from(mergedLines.entries()).map(([jurisdiction, taxableMiles]) => ({
           jurisdiction,
           taxableMiles: toDecimalString(taxableMiles, 2),
+        })),
+        trips: normalizedLines.map((line) => ({
+          tripDate: line.tripDate.toISOString(),
+          jurisdiction: line.jurisdiction,
+          taxableMiles: toDecimalString(line.taxableMiles, 2),
         })),
       },
       db,

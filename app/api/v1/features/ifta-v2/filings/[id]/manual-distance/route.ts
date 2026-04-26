@@ -28,6 +28,7 @@ export async function PUT(
       lines?: Array<{
         jurisdiction?: unknown;
         taxableMiles?: unknown;
+        tripDate?: unknown;
       }>;
     };
 
@@ -37,6 +38,7 @@ export async function PUT(
       lines: Array.isArray(body.lines)
         ? body.lines.map((line) => ({
             jurisdiction: typeof line.jurisdiction === "string" ? line.jurisdiction : "",
+            tripDate: typeof line.tripDate === "string" ? line.tripDate : null,
             taxableMiles:
               typeof line.taxableMiles === "number"
                 ? line.taxableMiles
