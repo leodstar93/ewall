@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import styles from "./LayoutWrap.module.css";
+import AdminRecentAccessTracker from "./AdminRecentAccessTracker";
 import { hasPermission } from "@/lib/rbac-core";
 import { STAFF_ADMIN_FEATURE_MODULES } from "@/lib/rbac-feature-modules";
 import { ImpersonationBanner } from "@/app/(v2)/components/auth/ImpersonationBanner";
@@ -123,6 +124,7 @@ export default function LayoutWrap({ children }: Props) {
 
   return (
     <div className={styles.wrapper}>
+      <AdminRecentAccessTracker navGroups={navGroups} />
       <div className={styles.accentBar} />
       <div className={styles.body}>
         <Sidebar collapsed={collapsed} navGroups={navGroups} />
