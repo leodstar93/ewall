@@ -19,7 +19,20 @@ type AcceptBody = {
   city?: string;
   state?: string;
   zipCode?: string;
+  trucksCount?: string | number;
+  driversCount?: string | number;
 };
+
+function normalizeOptionalCount(value: unknown) {
+  if (value == null || value === "") return null;
+
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(numeric) || numeric < 0 || numeric > 100000) {
+    return null;
+  }
+
+  return numeric;
+}
 
 export async function POST(
   request: Request,
@@ -70,6 +83,8 @@ export async function POST(
   }
 
   const passwordHash = await bcrypt.hash(body.password, 10);
+  const trucksCount = normalizeOptionalCount(body.trucksCount);
+  const driversCount = normalizeOptionalCount(body.driversCount);
 
   // Resolve role names from invitation into role IDs
   const roleNames = Array.isArray(invitation.roleNames)
@@ -117,6 +132,8 @@ export async function POST(
           city: body.city?.trim() || null,
           state: body.state?.trim() || null,
           zipCode: body.zipCode?.trim() || null,
+          trucksCount,
+          driversCount,
         },
         create: {
           userId: created.id,
@@ -129,6 +146,8 @@ export async function POST(
           city: body.city?.trim() || null,
           state: body.state?.trim() || null,
           zipCode: body.zipCode?.trim() || null,
+          trucksCount,
+          driversCount,
         },
       });
     }

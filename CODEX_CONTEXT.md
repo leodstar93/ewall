@@ -173,7 +173,6 @@ Billing/admin API surfaces include:
 - `/api/v1/admin/billing/*`
 - `/api/v1/internal/cron/billing`
 - `/api/v1/webhooks/stripe`
-- `/api/v1/stripe/webhook`
 - `/api/v1/webhooks/paypal`
 
 ## 8. Prisma And Database Clients
@@ -549,7 +548,7 @@ Invitation model:
 5. The Prisma schema is monolithic. Prefer narrow changes.
 6. Billing is custom and cross-cuts module access. Test entitlement changes carefully.
 7. IFTA v2 workflow side effects include status changes, audits, notifications, snapshots, and exception state. Keep them in services.
-8. There are duplicate/parallel route surfaces such as `app/api/v1/webhooks/stripe` and `app/api/v1/stripe/webhook`. Check existing usage before changing.
+8. There are some legacy/parallel route patterns in the API tree. Check existing usage before changing public API paths.
 9. Sandbox and prod clients coexist. Use `getDbForEnvironment` or established sandbox services when working in sandbox routes.
 10. Some files may contain encoding artifacts from older context/docs. Keep new edits ASCII unless a file already requires otherwise.
 

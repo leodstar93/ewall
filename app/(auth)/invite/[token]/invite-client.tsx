@@ -32,6 +32,8 @@ type CompanyForm = {
   city: string;
   state: string;
   zipCode: string;
+  trucksCount: string;
+  driversCount: string;
 };
 
 const emptyAccount: AccountForm = { name: "", password: "", confirmPassword: "" };
@@ -45,6 +47,8 @@ const emptyCompany: CompanyForm = {
   city: "",
   state: "",
   zipCode: "",
+  trucksCount: "",
+  driversCount: "",
 };
 
 export default function InvitePageClient({ token }: { token: string }) {
@@ -138,6 +142,8 @@ export default function InvitePageClient({ token }: { token: string }) {
         city: c.city ?? prev.city,
         state: c.state ?? prev.state,
         zipCode: c.zipCode ?? prev.zipCode,
+        trucksCount: c.trucksCount ?? prev.trucksCount,
+        driversCount: c.driversCount ?? prev.driversCount,
       }));
       setSaferBanner({
         tone: "success",
@@ -194,6 +200,8 @@ export default function InvitePageClient({ token }: { token: string }) {
             city: company.city.trim() || undefined,
             state: company.state.trim() || undefined,
             zipCode: company.zipCode.trim() || undefined,
+            trucksCount: company.trucksCount.trim() || undefined,
+            driversCount: company.driversCount.trim() || undefined,
           };
 
       const res = await fetch(`/api/v1/invitations/${token}/accept`, {
@@ -495,6 +503,34 @@ export default function InvitePageClient({ token }: { token: string }) {
                   placeholder="89101"
                   value={company.zipCode}
                   onChange={(e) => setCompany((p) => ({ ...p, zipCode: e.target.value }))}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Trucks</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  style={inputStyle}
+                  placeholder="0"
+                  value={company.trucksCount}
+                  onChange={(e) =>
+                    setCompany((p) => ({ ...p, trucksCount: e.target.value.replace(/\D/g, "") }))
+                  }
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Drivers</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  style={inputStyle}
+                  placeholder="0"
+                  value={company.driversCount}
+                  onChange={(e) =>
+                    setCompany((p) => ({ ...p, driversCount: e.target.value.replace(/\D/g, "") }))
+                  }
                 />
               </div>
             </div>

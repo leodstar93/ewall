@@ -2,6 +2,8 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/payments/stripe";
 import { syncStripeSubscription } from "@/lib/services/billing-sync.service";
 import { SettingsValidationError } from "@/lib/services/settings-errors";
+import { prisma } from "@/lib/prisma";
+import { handleStripeCheckoutCompleted } from "@/services/ucr/handleStripeCheckoutCompleted";
 
 function extractOrganizationId(metadata: Record<string, string> | null | undefined) {
   const organizationId = metadata?.organizationId?.trim();
@@ -25,6 +27,76 @@ export async function POST(request: Request) {
     const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
 
     switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        await handleStripeCheckoutCompleted(session);
+        break;
+      }
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const filingId = paymentIntent.metadata?.filingId?.trim();
+
+        if (filingId && paymentIntent.metadata?.filingType === "UCR") {
+          const filing = await prisma.uCRFiling.findUnique({
+            where: { id: filingId },
+            select: {
+              id: true,
+            },
+          });
+
+          if (filing) {
+            await prisma.uCRFiling.update({
+              where: { id: filing.id },
+              data: {
+                customerPaymentStatus: "FAILED",
+                status: "NEEDS_ATTENTION",
+                stripePaymentIntentId: paymentIntent.id,
+              },
+            });
+
+            await prisma.uCRCustomerPaymentAttempt.updateMany({
+              where: {
+                OR: [
+                  { stripePaymentIntentId: paymentIntent.id },
+                  paymentIntent.metadata?.idempotencyKey
+                    ? { idempotencyKey: paymentIntent.metadata.idempotencyKey }
+                    : undefined,
+                ].filter(Boolean) as { stripePaymentIntentId?: string; idempotencyKey?: string }[],
+                status: "PENDING",
+              },
+              data: {
+                status: "FAILED",
+                failureMessage:
+                  paymentIntent.last_payment_error?.message ?? "Stripe payment failed.",
+                stripePaymentIntentId: paymentIntent.id,
+              },
+            });
+
+            await prisma.$transaction([
+              prisma.uCRStatusTransition.create({
+                data: {
+                  filingId: filing.id,
+                  fromStatus: "CUSTOMER_PAYMENT_PENDING",
+                  toStatus: "NEEDS_ATTENTION",
+                  reason: "Stripe payment failed.",
+                },
+              }),
+              prisma.uCRFilingEvent.create({
+                data: {
+                  filingId: filing.id,
+                  eventType: "ucr.customer_payment.failed",
+                  message: paymentIntent.last_payment_error?.message ?? "Stripe payment failed.",
+                  metaJson: {
+                    paymentIntentId: paymentIntent.id,
+                    code: paymentIntent.last_payment_error?.code ?? null,
+                  },
+                },
+              }),
+            ]);
+          }
+        }
+        break;
+      }
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
@@ -56,8 +128,7 @@ export async function POST(request: Request) {
           customer?: string | Stripe.Customer | Stripe.DeletedCustomer | null;
         };
         const line = invoice.lines.data[0] as { price?: { id?: string } } | undefined;
-        const priceId =
-          line?.price?.id ?? null;
+        const priceId = line?.price?.id ?? null;
 
         if (typeof invoice.subscription !== "string" || !invoice.subscription) {
           break;

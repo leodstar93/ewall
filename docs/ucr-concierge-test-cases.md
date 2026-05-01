@@ -12,7 +12,7 @@ Use these cases to validate the concierge workflow until automated request/servi
    Expected: `POST /api/v1/features/ucr/:id/checkout` creates a Stripe Checkout session, stores `stripeCheckoutSessionId`, sets `customerPaymentStatus = PENDING`, and transitions to `CUSTOMER_PAYMENT_PENDING`.
 
 4. Stripe webhook success
-   Expected: `POST /api/v1/stripe/webhook` with `checkout.session.completed` marks `customerPaymentStatus = SUCCEEDED`, sets `customerPaidAt`, creates a `UCRWorkItem`, and transitions through `CUSTOMER_PAID` to `QUEUED_FOR_PROCESSING`.
+   Expected: `POST /api/v1/webhooks/stripe` with `checkout.session.completed` marks `customerPaymentStatus = SUCCEEDED`, sets `customerPaidAt`, creates a `UCRWorkItem`, and transitions through `CUSTOMER_PAID` to `QUEUED_FOR_PROCESSING`.
 
 5. Duplicate webhook delivery
    Expected: replaying the same successful webhook does not create duplicate work items or duplicate payment state updates.
