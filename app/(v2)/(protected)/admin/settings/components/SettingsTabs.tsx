@@ -7,6 +7,7 @@ import tableStyles from "@/app/(v2)/(protected)/admin/components/ui/DataTable.mo
 const tabs = [
   { href: "/admin/settings", label: "General" },
   { href: "/admin/settings/news-updates", label: "News & Updates" },
+  { href: "/admin/settings/email-templates", label: "Email Templates" },
   { href: "/admin/settings/integrations", label: "Integrations" },
   { href: "/admin/settings/ucr", label: "UCR" },
   { href: "/admin/settings/billing", label: "Billing" },

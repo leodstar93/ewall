@@ -1,3 +1,5 @@
+import { renderEmailTemplate } from "@/lib/services/email-template.service";
+
 const RESEND_API_URL = "https://api.resend.com/emails";
 
 type SendTemporaryPasswordEmailInput = {
@@ -48,15 +50,15 @@ function buildAppUrl(path: string) {
   return `${getAppBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export async function sendDmvNotificationEmail({
-  to,
-  subject,
-  lines,
-  replyTo,
-}: SendDmvNotificationEmailInput) {
+async function sendResendEmail(input: {
+  to: string | string[];
+  subject: string;
+  text: string;
+  replyTo?: string | null;
+}) {
   const apiKey = requiredEnv("RESEND_API_KEY");
   const from = requiredEnv("EMAIL_FROM");
-  const text = lines.join("\n");
+  const to = Array.isArray(input.to) ? input.to : [input.to];
 
   const response = await fetch(RESEND_API_URL, {
     method: "POST",
@@ -66,10 +68,10 @@ export async function sendDmvNotificationEmail({
     },
     body: JSON.stringify({
       from,
-      to: [to],
-      subject,
-      text,
-      ...(replyTo?.trim() ? { reply_to: replyTo.trim() } : {}),
+      to,
+      subject: input.subject,
+      text: input.text,
+      ...(input.replyTo?.trim() ? { reply_to: input.replyTo.trim() } : {}),
     }),
   });
 
@@ -79,6 +81,21 @@ export async function sendDmvNotificationEmail({
       `Failed to send email (${response.status}): ${errorText || "unknown error"}`,
     );
   }
+}
+
+export async function sendDmvNotificationEmail({
+  to,
+  subject,
+  lines,
+  replyTo,
+}: SendDmvNotificationEmailInput) {
+  const email = await renderEmailTemplate("dmv_notification", {
+    subject,
+    body: lines.join("\n"),
+    replyTo: replyTo?.trim() ?? "",
+  });
+
+  await sendResendEmail({ to, subject: email.subject, text: email.text, replyTo });
 }
 
 export async function sendDmvRenewalReminderEmail(input: {
@@ -143,42 +160,16 @@ export async function sendTemporaryPasswordEmail({
   name,
   temporaryPassword,
 }: SendTemporaryPasswordEmailInput) {
-  const apiKey = requiredEnv("RESEND_API_KEY");
-  const from = requiredEnv("EMAIL_FROM");
-
   const loginUrl = "https://leonardocp.com"; //getLoginUrl();
-
   const salutation = name?.trim() || "there";
-  const text = [
-    `Hi ${salutation},`,
-    "",
-    "Your account password has been reset by an administrator.",
-    `Temporary password: ${temporaryPassword}`,
-    "",
-    `Sign in at: ${loginUrl}`,
-    "After signing in, please change your password immediately.",
-  ].join("\n");
 
-  const response = await fetch(RESEND_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: "Your password has been reset",
-      text,
-    }),
+  const email = await renderEmailTemplate("temporary_password", {
+    name: salutation,
+    temporaryPassword,
+    loginUrl,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to send email (${response.status}): ${errorText || "unknown error"}`,
-    );
-  }
+  await sendResendEmail({ to, subject: email.subject, text: email.text });
 }
 
 export async function sendGoogleCredentialsPasswordEmail({
@@ -186,42 +177,16 @@ export async function sendGoogleCredentialsPasswordEmail({
   name,
   temporaryPassword,
 }: SendTemporaryPasswordEmailInput) {
-  const apiKey = requiredEnv("RESEND_API_KEY");
-  const from = requiredEnv("EMAIL_FROM");
   const loginUrl = getLoginUrl();
-
   const salutation = name?.trim() || "there";
-  const text = [
-    `Hi ${salutation},`,
-    "",
-    "Your account was created using Google sign-in.",
-    "We generated a password so you can also sign in with email and password.",
-    `Temporary password: ${temporaryPassword}`,
-    "",
-    `Sign in at: ${loginUrl}`,
-    "After signing in, please change your password immediately.",
-  ].join("\n");
 
-  const response = await fetch(RESEND_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: "Your login password for email sign-in",
-      text,
-    }),
+  const email = await renderEmailTemplate("google_credentials_password", {
+    name: salutation,
+    temporaryPassword,
+    loginUrl,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to send email (${response.status}): ${errorText || "unknown error"}`,
-    );
-  }
+  await sendResendEmail({ to, subject: email.subject, text: email.text });
 }
 
 export async function sendInvitationEmail({
@@ -235,46 +200,18 @@ export async function sendInvitationEmail({
   invitedByName?: string | null;
   note?: string | null;
 }) {
-  const apiKey = requiredEnv("RESEND_API_KEY");
-  const from = requiredEnv("EMAIL_FROM");
-
   const inviterLabel = invitedByName?.trim() || "The EWALL team";
+  const cleanNote = note?.trim() || "";
+  const noteBlock = cleanNote ? `Note from your admin: ${cleanNote}\n` : "";
 
-  const lines = [
-    `Hi,`,
-    "",
-    `${inviterLabel} has invited you to join EWALL.`,
-    "Click the link below to set up your account and company information:",
-    "",
+  const email = await renderEmailTemplate("invitation", {
     inviteUrl,
-    "",
-    "This invitation expires in 7 days.",
-  ];
-
-  if (note?.trim()) {
-    lines.splice(3, 0, "", `Note from your admin: ${note.trim()}`);
-  }
-
-  const response = await fetch(RESEND_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: "You've been invited to EWALL",
-      text: lines.join("\n"),
-    }),
+    invitedByName: inviterLabel,
+    note: cleanNote,
+    noteBlock,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to send invitation email (${response.status}): ${errorText || "unknown error"}`,
-    );
-  }
+  await sendResendEmail({ to, subject: email.subject, text: email.text });
 }
 
 export async function sendContactFormEmail({
@@ -283,8 +220,6 @@ export async function sendContactFormEmail({
   phone,
   message,
 }: SendContactFormEmailInput) {
-  const apiKey = requiredEnv("RESEND_API_KEY");
-  const from = requiredEnv("EMAIL_FROM");
   const contactRecipient = requiredEnv("EMAIL_CONTACT");
 
   const cleanName = name.trim();
@@ -292,36 +227,17 @@ export async function sendContactFormEmail({
   const cleanPhone = phone?.trim() || "Not provided";
   const cleanMessage = message.trim();
 
-  const text = [
-    "New contact form submission",
-    "",
-    `Name: ${cleanName}`,
-    `Email: ${cleanEmail}`,
-    `Phone: ${cleanPhone}`,
-    "",
-    "Message:",
-    cleanMessage,
-  ].join("\n");
-
-  const response = await fetch(RESEND_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [contactRecipient],
-      subject: `Contact form - ${cleanName}`,
-      text,
-      reply_to: cleanEmail,
-    }),
+  const rendered = await renderEmailTemplate("contact_form", {
+    name: cleanName,
+    email: cleanEmail,
+    phone: cleanPhone,
+    message: cleanMessage,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to send email (${response.status}): ${errorText || "unknown error"}`,
-    );
-  }
+  await sendResendEmail({
+    to: contactRecipient,
+    subject: rendered.subject,
+    text: rendered.text,
+    replyTo: cleanEmail,
+  });
 }

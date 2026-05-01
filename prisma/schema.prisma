@@ -2139,6 +2139,21 @@ model Notification {
   @@index([category, createdAt])
 }
 
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  subject     String
+  bodyText    String   @db.Text
+  variables   Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+}
+
 model DmvFeeRule {
   id               String               @id @default(cuid())
   registrationType DmvRegistrationType?

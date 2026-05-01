@@ -14,6 +14,14 @@ const settingsItems = [
     cta: "Open News Manager",
   },
   {
+    section: "Messaging",
+    title: "Email templates",
+    description:
+      "Edit the subject and body for transactional emails such as invitations, password emails, DMV notifications, and contact form alerts.",
+    href: "/admin/settings/email-templates",
+    cta: "Open Email Templates",
+  },
+  {
     section: "Integrations",
     title: "ELD raw client export",
     description:
