@@ -63,6 +63,8 @@ type FilingDetailPanelProps = {
     exception: FilingException,
     action: "ack" | "resolve" | "ignore",
   ) => void;
+  onAssignToMe?: (filing: FilingDetail) => void;
+  currentUserId?: string;
 };
 
 type DetailTab =
@@ -625,6 +627,8 @@ export function FilingDetailPanel({
   onSaveJurisdictionSummary,
   onResetJurisdictionSummaryOverride,
   onExceptionAction,
+  onAssignToMe,
+  currentUserId,
 }: FilingDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const documentInputRef = useRef<HTMLInputElement | null>(null);
@@ -653,9 +657,11 @@ export function FilingDetailPanel({
   }, [filing]);
   const visibleTabs = useMemo(
     () =>
-      detailTabs.filter(
-        (tab) => !(mode === "trucker" && tab.value === "exceptions"),
-      ),
+      detailTabs.filter((tab) => {
+        if (mode === "trucker" && tab.value === "exceptions") return false;
+        if (mode === "staff" && (tab.value === "miles" || tab.value === "fuel")) return false;
+        return true;
+      }),
     [mode],
   );
 
@@ -1168,6 +1174,24 @@ export function FilingDetailPanel({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {mode === "staff" && onAssignToMe ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className={ucrSecondaryButtonClassName}
+                onClick={() => onAssignToMe(filing)}
+                disabled={
+                  busyAction === `claim:${filing.id}` ||
+                  filing.assignedStaffUserId === currentUserId
+                }
+              >
+                {filing.assignedStaffUserId === currentUserId
+                  ? "Assigned to you"
+                  : busyAction === `claim:${filing.id}`
+                    ? "Assigning..."
+                    : "Assign to me"}
+              </Button>
+            ) : null}
             {filing.integrationAccount?.provider && filing.status !== "APPROVED" ? (
               <>
                 <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>

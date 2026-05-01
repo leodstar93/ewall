@@ -59,10 +59,12 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
       ...(init?.headers ?? {}),
     },
   });
-  const data = (await response.json().catch(() => ({}))) as T & { error?: string };
+  const data = (await response.json().catch(() => ({}))) as T & { error?: string; code?: string };
 
   if (!response.ok) {
-    throw new Error(data.error || "Request failed.");
+    const err = new Error(data.error || "Request failed.") as Error & { code?: string };
+    if (data.code) err.code = data.code;
+    throw err;
   }
 
   return data;
@@ -630,7 +632,11 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
       toast.success(`Filing ${filingPeriodLabel(data.filing)} is ready in the workspace.`);
       await refreshWorkspace({ preferredFilingId: data.filing.id });
     } catch (error) {
-      toast.error(getErrorMessage(error, "Could not create the IFTA filing."));
+      if ((error as Error & { code?: string }).code === "IFTA_ELD_REQUIRED") {
+        toast.error("An ELD provider must be connected before creating a filing. Use the ELD Connection panel above.");
+      } else {
+        toast.error(getErrorMessage(error, "Could not create the IFTA filing."));
+      }
     } finally {
       setBusyAction(null);
     }

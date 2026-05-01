@@ -64,10 +64,12 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
       ...(init?.headers ?? {}),
     },
   });
-  const data = (await response.json().catch(() => ({}))) as T & { error?: string };
+  const data = (await response.json().catch(() => ({}))) as T & { error?: string; code?: string };
 
   if (!response.ok) {
-    throw new Error(data.error || "Request failed.");
+    const err = new Error(data.error || "Request failed.") as Error & { code?: string };
+    if (data.code) err.code = data.code;
+    throw err;
   }
 
   return data;
@@ -297,7 +299,11 @@ export default function IftaAutomationTruckerPage({
 
       router.push(`${detailHrefBase}/${data.filing.id}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create the IFTA filing.");
+      if ((error as Error & { code?: string }).code === "IFTA_ELD_REQUIRED") {
+        toast.error("An ELD provider must be connected before creating a new IFTA filing.");
+      } else {
+        toast.error(error instanceof Error ? error.message : "Could not create the IFTA filing.");
+      }
       setCreating(false);
     }
   }

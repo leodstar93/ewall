@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 import { Badge } from "@/components/ui/badge";
 import Table, { type ColumnDef, type TableAction } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
@@ -131,7 +132,6 @@ export default function IftaV2DashboardClient() {
   async function createFiling() {
     try {
       setCreating(true);
-      setError("");
 
       const response = await fetch("/api/v1/features/ifta-v2/filings", {
         method: "POST",
@@ -146,18 +146,25 @@ export default function IftaV2DashboardClient() {
       const payload = (await response.json().catch(() => ({}))) as {
         filing?: FilingListItem;
         error?: string;
+        code?: string;
       };
 
       if (!response.ok || !payload.filing) {
-        throw new Error(payload.error || "Could not create this IFTA filing.");
+        const err = new Error(payload.error || "Could not create this IFTA filing.") as Error & { code?: string };
+        if (payload.code) err.code = payload.code;
+        throw err;
       }
 
       setShowCreateModal(false);
       router.push(`/dashboard/ifta-v2/${payload.filing.id}`);
     } catch (createError) {
-      setError(
-        createError instanceof Error ? createError.message : "Could not create this IFTA filing.",
-      );
+      if ((createError as Error & { code?: string }).code === "IFTA_ELD_REQUIRED") {
+        toast.error("An ELD provider must be connected before creating a new IFTA filing.");
+      } else {
+        toast.error(
+          createError instanceof Error ? createError.message : "Could not create this IFTA filing.",
+        );
+      }
     } finally {
       setCreating(false);
     }
@@ -520,20 +527,6 @@ export default function IftaV2DashboardClient() {
             </div>
 
             <div style={{ padding: 16, display: "grid", gap: 14 }}>
-              {error ? (
-                <div
-                  style={{
-                    borderRadius: 10,
-                    border: "1px solid #fecaca",
-                    background: "#fef2f2",
-                    padding: "10px 12px",
-                    fontSize: 13,
-                    color: "#b91c1c",
-                  }}
-                >
-                  {error}
-                </div>
-              ) : null}
 
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <span

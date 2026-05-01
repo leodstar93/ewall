@@ -586,6 +586,18 @@ export default function IftaAutomationStaffFilingPage({
     );
   }
 
+  async function handleAssignToMe(currentFiling: FilingDetail) {
+    await runBusyAction(
+      `claim:${currentFiling.id}`,
+      async () => {
+        await requestJson(`/api/v1/features/ifta-v2/filings/${currentFiling.id}/claim`, {
+          method: "POST",
+        });
+      },
+      `Filing ${filingPeriodLabel(currentFiling)} assigned to you.`,
+    );
+  }
+
   if (loading) {
     return (
       <Card className="p-8">
@@ -651,6 +663,8 @@ export default function IftaAutomationStaffFilingPage({
           onExceptionAction={(currentFiling, exception, action) =>
             void handleExceptionAction(currentFiling, exception, action)
           }
+          onAssignToMe={(currentFiling) => void handleAssignToMe(currentFiling)}
+          currentUserId={session?.user?.id ?? undefined}
         />
       </div>
 
