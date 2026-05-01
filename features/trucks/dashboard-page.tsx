@@ -44,6 +44,8 @@ type TruckFormState = {
   grossWeight: string;
 };
 
+type TruckStatusFilter = "active" | "inactive" | "all";
+
 const emptyForm: TruckFormState = {
   unitNumber: "",
   nickname: "",
@@ -112,6 +114,7 @@ export default function TrucksDashboardPage({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<TruckStatusFilter>("active");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] =
     useState<(typeof DEFAULT_PAGE_SIZE_OPTIONS)[number]>(10);
@@ -129,7 +132,8 @@ export default function TrucksDashboardPage({
         setLoading(true);
       }
       setError(null);
-      const response = await fetch("/api/v1/features/ifta/trucks", {
+      const params = new URLSearchParams({ status: statusFilter });
+      const response = await fetch(`/api/v1/features/ifta/trucks?${params.toString()}`, {
         cache: "no-store",
       });
       const data = (await response.json().catch(() => ({}))) as TrucksPayload;
@@ -144,7 +148,7 @@ export default function TrucksDashboardPage({
         setLoading(false);
       }
     }
-  }, []);
+  }, [statusFilter]);
 
   const loadProviderStatus = useCallback(async () => {
     try {
@@ -174,6 +178,7 @@ export default function TrucksDashboardPage({
   }, []);
 
   useEffect(() => {
+    setPage(1);
     void load();
   }, [load]);
 
@@ -368,6 +373,26 @@ export default function TrucksDashboardPage({
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="inline-grid grid-cols-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-1 text-sm font-semibold">
+                {[
+                  { label: "Active", value: "active" },
+                  { label: "Deactivated", value: "inactive" },
+                  { label: "All", value: "all" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setStatusFilter(option.value as TruckStatusFilter)}
+                    className={`rounded-xl px-3 py-2 ${
+                      statusFilter === option.value
+                        ? "bg-white text-zinc-950 shadow-sm"
+                        : "text-zinc-600 hover:text-zinc-950"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               <input
                 value={query}
                 onChange={(event) => {
@@ -435,6 +460,11 @@ export default function TrucksDashboardPage({
                       <td className="px-4 py-3 text-sm text-zinc-700">
                         <p className="font-medium text-zinc-900">{truck.unitNumber}</p>
                         <p className="text-zinc-500">{truck.nickname || "-"}</p>
+                        {!truck.isActive && (
+                          <span className="mt-2 inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">
+                            Deactivated
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-zinc-700">
                         {[truck.year, truck.make, truck.model].filter(Boolean).join(" ") || "-"}

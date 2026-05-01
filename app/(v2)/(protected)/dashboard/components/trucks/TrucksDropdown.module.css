@@ -59,6 +59,20 @@
   margin-left: 4px;
 }
 
+.filterBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #e0c16d;
+  background: #fff7db;
+  color: #7a4d00;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .triggerRight {
   display: flex;
   align-items: center;

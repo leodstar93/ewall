@@ -39,13 +39,21 @@ function parseOptionalNonNegativeInt(value: unknown) {
   return parsed;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const guard = await requireApiPermission("truck:read");
   if (!guard.ok) return guard.res;
 
   try {
+    const status = request.nextUrl.searchParams.get("status");
+    const activeFilter =
+      status === "inactive" || status === "deactivated"
+        ? { isActive: false }
+        : status === "all"
+          ? {}
+          : { isActive: true };
+
     const trucks = await prisma.truck.findMany({
-      where: { userId: guard.session.user.id, isActive: true },
+      where: { userId: guard.session.user.id, ...activeFilter },
       include: {
         _count: {
           select: {

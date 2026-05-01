@@ -13,6 +13,7 @@ import styles from "./TrucksDropdown.module.css";
 export type DashboardTruckRow = {
   truckId: string;
   unitNumber: string;
+  isActive: boolean;
   vehicleLabel: string;
   alias: string;
   identifier: string;
@@ -55,6 +56,13 @@ type ProviderTruckSyncPayload = {
   error?: string;
 };
 
+export type TruckStatusFilter = "active" | "inactive" | "all";
+
+type StatusFilterOption = {
+  value: TruckStatusFilter;
+  label: string;
+};
+
 const NUM_CLASS: Record<TruckStatus, string> = {
   Activo: "",
   "En transito": "",
@@ -75,11 +83,19 @@ const emptyForm: TruckFormState = {
 
 interface Props {
   trucks: DashboardTruckRow[];
+  statusFilter: TruckStatusFilter;
+  onStatusFilterChange: (filter: TruckStatusFilter) => void;
   onTruckCreated?: (truck: TruckRecord) => void;
   onTruckHidden?: (truckId: string) => void;
   onTrucksSynced?: (trucks: TruckRecord[]) => void;
   onTruckUpdated?: (truck: TruckRecord) => void;
 }
+
+const statusFilterOptions: StatusFilterOption[] = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Deactivated" },
+  { value: "all", label: "All" },
+];
 
 function buildRows(trucks: DashboardTruckRow[]): TruckTableRow[] {
   return trucks.map((truck) => ({
@@ -194,6 +210,8 @@ function SyncIcon() {
 
 export default function TrucksDropdown({
   trucks,
+  statusFilter,
+  onStatusFilterChange,
   onTruckCreated,
   onTruckHidden,
   onTrucksSynced,
@@ -354,7 +372,7 @@ export default function TrucksDropdown({
         throw new Error(syncPayload.error || "Could not sync trucks from ELD.");
       }
 
-      const trucksResponse = await fetch("/api/v1/features/ifta/trucks", {
+      const trucksResponse = await fetch("/api/v1/features/ifta/trucks?status=all", {
         cache: "no-store",
       });
       const trucksPayload = (await trucksResponse
@@ -419,6 +437,16 @@ export default function TrucksDropdown({
       ),
     },
     {
+      key: "isActive",
+      label: "Status",
+      sortable: false,
+      render: (_, truck) => (
+        <span className={`${styles.tbadge} ${truck.isActive ? styles.tActive : styles.tIdle}`}>
+          {truck.isActive ? "Active" : "Deactivated"}
+        </span>
+      ),
+    },
+    {
       key: "actions",
       label: "Actions",
       sortable: false,
@@ -479,6 +507,13 @@ export default function TrucksDropdown({
             <span className={styles.triggerCount}>
               ({trucks.length} unidades)
             </span>
+            <span className={styles.filterBadge}>
+              {statusFilter === "inactive"
+                ? "Deactivated"
+                : statusFilter === "all"
+                  ? "All"
+                  : "Active"}
+            </span>
             <button
               type="button"
               onClick={(event) => {
@@ -528,6 +563,20 @@ export default function TrucksDropdown({
               searchKeys={["searchText"]}
               toolbar={
                 <div className={styles.toolbar}>
+                  <div className={styles.pills} aria-label="Truck status filter">
+                    {statusFilterOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`${styles.pill} ${
+                          statusFilter === option.value ? styles.pillActive : ""
+                        }`}
+                        onClick={() => onStatusFilterChange(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                   <div className={styles.searchBox}>
                     <svg
                       viewBox="0 0 14 14"

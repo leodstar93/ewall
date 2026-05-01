@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AdvertisingSlider from "./components/advertising/AdvertisingSlider";
-import TrucksDropdown, { type DashboardTruckRow } from "./components/trucks/TrucksDropdown";
+import TrucksDropdown, {
+  type DashboardTruckRow,
+  type TruckStatusFilter,
+} from "./components/trucks/TrucksDropdown";
 import CompanyInfoPanel from "./components/ui/CompanyInfo";
 import DataTable from "./components/ui/DataTable";
 import styles from "./page.module.css";
@@ -88,6 +91,7 @@ function toItemStatusFromIfta(status: string) {
 }
 
 function toTruckStatus(truck: TruckRecord): DashboardTruckRow["status"] {
+  if (!truck.isActive) return "Inactivo";
   if ((truck._count?.trips ?? 0) > 0) return "En transito";
   if ((truck._count?.fuelPurchases ?? 0) > 0 || (truck._count?.iftaReports ?? 0) > 0) {
     return "Activo";
@@ -111,6 +115,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [trucks, setTrucks] = useState<TruckRecord[]>([]);
+  const [truckStatusFilter, setTruckStatusFilter] = useState<TruckStatusFilter>("active");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [ucrFilings, setUcrFilings] = useState<UcrFiling[]>([]);
   const [iftaFilings, setIftaFilings] = useState<FilingListItem[]>([]);
@@ -123,7 +128,13 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
   }
 
   function handleTruckHidden(truckId: string) {
-    setTrucks((current) => current.filter((truck) => truck.id !== truckId));
+    setTrucks((current) =>
+      current.map((truck) =>
+        truck.id === truckId
+          ? { ...truck, isActive: false, updatedAt: new Date().toISOString() }
+          : truck,
+      ),
+    );
   }
 
   function handleTrucksSynced(syncedTrucks: TruckRecord[]) {
@@ -152,7 +163,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
 
         const [trucksResult, documentsResult, ucrResult, iftaResult, newsResult] =
           await Promise.allSettled([
-            fetchJson<{ trucks: TruckRecord[] }>("/api/v1/features/ifta/trucks"),
+            fetchJson<{ trucks: TruckRecord[] }>("/api/v1/features/ifta/trucks?status=all"),
             fetchJson<{ documents: DocumentItem[] }>("/api/v1/features/documents"),
             fetchJson<{ filings: UcrFiling[] }>("/api/v1/features/ucr", {
               fallbackOnModuleAccessRequired: { filings: [] },
@@ -266,23 +277,31 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
 
   const truckRows = useMemo<DashboardTruckRow[]>(
     () =>
-      trucks.map((truck) => ({
-        truckId: truck.id,
-        unitNumber: truck.unitNumber,
-        vehicleLabel: [truck.year, truck.make, truck.model].filter(Boolean).join(" ") || "Truck",
-        alias: truck.nickname || "No nickname",
-        identifier: truck.plateNumber || truck.vin || "No plate or VIN",
-        usage: getTruckUsage(truck),
-        status: toTruckStatus(truck),
-        nickname: truck.nickname ?? "",
-        plateNumber: truck.plateNumber ?? "",
-        vin: truck.vin ?? "",
-        make: truck.make ?? "",
-        modelName: truck.model ?? "",
-        year: truck.year?.toString() ?? "",
-        grossWeight: truck.grossWeight?.toString() ?? "",
-      })),
-    [trucks],
+      trucks
+        .filter((truck) => {
+          if (truckStatusFilter === "all") return true;
+          if (truckStatusFilter === "inactive") return !truck.isActive;
+          return truck.isActive;
+        })
+        .map((truck) => ({
+          truckId: truck.id,
+          unitNumber: truck.unitNumber,
+          isActive: truck.isActive,
+          vehicleLabel:
+            [truck.year, truck.make, truck.model].filter(Boolean).join(" ") || "Truck",
+          alias: truck.nickname || "No nickname",
+          identifier: truck.plateNumber || truck.vin || "No plate or VIN",
+          usage: getTruckUsage(truck),
+          status: toTruckStatus(truck),
+          nickname: truck.nickname ?? "",
+          plateNumber: truck.plateNumber ?? "",
+          vin: truck.vin ?? "",
+          make: truck.make ?? "",
+          modelName: truck.model ?? "",
+          year: truck.year?.toString() ?? "",
+          grossWeight: truck.grossWeight?.toString() ?? "",
+        })),
+    [trucks, truckStatusFilter],
   );
 
   const activityRows = useMemo<Item[]>(() => {
@@ -357,6 +376,8 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
 
       <TrucksDropdown
         trucks={truckRows}
+        statusFilter={truckStatusFilter}
+        onStatusFilterChange={setTruckStatusFilter}
         onTruckCreated={handleTruckCreated}
         onTruckHidden={handleTruckHidden}
         onTrucksSynced={handleTrucksSynced}

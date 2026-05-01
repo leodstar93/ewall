@@ -124,21 +124,21 @@ export class TruckSeedingService {
         .filter((entry): entry is [string, ExistingTruckSummary] => Boolean(entry[0])),
     );
 
-    const candidateVins = Array.from(
+    const scopedVins = Array.from(
       new Set(
-        candidateVehicles
+        scopedVehicles
           .map((vehicle) => normalizeOptionalText(vehicle.vin)?.toUpperCase())
           .filter((vin): vin is string => Boolean(vin)),
       ),
     );
     const globallyClaimedVinSet = new Set(
-      candidateVins.length === 0
+      scopedVins.length === 0
         ? []
         : (
             await prisma.truck.findMany({
               where: {
                 vin: {
-                  in: candidateVins,
+                  in: scopedVins,
                 },
               },
               select: {
@@ -171,7 +171,39 @@ export class TruckSeedingService {
         (vin ? existingUserTruckByVin.get(vin) : null) ?? existingUserTruckByUnit.get(unitNumber);
 
       if (!existingTruck) {
-        recordsSkipped += 1;
+        if (vin && globallyClaimedVinSet.has(vin)) {
+          recordsSkipped += 1;
+          continue;
+        }
+
+        const createdTruck = await prisma.truck.create({
+          data: {
+            userId: ownerMembership.userId,
+            unitNumber,
+            vin,
+            make: normalizeOptionalText(vehicle.make),
+            model: normalizeOptionalText(vehicle.model),
+            year: parseOptionalTruckYear(vehicle.year),
+            isActive: false,
+            notes: "Imported automatically from ELD vehicle sync as inactive.",
+          },
+          select: {
+            id: true,
+            unitNumber: true,
+            vin: true,
+            make: true,
+            model: true,
+            year: true,
+            isActive: true,
+          },
+        });
+
+        recordsCreated += 1;
+        existingUserTruckByUnit.set(unitNumber, createdTruck);
+        if (vin) {
+          existingUserTruckByVin.set(vin, createdTruck);
+          globallyClaimedVinSet.add(vin);
+        }
         continue;
       }
 

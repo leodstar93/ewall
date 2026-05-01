@@ -179,6 +179,8 @@ type TruckTableRow = ManagedTruck & {
   sortUpdatedAt: number;
 };
 
+type TruckStatusFilter = "active" | "inactive" | "all";
+
 type DocumentTableRow = ManagedDocument & {
   searchText: string;
   sortName: string;
@@ -197,6 +199,12 @@ const emptyTruckForm: TruckFormState = {
   year: "",
   grossWeight: "",
 };
+
+const truckStatusFilterOptions: Array<{ value: TruckStatusFilter; label: string }> = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Deactivated" },
+  { value: "all", label: "All" },
+];
 
 function syncAddressFields(form: CompanyProfileFormData): CompanyProfileFormData {
   const addressLine1 = form.addressLine1.trim() || form.address.trim();
@@ -274,7 +282,7 @@ function buildTruckRows(trucks: ManagedTruck[]): TruckTableRow[] {
         truck.make ?? "",
         truck.model ?? "",
         truck.year?.toString() ?? "",
-        truck.isActive ? "active" : "hidden by client removed by client",
+        truck.isActive ? "active" : "deactivated hidden by client removed by client",
         usageLabel,
       ]
         .join(" ")
@@ -398,6 +406,8 @@ export default function TruckerProfileAdminClient({
   const [truckModalOpen, setTruckModalOpen] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
   const [viewingTruck, setViewingTruck] = useState<ManagedTruck | null>(null);
+  const [truckStatusFilter, setTruckStatusFilter] =
+    useState<TruckStatusFilter>("active");
 
   const personalDirty = useMemo(
     () => JSON.stringify(personal) !== JSON.stringify(initialPersonal),
@@ -429,6 +439,15 @@ export default function TruckerProfileAdminClient({
     [company, personal.email],
   );
   const truckRows = useMemo(() => buildTruckRows(profile?.trucks ?? []), [profile?.trucks]);
+  const filteredTruckRows = useMemo(
+    () =>
+      truckRows.filter((truck) => {
+        if (truckStatusFilter === "all") return true;
+        if (truckStatusFilter === "inactive") return !truck.isActive;
+        return truck.isActive;
+      }),
+    [truckRows, truckStatusFilter],
+  );
   const documentRows = useMemo(
     () => buildDocumentRows(profile?.documents ?? []),
     [profile?.documents],
@@ -826,7 +845,7 @@ export default function TruckerProfileAdminClient({
       label: "Status",
       render: (_, truck) => (
         <StatusBadge tone={truck.isActive ? "green" : "amber"}>
-          {truck.isActive ? "Active" : "Hidden by client"}
+          {truck.isActive ? "Active" : "Deactivated"}
         </StatusBadge>
       ),
     },
@@ -1353,7 +1372,7 @@ export default function TruckerProfileAdminClient({
               </div>
             ) : (
               <Table
-                data={truckRows}
+                data={filteredTruckRows}
                 columns={truckColumns}
                 title="Registered units"
                 actions={[
@@ -1363,6 +1382,29 @@ export default function TruckerProfileAdminClient({
                     variant: "primary",
                   },
                 ]}
+                toolbar={
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {truckStatusFilterOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setTruckStatusFilter(option.value)}
+                          className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-semibold transition ${
+                            truckStatusFilter === option.value
+                              ? "border-zinc-950 bg-zinc-950 text-white"
+                              : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                    <StatusBadge tone={truckStatusFilter === "inactive" ? "amber" : "blue"}>
+                      Showing {filteredTruckRows.length} of {truckRows.length}
+                    </StatusBadge>
+                  </div>
+                }
                 searchQuery=""
                 searchKeys={["searchText"]}
               />
