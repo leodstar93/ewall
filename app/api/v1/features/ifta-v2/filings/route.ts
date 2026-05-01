@@ -137,9 +137,20 @@ export async function POST(request: Request) {
       provider,
       db: prisma,
     });
+    if (!integrationAccount) {
+      return Response.json(
+        {
+          error:
+            "Connect an ELD provider before creating a new IFTA filing. Manual filing entry opens after the ELD connection is active.",
+          code: "IFTA_ELD_REQUIRED",
+        },
+        { status: 409 },
+      );
+    }
+
     const filing = await CanonicalNormalizationService.ensureFiling({
       tenantId: tenant.id,
-      integrationAccountId: integrationAccount?.id ?? null,
+      integrationAccountId: integrationAccount.id,
       year,
       quarter,
     });
@@ -151,9 +162,10 @@ export async function POST(request: Request) {
     let autoSync:
       | { status: "skipped"; reason: string }
       | { status: "success"; syncJobId: string }
-      | { status: "failed"; error: string } = integrationAccount
-      ? { status: "skipped", reason: "Filing already synced." }
-      : { status: "skipped", reason: "No connected ELD provider." };
+      | { status: "failed"; error: string } = {
+      status: "skipped",
+      reason: "Filing already synced.",
+    };
 
     const shouldAutoSync = Boolean(integrationAccount) && !existingFiling?.lastSyncedAt;
 
