@@ -122,6 +122,7 @@ export async function POST(request: Request) {
               recordsCreated: truckSync.recordsCreated,
               recordsUpdated: truckSync.recordsUpdated,
               recordsFailed: 0,
+              recordsHidden: truckSync.recordsHidden,
               recordsSkipped: truckSync.recordsSkipped,
             },
           ],
@@ -146,10 +147,11 @@ export async function POST(request: Request) {
       recordsUpdated: ingestion.recordsUpdated,
       trucksCreated: truckSync.recordsCreated,
       trucksUpdated: truckSync.recordsUpdated,
+      trucksHidden: truckSync.recordsHidden,
       trucksSkipped: truckSync.recordsSkipped,
       message: `Synced ${vehicleSync.recordsRead} provider vehicles from ${formatProviderLabel(
         integrationAccount.provider,
-      )}. Created ${truckSync.recordsCreated} trucks and updated ${truckSync.recordsUpdated}.`,
+      )}. Created ${truckSync.recordsCreated} trucks, updated ${truckSync.recordsUpdated}, and hid ${truckSync.recordsHidden}.`,
     });
   } catch (error) {
     if (syncJobId) {

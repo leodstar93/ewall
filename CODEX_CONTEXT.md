@@ -8,7 +8,7 @@ EWALL is a multi-tenant trucking compliance SaaS for Truckers Unidos. Treat it a
 
 Primary areas in the current codebase:
 
-- IFTA v2 automation, plus legacy IFTA still present
+- IFTA v2 automation
 - UCR filings
 - Form 2290 filings
 - DMV registrations and DMV renewal cases
@@ -50,8 +50,7 @@ Important directories:
 - `app/(public)`: public site pages.
 - `app/(auth)`: login, logout, invite, forbidden flows.
 - `app/(v2)`: authenticated v2 dashboard/admin shell and module pages.
-- `app/api/v1`: main API surface, including the lightweight staff dashboard GraphQL endpoint.
-- `app/api/v1/settings`: account, payment, company, and module settings APIs.
+- `app/api/v1`: main API surface.
 - `features/`: feature UI modules and module metadata.
 - `services/`: business workflows and domain services.
 - `lib/services/`: platform services such as organization, billing, entitlements, users, settings.
@@ -59,7 +58,6 @@ Important directories:
 - `components/`: shared UI and feature widgets.
 - `prisma/`: schema, migrations, seeds, sandbox bootstrap.
 - `docs/`: module notes and migration docs.
-- `v2/`: older/shared v2 shell assets and content.
 
 Core rule: keep routes thin. New workflow logic belongs in `services/*` or `lib/services/*`, not inline in route handlers or UI components.
 
@@ -173,6 +171,7 @@ Billing/admin API surfaces include:
 - `/api/v1/admin/billing/*`
 - `/api/v1/internal/cron/billing`
 - `/api/v1/webhooks/stripe`
+- `/api/v1/stripe/webhook`
 - `/api/v1/webhooks/paypal`
 
 ## 8. Prisma And Database Clients
@@ -548,7 +547,7 @@ Invitation model:
 5. The Prisma schema is monolithic. Prefer narrow changes.
 6. Billing is custom and cross-cuts module access. Test entitlement changes carefully.
 7. IFTA v2 workflow side effects include status changes, audits, notifications, snapshots, and exception state. Keep them in services.
-8. There are some legacy/parallel route patterns in the API tree. Check existing usage before changing public API paths.
+8. There are duplicate/parallel route surfaces (`app/api/v1/webhooks/stripe` and `app/api/v1/stripe/webhook`, `app/api/settings/*` and `app/api/v1/*`). Check existing usage before changing.
 9. Sandbox and prod clients coexist. Use `getDbForEnvironment` or established sandbox services when working in sandbox routes.
 10. Some files may contain encoding artifacts from older context/docs. Keep new edits ASCII unless a file already requires otherwise.
 

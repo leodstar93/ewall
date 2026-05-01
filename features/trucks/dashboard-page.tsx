@@ -27,6 +27,7 @@ type ProviderTruckSyncPayload = {
   recordsRead?: number;
   trucksCreated?: number;
   trucksUpdated?: number;
+  trucksHidden?: number;
   trucksSkipped?: number;
   message?: string;
   error?: string;
@@ -297,7 +298,7 @@ export default function TrucksDashboardPage({
 
       setMessage(
         data.message ||
-          `Synced ${data.recordsRead ?? 0} provider vehicles. Created ${data.trucksCreated ?? 0} trucks and updated ${data.trucksUpdated ?? 0}.`,
+          `Synced ${data.recordsRead ?? 0} provider vehicles. Created ${data.trucksCreated ?? 0} trucks, updated ${data.trucksUpdated ?? 0}, and hid ${data.trucksHidden ?? 0}.`,
       );
       await Promise.all([
         load({ showLoading: false }),

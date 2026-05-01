@@ -8,6 +8,7 @@ type ExistingTruckSummary = {
   make: string | null;
   model: string | null;
   year: number | null;
+  isActive: boolean;
 };
 
 function normalizeOptionalText(value: string | null | undefined) {
@@ -28,10 +29,17 @@ function parseOptionalTruckYear(value: string | null | undefined) {
 }
 
 function isVehicleActive(status: string | null | undefined) {
-  const normalized = status?.trim().toLowerCase();
+  const normalized = status?.trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (!normalized) return true;
 
-  return !["inactive", "archived", "deleted", "out_of_service"].includes(normalized);
+  return ![
+    "inactive",
+    "deactivated",
+    "disabled",
+    "archived",
+    "deleted",
+    "out_of_service",
+  ].includes(normalized);
 }
 
 export class TruckSeedingService {
@@ -73,6 +81,7 @@ export class TruckSeedingService {
         recordsRead: 0,
         recordsCreated: 0,
         recordsUpdated: 0,
+        recordsHidden: 0,
         recordsSkipped: 0,
       };
     }
@@ -82,22 +91,13 @@ export class TruckSeedingService {
     );
     const shouldSeedAllVehicles = input.activeExternalVehicleIds == null;
 
-    const candidateVehicles = input.vehicles.filter((vehicle) => {
-      if (!isVehicleActive(vehicle.status)) return false;
+    const scopedVehicles = input.vehicles.filter((vehicle) => {
       if (shouldSeedAllVehicles) return true;
       if (activeExternalVehicleIds.size === 0) return false;
       return activeExternalVehicleIds.has(vehicle.externalId);
     });
-
-    if (candidateVehicles.length === 0) {
-      return {
-        userId: ownerMembership.userId,
-        recordsRead: 0,
-        recordsCreated: 0,
-        recordsUpdated: 0,
-        recordsSkipped: 0,
-      };
-    }
+    const candidateVehicles = scopedVehicles.filter((vehicle) => isVehicleActive(vehicle.status));
+    const inactiveVehicles = scopedVehicles.filter((vehicle) => !isVehicleActive(vehicle.status));
 
     const existingUserTrucks = await prisma.truck.findMany({
       where: {
@@ -110,6 +110,7 @@ export class TruckSeedingService {
         make: true,
         model: true,
         year: true,
+        isActive: true,
       },
     });
     const existingUserTruckByVin = new Map(
@@ -151,7 +152,45 @@ export class TruckSeedingService {
 
     let recordsCreated = 0;
     let recordsUpdated = 0;
+    let recordsHidden = 0;
     let recordsSkipped = 0;
+
+    for (const vehicle of inactiveVehicles) {
+      const unitNumber =
+        normalizeOptionalText(vehicle.number) ||
+        normalizeOptionalText(vehicle.vin) ||
+        normalizeOptionalText(vehicle.externalId);
+      const vin = normalizeOptionalText(vehicle.vin)?.toUpperCase() ?? null;
+
+      if (!unitNumber) {
+        recordsSkipped += 1;
+        continue;
+      }
+
+      const existingTruck =
+        (vin ? existingUserTruckByVin.get(vin) : null) ?? existingUserTruckByUnit.get(unitNumber);
+
+      if (!existingTruck) {
+        recordsSkipped += 1;
+        continue;
+      }
+
+      if (!existingTruck.isActive) {
+        recordsSkipped += 1;
+        continue;
+      }
+
+      await prisma.truck.update({
+        where: { id: existingTruck.id },
+        data: {
+          isActive: false,
+          notes: "Hidden automatically because the ELD provider marked this vehicle inactive.",
+        },
+      });
+
+      existingTruck.isActive = false;
+      recordsHidden += 1;
+    }
 
     for (const vehicle of candidateVehicles) {
       const unitNumber =
@@ -179,7 +218,8 @@ export class TruckSeedingService {
           (vin && existingTruck.vin !== vin) ||
           (nextMake && existingTruck.make !== nextMake) ||
           (nextModel && existingTruck.model !== nextModel) ||
-          (nextYear && existingTruck.year !== nextYear);
+          (nextYear && existingTruck.year !== nextYear) ||
+          !existingTruck.isActive;
 
         if (shouldUpdate) {
           await prisma.truck.update({
@@ -205,6 +245,7 @@ export class TruckSeedingService {
           make: nextMake ?? existingTruck.make,
           model: nextModel ?? existingTruck.model,
           year: nextYear ?? existingTruck.year,
+          isActive: true,
         };
 
         if (previousUnitKey && previousUnitKey !== unitNumber) {
@@ -245,6 +286,7 @@ export class TruckSeedingService {
           make: true,
           model: true,
           year: true,
+          isActive: true,
         },
       });
 
@@ -258,9 +300,10 @@ export class TruckSeedingService {
 
     return {
       userId: ownerMembership.userId,
-      recordsRead: candidateVehicles.length,
+      recordsRead: scopedVehicles.length,
       recordsCreated,
       recordsUpdated,
+      recordsHidden,
       recordsSkipped,
     };
   }

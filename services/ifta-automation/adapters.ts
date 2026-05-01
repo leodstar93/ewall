@@ -220,6 +220,33 @@ function readBoolean(record: JsonRecord, ...keys: string[]) {
   return null;
 }
 
+function readVehicleStatus(record: JsonRecord) {
+  const explicitStatus = readString(
+    record,
+    "status",
+    "vehicle_status",
+    "vehicleStatus",
+    "state",
+  );
+  if (explicitStatus) return explicitStatus;
+
+  const active = readBoolean(record, "active", "is_active", "isActive", "enabled");
+  if (active === false) return "DEACTIVATED";
+
+  const deactivatedAt = readString(
+    record,
+    "deactivated_at",
+    "deactivatedAt",
+    "deactivation_date",
+    "deactivationDate",
+    "deleted_at",
+    "deletedAt",
+  );
+  if (deactivatedAt) return "DEACTIVATED";
+
+  return null;
+}
+
 function readNestedRecord(record: JsonRecord, key: string) {
   return toJsonRecord(record[key]);
 }
@@ -658,7 +685,7 @@ class MotiveAdapter implements ELDProviderAdapter {
       model: readString(record, "model"),
       year: readString(record, "year"),
       metricUnits: readBoolean(record, "metric_units", "metricUnits"),
-      status: readString(record, "status"),
+      status: readVehicleStatus(record),
       metadataJson: payload as Prisma.InputJsonValue,
       payloadJson: payload as Prisma.InputJsonValue,
     };
