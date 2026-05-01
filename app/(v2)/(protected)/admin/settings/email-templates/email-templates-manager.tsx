@@ -13,6 +13,7 @@ type EmailTemplate = {
   subject: string;
   bodyText: string;
   variables: string[];
+  variableDescriptions: Record<string, string>;
   isActive: boolean;
   createdAt: string | null;
   updatedAt: string | null;
@@ -338,7 +339,9 @@ export default function EmailTemplatesManager() {
                   {selectedTemplate.variables.map((variable) => (
                     <code
                       key={variable}
+                      title={selectedTemplate.variableDescriptions[variable] || "Template variable"}
                       style={{
+                        cursor: "help",
                         border: "1px solid var(--br)",
                         borderRadius: 999,
                         padding: "4px 8px",
