@@ -65,7 +65,7 @@ export default function AdminUsersPage() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
 
   const [newUserForm, setNewUserForm] = useState({ email: "", name: "", password: "", roles: [] as string[] });
-  const [inviteForm, setInviteForm] = useState({ email: "", roleNames: ["TRUCKER", "USER"] as string[], note: "" });
+  const [inviteForm, setInviteForm] = useState({ email: "", roleNames: ["TRUCKER", "USER"] as string[] });
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
@@ -159,7 +159,7 @@ export default function AdminUsersPage() {
   };
 
   const openInviteModal = () => {
-    setInviteForm({ email: "", roleNames: ["TRUCKER", "USER"], note: "" });
+    setInviteForm({ email: "", roleNames: ["TRUCKER", "USER"] });
     setFormError("");
     setModalType("invite");
     setShowModal(true);
@@ -276,7 +276,6 @@ export default function AdminUsersPage() {
         body: JSON.stringify({
           email: inviteForm.email.trim().toLowerCase(),
           roleNames: inviteForm.roleNames,
-          note: inviteForm.note.trim() || undefined,
         }),
       });
       if (!res.ok) {
@@ -687,16 +686,6 @@ export default function AdminUsersPage() {
                       onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
                       placeholder="user@example.com"
                       style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <div className={tableStyles.subtitle} style={{ marginBottom: 4 }}>Note (optional)</div>
-                    <textarea
-                      value={inviteForm.note}
-                      onChange={(e) => setInviteForm({ ...inviteForm, note: e.target.value })}
-                      placeholder="Welcome to EWALL!"
-                      rows={2}
-                      style={{ width: "100%", border: "1px solid var(--br)", borderRadius: 6, padding: "7px 10px", fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical" }}
                     />
                   </div>
                   <div>
