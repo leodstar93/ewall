@@ -659,7 +659,7 @@ export function FilingDetailPanel({
     () =>
       detailTabs.filter((tab) => {
         if (mode === "trucker" && tab.value === "exceptions") return false;
-        if (mode === "staff" && (tab.value === "miles" || tab.value === "fuel")) return false;
+        if (mode === "staff" && (tab.value === "miles" || tab.value === "fuel" || tab.value === "vehicles")) return false;
         return true;
       }),
     [mode],
@@ -1192,7 +1192,7 @@ export function FilingDetailPanel({
                     : "Assign to me"}
               </Button>
             ) : null}
-            {filing.integrationAccount?.provider && filing.status !== "APPROVED" ? (
+            {filing.integrationAccount?.provider && filing.status !== "APPROVED" && filing.status !== "FINALIZED" ? (
               <>
                 <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>
                   <Button
@@ -1228,17 +1228,17 @@ export function FilingDetailPanel({
                     </Button>
                   </span>
                 ) : null}
-                {mode === "staff" && onOpenInstructions ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={ucrInfoButtonClassName}
-                    onClick={() => onOpenInstructions(filing)}
-                  >
-                    How to Proceed
-                  </Button>
-                ) : null}
               </>
+            ) : null}
+            {mode === "staff" && onOpenInstructions ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className={ucrInfoButtonClassName}
+                onClick={() => onOpenInstructions(filing)}
+              >
+                How to Proceed
+              </Button>
             ) : null}
             {canRebuild ? (
               <Button
@@ -1253,7 +1253,7 @@ export function FilingDetailPanel({
                   : "Rebuild"}
               </Button>
             ) : null}
-            {filing.status !== "APPROVED" ? (
+            {filing.status !== "APPROVED" && filing.status !== "FINALIZED" ? (
               <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>
                 <Button
                   variant="outline"

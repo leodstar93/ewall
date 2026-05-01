@@ -112,7 +112,7 @@ function isOpenUcrStatus(status: UCRFilingStatus) {
 }
 
 function isOpenIftaStatus(status: string) {
-  return ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY"].includes(status);
+  return ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY", "PENDING_APPROVAL", "APPROVED"].includes(status);
 }
 
 function buildUcrRows(items: AdminUcrQueueItem[]): StaffFilingRow[] {

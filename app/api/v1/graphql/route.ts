@@ -34,8 +34,8 @@ const UCR_OPEN_STATUSES = new Set([
 
 const UCR_FINAL_STATUSES = new Set(["COMPLETED", "COMPLIANT"]);
 const UCR_NEEDS_ATTENTION_STATUSES = new Set(["NEEDS_ATTENTION", "CORRECTION_REQUESTED"]);
-const IFTA_OPEN_STATUSES = new Set(["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY"]);
-const IFTA_FINAL_STATUSES = new Set(["APPROVED", "ARCHIVED"]);
+const IFTA_OPEN_STATUSES = new Set(["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY", "PENDING_APPROVAL", "APPROVED"]);
+const IFTA_FINAL_STATUSES = new Set(["FINALIZED", "ARCHIVED"]);
 const IFTA_NEEDS_ATTENTION_STATUSES = new Set(["CHANGES_REQUESTED"]);
 
 function response(data: unknown, init?: ResponseInit) {
@@ -123,8 +123,10 @@ function iftaPriority(status: string, ageHours: number, exceptionCount: number) 
   if (IFTA_NEEDS_ATTENTION_STATUSES.has(status) || exceptionCount > 0) {
     return { label: exceptionCount > 0 ? `${exceptionCount} exception(s)` : "Needs attention", base: 115 };
   }
+  if (status === "APPROVED") return { label: "Client approved — ready to finalize", base: 110 };
   if (status === "READY_FOR_REVIEW") return { label: "Ready for review", base: 105 };
   if (status === "SNAPSHOT_READY") return { label: "Snapshot ready", base: 95 };
+  if (status === "PENDING_APPROVAL") return { label: "Awaiting client approval", base: 90 };
   if (ageHours >= 72) return { label: "Aging case", base: 80 };
   return { label: "In review", base: 70 };
 }
@@ -163,6 +165,7 @@ async function staffDashboardMetrics() {
         quarter: true,
         status: true,
         approvedAt: true,
+        staffCompletedAt: true,
         updatedAt: true,
         lastCalculatedAt: true,
         tenant: {
@@ -243,7 +246,7 @@ async function staffDashboardMetrics() {
       iftaFilings.filter((filing) => IFTA_NEEDS_ATTENTION_STATUSES.has(filing.status)).length,
     finalizedThisMonth:
       ucrFinalized.filter((filing) => isThisMonth(filing.completedAt ?? filing.compliantAt ?? filing.updatedAt)).length +
-      iftaFinalized.filter((filing) => isThisMonth(filing.approvedAt ?? filing.updatedAt)).length,
+      iftaFinalized.filter((filing) => isThisMonth(filing.staffCompletedAt ?? filing.updatedAt)).length,
     finalizedTotal: ucrFinalized.length + iftaFinalized.length,
     urgentCases,
   };

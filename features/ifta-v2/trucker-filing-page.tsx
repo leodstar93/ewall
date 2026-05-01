@@ -235,10 +235,12 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
   }
 
   const summaryMiles = new Map<string, number>();
+  const summaryGallons = new Map<string, number>();
   for (const summary of filing.jurisdictionSummaries) {
     const jurisdiction = summary.jurisdiction.trim().toUpperCase();
     if (!jurisdiction) continue;
     summaryMiles.set(jurisdiction, toNumber(summary.totalMiles));
+    summaryGallons.set(jurisdiction, toNumber(summary.taxPaidGallons));
   }
 
   const milesByJurisdiction = new Map<string, number>();
@@ -300,7 +302,9 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
       miles: (summaryMiles.get(jurisdiction) ?? milesByJurisdiction.get(jurisdiction) ?? 0).toFixed(2),
       gallons: manualGallonsByJurisdiction.has(jurisdiction)
         ? manualGallonsByJurisdiction.get(jurisdiction)!.toFixed(3)
-        : "",
+        : (summaryGallons.get(jurisdiction) ?? 0) > 0
+          ? summaryGallons.get(jurisdiction)!.toFixed(3)
+          : "",
       entryDate: manualDateByJurisdiction.get(jurisdiction) ?? todayInputValue(),
       hasManualMiles: manualMilesByJurisdiction.has(jurisdiction),
       hasManualGallons: manualGallonsByJurisdiction.has(jurisdiction),
@@ -593,6 +597,25 @@ export default function IftaAutomationTruckerFilingPage({
     setEditingRowId(rowId);
   }
 
+  async function handleReopen() {
+    if (!filing) return;
+
+    setBusyAction("reopen");
+
+    try {
+      await requestJson(`/api/v1/features/ifta-v2/filings/${filing.id}/reopen`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await loadFiling();
+      toast.success(`Filing ${filingPeriodLabel(filing)} was reopened.`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not reopen this filing."));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleSubmitForReview() {
     if (!filing) return;
 
@@ -822,6 +845,9 @@ export default function IftaAutomationTruckerFilingPage({
     : [];
   const canViewAudit = canReadAudit(roles, permissions);
   const canUseEldSync = roles.includes("STAFF") || roles.includes("ADMIN");
+  const canReopenFiling =
+    canUseEldSync &&
+    (filing.status === "FINALIZED" || filing.status === "APPROVED");
   const conversation = buildConversation(filing);
   const auditRows = buildAuditRows(filing);
   const companyName =
@@ -1050,7 +1076,7 @@ export default function IftaAutomationTruckerFilingPage({
               </p>
             </div>
             <div className="flex flex-wrap gap-[10px] lg:justify-end">
-              {canUseEldSync && filing.integrationAccount?.provider && filing.status !== "APPROVED" ? (
+              {canUseEldSync && filing.integrationAccount?.provider && filing.status !== "APPROVED" && filing.status !== "FINALIZED" ? (
                 <>
                   <button
                     type="button"
@@ -1090,6 +1116,16 @@ export default function IftaAutomationTruckerFilingPage({
                   style={{ background: "var(--b)" }}
                 >
                   {busyAction === "client-approve" ? "Approving..." : "Approve Filing"}
+                </button>
+              ) : null}
+              {canReopenFiling ? (
+                <button
+                  type="button"
+                  onClick={() => void handleReopen()}
+                  disabled={busyAction === "reopen"}
+                  className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-(--br) bg-white px-3.5 text-[12px] font-bold text-(--text-primary) hover:bg-(--off) disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {busyAction === "reopen" ? "Reopening..." : "Reopen Filing"}
                 </button>
               ) : null}
             </div>

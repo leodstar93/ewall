@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx prisma *)",
       "Bash(npx tsc *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(dir \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\" /B)"
     ]
   }
 }

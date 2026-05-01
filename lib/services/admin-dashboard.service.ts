@@ -51,6 +51,7 @@ const IFTA_OPEN_STATUSES = [
   IftaFilingStatus.CHANGES_REQUESTED,
   IftaFilingStatus.SNAPSHOT_READY,
   IftaFilingStatus.PENDING_APPROVAL,
+  IftaFilingStatus.APPROVED,
   IftaFilingStatus.REOPENED,
 ];
 
@@ -237,8 +238,8 @@ export async function getAdminDashboardMetrics(): Promise<AdminDashboardMetrics>
     prisma.iftaFiling.count({ where: { status: { in: IFTA_OPEN_STATUSES } } }),
     prisma.iftaFiling.count({
       where: {
-        status: { in: [IftaFilingStatus.APPROVED, IftaFilingStatus.FINALIZED] },
-        OR: [{ approvedAt: { gte: monthStart } }, { staffCompletedAt: { gte: monthStart } }],
+        status: { in: [IftaFilingStatus.FINALIZED] },
+        OR: [{ staffCompletedAt: { gte: monthStart } }],
       },
     }),
     prisma.iftaFiling.count({

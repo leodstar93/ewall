@@ -163,13 +163,54 @@ export class IftaExceptionEngine {
       }
     }
 
-    if (decimalToNumber(filing.totalDistance) > 0 && filing.fuelLines.length === 0) {
-      detected.push({
-        severity: IftaExceptionSeverity.ERROR,
-        code: "IFTA_MILES_WITHOUT_FUEL",
-        title: "Distance exists without fuel purchases",
-        description: "The filing has miles but no canonical fuel purchases.",
-      });
+    if (decimalToNumber(filing.totalDistance) > 0) {
+      // Use jurisdiction summaries as the authoritative source for fuel coverage.
+      // fuelLines only reflects raw/manual-fuel entries; manual summary edits update
+      // jurisdictionSummaries directly without writing fuelLines.
+      const summaryFuelJurisdictions = new Set(
+        filing.jurisdictionSummaries
+          .filter((s) => decimalToNumber(s.taxPaidGallons) > 0)
+          .map((s) => s.jurisdiction)
+          .filter(Boolean),
+      );
+      const fuelLineFuelJurisdictions = new Set(
+        filing.fuelLines.map((line) => line.jurisdiction).filter(Boolean),
+      );
+      const fuelJurisdictions = new Set([
+        ...summaryFuelJurisdictions,
+        ...fuelLineFuelJurisdictions,
+      ]);
+
+      const distanceJurisdictions = Array.from(
+        new Set(
+          filing.distanceLines
+            .filter((line) => decimalToNumber(line.taxableMiles) > 0)
+            .map((line) => line.jurisdiction)
+            .filter(Boolean),
+        ),
+      );
+      const missingFuelJurisdictions = distanceJurisdictions.filter(
+        (j) => !fuelJurisdictions.has(j),
+      );
+
+      if (missingFuelJurisdictions.length > 0) {
+        for (const jurisdiction of missingFuelJurisdictions) {
+          detected.push({
+            severity: IftaExceptionSeverity.ERROR,
+            code: "IFTA_MILES_WITHOUT_FUEL",
+            title: "Distance exists without fuel purchases",
+            description: `Jurisdiction ${jurisdiction} has taxable miles but no fuel purchase recorded for that jurisdiction.`,
+            jurisdiction,
+          });
+        }
+      } else if (fuelJurisdictions.size === 0) {
+        detected.push({
+          severity: IftaExceptionSeverity.ERROR,
+          code: "IFTA_MILES_WITHOUT_FUEL",
+          title: "Distance exists without fuel purchases",
+          description: "The filing has miles but no canonical fuel purchases.",
+        });
+      }
     }
 
     for (const purchase of rawFuelPurchases) {
