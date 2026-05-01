@@ -174,7 +174,7 @@ function StripeCardSetupForm({
           setLocalError("");
         }
 
-        const response = await fetch("/api/settings/payment-method/stripe/setup-intent", {
+        const response = await fetch("/api/v1/settings/payment-method/stripe/setup-intent", {
           method: "POST",
         });
 
@@ -237,7 +237,7 @@ function StripeCardSetupForm({
         throw new Error(result.error?.message || "Stripe could not save this card.");
       }
 
-      const response = await fetch("/api/settings/payment-method/stripe/finalize", {
+      const response = await fetch("/api/v1/settings/payment-method/stripe/finalize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -316,7 +316,7 @@ export default function PaymentsPageClient() {
 
       const [methodsResponse, configResponse] = await Promise.all([
         fetch("/api/v1/payment-methods", { cache: "no-store" }),
-        fetch("/api/settings/payment-config", { cache: "no-store" }),
+        fetch("/api/v1/settings/payment-config", { cache: "no-store" }),
       ]);
 
       const methodsPayload = (await methodsResponse.json().catch(() => ({}))) as
@@ -388,7 +388,7 @@ export default function PaymentsPageClient() {
           message: "Finishing your PayPal link and saving the reference...",
         });
 
-        const response = await fetch("/api/settings/payment-method/paypal/finalize", {
+        const response = await fetch("/api/v1/settings/payment-method/paypal/finalize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -452,7 +452,7 @@ export default function PaymentsPageClient() {
         ? await fetch(`/api/v1/payment-methods/ach/${id}/revoke`, {
             method: "POST",
           })
-        : await fetch(`/api/settings/payment-method/${id}`, {
+        : await fetch(`/api/v1/settings/payment-method/${id}`, {
             method: "DELETE",
           });
 
@@ -493,7 +493,7 @@ export default function PaymentsPageClient() {
       setDefaultingId(id);
       setBanner(null);
 
-      const response = await fetch(`/api/settings/payment-method/${id}`, {
+      const response = await fetch(`/api/v1/settings/payment-method/${id}`, {
         method: "PATCH",
       });
 
@@ -522,7 +522,7 @@ export default function PaymentsPageClient() {
       setStartingPayPal(true);
       setBanner(null);
 
-      const response = await fetch("/api/settings/payment-method/paypal/start", {
+      const response = await fetch("/api/v1/settings/payment-method/paypal/start", {
         method: "POST",
       });
 

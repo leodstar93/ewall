@@ -83,7 +83,7 @@ export default function CompanyInfoPanel({ data, onSave }: Props) {
       if (onSave) {
         nextPayload = await onSave(form);
       } else {
-        const response = await fetch("/api/settings/company", {
+        const response = await fetch("/api/v1/settings/company", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),

@@ -173,7 +173,7 @@ async function fetchJson<T>(url: string) {
 }
 
 async function fetchStaffDashboardMetrics() {
-  const response = await fetch("/api/graphql", {
+  const response = await fetch("/api/v1/graphql", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",

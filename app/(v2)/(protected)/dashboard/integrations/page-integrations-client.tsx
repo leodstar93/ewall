@@ -199,7 +199,7 @@ export default function IntegrationsPageClient() {
       const [providerResponse, statusResponse, credentialResponse] = await Promise.all([
         requestJson<{ providers: ProviderCatalogItem[] }>("/api/v1/integrations/eld/providers"),
         requestJson<{ accounts: IntegrationAccountSummary[] }>("/api/v1/integrations/eld/status"),
-        requestJson<EldProviderCredentialsFormData>("/api/settings/eld-provider"),
+        requestJson<EldProviderCredentialsFormData>("/api/v1/settings/eld-provider"),
       ]);
 
       const nextForm = {
@@ -381,7 +381,7 @@ export default function IntegrationsPageClient() {
       setBanner(null);
 
       const response = await requestJson<EldProviderCredentialsFormData>(
-        "/api/settings/eld-provider",
+        "/api/v1/settings/eld-provider",
         {
           method: "PUT",
           body: JSON.stringify(providerForm),

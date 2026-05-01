@@ -144,7 +144,7 @@ export default function ProfilePageClient() {
         setLoading(true);
 
         const [profileResponse, iftaResponse] = await Promise.all([
-          fetch("/api/settings/company", {
+          fetch("/api/v1/settings/company", {
             cache: "no-store",
           }),
           fetch("/api/v1/company/ifta-access", {
@@ -322,7 +322,7 @@ export default function ProfilePageClient() {
     try {
       setSaving(true);
 
-      const response = await fetch("/api/settings/company", {
+      const response = await fetch("/api/v1/settings/company", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
