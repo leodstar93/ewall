@@ -49,6 +49,11 @@ const RULES: Array<{
     requirePerms: ["cases:read"],
   },
   {
+    match: (pathname) => pathname.startsWith("/admin/documents"),
+    requireAuth: true,
+    requireRolesAny: ["ADMIN", "STAFF"],
+  },
+  {
     match: (pathname) => pathname.startsWith("/admin"),
     requireAuth: true,
     requirePerms: ["admin:access"],

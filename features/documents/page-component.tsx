@@ -79,6 +79,7 @@ export default function DocumentsPage({
 }: DocumentsPageProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
+  console.log("Session in DocumentsPage:", session, status);
 
   // Upload form state
   const [file, setFile] = useState<File | null>(null);

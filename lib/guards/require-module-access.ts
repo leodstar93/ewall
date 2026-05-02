@@ -11,7 +11,6 @@ export async function requireModuleAccess(moduleSlug: string) {
   }
 
   const roles = Array.isArray(session.user.roles) ? session.user.roles : [];
-  console.log("User roles:", roles);
   // ADMIN and STAFF always have access to every module — skip org/subscription checks.
   if (roles.includes("ADMIN") || roles.includes("STAFF")) {
     return {
