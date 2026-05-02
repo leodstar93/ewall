@@ -961,12 +961,19 @@ async function main() {
   console.log(`🔑 Password: ${ADMIN_PASSWORD} (set via SEED_ADMIN_PASSWORD env var)`);
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (e) => {
-    console.error("❌ Seed failed:", e);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+export { main as runSeed };
+
+if (
+  process.argv[1] &&
+  (process.argv[1].endsWith("seed.ts") || process.argv[1].endsWith("seed.js"))
+) {
+  main()
+    .then(async () => {
+      await prisma.$disconnect();
+    })
+    .catch(async (e) => {
+      console.error("❌ Seed failed:", e);
+      await prisma.$disconnect();
+      process.exit(1);
+    });
+}

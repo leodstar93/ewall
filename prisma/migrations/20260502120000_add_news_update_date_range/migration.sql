@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "NewsUpdate" ADD COLUMN IF NOT EXISTS "activeFrom" TIMESTAMP(3);
+ALTER TABLE "NewsUpdate" ADD COLUMN IF NOT EXISTS "activeTo" TIMESTAMP(3);

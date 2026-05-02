@@ -342,8 +342,10 @@ model NewsUpdate {
   template    String   @default("MIXED")
   gradient    String
   audience    String   @default("ALL")
-  isActive   Boolean  @default(true)
-  sortOrder  Int      @default(0)
+  isActive   Boolean   @default(true)
+  sortOrder  Int       @default(0)
+  activeFrom DateTime?
+  activeTo   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

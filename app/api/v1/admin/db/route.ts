@@ -1,12 +1,43 @@
 import { auth } from "@/auth";
-import { exec } from "child_process";
-import { promisify } from "util";
-import path from "path";
-
-const execAsync = promisify(exec);
-const ROOT = path.resolve(process.cwd());
+import { prisma } from "@/lib/prisma";
+import { runSeed } from "@/prisma/seed";
 
 export const maxDuration = 300;
+
+async function captureLogs(fn: () => Promise<void>): Promise<string> {
+  const lines: string[] = [];
+  const origLog = console.log;
+  const origError = console.error;
+  console.log = (...args: unknown[]) => {
+    const line = args.map(String).join(" ");
+    lines.push(line);
+    origLog(line);
+  };
+  console.error = (...args: unknown[]) => {
+    const line = args.map(String).join(" ");
+    lines.push(line);
+    origError(line);
+  };
+  try {
+    await fn();
+  } finally {
+    console.log = origLog;
+    console.error = origError;
+  }
+  return lines.join("\n");
+}
+
+async function truncateAllTables() {
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    DECLARE r RECORD;
+    BEGIN
+      FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'TRUNCATE TABLE "' || r.tablename || '" CASCADE';
+      END LOOP;
+    END $$;
+  `);
+}
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -25,40 +56,19 @@ export async function POST(request: Request) {
 
   try {
     if (action === "seed") {
-      const { stdout, stderr } = await execAsync("npx prisma db seed", {
-        cwd: ROOT,
-        timeout: 300_000,
-      });
-      return Response.json({
-        ok: true,
-        output: [stdout, stderr].filter(Boolean).join("\n"),
-      });
+      const output = await captureLogs(() => runSeed());
+      return Response.json({ ok: true, output });
     }
 
     if (action === "reset") {
-      const { stdout: r1, stderr: e1 } = await execAsync(
-        "npx prisma migrate reset --force --skip-seed",
-        { cwd: ROOT, timeout: 300_000 },
-      );
-      const { stdout: r2, stderr: e2 } = await execAsync("npx prisma db seed", {
-        cwd: ROOT,
-        timeout: 300_000,
-      });
-      return Response.json({
-        ok: true,
-        output: [r1, e1, "--- seed ---", r2, e2].filter(Boolean).join("\n"),
-      });
+      await truncateAllTables();
+      const output = await captureLogs(() => runSeed());
+      return Response.json({ ok: true, output: `--- tables truncated ---\n${output}` });
     }
 
     return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    const err = error as { stdout?: string; stderr?: string; message?: string };
-    return Response.json(
-      {
-        ok: false,
-        output: [err.stdout, err.stderr, err.message].filter(Boolean).join("\n"),
-      },
-      { status: 500 },
-    );
+    const message = error instanceof Error ? error.message : String(error);
+    return Response.json({ ok: false, output: message }, { status: 500 });
   }
 }

@@ -21,6 +21,8 @@ export type NewsUpdateRecord = {
   audience: NewsUpdateAudience;
   isActive: boolean;
   sortOrder: number;
+  activeFrom: string | null;
+  activeTo: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -118,6 +120,21 @@ function readImageUrl(input: Record<string, unknown>, template: NewsUpdateTempla
   return imageUrl;
 }
 
+function readOptionalDate(input: Record<string, unknown>, key: string, label: string): Date | null {
+  const value = input[key];
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string") {
+    throw new SettingsValidationError(`${label} is invalid.`);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  if (isNaN(date.getTime())) {
+    throw new SettingsValidationError(`${label} must be a valid date.`);
+  }
+  return date;
+}
+
 function formatNewsUpdate(record: {
   id: string;
   eyebrow: string;
@@ -131,6 +148,8 @@ function formatNewsUpdate(record: {
   audience: string;
   isActive: boolean;
   sortOrder: number;
+  activeFrom: Date | null;
+  activeTo: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): NewsUpdateRecord {
@@ -138,6 +157,8 @@ function formatNewsUpdate(record: {
     ...record,
     audience: isAudience(record.audience) ? record.audience : "ALL",
     template: isTemplate(record.template) ? record.template : "MIXED",
+    activeFrom: record.activeFrom?.toISOString() ?? null,
+    activeTo: record.activeTo?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
@@ -167,10 +188,15 @@ export async function listNewsUpdates() {
 
 export async function listActiveNewsUpdateSlides(audience: NewsUpdateAudience = "ALL") {
   const audienceFilter = audience === "ALL" ? ["ALL"] : ["ALL", audience];
+  const now = new Date();
   const updates = await prisma.newsUpdate.findMany({
     where: {
       isActive: true,
       audience: { in: audienceFilter },
+      AND: [
+        { OR: [{ activeFrom: null }, { activeFrom: { lte: now } }] },
+        { OR: [{ activeTo: null }, { activeTo: { gte: now } }] },
+      ],
     },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   });
@@ -182,6 +208,12 @@ export async function createNewsUpdate(input: Record<string, unknown>) {
   const template = normalizeTemplate(input);
   const imageUrl = readImageUrl(input, template);
   const title = readString(input, "title", "Title", 120);
+
+  const activeFrom = readOptionalDate(input, "activeFrom", "Active from");
+  const activeTo = readOptionalDate(input, "activeTo", "Active to");
+  if (activeFrom && activeTo && activeFrom >= activeTo) {
+    throw new SettingsValidationError("Active from must be before Active to.");
+  }
 
   const record = await prisma.newsUpdate.create({
     data: {
@@ -196,6 +228,8 @@ export async function createNewsUpdate(input: Record<string, unknown>) {
       audience: normalizeAudience(input),
       isActive: readBoolean(input, "isActive", true),
       sortOrder: readSortOrder(input),
+      activeFrom,
+      activeTo,
     },
   });
 
@@ -212,6 +246,12 @@ export async function updateNewsUpdate(id: string, input: Record<string, unknown
   const imageUrl = readImageUrl(input, template);
   const title = readString(input, "title", "Title", 120);
 
+  const activeFrom = readOptionalDate(input, "activeFrom", "Active from");
+  const activeTo = readOptionalDate(input, "activeTo", "Active to");
+  if (activeFrom && activeTo && activeFrom >= activeTo) {
+    throw new SettingsValidationError("Active from must be before Active to.");
+  }
+
   const record = await prisma.newsUpdate.update({
     where: { id },
     data: {
@@ -226,6 +266,8 @@ export async function updateNewsUpdate(id: string, input: Record<string, unknown
       audience: normalizeAudience(input),
       isActive: readBoolean(input, "isActive", true),
       sortOrder: readSortOrder(input),
+      activeFrom,
+      activeTo,
     },
   });
 

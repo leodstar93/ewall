@@ -23,6 +23,8 @@ type NewsUpdate = {
   audience: Audience;
   isActive: boolean;
   sortOrder: number;
+  activeFrom: string | null;
+  activeTo: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -30,6 +32,7 @@ type NewsUpdate = {
 type NewsUpdateRow = NewsUpdate & {
   searchText: string;
   statusLabel: string;
+  status: SlideStatus;
 };
 
 type FormState = {
@@ -44,6 +47,8 @@ type FormState = {
   audience: Audience;
   isActive: boolean;
   sortOrder: string;
+  activeFrom: string;
+  activeTo: string;
 };
 
 const gradientOptions = [
@@ -81,6 +86,8 @@ const emptyForm: FormState = {
   audience: "ALL",
   isActive: true,
   sortOrder: "0",
+  activeFrom: "",
+  activeTo: "",
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit) {
@@ -134,19 +141,30 @@ function toForm(update: NewsUpdate): FormState {
     audience: update.audience,
     isActive: update.isActive,
     sortOrder: String(update.sortOrder),
+    activeFrom: update.activeFrom ? update.activeFrom.slice(0, 10) : "",
+    activeTo: update.activeTo ? update.activeTo.slice(0, 10) : "",
   };
 }
 
-function statusBadge(active: boolean) {
-  return (
-    <span
-      className={`${tableStyles.badge} ${
-        active ? tableStyles.bDone : tableStyles.bInactive
-      }`}
-    >
-      {active ? "Active" : "Hidden"}
-    </span>
-  );
+type SlideStatus = "active" | "hidden" | "scheduled" | "expired";
+
+function effectiveStatus(update: NewsUpdate): SlideStatus {
+  if (!update.isActive) return "hidden";
+  const now = new Date();
+  if (update.activeFrom && new Date(update.activeFrom) > now) return "scheduled";
+  if (update.activeTo && new Date(update.activeTo) < now) return "expired";
+  return "active";
+}
+
+function statusBadge(status: SlideStatus) {
+  const map: Record<SlideStatus, { cls: string; label: string }> = {
+    active:    { cls: tableStyles.bDone,     label: "Active" },
+    hidden:    { cls: tableStyles.bInactive, label: "Hidden" },
+    scheduled: { cls: tableStyles.bPending,  label: "Scheduled" },
+    expired:   { cls: tableStyles.bActive,   label: "Expired" },
+  };
+  const { cls, label } = map[status];
+  return <span className={`${tableStyles.badge} ${cls}`}>{label}</span>;
 }
 
 function isSolidHexColor(value: string) {
@@ -165,23 +183,27 @@ export default function NewsUpdatesManager() {
 
   const rows = useMemo<NewsUpdateRow[]>(
     () =>
-      updates.map((update) => ({
-        ...update,
-        statusLabel: update.isActive ? "Active" : "Hidden",
-        searchText: [
-          update.eyebrow,
-          update.title,
-          update.description,
-          update.cta,
-          update.href ?? "",
-          update.imageUrl ?? "",
-          update.template,
-          update.audience,
-          update.isActive ? "active" : "hidden inactive",
-        ]
-          .join(" ")
-          .toLowerCase(),
-      })),
+      updates.map((update) => {
+        const status = effectiveStatus(update);
+        return {
+          ...update,
+          status,
+          statusLabel: status,
+          searchText: [
+            update.eyebrow,
+            update.title,
+            update.description,
+            update.cta,
+            update.href ?? "",
+            update.imageUrl ?? "",
+            update.template,
+            update.audience,
+            status,
+          ]
+            .join(" ")
+            .toLowerCase(),
+        };
+      }),
     [updates],
   );
 
@@ -238,6 +260,8 @@ export default function NewsUpdatesManager() {
           body: JSON.stringify({
             ...form,
             sortOrder: Number(form.sortOrder || 0),
+            activeFrom: form.activeFrom || null,
+            activeTo: form.activeTo || null,
           }),
         },
       );
@@ -321,7 +345,7 @@ export default function NewsUpdatesManager() {
     {
       key: "statusLabel",
       label: "Status",
-      render: (_, update) => statusBadge(update.isActive),
+      render: (_, update) => statusBadge(update.status),
     },
     {
       key: "updatedAt",
@@ -549,6 +573,30 @@ export default function NewsUpdatesManager() {
                 value={form.sortOrder}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sortOrder: event.target.value }))
+                }
+                style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
+              Active from (optional)
+              <input
+                type="date"
+                value={form.activeFrom}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, activeFrom: event.target.value }))
+                }
+                style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 12, color: "#666" }}>
+              Active to (optional)
+              <input
+                type="date"
+                value={form.activeTo}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, activeTo: event.target.value }))
                 }
                 style={{ height: 36, border: "1px solid var(--br)", borderRadius: 6, padding: "0 10px" }}
               />
