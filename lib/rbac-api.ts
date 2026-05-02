@@ -42,31 +42,38 @@ async function requireEntitledApiModule(input: {
 }
 
 export async function requireApiPermission(permission: string) {
-  console.log("requireApiPermission called with permission:", permission);
+  //console.log("requireApiPermission called with permission:", permission);
   const { session, perms, roles, isAdmin } = await getAuthz();
 
   if (!session) {
-    return { ok: false as const, res: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+    return {
+      ok: false as const,
+      res: NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+    };
   }
 
   const moduleKey = permission.split(":")[0];
   const isStaff = roles.includes("STAFF");
-  const isFeatureAdmin = isAdmin || (isStaff && STAFF_ADMIN_FEATURE_MODULES.has(moduleKey));
+  const isFeatureAdmin =
+    isAdmin || (isStaff && STAFF_ADMIN_FEATURE_MODULES.has(moduleKey));
 
   const ok =
     isFeatureAdmin ||
     perms.includes(permission) ||
     perms.includes(`${moduleKey}:manage`);
-  console.log("requireApiPermission result:", {
+  /*console.log("requireApiPermission result:", {
     ok,
     session,
     perms,
     isAdmin,
     isFeatureAdmin,
-  });
+  });*/
 
   if (!ok) {
-    return { ok: false as const, res: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
+    return {
+      ok: false as const,
+      res: NextResponse.json({ error: "forbidden" }, { status: 403 }),
+    };
   }
 
   if (!isFeatureAdmin) {

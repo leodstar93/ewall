@@ -11,11 +11,22 @@ export async function requireModuleAccess(moduleSlug: string) {
   }
 
   const roles = Array.isArray(session.user.roles) ? session.user.roles : [];
-  const bypassSubscription = roles.includes("ADMIN") || roles.includes("STAFF");
+  console.log("User roles:", roles);
+  // ADMIN and STAFF always have access to every module — skip org/subscription checks.
+  if (roles.includes("ADMIN") || roles.includes("STAFF")) {
+    return {
+      organizationId: null as string | null,
+      organizationName: null as string | null,
+      access: {
+        allowed: true as const,
+        reason: "OK",
+        source: "internal_role" as const,
+      },
+    };
+  }
+
   const organization = await ensureUserOrganization(session.user.id);
-  const access = await getModuleAccess(organization.id, moduleSlug, {
-    bypassSubscription,
-  });
+  const access = await getModuleAccess(organization.id, moduleSlug);
 
   if (!access.allowed) {
     const params = new URLSearchParams({

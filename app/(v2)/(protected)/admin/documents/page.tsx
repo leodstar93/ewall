@@ -10,7 +10,7 @@ export default async function DocumentPage() {
 
   const isAdmin = roles.includes("ADMIN");
   const isStaff = roles.includes("STAFF");
-
+  console.log("User roles in DocumentPage:", roles);
   if (!isAdmin && !isStaff) {
     redirect("/forbidden");
   }

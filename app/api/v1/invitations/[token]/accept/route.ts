@@ -94,10 +94,16 @@ export async function POST(
 
   const roles =
     roleNames.length > 0
-      ? await prisma.role.findMany({
-          where: { name: { in: roleNames } },
-          select: { id: true },
-        })
+      ? await Promise.all(
+          roleNames.map((name) =>
+            prisma.role.upsert({
+              where: { name },
+              create: { name },
+              update: {},
+              select: { id: true },
+            }),
+          ),
+        )
       : [];
 
   // Create user + company profile in a transaction
@@ -165,8 +171,8 @@ export async function POST(
     return created;
   });
 
-  // Ensure default roles if none were assigned from invitation
-  if (roles.length === 0) {
+  // Ensure default roles only for self-service (non-staff) users who got no roles
+  if (roles.length === 0 && !isStaffInvitation) {
     await ensureDefaultSelfServiceRoles({ userId: user.id });
   }
 

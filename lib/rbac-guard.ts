@@ -4,7 +4,7 @@ import { STAFF_ADMIN_FEATURE_MODULES } from "./rbac-feature-modules";
 export async function requirePermission(permission: string) {
   const { session, perms, roles, isAdmin } = await getAuthz();
 
-  console.log("Session in requirePermission:", session, perms, roles, isAdmin);
+  //console.log("Session in requirePermission:", session, perms, roles, isAdmin);
 
   if (!session) {
     return { ok: false as const, reason: "UNAUTHENTICATED" as const };
@@ -12,7 +12,8 @@ export async function requirePermission(permission: string) {
 
   const moduleKey = permission.split(":")[0];
   const isStaff = roles.includes("STAFF");
-  const isFeatureAdmin = isAdmin || (isStaff && STAFF_ADMIN_FEATURE_MODULES.has(moduleKey));
+  const isFeatureAdmin =
+    isAdmin || (isStaff && STAFF_ADMIN_FEATURE_MODULES.has(moduleKey));
 
   const ok =
     isFeatureAdmin ||

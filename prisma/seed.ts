@@ -183,6 +183,8 @@ const ROLE_PERMISSIONS: Record<(typeof ROLES)[number]["name"], string[]> = {
     "compliance2290:upload_schedule1",
   ],
   STAFF: [
+    "documents:read",
+    "documents:write",
     "settings:read",
     "settings:update",
     "billing:read",
