@@ -660,6 +660,35 @@ export default function IftaAutomationTruckerFilingPage({
     }
   }
 
+  async function handleClientRejectApproval() {
+    if (!filing) return;
+
+    const note = window.prompt(
+      "Tell staff what needs to be corrected before you approve this filing.",
+      "",
+    );
+    if (note === null) return;
+
+    setBusyAction("client-reject-approval");
+
+    try {
+      await requestJson(
+        `/api/v1/features/ifta-v2/filings/${filing.id}/client-reject-approval`,
+        {
+          method: "POST",
+          body: JSON.stringify({ note }),
+        },
+      );
+
+      await loadFiling();
+      toast.success(`The filing was sent back to staff for ${filingPeriodLabel(filing)}.`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Could not send this filing back to staff."));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function handleUploadDocument() {
     if (!filing || !documentFile || documentBusy) return;
 
@@ -1108,15 +1137,27 @@ export default function IftaAutomationTruckerFilingPage({
                 </button>
               ) : null}
               {filing.status === "PENDING_APPROVAL" ? (
-                <button
-                  type="button"
-                  onClick={() => void handleClientApprove()}
-                  disabled={busyAction === "client-approve"}
-                  className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  style={{ background: "var(--b)" }}
-                >
-                  {busyAction === "client-approve" ? "Approving..." : "Approve Filing"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleClientRejectApproval()}
+                    disabled={Boolean(busyAction)}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--r)] bg-white px-[14px] text-[12px] font-bold text-[var(--r)] hover:bg-[rgba(191,10,48,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {busyAction === "client-reject-approval"
+                      ? "Sending..."
+                      : "No Approval"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleClientApprove()}
+                    disabled={Boolean(busyAction)}
+                    className="inline-flex min-h-10 items-center justify-center rounded-[10px] border border-[var(--b)] px-[14px] text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ background: "var(--b)" }}
+                  >
+                    {busyAction === "client-approve" ? "Approving..." : "Approve Filing"}
+                  </button>
+                </>
               ) : null}
               {canReopenFiling ? (
                 <button
@@ -1141,7 +1182,7 @@ export default function IftaAutomationTruckerFilingPage({
               }}
             >
               {filing.status === "PENDING_APPROVAL"
-                ? "This filing is awaiting your approval. Review the summary above and click Approve Filing to confirm."
+                ? "This filing is awaiting your approval. Approve it to continue, or send it back to staff if something needs correction."
                 : "This filing is locked because it has already been submitted for review."}
             </div>
           ) : null}

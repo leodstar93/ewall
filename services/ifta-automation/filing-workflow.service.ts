@@ -27,6 +27,7 @@ import {
   notifyIftaAutomationApproved,
   notifyIftaAutomationChangesRequested,
   notifyIftaAutomationClientApproved,
+  notifyIftaAutomationClientRejectedApproval,
   notifyIftaAutomationPendingApproval,
   notifyIftaAutomationReopened,
   notifyIftaAutomationSubmitted,
@@ -34,6 +35,7 @@ import {
 } from "@/services/ifta-automation/notifications";
 import { ensureFilingIftaSnapshots } from "@/services/ifta-automation/ifta-access.service";
 import { SnapshotService } from "@/services/ifta-automation/snapshot.service";
+import { upsertIftaApprovalExcelDocument } from "@/services/ifta-automation/generated-approval-excel-document";
 
 const SEND_FOR_APPROVAL_STATUSES = new Set<IftaFilingStatus>([
   IftaFilingStatus.DATA_READY,
@@ -44,6 +46,15 @@ const SEND_FOR_APPROVAL_STATUSES = new Set<IftaFilingStatus>([
   IftaFilingStatus.REOPENED,
   IftaFilingStatus.SNAPSHOT_READY,
 ]);
+
+const CLIENT_REJECT_APPROVAL_FALLBACK_STATUS = IftaFilingStatus.SNAPSHOT_READY;
+
+function isSendForApprovalReturnStatus(value: unknown): value is IftaFilingStatus {
+  return (
+    typeof value === "string" &&
+    SEND_FOR_APPROVAL_STATUSES.has(value as IftaFilingStatus)
+  );
+}
 
 type JurisdictionSummaryAuditRow = {
   jurisdiction: string;
@@ -976,6 +987,12 @@ export class FilingWorkflowService {
       actorUserId: input.actorUserId,
       db,
     });
+    const approvalExcelDocument = await upsertIftaApprovalExcelDocument({
+      filingId: filing.id,
+      snapshotId: snapshot.id,
+      actorUserId: input.actorUserId,
+      db,
+    });
 
     const updated = await db.iftaFiling.update({
       where: { id: filing.id },
@@ -989,11 +1006,85 @@ export class FilingWorkflowService {
       actorUserId: input.actorUserId,
       action: "filing.send_for_approval",
       message: `Sent filing for client approval with snapshot version ${snapshot.version}.`,
+      payloadJson: {
+        fromStatus: filing.status,
+        toStatus: IftaFilingStatus.PENDING_APPROVAL,
+        snapshotId: snapshot.id,
+        snapshotVersion: snapshot.version,
+        approvalExcelDocumentId: approvalExcelDocument.id,
+      },
       db,
     });
 
     await notifyIftaAutomationPendingApproval(
       await getIftaAutomationFilingOrThrow(filing.id, db),
+    );
+
+    return updated;
+  }
+
+  static async clientRejectApproval(input: {
+    filingId: string;
+    actorUserId?: string | null;
+    note?: string | null;
+    db?: DbLike;
+  }) {
+    const db = resolveDb(input.db ?? null);
+    const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
+
+    if (filing.status !== IftaFilingStatus.PENDING_APPROVAL) {
+      throw new IftaAutomationError(
+        "Only filings pending approval can be sent back to staff by the client.",
+        409,
+        "IFTA_CLIENT_REJECT_APPROVAL_INVALID_STATUS",
+      );
+    }
+
+    const sendForApprovalAudit = await db.iftaAuditLog.findFirst({
+      where: {
+        filingId: filing.id,
+        action: "filing.send_for_approval",
+      },
+      orderBy: { createdAt: "desc" },
+      select: { payloadJson: true },
+    });
+    const payload =
+      sendForApprovalAudit?.payloadJson &&
+      typeof sendForApprovalAudit.payloadJson === "object" &&
+      !Array.isArray(sendForApprovalAudit.payloadJson)
+        ? sendForApprovalAudit.payloadJson
+        : null;
+    const previousStatus = isSendForApprovalReturnStatus(payload?.fromStatus)
+      ? payload.fromStatus
+      : CLIENT_REJECT_APPROVAL_FALLBACK_STATUS;
+    const normalizedNote = input.note?.trim() || null;
+
+    const updated = await db.iftaFiling.update({
+      where: { id: filing.id },
+      data: {
+        status: previousStatus,
+        notesInternal: normalizedNote ?? filing.notesInternal,
+      },
+    });
+
+    await this.logAudit({
+      filingId: filing.id,
+      actorUserId: input.actorUserId,
+      action: "filing.client_reject_approval",
+      message:
+        normalizedNote ??
+        `Client did not approve the filing. Returned to ${previousStatus}.`,
+      payloadJson: {
+        fromStatus: filing.status,
+        toStatus: previousStatus,
+        note: normalizedNote,
+      },
+      db,
+    });
+
+    await notifyIftaAutomationClientRejectedApproval(
+      await getIftaAutomationFilingOrThrow(filing.id, db),
+      normalizedNote,
     );
 
     return updated;

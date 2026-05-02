@@ -202,6 +202,29 @@ export async function notifyIftaAutomationClientApproved(
   });
 }
 
+export async function notifyIftaAutomationClientRejectedApproval(
+  filing: IftaAutomationFilingDetail,
+  note?: string | null,
+) {
+  const normalizedNote = note?.trim() || null;
+
+  await safeCreateStaffNotifications({
+    roleNames: STAFF_ROLE_NAMES,
+    excludeUserIds: [],
+    category: NotificationCategory.IFTA,
+    level: NotificationLevel.WARNING,
+    title: `IFTA approval not accepted`,
+    message:
+      normalizedNote ??
+      `${carrierLabel(filing)} did not approve ${filingLabel(filing)}. Review the filing and send it again when ready.`,
+    href: staffHref(filing.id),
+    actionLabel: "Review filing",
+    metadataJson: buildNotificationMetadata(filing, {
+      note: normalizedNote,
+    }),
+  });
+}
+
 export async function notifyIftaAutomationApproved(
   filing: IftaAutomationFilingDetail,
 ) {
