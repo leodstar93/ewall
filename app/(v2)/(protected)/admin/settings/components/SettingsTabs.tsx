@@ -15,6 +15,7 @@ const tabs = [
   { href: "/admin/settings/ucr-rates", label: "UCR Rates" },
   { href: "/admin/settings/2290", label: "Form 2290" },
   { href: "/admin/settings/dmv", label: "DMV Registration" },
+  { href: "/admin/settings/db", label: "Database" },
 ];
 
 export default function SettingsTabs() {
