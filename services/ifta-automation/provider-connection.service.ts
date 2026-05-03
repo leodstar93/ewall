@@ -97,6 +97,16 @@ export class ProviderConnectionService {
           "Provider-agnostic backend is ready for a future SamsaraAdapter.",
         ],
       },
+      {
+        provider: ELDProvider.OTHER,
+        label: "Other ELD",
+        status: "planned",
+        oauth: false,
+        webhookSupported: false,
+        notes: [
+          "Credentials can be saved now while a provider-specific connector is added.",
+        ],
+      },
     ];
   }
 
@@ -393,19 +403,32 @@ export class ProviderConnectionService {
     });
 
     if (!account) {
+      await prisma.eldProviderCredential.deleteMany({
+        where: { userId: input.userId },
+      });
       return null;
     }
 
-    return prisma.integrationAccount.update({
-      where: { id: account.id },
-      data: {
-        status: IntegrationStatus.DISCONNECTED,
-        accessTokenEncrypted: null,
-        refreshTokenEncrypted: null,
-        tokenExpiresAt: null,
-        disconnectedAt: new Date(),
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.eldProviderCredential.deleteMany({
+        where: { userId: input.userId },
+      });
+      await tx.integrationWebhookEvent.deleteMany({
+        where: { integrationAccountId: account.id },
+      });
+      await tx.integrationAccount.delete({
+        where: { id: account.id },
+      });
     });
+
+    return {
+      ...account,
+      status: IntegrationStatus.DISCONNECTED,
+      accessTokenEncrypted: null,
+      refreshTokenEncrypted: null,
+      tokenExpiresAt: null,
+      disconnectedAt: new Date(),
+    };
   }
 
   static async getTenantConnectionStatus(input: {
@@ -419,11 +442,14 @@ export class ProviderConnectionService {
           provider: input.provider,
         }
       : {
-          tenantId: tenant.id,
-        };
+        tenantId: tenant.id,
+      };
 
     const accounts = await prisma.integrationAccount.findMany({
-      where,
+      where: {
+        ...where,
+        status: { not: IntegrationStatus.DISCONNECTED },
+      },
       include: {
         syncJobs: {
           orderBy: [{ createdAt: "desc" }],

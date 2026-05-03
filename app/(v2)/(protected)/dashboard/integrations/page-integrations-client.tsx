@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import Swal from "sweetalert2";
-import Table, { type ColumnDef } from "../components/ui/Table";
-import tableStyles from "../components/ui/DataTable.module.css";
 import styles from "./page.module.css";
 import {
   emptyEldProviderCredentialsState,
@@ -35,26 +33,6 @@ type IntegrationAccountSummary = {
   disconnectedAt: string | null;
   lastSuccessfulSyncAt: string | null;
   lastErrorAt: string | null;
-  lastErrorMessage: string | null;
-};
-
-type IntegrationTableRow = {
-  provider: EldProviderCode;
-  providerLabel: string;
-  providerStatus: string;
-  accountStatus: string;
-  organizationName: string;
-  connectedAtLabel: string;
-  syncLabel: string;
-  searchText: string;
-  sortProvider: string;
-  sortOrganization: string;
-  sortStatus: string;
-  sortConnectedAt: number;
-  isAvailable: boolean;
-  hasAccount: boolean;
-  isPending: boolean;
-  notes: string[];
   lastErrorMessage: string | null;
 };
 
@@ -128,51 +106,10 @@ function normalizeStatusLabel(status: string) {
   return status.replaceAll("_", " ");
 }
 
-function buildRows(
-  providers: ProviderCatalogItem[],
-  accounts: IntegrationAccountSummary[],
-): IntegrationTableRow[] {
-  return providers.map((provider) => {
-    const account = accounts.find((item) => item.provider === provider.provider) ?? null;
-    const isAvailable = provider.provider === "MOTIVE" && provider.status === "available";
-    const organizationName =
-      account?.externalOrgName ?? account?.externalOrgId ?? "No linked company yet";
-
-    return {
-      provider: provider.provider,
-      providerLabel: provider.label,
-      providerStatus: provider.status,
-      accountStatus: account?.status ?? "NOT_CONNECTED",
-      organizationName,
-      connectedAtLabel: formatDateTime(account?.connectedAt),
-      syncLabel: formatDateTime(account?.lastSuccessfulSyncAt),
-      searchText: [
-        provider.label,
-        provider.provider,
-        provider.status,
-        account?.status ?? "",
-        organizationName,
-        provider.notes?.join(" ") ?? "",
-        account?.lastErrorMessage ?? "",
-      ]
-        .join(" ")
-        .toLowerCase(),
-      sortProvider: provider.label,
-      sortOrganization: organizationName,
-      sortStatus: account?.status ?? provider.status,
-      sortConnectedAt: account?.connectedAt ? -new Date(account.connectedAt).getTime() : 0,
-      isAvailable,
-      hasAccount: Boolean(account),
-      isPending: account?.status === "PENDING",
-      notes: provider.notes ?? [],
-      lastErrorMessage: account?.lastErrorMessage ?? null,
-    };
-  });
-}
-
 export default function IntegrationsPageClient() {
   const [providers, setProviders] = useState<ProviderCatalogItem[]>([]);
   const [accounts, setAccounts] = useState<IntegrationAccountSummary[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<EldProviderCode | "">("");
   const [providerForm, setProviderForm] = useState<EldProviderCredentialsFormData>(
     emptyEldProviderCredentialsState,
   );
@@ -183,14 +120,29 @@ export default function IntegrationsPageClient() {
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [banner, setBanner] = useState<InlineMessage | null>(null);
 
-  const isDirty = useMemo(
-    () => JSON.stringify(providerForm) !== JSON.stringify(initialProviderForm),
-    [providerForm, initialProviderForm],
+  const selectedProviderItem = useMemo(
+    () => providers.find((provider) => provider.provider === selectedProvider) ?? null,
+    [providers, selectedProvider],
   );
-
-  const rows = useMemo(() => buildRows(providers, accounts), [providers, accounts]);
+  const primaryAccount = accounts[0] ?? null;
+  const selectedAccount = useMemo(
+    () => accounts.find((account) => account.provider === selectedProvider) ?? null,
+    [accounts, selectedProvider],
+  );
+  const visibleAccount = selectedAccount ?? primaryAccount;
+  const visibleProviderItem =
+    providers.find((provider) => provider.provider === visibleAccount?.provider) ??
+    selectedProviderItem;
+  const selectedProviderAvailable =
+    selectedProviderItem?.provider === "MOTIVE" && selectedProviderItem.status === "available";
+  const credentialsReady =
+    Boolean(selectedProvider) &&
+    Boolean(providerForm.username.trim()) &&
+    Boolean(providerForm.password.length);
+  const selectedProviderName = selectedProviderItem?.label ?? "";
 
   async function load() {
     setLoading(true);
@@ -206,9 +158,23 @@ export default function IntegrationsPageClient() {
         ...emptyEldProviderCredentialsState,
         ...credentialResponse,
       };
+      const nextProviders = Array.isArray(providerResponse.providers)
+        ? providerResponse.providers
+        : [];
+      const nextAccounts = Array.isArray(statusResponse.accounts)
+        ? statusResponse.accounts
+        : [];
+      const savedProvider =
+        nextProviders.find(
+          (provider) =>
+            provider.label.toLowerCase() === nextForm.providerName.trim().toLowerCase() ||
+            provider.provider.toLowerCase() === nextForm.providerName.trim().toLowerCase(),
+        )?.provider ?? "";
+      const accountProvider = nextAccounts[0]?.provider ?? "";
 
-      setProviders(Array.isArray(providerResponse.providers) ? providerResponse.providers : []);
-      setAccounts(Array.isArray(statusResponse.accounts) ? statusResponse.accounts : []);
+      setProviders(nextProviders);
+      setAccounts(nextAccounts);
+      setSelectedProvider((current) => current || savedProvider || accountProvider);
       setProviderForm(nextForm);
       setInitialProviderForm(nextForm);
     } catch (error) {
@@ -274,11 +240,21 @@ export default function IntegrationsPageClient() {
     );
   }, []);
 
-  const handleProviderFieldChange = (
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
+  const handleProviderFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setProviderForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleProviderSelect = (event: ChangeEvent<HTMLSelectElement>) => {
+    const provider = event.target.value as EldProviderCode | "";
+    const item = providers.find((candidate) => candidate.provider === provider);
+
+    setSelectedProvider(provider);
+    setBanner(null);
+    setProviderForm((current) => ({
+      ...current,
+      providerName: item?.label ?? "",
+    }));
   };
 
   const handleConnect = async (provider: EldProviderCode) => {
@@ -376,6 +352,14 @@ export default function IntegrationsPageClient() {
   };
 
   const handleSave = async () => {
+    if (!selectedProviderItem) {
+      setBanner({
+        tone: "error",
+        message: "Select an ELD provider first.",
+      });
+      return null;
+    }
+
     try {
       setSaving(true);
       setBanner(null);
@@ -384,7 +368,10 @@ export default function IntegrationsPageClient() {
         "/api/v1/settings/eld-provider",
         {
           method: "PUT",
-          body: JSON.stringify(providerForm),
+          body: JSON.stringify({
+            ...providerForm,
+            providerName: selectedProviderItem.label,
+          }),
         },
       );
 
@@ -398,15 +385,41 @@ export default function IntegrationsPageClient() {
         tone: "success",
         message: "ELD provider details updated.",
       });
+      setModalOpen(false);
+      return nextForm;
     } catch (error) {
       setBanner({
         tone: "error",
         message:
           error instanceof Error ? error.message : "Failed to save ELD provider settings.",
       });
+      return null;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveAndContinue = async () => {
+    if (!credentialsReady) {
+      setBanner({
+        tone: "error",
+        message: "Select an ELD provider and enter the username and password.",
+      });
+      return;
+    }
+
+    const saved = await handleSave();
+    if (!saved) return;
+
+    if (!selectedProviderAvailable || !selectedProvider) {
+      setBanner({
+        tone: "info",
+        message: `${selectedProviderName || "This ELD"} login was saved. OAuth connection for this provider is not available yet.`,
+      });
+      return;
+    }
+
+    await handleConnect(selectedProvider);
   };
 
   const handleReset = () => {
@@ -414,116 +427,17 @@ export default function IntegrationsPageClient() {
     setBanner(null);
   };
 
-  const columns: ColumnDef<IntegrationTableRow>[] = [
-    {
-      key: "sortProvider",
-      label: "Provider",
-      render: (_, item) => (
-        <div
-          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
-          title={item.notes[0] || `Code: ${item.provider}`}
-        >
-          {item.providerLabel}
-        </div>
-      ),
-    },
-    {
-      key: "sortOrganization",
-      label: "Linked Company",
-      render: (_, item) => (
-        <div
-          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
-          style={{ fontSize: 13 }}
-          title={`Last sync: ${item.syncLabel}`}
-        >
-          {item.organizationName}
-        </div>
-      ),
-    },
-    {
-      key: "sortStatus",
-      label: "Status",
-      render: (_, item) => (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          <Badge
-            label={normalizeStatusLabel(item.providerStatus)}
-            tone={statusTone(item.providerStatus)}
-          />
-          <Badge
-            label={normalizeStatusLabel(item.accountStatus)}
-            tone={statusTone(item.accountStatus)}
-          />
-        </div>
-      ),
-    },
-    {
-      key: "sortConnectedAt",
-      label: "Connected",
-      render: (_, item) => (
-        <div
-          className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
-          style={{ fontSize: 13 }}
-          title={
-            item.lastErrorMessage ||
-            (item.hasAccount ? "Connection available" : "No active connection")
-          }
-        >
-          {item.connectedAtLabel}
-        </div>
-      ),
-    },
-    {
-      key: "_actions",
-      label: "Actions",
-      sortable: false,
-      render: (_, item) => {
-        const connectKey = `connect:${item.provider}`;
-        const confirmKey = `confirm:${item.provider}`;
-        const disconnectKey = `disconnect:${item.provider}`;
+  const openConnectModal = () => {
+    setProviderForm(initialProviderForm);
+    setBanner(null);
+    setModalOpen(true);
+  };
 
-        return (
-          <div className={styles.tableActionRow}>
-            {item.isPending ? (
-              <button
-                type="button"
-                onClick={() => void handleConfirm(item.provider)}
-                disabled={busyAction === confirmKey}
-                className={styles.primaryButton}
-              >
-                {busyAction === confirmKey ? "Confirming..." : "Confirm"}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => void handleConnect(item.provider)}
-              disabled={!item.isAvailable || busyAction === connectKey || item.isPending}
-              className={item.isPending ? styles.secondaryButton : styles.primaryButton}
-            >
-              {busyAction === connectKey
-                ? "Opening..."
-                : item.isPending
-                  ? "Pending"
-                  : item.hasAccount
-                  ? "Reconnect"
-                  : item.isAvailable
-                    ? "Connect"
-                    : "Coming Soon"}
-            </button>
-            {item.hasAccount ? (
-              <button
-                type="button"
-                onClick={() => void handleDisconnect(item.provider)}
-                disabled={busyAction === disconnectKey}
-                className={styles.secondaryButton}
-              >
-                {busyAction === disconnectKey ? "Disconnecting..." : "Disconnect"}
-              </button>
-            ) : null}
-          </div>
-        );
-      },
-    },
-  ];
+  const closeConnectModal = () => {
+    if (saving || busyAction) return;
+    handleReset();
+    setModalOpen(false);
+  };
 
   return (
     <div className={styles.page}>
@@ -553,159 +467,199 @@ export default function IntegrationsPageClient() {
             </div>
           </div>
         ) : (
-          <Table
-            data={rows}
-            columns={columns}
-            title="ELD integrations"
-            actions={[
-              {
-                label: "Refresh",
-                onClick: () => void load(),
-              },
-            ]}
-            searchQuery=""
-            searchKeys={["searchText"]}
-          />
-        )}
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <p className={styles.sectionEyebrow}>ELD Integrations</p>
+              <h3 className={styles.panelTitle}>ELD connection</h3>
+            </div>
 
-        <section className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <p className={styles.sectionEyebrow}>Secure Access</p>
-            <h3 className={styles.panelTitle}>ELD provider login</h3>
-            <p className={styles.sectionText}>
-              Store the login details your team needs for the provider portal. Sensitive
-              fields remain encrypted at rest.
-            </p>
-          </div>
-
-          <div className={styles.credentialHeader}>
-            <Badge label="Encrypted" tone="info" />
-            {providerForm.updatedAt ? (
-              <Badge
-                label={`Updated ${formatDateTime(providerForm.updatedAt)}`}
-                tone="neutral"
-              />
-            ) : null}
-          </div>
-
-          <div className={styles.fieldsGrid}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>ELD provider</span>
-              <input
-                name="providerName"
-                value={providerForm.providerName}
-                onChange={handleProviderFieldChange}
-                className={styles.input}
-                maxLength={120}
-                placeholder="Motive, Samsara, Geotab..."
-              />
-            </label>
-
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Login URL</span>
-              <span className={styles.fieldHint}>
-                Optional direct login page for the provider portal.
-              </span>
-              <input
-                name="loginUrl"
-                type="url"
-                value={providerForm.loginUrl}
-                onChange={handleProviderFieldChange}
-                className={styles.input}
-                autoComplete="off"
-                placeholder="https://..."
-                spellCheck={false}
-              />
-            </label>
-
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Username or email</span>
-              <input
-                name="username"
-                value={providerForm.username}
-                onChange={handleProviderFieldChange}
-                className={styles.input}
-                autoComplete="off"
-                maxLength={180}
-                spellCheck={false}
-              />
-            </label>
-
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Password</span>
-              <div className={styles.passwordRow}>
-                <input
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  value={providerForm.password}
-                  onChange={handleProviderFieldChange}
-                  className={styles.input}
-                  autoComplete="new-password"
-                  maxLength={200}
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  className={styles.secondaryButton}
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </label>
-
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Account or fleet ID</span>
-              <span className={styles.fieldHint}>
-                Optional account number, fleet code, or tenant identifier.
-              </span>
-              <input
-                name="accountIdentifier"
-                value={providerForm.accountIdentifier}
-                onChange={handleProviderFieldChange}
-                className={styles.input}
-                autoComplete="off"
-                maxLength={180}
-              />
-            </label>
-
-            <label className={`${styles.field} ${styles.fieldWide}`}>
-              <span className={styles.fieldLabel}>Notes</span>
-              <span className={styles.fieldHint}>
-                Optional notes such as MFA instructions or provider-specific access steps.
-              </span>
-              <textarea
-                name="notes"
-                value={providerForm.notes}
-                onChange={handleProviderFieldChange}
-                className={`${styles.input} ${styles.textarea}`}
-                maxLength={2000}
-              />
-            </label>
-          </div>
-
-          {isDirty ? (
-            <div className={styles.actions}>
+            <div className={styles.topActionRow}>
               <button
                 type="button"
-                onClick={handleReset}
-                disabled={saving}
-                className={styles.secondaryButton}
-              >
-                Reset
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={saving}
+                onClick={openConnectModal}
                 className={styles.primaryButton}
               >
-                {saving ? "Saving..." : "Save ELD login"}
+                {visibleAccount ? "Reconnect ELD" : "Connect ELD"}
               </button>
             </div>
-          ) : null}
-        </section>
+
+            {visibleAccount && visibleProviderItem ? (
+              <div className={styles.connectionCard}>
+                <div className={styles.connectionCardMain}>
+                  <div>
+                    <p className={styles.cardEyebrow}>Connected ELD</p>
+                    <h4 className={styles.cardTitle}>{visibleProviderItem.label}</h4>
+                    <p className={styles.cardMeta}>
+                      {visibleAccount.externalOrgName ??
+                        visibleAccount.externalOrgId ??
+                        "Company pending verification"}
+                    </p>
+                  </div>
+                  <div className={styles.statusBadges}>
+                    <Badge
+                      label={normalizeStatusLabel(visibleAccount.status)}
+                      tone={statusTone(visibleAccount.status)}
+                    />
+                  </div>
+                </div>
+
+                {visibleAccount.lastErrorMessage ? (
+                  <div className={styles.rowError}>{visibleAccount.lastErrorMessage}</div>
+                ) : null}
+
+                <div className={styles.connectionCardFooter}>
+                  <span>Last sync: {formatDateTime(visibleAccount.lastSuccessfulSyncAt)}</span>
+                  <div className={styles.cardActions}>
+                    {visibleAccount.status === "PENDING" ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleConfirm(visibleAccount.provider)}
+                        disabled={busyAction === `confirm:${visibleAccount.provider}`}
+                        className={styles.primaryButton}
+                      >
+                        {busyAction === `confirm:${visibleAccount.provider}`
+                          ? "Confirming..."
+                          : "Confirm company"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void handleDisconnect(visibleAccount.provider)}
+                      disabled={busyAction === `disconnect:${visibleAccount.provider}`}
+                      className={styles.secondaryButton}
+                    >
+                      {busyAction === `disconnect:${visibleAccount.provider}`
+                        ? "Disconnecting..."
+                        : "Disconnect"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {!visibleAccount ? (
+              <div className={styles.emptyState}>No ELD connected yet.</div>
+            ) : null}
+          </section>
+        )}
       </section>
+
+      {modalOpen ? (
+        <div className={styles.modalBackdrop} role="presentation">
+          <div
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="eld-connect-title"
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <p className={styles.sectionEyebrow}>Secure Access</p>
+                <h3 id="eld-connect-title" className={styles.panelTitle}>
+                  Connect ELD
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeConnectModal}
+                disabled={saving || Boolean(busyAction)}
+                className={styles.iconButton}
+                aria-label="Close modal"
+              >
+                x
+              </button>
+            </div>
+
+            <div className={styles.credentialHeader}>
+              <Badge label="Encrypted" tone="info" />
+              {providerForm.updatedAt ? (
+                <Badge
+                  label={`Updated ${formatDateTime(providerForm.updatedAt)}`}
+                  tone="neutral"
+                />
+              ) : null}
+            </div>
+
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>ELD provider</span>
+              <select
+                value={selectedProvider}
+                onChange={handleProviderSelect}
+                className={`${styles.input} ${styles.providerSelect}`}
+              >
+                <option value="">Select your ELD</option>
+                {providers.map((provider) => (
+                  <option key={provider.provider} value={provider.provider}>
+                    {provider.label}
+                    {provider.status === "available" ? "" : " - Coming soon"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className={styles.fieldsGrid}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Username or email</span>
+                <input
+                  name="username"
+                  value={providerForm.username}
+                  onChange={handleProviderFieldChange}
+                  className={styles.input}
+                  autoComplete="off"
+                  maxLength={180}
+                  spellCheck={false}
+                />
+              </label>
+
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Password</span>
+                <div className={styles.passwordRow}>
+                  <input
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={providerForm.password}
+                    onChange={handleProviderFieldChange}
+                    className={styles.input}
+                    autoComplete="new-password"
+                    maxLength={200}
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className={styles.secondaryButton}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                onClick={closeConnectModal}
+                disabled={saving || Boolean(busyAction)}
+                className={styles.secondaryButton}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveAndContinue()}
+                disabled={saving || Boolean(busyAction) || !credentialsReady}
+                className={styles.primaryButton}
+              >
+                {saving || (selectedProvider && busyAction === `connect:${selectedProvider}`)
+                  ? "Saving..."
+                  : selectedProviderAvailable
+                    ? "Connect"
+                    : "Save login"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

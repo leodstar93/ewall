@@ -5,9 +5,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background:
-    radial-gradient(circle at top right, rgba(0, 40, 104, 0.08), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 248, 252, 1));
+  background: #f7f8fc;
 }
 
 .page > * {
@@ -23,9 +21,9 @@
 .panel,
 .loadingCard {
   border: 1px solid var(--br);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 14px 32px rgba(0, 26, 69, 0.08);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(0, 26, 69, 0.05);
   padding: 18px;
 }
 
@@ -61,6 +59,11 @@
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.topActionRow {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .alert {
@@ -164,6 +167,183 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.providerSelect {
+  appearance: auto;
+}
+
+.selectedProviderPanel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--br);
+  border-radius: 14px;
+  background: #f8faff;
+  padding: 14px;
+}
+
+.connectionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid var(--br);
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px;
+}
+
+.connectionCardMain {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cardEyebrow {
+  margin: 0 0 4px;
+  color: var(--r);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--b);
+  font-size: 18px;
+}
+
+.cardMeta {
+  margin: 5px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.connectionCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--br);
+  padding-top: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.cardActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.selectedProviderTitle {
+  color: var(--b);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.selectedProviderMeta {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.statusBadges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.statusGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.statusItem {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.statusItem strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.emptyState {
+  border: 1px dashed var(--br);
+  border-radius: 14px;
+  background: #fbfcff;
+  color: var(--text-secondary);
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.42);
+  padding: 18px;
+}
+
+.modal {
+  width: min(680px, 100%);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid var(--br);
+  border-radius: 14px;
+  background: #fff;
+  padding: 18px;
+  box-shadow: 0 24px 60px rgba(0, 26, 69, 0.24);
+}
+
+.modalHeader,
+.modalActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modalActions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.iconButton {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--br);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.iconButton:hover {
+  background: var(--off);
 }
 
 .fieldsGrid {
@@ -312,8 +492,19 @@
 @media (max-width: 960px) {
   .fieldsGrid,
   .loadingGrid,
+  .statusGrid,
   .passwordRow {
     grid-template-columns: 1fr;
+  }
+
+  .selectedProviderPanel,
+  .connectionCardMain,
+  .connectionCardFooter {
+    flex-direction: column;
+  }
+
+  .statusBadges {
+    justify-content: flex-start;
   }
 }
 
@@ -329,16 +520,24 @@
 
   .toolbarRow,
   .tableActionRow,
-  .actions {
+  .actions,
+  .modalActions,
+  .cardActions {
     justify-content: flex-start;
   }
 
-  .actions {
+  .actions,
+  .modalActions {
     flex-direction: column-reverse;
   }
 
   .primaryButton,
   .secondaryButton {
     width: 100%;
+  }
+
+  .iconButton {
+    width: 40px;
+    flex: 0 0 40px;
   }
 }
