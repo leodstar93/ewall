@@ -741,7 +741,7 @@ export function FilingDetailPanel({
   const canFinalize = mode === "staff" && filing.status === "APPROVED";
   const canReopen =
     mode === "staff" &&
-    (filing.status === "APPROVED" || filing.status === "FINALIZED");
+    filing.status === "FINALIZED";
   const filingIdForDraft = filing.id;
   const jurisdictionBaselineRows = buildJurisdictionSummaryDraftRows(filing);
   const jurisdictionDraftRows =

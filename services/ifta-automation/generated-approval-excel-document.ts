@@ -18,6 +18,27 @@ type SnapshotExportShape = {
   exportReport?: Omit<IftaExportReport, "filedAt"> & {
     filedAt: string | Date | null;
   };
+  totals?: {
+    totalDistance?: unknown;
+    totalFuelGallons?: unknown;
+    fleetMpg?: unknown;
+    totalTaxDue?: unknown;
+    totalTaxCredit?: unknown;
+    totalNetTax?: unknown;
+  };
+};
+
+type SnapshotFilingDataShape = {
+  jurisdictionSummaries?: Array<{
+    jurisdiction?: unknown;
+    totalMiles?: unknown;
+    taxableGallons?: unknown;
+    taxPaidGallons?: unknown;
+    taxRate?: unknown;
+    taxDue?: unknown;
+    taxCredit?: unknown;
+    netTax?: unknown;
+  }>;
 };
 
 function sanitizeStorageFileName(fileName: string) {
@@ -76,6 +97,83 @@ function normalizeSnapshotExportReport(snapshotSummary: unknown): IftaExportRepo
   };
 }
 
+function toNumber(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (value && typeof value === "object" && "toString" in value) {
+    const parsed = Number(value.toString());
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function normalizeJurisdictionSummaries(snapshotFilingData: unknown) {
+  const filingData = snapshotFilingData as SnapshotFilingDataShape | null;
+  const summaries = Array.isArray(filingData?.jurisdictionSummaries)
+    ? filingData.jurisdictionSummaries
+    : [];
+
+  return summaries
+    .map((summary) => ({
+      jurisdiction:
+        typeof summary.jurisdiction === "string"
+          ? summary.jurisdiction.trim().toUpperCase()
+          : "",
+      totalMiles: toNumber(summary.totalMiles),
+      taxableGallons: toNumber(summary.taxableGallons),
+      taxPaidGallons: toNumber(summary.taxPaidGallons),
+      taxRate: toNumber(summary.taxRate),
+      taxDue: toNumber(summary.taxDue),
+      taxCredit: toNumber(summary.taxCredit),
+      netTax: toNumber(summary.netTax),
+    }))
+    .filter((summary) => summary.jurisdiction)
+    .sort((left, right) => left.jurisdiction.localeCompare(right.jurisdiction));
+}
+
+function enrichSnapshotExportReport(input: {
+  exportReport: IftaExportReport;
+  snapshotSummary: unknown;
+  snapshotFilingData: unknown;
+}): IftaExportReport {
+  const summary = input.snapshotSummary as SnapshotExportShape | null;
+  const totals = summary?.totals ?? {};
+  const jurisdictionSummaries = normalizeJurisdictionSummaries(input.snapshotFilingData);
+  const summariesByJurisdiction = new Map(
+    jurisdictionSummaries.map((row) => [row.jurisdiction, row]),
+  );
+
+  return {
+    ...input.exportReport,
+    totalMiles: toNumber(totals.totalDistance) || input.exportReport.totalMiles,
+    totalTaxableMiles: toNumber(totals.totalDistance) || input.exportReport.totalTaxableMiles,
+    totalGallons: toNumber(totals.totalFuelGallons) || input.exportReport.totalGallons,
+    totalTaxDue: toNumber(totals.totalNetTax) || input.exportReport.totalTaxDue,
+    fleetMpg: toNumber(totals.fleetMpg) || input.exportReport.fleetMpg,
+    totalTaxCredit: toNumber(totals.totalTaxCredit) || input.exportReport.totalTaxCredit,
+    totalNetTax: toNumber(totals.totalNetTax) || input.exportReport.totalNetTax,
+    lines: input.exportReport.lines.map((line) => {
+      const summaryRow = summariesByJurisdiction.get(
+        line.jurisdictionCode.trim().toUpperCase(),
+      );
+
+      if (!summaryRow) return line;
+
+      return {
+        ...line,
+        taxableGallons: summaryRow.taxableGallons,
+        taxPaidGallons: summaryRow.taxPaidGallons,
+        taxDue: summaryRow.taxDue,
+        taxCredit: summaryRow.taxCredit,
+        netTax: summaryRow.netTax,
+      };
+    }),
+  };
+}
+
 export async function upsertIftaApprovalExcelDocument(input: {
   filingId: string;
   snapshotId: string;
@@ -89,6 +187,7 @@ export async function upsertIftaApprovalExcelDocument(input: {
       id: true,
       filingId: true,
       version: true,
+      filingDataJson: true,
       summaryJson: true,
       filing: {
         select: {
@@ -135,7 +234,11 @@ export async function upsertIftaApprovalExcelDocument(input: {
     );
   }
 
-  const rendered = renderIftaExcel(exportReport);
+  const rendered = renderIftaExcel(enrichSnapshotExportReport({
+    exportReport,
+    snapshotSummary: snapshot.summaryJson,
+    snapshotFilingData: snapshot.filingDataJson,
+  }));
   const companyName = resolveCarrierName({
     tenantName: snapshot.filing.tenant.name,
     companyProfile: snapshot.filing.tenant,

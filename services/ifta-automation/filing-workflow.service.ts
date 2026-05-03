@@ -1176,12 +1176,9 @@ export class FilingWorkflowService {
     const db = resolveDb(input.db ?? null);
     const filing = await getIftaAutomationFilingOrThrow(input.filingId, db);
 
-    if (
-      filing.status !== IftaFilingStatus.APPROVED &&
-      filing.status !== IftaFilingStatus.FINALIZED
-    ) {
+    if (filing.status !== IftaFilingStatus.FINALIZED) {
       throw new IftaAutomationError(
-        "Only approved or finalized filings can be reopened.",
+        "Only finalized filings can be reopened.",
         409,
         "IFTA_REOPEN_INVALID_STATUS",
       );

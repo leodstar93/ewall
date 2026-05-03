@@ -29,6 +29,9 @@ type SnapshotExportShape = {
     totalTaxableMiles: number;
     totalGallons: number;
     totalTaxDue: number;
+    fleetMpg?: number;
+    totalTaxCredit?: number;
+    totalNetTax?: number;
     lines: Array<{
       jurisdiction: string;
       jurisdictionCode: string;
@@ -37,6 +40,10 @@ type SnapshotExportShape = {
       gallons: number;
       taxRate: number;
       taxDue: number;
+      taxableGallons?: number;
+      taxPaidGallons?: number;
+      taxCredit?: number;
+      netTax?: number;
     }>;
   };
 };
@@ -60,6 +67,9 @@ function buildLiveExportReport(filing: Awaited<ReturnType<typeof getIftaAutomati
     totalTaxableMiles: Number(filing.totalDistance ?? 0),
     totalGallons: Number(filing.totalFuelGallons ?? 0),
     totalTaxDue: Number(filing.totalNetTax ?? filing.totalTaxDue ?? 0),
+    fleetMpg: Number(filing.fleetMpg ?? 0),
+    totalTaxCredit: Number(filing.totalTaxCredit ?? 0),
+    totalNetTax: Number(filing.totalNetTax ?? 0),
     lines: filing.jurisdictionSummaries.map((summary) => ({
       jurisdiction: summary.jurisdiction,
       jurisdictionCode: summary.jurisdiction,
@@ -68,6 +78,10 @@ function buildLiveExportReport(filing: Awaited<ReturnType<typeof getIftaAutomati
       gallons: Number(summary.taxPaidGallons ?? 0),
       taxRate: Number(summary.taxRate ?? 0),
       taxDue: Number(summary.netTax ?? summary.taxDue ?? 0),
+      taxableGallons: Number(summary.taxableGallons ?? 0),
+      taxPaidGallons: Number(summary.taxPaidGallons ?? 0),
+      taxCredit: Number(summary.taxCredit ?? 0),
+      netTax: Number(summary.netTax ?? 0),
     })),
   };
 }

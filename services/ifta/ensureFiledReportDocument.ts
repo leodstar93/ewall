@@ -13,6 +13,10 @@ export type IftaExportLine = {
   gallons: number;
   taxRate: number;
   taxDue: number;
+  taxableGallons?: number;
+  taxPaidGallons?: number;
+  taxCredit?: number;
+  netTax?: number;
 };
 
 export type IftaExportReport = {
@@ -30,6 +34,9 @@ export type IftaExportReport = {
   totalTaxableMiles: number;
   totalGallons: number;
   totalTaxDue: number;
+  fleetMpg?: number;
+  totalTaxCredit?: number;
+  totalNetTax?: number;
   lines: IftaExportLine[];
 };
 

@@ -876,7 +876,7 @@ export default function IftaAutomationTruckerFilingPage({
   const canUseEldSync = roles.includes("STAFF") || roles.includes("ADMIN");
   const canReopenFiling =
     canUseEldSync &&
-    (filing.status === "FINALIZED" || filing.status === "APPROVED");
+    filing.status === "FINALIZED";
   const conversation = buildConversation(filing);
   const auditRows = buildAuditRows(filing);
   const companyName =
