@@ -553,28 +553,34 @@ function getMotiveConfig() {
     clientSecret: process.env.MOTIVE_CLIENT_SECRET?.trim() || "",
     authorizeUrl:
       process.env.MOTIVE_OAUTH_AUTHORIZE_URL?.trim() ||
-      "https://account.gomotive.com/oauth/authorize",
+      "https://gomotive.com/oauth/authorize",
     tokenUrl:
       process.env.MOTIVE_OAUTH_TOKEN_URL?.trim() ||
-      "https://account.gomotive.com/oauth/token",
+      "https://gomotive.com/oauth/token",
     apiBaseUrl:
-      process.env.MOTIVE_API_BASE_URL?.trim() ||
-      "https://api.gomotive.com",
+      process.env.MOTIVE_API_BASE_URL?.trim() || "https://api.gomotive.com",
     scopes: splitScopes(
       process.env.MOTIVE_OAUTH_SCOPES?.trim() ||
         "companies.read vehicles.read users.read ifta.read fuel.read",
     ),
-    oauthPrompt: optionalEnvWithDefault(process.env.MOTIVE_OAUTH_PROMPT, "login"),
+    oauthPrompt: optionalEnvWithDefault(
+      process.env.MOTIVE_OAUTH_PROMPT,
+      "login",
+    ),
     oauthMaxAge: optionalEnvWithDefault(process.env.MOTIVE_OAUTH_MAX_AGE, "0"),
     companiesPath: process.env.MOTIVE_COMPANIES_PATH?.trim() || "/v1/companies",
     vehiclesPath: process.env.MOTIVE_VEHICLES_PATH?.trim() || "/v1/vehicles",
     driversPath: process.env.MOTIVE_DRIVERS_PATH?.trim() || "/v1/users",
     fuelPurchasesPath:
       process.env.MOTIVE_FUEL_PURCHASES_PATH?.trim() || "/v1/fuel_purchases",
-    iftaTripsPath: process.env.MOTIVE_IFTA_TRIPS_PATH?.trim() || "/v1/ifta/trips",
+    iftaTripsPath:
+      process.env.MOTIVE_IFTA_TRIPS_PATH?.trim() || "/v1/ifta/trips",
     iftaSummaryPath:
       process.env.MOTIVE_IFTA_SUMMARY_PATH?.trim() || "/v1/ifta/summary",
-    iftaDataLagDays: readNonNegativeInteger(process.env.MOTIVE_IFTA_DATA_LAG_DAYS, 3),
+    iftaDataLagDays: readNonNegativeInteger(
+      process.env.MOTIVE_IFTA_DATA_LAG_DAYS,
+      3,
+    ),
     iftaRollupTimeZone:
       process.env.MOTIVE_IFTA_ROLLUP_TIME_ZONE?.trim() || "America/Los_Angeles",
     webhookSecret: process.env.MOTIVE_WEBHOOK_SECRET?.trim() || null,
@@ -696,7 +702,14 @@ class MotiveAdapter implements ELDProviderAdapter {
     if (!unwrapped) return null;
     const { record, payload } = unwrapped;
 
-    const externalId = readString(record, "id", "user_id", "userId", "driver_id", "driverId");
+    const externalId = readString(
+      record,
+      "id",
+      "user_id",
+      "userId",
+      "driver_id",
+      "driverId",
+    );
     if (!externalId) return null;
 
     return {
@@ -711,7 +724,11 @@ class MotiveAdapter implements ELDProviderAdapter {
   }
 
   private mapCompany(candidate: unknown): ProviderOrganizationIdentity | null {
-    const unwrapped = unwrapEntityRecord(candidate, ["company", "organization", "fleet"]);
+    const unwrapped = unwrapEntityRecord(candidate, [
+      "company",
+      "organization",
+      "fleet",
+    ]);
     if (!unwrapped) return null;
     const { record, payload } = unwrapped;
 
@@ -731,7 +748,14 @@ class MotiveAdapter implements ELDProviderAdapter {
 
     return {
       externalOrgId,
-      externalOrgName: readString(record, "name", "company_name", "companyName", "legal_name", "legalName"),
+      externalOrgName: readString(
+        record,
+        "name",
+        "company_name",
+        "companyName",
+        "legal_name",
+        "legalName",
+      ),
       metadataJson: payload as Prisma.InputJsonValue,
     };
   }
@@ -754,16 +778,43 @@ class MotiveAdapter implements ELDProviderAdapter {
     const vehicleRecord = readNestedRecord(record, "vehicle");
     const externalVehicleId =
       readString(record, "vehicle_id", "vehicleId") ??
-      (vehicleRecord ? readString(vehicleRecord, "id", "vehicle_id", "vehicleId") : null);
+      (vehicleRecord
+        ? readString(vehicleRecord, "id", "vehicle_id", "vehicleId")
+        : null);
     const tripDate =
       parseOptionalDate(
-        readString(record, "date", "trip_date", "tripDate", "started_at", "start_time", "startDate", "start_date"),
-      ) ?? fallbackWindow?.windowStart ?? null;
+        readString(
+          record,
+          "date",
+          "trip_date",
+          "tripDate",
+          "started_at",
+          "start_time",
+          "startDate",
+          "start_date",
+        ),
+      ) ??
+      fallbackWindow?.windowStart ??
+      null;
     const jurisdiction = normalizeJurisdictionCode(
-      readString(record, "jurisdiction", "state", "state_code", "stateCode", "jurisdiction_code"),
+      readString(
+        record,
+        "jurisdiction",
+        "state",
+        "state_code",
+        "stateCode",
+        "jurisdiction_code",
+      ),
     );
     const externalTripId =
-      readString(record, "id", "trip_id", "tripId", "ifta_trip_id", "iftaTripId") ??
+      readString(
+        record,
+        "id",
+        "trip_id",
+        "tripId",
+        "ifta_trip_id",
+        "iftaTripId",
+      ) ??
       (externalVehicleId && jurisdiction && fallbackWindow
         ? [
             "trip",
@@ -790,7 +841,11 @@ class MotiveAdapter implements ELDProviderAdapter {
         2,
       ),
       calibratedStart: toNullableDecimalString(
-        readNumber(record, "calibrated_start_odometer", "calibratedStartOdometer"),
+        readNumber(
+          record,
+          "calibrated_start_odometer",
+          "calibratedStartOdometer",
+        ),
         2,
       ),
       calibratedEnd: toNullableDecimalString(
@@ -798,7 +853,15 @@ class MotiveAdapter implements ELDProviderAdapter {
         2,
       ),
       miles: toNullableDecimalString(
-        readDistanceMiles(record, "miles", "distance", "total_miles", "totalMiles", "taxable_miles", "taxableMiles"),
+        readDistanceMiles(
+          record,
+          "miles",
+          "distance",
+          "total_miles",
+          "totalMiles",
+          "taxable_miles",
+          "taxableMiles",
+        ),
         2,
       ),
       payloadJson: payload as Prisma.InputJsonValue,
@@ -829,8 +892,9 @@ class MotiveAdapter implements ELDProviderAdapter {
 
     const vehicleRecord = readNestedRecord(record, "vehicle");
     const externalVehicleId =
-      (vehicleRecord ? readString(vehicleRecord, "id", "vehicle_id", "vehicleId") : null) ??
-      readString(record, "vehicle_id", "vehicleId", "id");
+      (vehicleRecord
+        ? readString(vehicleRecord, "id", "vehicle_id", "vehicleId")
+        : null) ?? readString(record, "vehicle_id", "vehicleId", "id");
     const jurisdiction = normalizeJurisdictionCode(
       readString(
         record,
@@ -854,7 +918,8 @@ class MotiveAdapter implements ELDProviderAdapter {
       "taxableMiles",
     );
 
-    if (!externalVehicleId || !jurisdiction || distanceMiles === null) return null;
+    if (!externalVehicleId || !jurisdiction || distanceMiles === null)
+      return null;
 
     const startDate = windowStart.toISOString().slice(0, 10);
     const endDate = windowEnd.toISOString().slice(0, 10);
@@ -880,27 +945,47 @@ class MotiveAdapter implements ELDProviderAdapter {
     };
   }
 
-  private mapFuelPurchase(candidate: unknown): ProviderFuelPurchaseRecord | null {
-    const unwrapped = unwrapEntityRecord(candidate, ["fuel_purchase", "fuelPurchase", "purchase"]);
+  private mapFuelPurchase(
+    candidate: unknown,
+  ): ProviderFuelPurchaseRecord | null {
+    const unwrapped = unwrapEntityRecord(candidate, [
+      "fuel_purchase",
+      "fuelPurchase",
+      "purchase",
+    ]);
     if (!unwrapped) return null;
     const { record, payload } = unwrapped;
 
-    const externalPurchaseId = readString(record, "id", "purchase_id", "purchaseId");
+    const externalPurchaseId = readString(
+      record,
+      "id",
+      "purchase_id",
+      "purchaseId",
+    );
     if (!externalPurchaseId) return null;
 
     return {
       externalPurchaseId,
       externalVehicleId: readString(record, "vehicle_id", "vehicleId"),
       purchasedAt:
-        parseOptionalDate(readString(record, "purchased_at", "purchasedAt", "date")) ?? null,
-      jurisdiction: normalizeJurisdictionCode(readString(record, "jurisdiction", "state")),
-      fuelType: normalizeOptionalText(readString(record, "fuel_type", "fuelType")),
+        parseOptionalDate(
+          readString(record, "purchased_at", "purchasedAt", "date"),
+        ) ?? null,
+      jurisdiction: normalizeJurisdictionCode(
+        readString(record, "jurisdiction", "state"),
+      ),
+      fuelType: normalizeOptionalText(
+        readString(record, "fuel_type", "fuelType"),
+      ),
       gallons: toNullableDecimalString(
         readNumber(record, "fuel", "gallons", "fuel_gallons", "quantity"),
         3,
       ),
       taxPaid: readBoolean(record, "tax_paid", "taxPaid"),
-      amount: toNullableDecimalString(readNumber(record, "amount", "total_amount", "total"), 2),
+      amount: toNullableDecimalString(
+        readNumber(record, "amount", "total_amount", "total"),
+        2,
+      ),
       payloadJson: payload as Prisma.InputJsonValue,
     };
   }
@@ -954,13 +1039,29 @@ class MotiveAdapter implements ELDProviderAdapter {
       cache: "no-store",
     });
 
-    const payload = await safeJson(response);
+    const responseText = await response.text();
+
+    let payload: unknown = null;
+
+    try {
+      payload = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      payload = { raw: responseText.slice(0, 2000) };
+    }
+
+    console.log("[MOTIVE token exchange] response", {
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get("content-type"),
+      body: payload,
+    });
+
     if (!response.ok) {
       throw new IftaAutomationError(
         `Motive token exchange failed with status ${response.status}.`,
         502,
         "MOTIVE_TOKEN_EXCHANGE_FAILED",
-        payload,
+        payload as Prisma.InputJsonValue,
       );
     }
 
@@ -973,9 +1074,16 @@ class MotiveAdapter implements ELDProviderAdapter {
       path: this.getConfig().companiesPath,
     });
 
-    const fromCollection = extractCollection(payload, ["companies", "organizations", "fleets", "results"])
+    const fromCollection = extractCollection(payload, [
+      "companies",
+      "organizations",
+      "fleets",
+      "results",
+    ])
       .map((company) => this.mapCompany(company))
-      .find((company): company is ProviderOrganizationIdentity => Boolean(company));
+      .find((company): company is ProviderOrganizationIdentity =>
+        Boolean(company),
+      );
 
     if (fromCollection) {
       return fromCollection;
@@ -984,7 +1092,10 @@ class MotiveAdapter implements ELDProviderAdapter {
     const payloadRecord = toJsonRecord(payload);
     const dataRecord = payloadRecord ? toJsonRecord(payloadRecord.data) : null;
 
-    return this.mapCompany(payload) || (dataRecord ? this.mapCompany(dataRecord) : null);
+    return (
+      this.mapCompany(payload) ||
+      (dataRecord ? this.mapCompany(dataRecord) : null)
+    );
   }
 
   async refreshAccessToken(input: { refreshToken: string }) {
@@ -1067,7 +1178,9 @@ class MotiveAdapter implements ELDProviderAdapter {
     };
   }
 
-  async syncFuelPurchases(input: ProviderSyncWindowContext): Promise<FuelSyncResult> {
+  async syncFuelPurchases(
+    input: ProviderSyncWindowContext,
+  ): Promise<FuelSyncResult> {
     const effectiveWindow = clampWindowEndForProviderLag(
       input.windowStart,
       input.windowEnd,
@@ -1089,13 +1202,16 @@ class MotiveAdapter implements ELDProviderAdapter {
           requestedWindowEnd: input.windowEnd.toISOString(),
           providerAvailableEnd: endOfCalendarDayUtc(
             addCalendarDays(
-              getTimeZoneDateParts(new Date(), this.getConfig().iftaRollupTimeZone) ??
-                getTimeZoneDateParts(new Date(), "UTC")!,
+              getTimeZoneDateParts(
+                new Date(),
+                this.getConfig().iftaRollupTimeZone,
+              ) ?? getTimeZoneDateParts(new Date(), "UTC")!,
               -this.getConfig().iftaDataLagDays,
             ),
           ).toISOString(),
           providerRollupTimeZone: this.getConfig().iftaRollupTimeZone,
-          skippedReason: "Requested window starts after Motive available data end.",
+          skippedReason:
+            "Requested window starts after Motive available data end.",
         },
       };
     }
@@ -1110,9 +1226,15 @@ class MotiveAdapter implements ELDProviderAdapter {
         input.providerEndDate,
       ),
     });
-    const purchases = extractCollection(payload, ["fuel_purchases", "fuelPurchases", "results"])
+    const purchases = extractCollection(payload, [
+      "fuel_purchases",
+      "fuelPurchases",
+      "results",
+    ])
       .map((purchase) => this.mapFuelPurchase(purchase))
-      .filter((purchase): purchase is ProviderFuelPurchaseRecord => Boolean(purchase));
+      .filter((purchase): purchase is ProviderFuelPurchaseRecord =>
+        Boolean(purchase),
+      );
 
     return {
       phase: "fuel_purchases",
@@ -1136,7 +1258,9 @@ class MotiveAdapter implements ELDProviderAdapter {
     };
   }
 
-  async syncIftaDistance(input: ProviderSyncWindowContext): Promise<DistanceSyncResult> {
+  async syncIftaDistance(
+    input: ProviderSyncWindowContext,
+  ): Promise<DistanceSyncResult> {
     const effectiveWindow = clampWindowEndForProviderLag(
       input.windowStart,
       input.windowEnd,
@@ -1159,20 +1283,26 @@ class MotiveAdapter implements ELDProviderAdapter {
           requestedWindowEnd: input.windowEnd.toISOString(),
           providerAvailableEnd: endOfCalendarDayUtc(
             addCalendarDays(
-              getTimeZoneDateParts(new Date(), this.getConfig().iftaRollupTimeZone) ??
-                getTimeZoneDateParts(new Date(), "UTC")!,
+              getTimeZoneDateParts(
+                new Date(),
+                this.getConfig().iftaRollupTimeZone,
+              ) ?? getTimeZoneDateParts(new Date(), "UTC")!,
               -this.getConfig().iftaDataLagDays,
             ),
           ).toISOString(),
           providerRollupTimeZone: this.getConfig().iftaRollupTimeZone,
-          skippedReason: "Requested window starts after Motive available data end.",
+          skippedReason:
+            "Requested window starts after Motive available data end.",
         },
       };
     }
 
     const providerStartDate =
       input.providerStartDate ??
-      formatDateInTimeZone(effectiveWindow.windowStart, effectiveWindow.timeZone);
+      formatDateInTimeZone(
+        effectiveWindow.windowStart,
+        effectiveWindow.timeZone,
+      );
     const providerEndDate =
       input.providerEndDate ??
       formatDateInTimeZone(effectiveWindow.windowEnd, effectiveWindow.timeZone);
@@ -1205,7 +1335,13 @@ class MotiveAdapter implements ELDProviderAdapter {
     });
     const flattenedSummaryRecords = flattenIftaSummaryRecords(summaryRecords);
     let trips = flattenedSummaryRecords
-      .map((trip) => this.mapSummaryTrip(trip, effectiveWindow.windowStart, effectiveWindow.windowEnd))
+      .map((trip) =>
+        this.mapSummaryTrip(
+          trip,
+          effectiveWindow.windowStart,
+          effectiveWindow.windowEnd,
+        ),
+      )
       .filter((trip): trip is ProviderIftaTripRecord => Boolean(trip));
     let fallbackRecords: unknown[] = [];
 
@@ -1245,7 +1381,10 @@ class MotiveAdapter implements ELDProviderAdapter {
     return {
       phase: "ifta_distance",
       trips,
-      recordsRead: trips.length > 0 ? trips.length : flattenedSummaryRecords.length + fallbackRecords.length,
+      recordsRead:
+        trips.length > 0
+          ? trips.length
+          : flattenedSummaryRecords.length + fallbackRecords.length,
       recordsCreated: 0,
       recordsUpdated: 0,
       recordsFailed: 0,
@@ -1262,9 +1401,10 @@ class MotiveAdapter implements ELDProviderAdapter {
         queryStartDate: providerStartDate,
         queryEndDate: providerEndDate,
         summaryRecordsRead: flattenedSummaryRecords.length,
-        fallbackEndpoint: trips.length > 0 && fallbackRecords.length > 0
-          ? this.getConfig().iftaTripsPath
-          : null,
+        fallbackEndpoint:
+          trips.length > 0 && fallbackRecords.length > 0
+            ? this.getConfig().iftaTripsPath
+            : null,
         fallbackRecordsRead: fallbackRecords.length,
       },
     };
@@ -1285,7 +1425,9 @@ class MotiveAdapter implements ELDProviderAdapter {
       return false;
     }
 
-    const expected = createHmac("sha256", secret).update(input.rawBody).digest("hex");
+    const expected = createHmac("sha256", secret)
+      .update(input.rawBody)
+      .digest("hex");
     const expectedBuffer = Buffer.from(expected, "utf8");
     const signatureBuffer = Buffer.from(signature.trim(), "utf8");
 

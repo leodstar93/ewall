@@ -29,12 +29,20 @@ export async function POST(request: NextRequest) {
     const provider = parseProvider(body.provider);
     const returnTo = parseOptionalString(body.returnTo);
     const appBaseUrl = getPublicAppBaseUrl(request);
-    const result = await ProviderConnectionService.buildAuthorizationUrl({
-      userId,
-      provider,
-      returnTo,
-      redirectUri: `${appBaseUrl}/api/v1/integrations/eld/callback/${String(provider).toLowerCase()}`,
-    });
+
+const providerSlug = String(provider).toLowerCase();
+
+const redirectUri =
+  provider === "MOTIVE" && process.env.MOTIVE_REDIRECT_URI
+    ? process.env.MOTIVE_REDIRECT_URI
+    : `${appBaseUrl}/api/v1/integrations/eld/callback/${providerSlug}`;
+
+const result = await ProviderConnectionService.buildAuthorizationUrl({
+  userId,
+  provider,
+  returnTo,
+  redirectUri,
+});
 
     return Response.json({
       provider,

@@ -64,11 +64,18 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const motiveRedirectUri =
+      process.env.MOTIVE_REDIRECT_URI?.trim() ||
+      `${appBaseUrl}/api/v1/integrations/eld/callback/motive`;
+
+    console.log("[MOTIVE OAuth callback] appBaseUrl:", appBaseUrl);
+    console.log("[MOTIVE OAuth callback] redirectUri:", motiveRedirectUri);
+
     const result = await ProviderConnectionService.handleOAuthCallback({
       provider: ELDProvider.MOTIVE,
       code,
       state,
-      redirectUri: `${appBaseUrl}/api/v1/integrations/eld/callback/motive`,
+      redirectUri: motiveRedirectUri,
     });
 
     if (result.pendingConfirmation) {
