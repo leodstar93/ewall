@@ -17,15 +17,14 @@ export async function PUT(
       return Response.json({ error: "Invalid session." }, { status: 400 });
     }
 
-    const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
-    if (!roles.includes("ADMIN")) {
+    const canReviewAll = canReviewAllIfta(guard.perms, guard.isAdmin);
+    if (!canReviewAll) {
       return Response.json(
-        { error: "Only admins can edit jurisdiction summary rows." },
+        { error: "Only IFTA staff can edit jurisdiction summary rows." },
         { status: 403 },
       );
     }
 
-    const canReviewAll = canReviewAllIfta(guard.perms, guard.isAdmin);
     await assertFilingAccess({
       filingId: id,
       userId,
@@ -40,6 +39,7 @@ export async function PUT(
         taxableGallons?: unknown;
         taxPaidGallons?: unknown;
       }>;
+      fleetMpg?: unknown;
     };
 
     const filing = await FilingWorkflowService.replaceJurisdictionSummary({
@@ -67,8 +67,14 @@ export async function PUT(
                 : typeof line.taxPaidGallons === "string"
                   ? Number(line.taxPaidGallons)
                   : null,
-          }))
+              }))
         : [],
+      fleetMpg:
+        typeof body.fleetMpg === "number"
+          ? body.fleetMpg
+          : typeof body.fleetMpg === "string"
+            ? Number(body.fleetMpg)
+            : null,
     });
 
     return Response.json({ filing });
@@ -91,15 +97,14 @@ export async function DELETE(
       return Response.json({ error: "Invalid session." }, { status: 400 });
     }
 
-    const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
-    if (!roles.includes("ADMIN")) {
+    const canReviewAll = canReviewAllIfta(guard.perms, guard.isAdmin);
+    if (!canReviewAll) {
       return Response.json(
-        { error: "Only admins can reset jurisdiction summary overrides." },
+        { error: "Only IFTA staff can reset jurisdiction summary overrides." },
         { status: 403 },
       );
     }
 
-    const canReviewAll = canReviewAllIfta(guard.perms, guard.isAdmin);
     await assertFilingAccess({
       filingId: id,
       userId,

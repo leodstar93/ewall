@@ -23,6 +23,11 @@ type ManualSummaryOverrideRow = {
   taxPaidGallons: number;
 };
 
+type ManualSummaryOverride = {
+  rows: ManualSummaryOverrideRow[];
+  fleetMpgOverride: number | null;
+};
+
 type CalculationResult = {
   filingId: string;
   totalDistance: number;
@@ -43,10 +48,20 @@ function countsAsTaxPaidGallons(taxPaid: boolean | null) {
   return taxPaid !== false;
 }
 
-function parseManualSummaryOverrideRows(payload: unknown) {
-  if (!isRecord(payload) || !Array.isArray(payload.jurisdictions)) return [];
+function parseManualSummaryOverride(payload: unknown): ManualSummaryOverride {
+  if (!isRecord(payload) || !Array.isArray(payload.jurisdictions)) {
+    return { rows: [], fleetMpgOverride: null };
+  }
 
-  return payload.jurisdictions
+  const fleetMpgOverride = decimalToNumber(
+    typeof payload.fleetMpg === "string" || typeof payload.fleetMpg === "number"
+      ? payload.fleetMpg
+      : typeof payload.fleetMpgOverride === "string" || typeof payload.fleetMpgOverride === "number"
+        ? payload.fleetMpgOverride
+        : null,
+  );
+
+  const rows = payload.jurisdictions
     .map((row): ManualSummaryOverrideRow | null => {
       if (!isRecord(row)) return null;
       const jurisdiction =
@@ -74,11 +89,19 @@ function parseManualSummaryOverrideRows(payload: unknown) {
       return {
         jurisdiction,
         totalMiles: roundNumber(totalMiles, 2),
-        taxableGallons: roundNumber(taxableGallons, 3),
-        taxPaidGallons: roundNumber(taxPaidGallons, 3),
+        taxableGallons: roundNumber(taxableGallons, 2),
+        taxPaidGallons: roundNumber(taxPaidGallons, 2),
       };
     })
     .filter((row): row is ManualSummaryOverrideRow => Boolean(row));
+
+  return {
+    rows,
+    fleetMpgOverride:
+      Number.isFinite(fleetMpgOverride) && fleetMpgOverride > 0
+        ? roundNumber(fleetMpgOverride, 2)
+        : null,
+  };
 }
 
 export class IftaCalculationEngine {
@@ -263,7 +286,9 @@ export class IftaCalculationEngine {
       return null;
     }
 
-    const overrideRows = parseManualSummaryOverrideRows(audit?.payloadJson);
+    const { rows: overrideRows, fleetMpgOverride } = parseManualSummaryOverride(
+      audit?.payloadJson,
+    );
 
     if (overrideRows.length === 0) {
       return null;
@@ -301,17 +326,18 @@ export class IftaCalculationEngine {
     );
     const totalFuelGallons = roundNumber(
       overrideRows.reduce((sum, row) => sum + row.taxPaidGallons, 0),
-      3,
+      2,
     );
     const fleetMpg =
-      totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 4) : 0;
+      fleetMpgOverride ??
+      (totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 2) : 0);
     let totalTaxDue = 0;
     let totalTaxCredit = 0;
     let totalNetTax = 0;
 
     const summaryRows = overrideRows.map((row) => {
       const taxableGallons =
-        fleetMpg > 0 ? roundNumber(row.totalMiles / fleetMpg, 3) : 0;
+        fleetMpg > 0 ? roundNumber(row.totalMiles / fleetMpg, 2) : 0;
       const taxRate = roundNumber(rateByJurisdiction.get(row.jurisdiction) ?? 0, 5);
       const taxDue = roundNumber(taxableGallons * taxRate, 2);
       const taxCredit = roundNumber(row.taxPaidGallons * taxRate, 2);
@@ -325,8 +351,8 @@ export class IftaCalculationEngine {
         filingId: input.filingId,
         jurisdiction: row.jurisdiction,
         totalMiles: toDecimalString(row.totalMiles, 2),
-        taxableGallons: toDecimalString(taxableGallons, 3),
-        taxPaidGallons: toDecimalString(row.taxPaidGallons, 3),
+        taxableGallons: toDecimalString(taxableGallons, 2),
+        taxPaidGallons: toDecimalString(row.taxPaidGallons, 2),
         taxRate: toDecimalString(taxRate, 5),
         taxDue: toDecimalString(taxDue, 2),
         taxCredit: toDecimalString(taxCredit, 2),
@@ -346,8 +372,8 @@ export class IftaCalculationEngine {
       where: { id: input.filingId },
       data: {
         totalDistance: toDecimalString(totalDistance, 2),
-        totalFuelGallons: toDecimalString(totalFuelGallons, 3),
-        fleetMpg: toDecimalString(fleetMpg, 4),
+        totalFuelGallons: toDecimalString(totalFuelGallons, 2),
+        fleetMpg: toDecimalString(fleetMpg, 2),
         totalTaxDue: toDecimalString(totalTaxDue, 2),
         totalTaxCredit: toDecimalString(totalTaxCredit, 2),
         totalNetTax: toDecimalString(totalNetTax, 2),

@@ -96,7 +96,10 @@ export default function IftaAutomationStaffFilingPage({
     ? session.user.permissions
     : [];
   const canViewAudit = canReadAudit(roles, permissions);
-  const canEditJurisdictionSummary = roles.includes("ADMIN");
+  const canEditJurisdictionSummary =
+    roles.includes("ADMIN") ||
+    permissions.includes("ifta:review") ||
+    permissions.includes("ifta:approve");
   const [filing, setFiling] = useState<FilingDetail | null>(null);
   const [instructions, setInstructions] = useState<StaffIftaInstructions | null>(null);
   const [instructionsModalOpen, setInstructionsModalOpen] = useState(false);
@@ -538,6 +541,7 @@ export default function IftaAutomationStaffFilingPage({
   async function handleSaveJurisdictionSummary(
     currentFiling: FilingDetail,
     rows: JurisdictionSummaryEditInput[],
+    fleetMpg: string,
   ) {
     await runBusyAction(
       `summary:${currentFiling.id}`,
@@ -554,6 +558,7 @@ export default function IftaAutomationStaffFilingPage({
                 taxableGallons: row.taxableGallons,
                 taxPaidGallons: row.taxPaidGallons,
               })),
+              fleetMpg,
             }),
           },
         );
@@ -654,8 +659,8 @@ export default function IftaAutomationStaffFilingPage({
           onSendChatMessage={(currentFiling, message) =>
             handleSendChatMessage(currentFiling, message)
           }
-          onSaveJurisdictionSummary={(currentFiling, rows) =>
-            handleSaveJurisdictionSummary(currentFiling, rows)
+          onSaveJurisdictionSummary={(currentFiling, rows, fleetMpg) =>
+            handleSaveJurisdictionSummary(currentFiling, rows, fleetMpg)
           }
           onResetJurisdictionSummaryOverride={(currentFiling) =>
             handleResetJurisdictionSummaryOverride(currentFiling)

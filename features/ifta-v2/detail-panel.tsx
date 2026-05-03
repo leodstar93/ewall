@@ -56,6 +56,7 @@ type FilingDetailPanelProps = {
   onSaveJurisdictionSummary?: (
     filing: FilingDetail,
     rows: JurisdictionSummaryEditInput[],
+    fleetMpg: string,
   ) => Promise<void>;
   onResetJurisdictionSummaryOverride?: (filing: FilingDetail) => Promise<void>;
   onExceptionAction: (
@@ -100,6 +101,7 @@ type JurisdictionSummaryDraftRow = JurisdictionSummaryEditInput & {
 type JurisdictionSummaryDraftState = {
   filingId: string;
   rows: JurisdictionSummaryDraftRow[];
+  fleetMpg: string;
 };
 
 const validIftaJurisdictions = US_JURISDICTIONS.filter(
@@ -480,6 +482,18 @@ function toEditableDecimal(value: string | number | null | undefined, precision:
   return toNumber(value).toFixed(precision);
 }
 
+function normalizeDecimalInput(value: string, precision = 2) {
+  const sanitized = value.replace(/[^\d.]/g, "");
+  const [whole = "", ...decimalParts] = sanitized.split(".");
+  const decimal = decimalParts.join("").slice(0, precision);
+
+  if (sanitized.startsWith(".")) {
+    return decimal ? `0.${decimal}` : "0.";
+  }
+
+  return decimalParts.length > 0 ? `${whole}.${decimal}` : whole;
+}
+
 function calculateDraftFleetMpg(rows: JurisdictionSummaryDraftRow[]) {
   const totalMiles = rows.reduce((sum, row) => {
     const value = Number(row.totalMiles);
@@ -497,10 +511,10 @@ function calculateDraftTaxableGallons(row: JurisdictionSummaryDraftRow, fleetMpg
   const totalMiles = Number(row.totalMiles);
 
   if (!Number.isFinite(fleetMpg) || fleetMpg <= 0 || !Number.isFinite(totalMiles)) {
-    return "0.000";
+    return "0.00";
   }
 
-  return (totalMiles / fleetMpg).toFixed(3);
+  return (totalMiles / fleetMpg).toFixed(2);
 }
 
 function buildJurisdictionSummaryDraftRows(
@@ -511,8 +525,8 @@ function buildJurisdictionSummaryDraftRows(
     id: summary.id,
     jurisdiction: summary.jurisdiction,
     totalMiles: toEditableDecimal(summary.totalMiles, 2),
-    taxableGallons: toEditableDecimal(summary.taxableGallons, 3),
-    taxPaidGallons: toEditableDecimal(summary.taxPaidGallons, 3),
+    taxableGallons: toEditableDecimal(summary.taxableGallons, 2),
+    taxPaidGallons: toEditableDecimal(summary.taxPaidGallons, 2),
   }));
 }
 
@@ -744,11 +758,20 @@ export function FilingDetailPanel({
     filing.status === "FINALIZED";
   const filingIdForDraft = filing.id;
   const jurisdictionBaselineRows = buildJurisdictionSummaryDraftRows(filing);
+  const baselineFleetMpg = toEditableDecimal(filing.fleetMpg, 2);
   const jurisdictionDraftRows =
     jurisdictionDraft?.filingId === filingIdForDraft
       ? jurisdictionDraft.rows
       : jurisdictionBaselineRows;
-  const draftFleetMpg = calculateDraftFleetMpg(jurisdictionDraftRows);
+  const draftFleetMpgValue =
+    jurisdictionDraft?.filingId === filingIdForDraft
+      ? jurisdictionDraft.fleetMpg
+      : baselineFleetMpg;
+  const parsedDraftFleetMpg = Number(draftFleetMpgValue);
+  const draftFleetMpg =
+    Number.isFinite(parsedDraftFleetMpg) && parsedDraftFleetMpg > 0
+      ? parsedDraftFleetMpg
+      : calculateDraftFleetMpg(jurisdictionDraftRows);
   const canEditSummary =
     canEditJurisdictionSummary &&
     Boolean(onSaveJurisdictionSummary) &&
@@ -765,7 +788,8 @@ export function FilingDetailPanel({
   const summaryResetBusy = busyAction === `summary-reset:${filing.id}`;
   const summaryDirty =
     JSON.stringify(jurisdictionDraftRows) !==
-    JSON.stringify(jurisdictionBaselineRows);
+      JSON.stringify(jurisdictionBaselineRows) ||
+    draftFleetMpgValue !== baselineFleetMpg;
   const ucrPrimaryButtonClassName =
     "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#1d4ed8] !bg-[#2563eb] !text-white hover:!bg-[#1d4ed8]";
   const ucrSecondaryButtonClassName =
@@ -781,9 +805,18 @@ export function FilingDetailPanel({
     filing.jurisdictionSummaries.map((summary) => ({
       id: summary.id,
       jurisdiction: summary.jurisdiction,
-      totalMiles: formatNumber(summary.totalMiles),
-      taxableGallons: formatGallons(summary.taxableGallons),
-      taxPaidGallons: formatGallons(summary.taxPaidGallons),
+      totalMiles: formatNumber(summary.totalMiles, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+      taxableGallons: formatNumber(summary.taxableGallons, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+      taxPaidGallons: formatNumber(summary.taxPaidGallons, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
       taxRate: formatNumber(summary.taxRate, { maximumFractionDigits: 5 }),
       netTax: formatMoney(summary.netTax),
     }));
@@ -1042,11 +1075,15 @@ export function FilingDetailPanel({
 
       return {
         filingId: filingIdForDraft,
+        fleetMpg: current?.filingId === filingIdForDraft ? current.fleetMpg : baselineFleetMpg,
         rows: currentRows.map((row) =>
           row.draftId === draftId
             ? {
                 ...row,
-                [field]: field === "jurisdiction" ? value.toUpperCase() : value,
+                [field]:
+                  field === "jurisdiction"
+                    ? value.toUpperCase()
+                    : normalizeDecimalInput(value),
               }
             : row,
         ),
@@ -1061,6 +1098,7 @@ export function FilingDetailPanel({
 
       return {
         filingId: filingIdForDraft,
+        fleetMpg: current?.filingId === filingIdForDraft ? current.fleetMpg : baselineFleetMpg,
         rows: [
           ...currentRows,
           {
@@ -1068,8 +1106,8 @@ export function FilingDetailPanel({
             id: null,
             jurisdiction: "",
             totalMiles: "0.00",
-            taxableGallons: "0.000",
-            taxPaidGallons: "0.000",
+            taxableGallons: "0.00",
+            taxPaidGallons: "0.00",
           },
         ],
       };
@@ -1083,9 +1121,18 @@ export function FilingDetailPanel({
 
       return {
         filingId: filingIdForDraft,
+        fleetMpg: current?.filingId === filingIdForDraft ? current.fleetMpg : baselineFleetMpg,
         rows: currentRows.filter((row) => row.draftId !== draftId),
       };
     });
+  }
+
+  function updateDraftFleetMpg(value: string) {
+    setJurisdictionDraft((current) => ({
+      filingId: filingIdForDraft,
+      fleetMpg: normalizeDecimalInput(value),
+      rows: current?.filingId === filingIdForDraft ? current.rows : jurisdictionBaselineRows,
+    }));
   }
 
   async function handleUploadDocument() {
@@ -1112,6 +1159,7 @@ export function FilingDetailPanel({
         taxableGallons: calculateDraftTaxableGallons(row, draftFleetMpg),
         taxPaidGallons: row.taxPaidGallons.trim(),
       })),
+      draftFleetMpgValue.trim(),
     );
     setJurisdictionDraft(null);
     setSummaryEditing(false);
@@ -1420,7 +1468,22 @@ export function FilingDetailPanel({
                       Jurisdiction Summary
                     </h3>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                        Fleet MPG
+                      </span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={draftFleetMpgValue}
+                        onChange={(event) => updateDraftFleetMpg(event.target.value)}
+                        disabled={summaryBusy}
+                        className="h-10 w-32 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
+                        aria-label="Fleet MPG"
+                      />
+                    </label>
                     <Button
                       type="button"
                       variant="outline"
@@ -1525,7 +1588,7 @@ export function FilingDetailPanel({
                                 <input
                                   type="number"
                                   min="0"
-                                  step="0.001"
+                                  step="0.01"
                                   value={row.taxPaidGallons}
                                   onChange={(event) =>
                                     updateJurisdictionDraftRow(
@@ -1543,7 +1606,7 @@ export function FilingDetailPanel({
                                 <input
                                   type="number"
                                   min="0"
-                                  step="0.001"
+                                  step="0.01"
                                   value={calculateDraftTaxableGallons(row, draftFleetMpg)}
                                   disabled
                                   className="h-10 w-36 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700"

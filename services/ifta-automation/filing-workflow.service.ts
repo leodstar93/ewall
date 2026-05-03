@@ -472,6 +472,7 @@ export class FilingWorkflowService {
       taxableGallons: number;
       taxPaidGallons?: number | null;
     }>;
+    fleetMpg?: number | null;
     db?: DbLike;
   }) {
     const db = resolveDb(input.db ?? null);
@@ -556,7 +557,7 @@ export class FilingWorkflowService {
       normalizedLines.push({
         jurisdiction,
         totalMiles: roundNumber(totalMiles, 2),
-        taxPaidGallons: roundNumber(taxPaidGallons, 3),
+        taxPaidGallons: roundNumber(taxPaidGallons, 2),
       });
     }
 
@@ -618,16 +619,30 @@ export class FilingWorkflowService {
     );
     const totalFuelGallons = roundNumber(
       normalizedLines.reduce((sum, line) => sum + line.taxPaidGallons, 0),
-      3,
+      2,
     );
+    const fleetMpgOverride =
+      typeof input.fleetMpg === "number" && Number.isFinite(input.fleetMpg)
+        ? roundNumber(input.fleetMpg, 2)
+        : null;
+
+    if (fleetMpgOverride !== null && fleetMpgOverride <= 0) {
+      throw new IftaAutomationError(
+        "Fleet MPG must be greater than zero.",
+        400,
+        "INVALID_IFTA_FLEET_MPG",
+      );
+    }
+
     const fleetMpg =
-      totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 4) : 0;
+      fleetMpgOverride ??
+      (totalFuelGallons > 0 ? roundNumber(totalDistance / totalFuelGallons, 2) : 0);
     let totalTaxDue = 0;
     let totalTaxCredit = 0;
     let totalNetTax = 0;
     const summaryRows = normalizedLines.map((line) => {
       const taxableGallons =
-        fleetMpg > 0 ? roundNumber(line.totalMiles / fleetMpg, 3) : 0;
+        fleetMpg > 0 ? roundNumber(line.totalMiles / fleetMpg, 2) : 0;
       const taxRate = roundNumber(rateByJurisdiction.get(line.jurisdiction) ?? 0, 5);
       const taxDue = roundNumber(taxableGallons * taxRate, 2);
       const taxCredit = roundNumber(line.taxPaidGallons * taxRate, 2);
@@ -641,8 +656,8 @@ export class FilingWorkflowService {
         filingId: filing.id,
         jurisdiction: line.jurisdiction,
         totalMiles: toDecimalString(line.totalMiles, 2),
-        taxableGallons: toDecimalString(taxableGallons, 3),
-        taxPaidGallons: toDecimalString(line.taxPaidGallons, 3),
+        taxableGallons: toDecimalString(taxableGallons, 2),
+        taxPaidGallons: toDecimalString(line.taxPaidGallons, 2),
         taxRate: toDecimalString(taxRate, 5),
         taxDue: toDecimalString(taxDue, 2),
         taxCredit: toDecimalString(taxCredit, 2),
@@ -664,8 +679,8 @@ export class FilingWorkflowService {
       where: { id: filing.id },
       data: {
         totalDistance: toDecimalString(totalDistance, 2),
-        totalFuelGallons: toDecimalString(totalFuelGallons, 3),
-        fleetMpg: toDecimalString(fleetMpg, 4),
+        totalFuelGallons: toDecimalString(totalFuelGallons, 2),
+        fleetMpg: toDecimalString(fleetMpg, 2),
         totalTaxDue: toDecimalString(totalTaxDue, 2),
         totalTaxCredit: toDecimalString(totalTaxCredit, 2),
         totalNetTax: toDecimalString(totalNetTax, 2),
@@ -707,6 +722,9 @@ export class FilingWorkflowService {
         added: auditDiff.added,
         changed: auditDiff.changed,
         removed: auditDiff.removed,
+        fleetMpg: toDecimalString(fleetMpg, 2),
+        fleetMpgOverride:
+          fleetMpgOverride !== null ? toDecimalString(fleetMpgOverride, 2) : null,
         jurisdictions: afterSummaryRows.map((row) => ({
           jurisdiction: row.jurisdiction,
           totalMiles: row.totalMiles,
