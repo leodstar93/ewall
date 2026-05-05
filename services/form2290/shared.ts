@@ -7,6 +7,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import type { DbClient, ServiceContext } from "@/lib/db/types";
 import { canAutoMark2290Compliant, is2290Eligible, is2290Expired } from "@/lib/form2290-workflow";
+import { ensureUserOrganization } from "@/lib/services/organization.service";
 
 export class Form2290ServiceError extends Error {
   status: number;
@@ -31,6 +32,7 @@ export const form2290FilingInclude = {
     },
   },
   truck: true,
+  organization: true,
   taxPeriod: true,
   corrections: {
     orderBy: {
@@ -50,6 +52,10 @@ export const form2290FilingInclude = {
       createdAt: "asc" as const,
     },
   },
+  vehicles: {
+    orderBy: [{ isPrimary: "desc" as const }, { createdAt: "asc" as const }],
+  },
+  authorization: true,
   schedule1Document: true,
 } satisfies Prisma.Form2290FilingInclude;
 
@@ -76,8 +82,48 @@ export async function getForm2290Settings(
     data: {
       minimumEligibleWeight: 55000,
       expirationWarningDays: 30,
+      serviceFeeCents: 0,
+      allowCustomerPaysProvider: true,
+      allowEwallCollectsAndRemits: true,
+      requireSchedule1ForCompliance: true,
     },
   });
+}
+
+export function canManageAll2290(perms: string[] | readonly string[] | undefined, isAdmin: boolean) {
+  return Boolean(
+    isAdmin ||
+      perms?.includes("compliance2290:review") ||
+      perms?.includes("compliance2290:approve") ||
+      perms?.includes("compliance2290:manage_settings"),
+  );
+}
+
+export async function resolve2290OrganizationId(input: {
+  db?: DbClient;
+  userId: string;
+}) {
+  const db = resolveForm2290Db(input.db);
+
+  if (db === prisma) {
+    const organization = await ensureUserOrganization(input.userId);
+    return organization.id;
+  }
+
+  const member = await db.organizationMember.findFirst({
+    where: { userId: input.userId },
+    orderBy: { createdAt: "asc" },
+    select: { organizationId: true },
+  });
+
+  if (member?.organizationId) return member.organizationId;
+
+  const company = await db.companyProfile.findUnique({
+    where: { userId: input.userId },
+    select: { id: true },
+  });
+
+  return company?.id ?? null;
 }
 
 export async function resolve2290Eligibility(
@@ -130,7 +176,14 @@ export async function assert2290FilingAccess(input: {
   }
 
   if (!input.canManageAll && filing.userId !== input.actorUserId) {
-    throw new Form2290ServiceError("Forbidden", 403, "FORBIDDEN");
+    const actorOrganizationId = await resolve2290OrganizationId({
+      db,
+      userId: input.actorUserId,
+    });
+
+    if (!actorOrganizationId || filing.organizationId !== actorOrganizationId) {
+      throw new Form2290ServiceError("Forbidden", 403, "FORBIDDEN");
+    }
   }
 
   return filing;
@@ -181,6 +234,10 @@ export function get2290DocumentType(type: Form2290DocumentType) {
       return "Schedule 1";
     case Form2290DocumentType.PAYMENT_PROOF:
       return "Payment proof";
+    case Form2290DocumentType.AUTHORIZATION:
+      return "Authorization";
+    case Form2290DocumentType.PROVIDER_CONFIRMATION:
+      return "Provider confirmation";
     case Form2290DocumentType.SUPPORTING_DOC:
       return "Supporting document";
     default:

@@ -9,6 +9,14 @@ type SettingsPayload = {
     id: string;
     minimumEligibleWeight: number;
     expirationWarningDays: number;
+    serviceFeeCents: number;
+    allowCustomerPaysProvider: boolean;
+    allowEwallCollectsAndRemits: boolean;
+    requireSchedule1ForCompliance: boolean;
+    authorizationText: string | null;
+    providerName: string | null;
+    providerUrl: string | null;
+    operationalInstructions: string | null;
   };
   taxPeriods?: Form2290TaxPeriod[];
   error?: string;
@@ -52,6 +60,14 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 export default function Form2290SettingsClient() {
   const [minimumEligibleWeight, setMinimumEligibleWeight] = useState("55000");
   const [expirationWarningDays, setExpirationWarningDays] = useState("30");
+  const [serviceFeeCents, setServiceFeeCents] = useState("0");
+  const [allowCustomerPaysProvider, setAllowCustomerPaysProvider] = useState(true);
+  const [allowEwallCollectsAndRemits, setAllowEwallCollectsAndRemits] = useState(true);
+  const [requireSchedule1ForCompliance, setRequireSchedule1ForCompliance] = useState(true);
+  const [authorizationText, setAuthorizationText] = useState("");
+  const [providerName, setProviderName] = useState("");
+  const [providerUrl, setProviderUrl] = useState("");
+  const [operationalInstructions, setOperationalInstructions] = useState("");
   const [taxPeriods, setTaxPeriods] = useState<Form2290TaxPeriod[]>([]);
   const [newPeriod, setNewPeriod] = useState<TaxPeriodDraft>(emptyTaxPeriodDraft);
   const [editing, setEditing] = useState<Record<string, TaxPeriodDraft>>({});
@@ -71,6 +87,14 @@ export default function Form2290SettingsClient() {
       }
       setMinimumEligibleWeight(data.settings.minimumEligibleWeight.toString());
       setExpirationWarningDays(data.settings.expirationWarningDays.toString());
+      setServiceFeeCents(data.settings.serviceFeeCents.toString());
+      setAllowCustomerPaysProvider(data.settings.allowCustomerPaysProvider);
+      setAllowEwallCollectsAndRemits(data.settings.allowEwallCollectsAndRemits);
+      setRequireSchedule1ForCompliance(data.settings.requireSchedule1ForCompliance);
+      setAuthorizationText(data.settings.authorizationText ?? "");
+      setProviderName(data.settings.providerName ?? "");
+      setProviderUrl(data.settings.providerUrl ?? "");
+      setOperationalInstructions(data.settings.operationalInstructions ?? "");
       const periods = Array.isArray(data.taxPeriods) ? data.taxPeriods : [];
       setTaxPeriods(periods);
       setEditing(
@@ -103,7 +127,18 @@ export default function Form2290SettingsClient() {
       const response = await fetch("/api/v1/settings/2290", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minimumEligibleWeight: Number(minimumEligibleWeight), expirationWarningDays: Number(expirationWarningDays) }),
+        body: JSON.stringify({
+          minimumEligibleWeight: Number(minimumEligibleWeight),
+          expirationWarningDays: Number(expirationWarningDays),
+          serviceFeeCents: Number(serviceFeeCents),
+          allowCustomerPaysProvider,
+          allowEwallCollectsAndRemits,
+          requireSchedule1ForCompliance,
+          authorizationText,
+          providerName,
+          providerUrl,
+          operationalInstructions,
+        }),
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(data.error || "Could not update settings.");
@@ -178,6 +213,38 @@ export default function Form2290SettingsClient() {
               <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <FieldLabel>Expiration warning days</FieldLabel>
                 <input type="number" value={expirationWarningDays} onChange={(e) => setExpirationWarningDays(e.target.value)} style={inputStyle} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <FieldLabel>Service fee cents</FieldLabel>
+                <input type="number" value={serviceFeeCents} onChange={(e) => setServiceFeeCents(e.target.value)} style={inputStyle} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <FieldLabel>Provider name</FieldLabel>
+                <input value={providerName} onChange={(e) => setProviderName(e.target.value)} style={inputStyle} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
+                <FieldLabel>Provider URL</FieldLabel>
+                <input value={providerUrl} onChange={(e) => setProviderUrl(e.target.value)} style={inputStyle} />
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
+                <input type="checkbox" checked={allowCustomerPaysProvider} onChange={(e) => setAllowCustomerPaysProvider(e.target.checked)} />
+                <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Allow customer-pays-provider mode</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
+                <input type="checkbox" checked={allowEwallCollectsAndRemits} onChange={(e) => setAllowEwallCollectsAndRemits(e.target.checked)} />
+                <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Allow EWALL collect/remit mode</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
+                <input type="checkbox" checked={requireSchedule1ForCompliance} onChange={(e) => setRequireSchedule1ForCompliance(e.target.checked)} />
+                <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Require Schedule 1 for compliance</span>
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
+                <FieldLabel>Authorization text</FieldLabel>
+                <textarea value={authorizationText} onChange={(e) => setAuthorizationText(e.target.value)} style={{ ...inputStyle, minHeight: 90 }} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
+                <FieldLabel>Operational instructions</FieldLabel>
+                <textarea value={operationalInstructions} onChange={(e) => setOperationalInstructions(e.target.value)} style={{ ...inputStyle, minHeight: 90 }} />
               </label>
             </div>
             <div className={tableStyles.header} style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}>

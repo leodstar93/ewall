@@ -12,5 +12,10 @@ export default async function AdminForm2290QueuePage() {
 
   await requireModuleAccess("2290");
 
-  return <Form2290AdminQueuePage showCreateButton={false} />;
+  return (
+    <Form2290AdminQueuePage
+      apiPath="/api/v1/admin/2290/queue"
+      showCreateButton={false}
+    />
+  );
 }

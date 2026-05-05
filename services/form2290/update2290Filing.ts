@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Form2290PaymentHandling, Prisma } from "@prisma/client";
 import { canEdit2290Filing } from "@/lib/form2290-workflow";
 import type { DbClient } from "@/lib/db/types";
 import {
@@ -9,6 +9,7 @@ import {
   logForm2290Activity,
   resolveForm2290Db,
   resolve2290Eligibility,
+  resolve2290OrganizationId,
 } from "@/services/form2290/shared";
 
 type Update2290FilingInput = {
@@ -20,6 +21,7 @@ type Update2290FilingInput = {
   taxPeriodId?: string;
   firstUsedMonth?: number | null;
   firstUsedYear?: number | null;
+  paymentHandling?: Form2290PaymentHandling | null;
   notes?: string | null;
 };
 
@@ -68,7 +70,11 @@ export async function update2290Filing(input: Update2290FilingInput) {
     );
   }
 
-  const { isEligible } = await resolve2290Eligibility(truck.grossWeight, db);
+  const [eligibility, organizationId] = await Promise.all([
+    resolve2290Eligibility(truck.grossWeight, db),
+    resolve2290OrganizationId({ db, userId: truck.userId }),
+  ]);
+  const { isEligible } = eligibility;
 
   try {
     return await db.$transaction(async (tx) => {
@@ -83,8 +89,13 @@ export async function update2290Filing(input: Update2290FilingInput) {
         where: { id: existing.id },
         data: {
           userId: truck.userId,
+          organizationId,
           truckId: truck.id,
           taxPeriodId: taxPeriod.id,
+          paymentHandling:
+            typeof input.paymentHandling === "undefined" || input.paymentHandling === null
+              ? existing.paymentHandling
+              : input.paymentHandling,
           vinSnapshot: vin,
           unitNumberSnapshot: truck.unitNumber,
           grossWeightSnapshot: truck.grossWeight ?? null,
@@ -102,6 +113,23 @@ export async function update2290Filing(input: Update2290FilingInput) {
         include: form2290FilingInclude,
       });
 
+      await tx.form2290FilingVehicle.deleteMany({
+        where: {
+          filingId: existing.id,
+          isPrimary: true,
+        },
+      });
+      await tx.form2290FilingVehicle.create({
+        data: {
+          filingId: existing.id,
+          truckId: truck.id,
+          vinSnapshot: vin,
+          unitNumberSnapshot: truck.unitNumber,
+          grossWeightSnapshot: truck.grossWeight ?? null,
+          isPrimary: true,
+        },
+      });
+
       await logForm2290Activity(tx, {
         filingId: filing.id,
         actorUserId: input.actorUserId,
@@ -109,6 +137,7 @@ export async function update2290Filing(input: Update2290FilingInput) {
         metaJson: {
           truckId: truck.id,
           taxPeriodId: taxPeriod.id,
+          organizationId,
           isEligible,
         } satisfies Prisma.InputJsonValue,
       });

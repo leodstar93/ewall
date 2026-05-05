@@ -1,15 +1,25 @@
 export type Form2290Status =
   | "DRAFT"
   | "PENDING_REVIEW"
+  | "IN_REVIEW"
   | "NEEDS_CORRECTION"
+  | "READY_TO_FILE"
   | "SUBMITTED"
+  | "FILED"
   | "PAID"
   | "COMPLIANT"
-  | "EXPIRED";
+  | "EXPIRED"
+  | "CANCELLED"
+  | "REOPENED";
 
-export type Form2290PaymentStatus = "UNPAID" | "PENDING" | "PAID" | "WAIVED";
+export type Form2290PaymentStatus = "UNPAID" | "PENDING" | "RECEIVED" | "PAID" | "WAIVED";
 
-export type Form2290DocumentType = "SUPPORTING_DOC" | "SCHEDULE_1" | "PAYMENT_PROOF";
+export type Form2290DocumentType = "SUPPORTING_DOC" | "SCHEDULE_1" | "PAYMENT_PROOF" | "AUTHORIZATION" | "PROVIDER_CONFIRMATION";
+
+export type Form2290PaymentHandling =
+  | "CUSTOMER_PAYS_PROVIDER"
+  | "EWALL_COLLECTS_AND_REMITTED"
+  | "NO_TAX_DUE";
 
 export type Form2290Truck = {
   id: string;
@@ -73,6 +83,25 @@ export type Form2290ActivityLog = {
   createdAt: string;
 };
 
+export type Form2290Authorization = {
+  id: string;
+  filingId: string;
+  status: "UNSIGNED" | "SIGNED" | "REVOKED";
+  signerName: string | null;
+  signerTitle: string | null;
+  signatureText: string | null;
+  authorizationText: string | null;
+  signedAt: string | null;
+};
+
+export type Form2290FilingVehicle = {
+  id: string;
+  vinSnapshot: string;
+  unitNumberSnapshot: string | null;
+  grossWeightSnapshot: number | null;
+  isPrimary: boolean;
+};
+
 export type Form2290Filing = {
   id: string;
   userId: string;
@@ -80,6 +109,19 @@ export type Form2290Filing = {
   taxPeriodId: string;
   status: Form2290Status;
   paymentStatus: Form2290PaymentStatus;
+  paymentHandling: Form2290PaymentHandling;
+  serviceFeeAmount: string | null;
+  paymentReference: string | null;
+  efileProviderName: string | null;
+  efileProviderUrl: string | null;
+  efileConfirmationNumber: string | null;
+  claimedByUserId: string | null;
+  reviewStartedAt: string | null;
+  readyToFileAt: string | null;
+  paymentReceivedAt: string | null;
+  filedExternallyAt: string | null;
+  cancelledAt: string | null;
+  reopenedAt: string | null;
   vinSnapshot: string;
   unitNumberSnapshot: string | null;
   grossWeightSnapshot: number | null;
@@ -99,6 +141,8 @@ export type Form2290Filing = {
   corrections: Form2290Correction[];
   documents: Form2290FilingDocument[];
   activityLogs: Form2290ActivityLog[];
+  vehicles: Form2290FilingVehicle[];
+  authorization: Form2290Authorization | null;
   schedule1Document: LinkedDocument | null;
   user?: {
     id: string;
@@ -161,16 +205,26 @@ export function statusLabel(status: Form2290Status) {
       return "Draft";
     case "PENDING_REVIEW":
       return "Pending review";
+    case "IN_REVIEW":
+      return "In review";
     case "NEEDS_CORRECTION":
       return "Needs correction";
+    case "READY_TO_FILE":
+      return "Ready to file";
     case "SUBMITTED":
       return "Submitted";
+    case "FILED":
+      return "Filed";
     case "PAID":
       return "Paid";
     case "COMPLIANT":
       return "Compliant";
     case "EXPIRED":
       return "Expired";
+    case "CANCELLED":
+      return "Cancelled";
+    case "REOPENED":
+      return "Reopened";
     default:
       return status;
   }
@@ -184,6 +238,8 @@ export function paymentStatusLabel(status: Form2290PaymentStatus) {
       return "Pending";
     case "PAID":
       return "Paid";
+    case "RECEIVED":
+      return "Received";
     case "WAIVED":
       return "Waived";
     default:
@@ -196,17 +252,23 @@ export function statusClasses(status: Form2290Status) {
     case "DRAFT":
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
     case "PENDING_REVIEW":
+    case "IN_REVIEW":
+    case "READY_TO_FILE":
       return "bg-amber-50 text-amber-800 ring-amber-200";
     case "NEEDS_CORRECTION":
       return "bg-red-50 text-red-800 ring-red-200";
     case "SUBMITTED":
+    case "FILED":
       return "bg-sky-50 text-sky-800 ring-sky-200";
     case "PAID":
       return "bg-emerald-50 text-emerald-800 ring-emerald-200";
     case "COMPLIANT":
       return "bg-green-50 text-green-800 ring-green-200";
     case "EXPIRED":
+    case "CANCELLED":
       return "bg-red-50 text-red-800 ring-red-200";
+    case "REOPENED":
+      return "bg-violet-50 text-violet-800 ring-violet-200";
     default:
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
   }
@@ -219,6 +281,7 @@ export function paymentStatusClasses(status: Form2290PaymentStatus) {
     case "PENDING":
       return "bg-amber-50 text-amber-800 ring-amber-200";
     case "PAID":
+    case "RECEIVED":
       return "bg-emerald-50 text-emerald-800 ring-emerald-200";
     case "WAIVED":
       return "bg-sky-50 text-sky-800 ring-sky-200";
@@ -249,6 +312,10 @@ export function documentTypeLabel(type: Form2290DocumentType) {
       return "Schedule 1";
     case "PAYMENT_PROOF":
       return "Payment proof";
+    case "AUTHORIZATION":
+      return "Authorization";
+    case "PROVIDER_CONFIRMATION":
+      return "Provider confirmation";
     default:
       return type;
   }
@@ -268,8 +335,8 @@ export function getComplianceStateForFiling(filing: {
       (filing.taxPeriod ? new Date(filing.taxPeriod.endDate).getTime() < now : false) ||
       filing.status === "EXPIRED");
   const compliant =
-    (filing.status === "SUBMITTED" || filing.status === "PAID" || filing.status === "COMPLIANT") &&
-    filing.paymentStatus === "PAID" &&
+    (filing.status === "SUBMITTED" || filing.status === "FILED" || filing.status === "PAID" || filing.status === "COMPLIANT") &&
+    (filing.paymentStatus === "PAID" || filing.paymentStatus === "RECEIVED" || filing.paymentStatus === "WAIVED") &&
     Boolean(filing.schedule1DocumentId);
 
   return {

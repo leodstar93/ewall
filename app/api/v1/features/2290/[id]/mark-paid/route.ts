@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { parseIsoDate, parseMoney } from "@/lib/validations/form2290";
 import { mark2290Paid } from "@/services/form2290/mark2290Paid";
-import { Form2290ServiceError } from "@/services/form2290/shared";
+import { canManageAll2290, Form2290ServiceError } from "@/services/form2290/shared";
 
 type MarkPaidBody = {
   paidAt?: unknown;
@@ -49,7 +49,7 @@ export async function POST(
     const filing = await mark2290Paid({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
-      canManageAll: guard.isAdmin,
+      canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
       paidAt,
       amountDue,
     });

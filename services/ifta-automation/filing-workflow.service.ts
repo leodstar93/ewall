@@ -1150,6 +1150,7 @@ export class FilingWorkflowService {
   static async finalize(input: {
     filingId: string;
     actorUserId?: string | null;
+    paymentReceiptDocumentId?: string | null;
     db?: DbLike;
   }) {
     const db = resolveDb(input.db ?? null);
@@ -1175,6 +1176,9 @@ export class FilingWorkflowService {
       actorUserId: input.actorUserId,
       action: "filing.finalize",
       message: "Filing finalized by staff.",
+      payloadJson: {
+        paymentReceiptDocumentId: input.paymentReceiptDocumentId ?? null,
+      },
       db,
     });
 

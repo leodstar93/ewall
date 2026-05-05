@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { Form2290Status } from "@prisma/client";
+import { Form2290PaymentHandling, Form2290Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import {
@@ -8,7 +8,13 @@ import {
   parseFirstUsedYear,
 } from "@/lib/validations/form2290";
 import { create2290Filing } from "@/services/form2290/create2290Filing";
-import { compute2290Compliance, Form2290ServiceError, form2290FilingInclude } from "@/services/form2290/shared";
+import {
+  canManageAll2290,
+  compute2290Compliance,
+  Form2290ServiceError,
+  form2290FilingInclude,
+  resolve2290OrganizationId,
+} from "@/services/form2290/shared";
 
 type Create2290FilingBody = {
   vehicleId?: unknown;
@@ -16,6 +22,7 @@ type Create2290FilingBody = {
   taxPeriodId?: unknown;
   firstUsedMonth?: unknown;
   firstUsedYear?: unknown;
+  paymentHandling?: unknown;
   notes?: unknown;
 };
 
@@ -42,7 +49,19 @@ export async function GET(request: NextRequest) {
   try {
     const filings = await prisma.form2290Filing.findMany({
       where: {
-        ...(guard.isAdmin ? {} : { userId: guard.session.user.id ?? "" }),
+        ...(canManageAll2290(guard.perms, guard.isAdmin)
+          ? {}
+          : {
+              OR: [
+                { userId: guard.session.user.id ?? "" },
+                {
+                  organizationId:
+                    (await resolve2290OrganizationId({
+                      userId: guard.session.user.id ?? "",
+                    })) ?? "__none__",
+                },
+              ],
+            }),
         ...(status && Object.values(Form2290Status).includes(status as Form2290Status)
           ? { status: status as Form2290Status }
           : {}),
@@ -89,6 +108,11 @@ export async function POST(request: NextRequest) {
     const taxPeriodId = typeof body.taxPeriodId === "string" ? body.taxPeriodId : "";
     const firstUsedMonth = parseFirstUsedMonth(body.firstUsedMonth);
     const firstUsedYear = parseFirstUsedYear(body.firstUsedYear);
+    const paymentHandling =
+      typeof body.paymentHandling === "string" &&
+      Object.values(Form2290PaymentHandling).includes(body.paymentHandling as Form2290PaymentHandling)
+        ? (body.paymentHandling as Form2290PaymentHandling)
+        : undefined;
 
     if (!truckId) {
       return Response.json({ error: "vehicleId is required" }, { status: 400 });
@@ -105,11 +129,12 @@ export async function POST(request: NextRequest) {
 
     const filing = await create2290Filing({
       actorUserId: guard.session.user.id ?? "",
-      canManageAll: guard.isAdmin,
+      canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
       truckId,
       taxPeriodId,
       firstUsedMonth,
       firstUsedYear,
+      paymentHandling,
       notes: normalizeOptionalText(body.notes),
     });
 

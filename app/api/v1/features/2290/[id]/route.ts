@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Form2290PaymentHandling } from "@prisma/client";
 import {
   canEdit2290Filing,
   canMark2290Paid,
@@ -16,6 +17,7 @@ import {
 import { update2290Filing } from "@/services/form2290/update2290Filing";
 import {
   assert2290FilingAccess,
+  canManageAll2290,
   compute2290Compliance,
   Form2290ServiceError,
 } from "@/services/form2290/shared";
@@ -26,6 +28,7 @@ type Update2290FilingBody = {
   taxPeriodId?: unknown;
   firstUsedMonth?: unknown;
   firstUsedYear?: unknown;
+  paymentHandling?: unknown;
   notes?: unknown;
 };
 
@@ -51,10 +54,11 @@ export async function GET(
   const { id } = await params;
 
   try {
+    const canManageAll = canManageAll2290(guard.perms, guard.isAdmin);
     const filing = await assert2290FilingAccess({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
-      canManageAll: guard.isAdmin,
+      canManageAll,
     });
 
     const isOwner = filing.userId === guard.session.user.id;
@@ -71,17 +75,19 @@ export async function GET(
       compliance,
       permissions: {
         isOwner,
-        canManageAll: guard.isAdmin,
-        canEdit: (isOwner || guard.isAdmin) && canEdit2290Filing(filing.status),
-        canSubmit: (isOwner || guard.isAdmin) && canSubmit2290Filing(filing.status),
+        canManageAll,
+        canEdit: (isOwner || canManageAll) && canEdit2290Filing(filing.status),
+        canSubmit: (isOwner || canManageAll) && canSubmit2290Filing(filing.status),
         canMarkSubmitted:
-          guard.isAdmin &&
+          canManageAll &&
           (filing.status === "DRAFT" || canMark2290Submitted(filing.status)),
-        canRequestCorrection: guard.isAdmin && canRequest2290Correction(filing.status),
-        canMarkPaid: guard.isAdmin && canMark2290Paid(filing.status),
+        canRequestCorrection: canManageAll && canRequest2290Correction(filing.status),
+        canMarkPaid: canManageAll && canMark2290Paid(filing.status),
         canUploadSchedule1:
-          (isOwner || guard.isAdmin) && canUpload2290Schedule1(filing.status),
-        canUploadDocuments: isOwner || guard.isAdmin,
+          (isOwner || canManageAll) && canUpload2290Schedule1(filing.status),
+        canUploadDocuments: isOwner || canManageAll,
+        canAuthorize: isOwner && canSubmit2290Filing(filing.status),
+        canStaffWorkflow: canManageAll,
       },
     });
   } catch (error) {
@@ -102,6 +108,11 @@ export async function PATCH(
     const body = (await request.json()) as Update2290FilingBody;
     const firstUsedMonth = parseFirstUsedMonth(body.firstUsedMonth);
     const firstUsedYear = parseFirstUsedYear(body.firstUsedYear);
+    const paymentHandling =
+      typeof body.paymentHandling === "string" &&
+      Object.values(Form2290PaymentHandling).includes(body.paymentHandling as Form2290PaymentHandling)
+        ? (body.paymentHandling as Form2290PaymentHandling)
+        : undefined;
 
     if (typeof body.firstUsedMonth !== "undefined" && body.firstUsedMonth !== null && firstUsedMonth === null) {
       return Response.json({ error: "Invalid firstUsedMonth" }, { status: 400 });
@@ -113,7 +124,7 @@ export async function PATCH(
     const filing = await update2290Filing({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
-      canManageAll: guard.isAdmin,
+      canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
       truckId:
         typeof body.vehicleId === "string"
           ? body.vehicleId
@@ -125,6 +136,7 @@ export async function PATCH(
         typeof body.firstUsedMonth === "undefined" ? undefined : firstUsedMonth,
       firstUsedYear:
         typeof body.firstUsedYear === "undefined" ? undefined : firstUsedYear,
+      paymentHandling,
       notes: typeof body.notes === "undefined" ? undefined : normalizeOptionalText(body.notes),
     });
 

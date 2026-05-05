@@ -163,3 +163,47 @@ export async function notify2290Schedule1Uploaded(
     },
   });
 }
+
+export async function notify2290WorkflowUpdated(
+  filing: FilingNotificationShape,
+  input: {
+    title: string;
+    message: string;
+    level?: NotificationLevel;
+    notifyStaff?: boolean;
+    staffTitle?: string;
+    staffMessage?: string;
+  },
+) {
+  await safeCreateNotification({
+    userId: filing.userId,
+    category: NotificationCategory.FORM2290,
+    level: input.level ?? NotificationLevel.INFO,
+    title: input.title,
+    message: input.message,
+    href: filingHref(filing.id),
+    actionLabel: "Open filing",
+    metadataJson: {
+      filingId: filing.id,
+      unitNumber: filing.truck.unitNumber,
+      taxPeriodName: filing.taxPeriod.name,
+    },
+  });
+
+  if (input.notifyStaff) {
+    await safeCreateNotificationsForRoles({
+      roleNames: STAFF_ROLE_NAMES,
+      category: NotificationCategory.FORM2290,
+      level: input.level ?? NotificationLevel.INFO,
+      title: input.staffTitle ?? input.title,
+      message: input.staffMessage ?? input.message,
+      href: filingHref(filing.id),
+      actionLabel: "Review filing",
+      metadataJson: {
+        filingId: filing.id,
+        unitNumber: filing.truck.unitNumber,
+        taxPeriodName: filing.taxPeriod.name,
+      },
+    });
+  }
+}

@@ -31,6 +31,7 @@ interface Props<T extends object> {
   title?: ReactNode;
   toolbar?: ReactNode;
   hideHeader?: boolean;
+  variant?: "default" | "light";
   getRowStyle?: (row: T) => CSSProperties | undefined;
   /** Keys used for full-text search. Defaults to all string columns. */
   searchKeys?: (keyof T & string)[];
@@ -50,6 +51,7 @@ export default function Table<T extends object>({
   title,
   toolbar,
   hideHeader = false,
+  variant = "default",
   getRowStyle,
   searchKeys,
 }: Props<T>) {
@@ -123,7 +125,7 @@ export default function Table<T extends object>({
   }
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${variant === "light" ? styles.cardLight : ""}`}>
       {!hideHeader ? (
         <div className={styles.header}>
           <div>
@@ -152,11 +154,15 @@ export default function Table<T extends object>({
         </div>
       ) : null}
 
-      {toolbar ? <div className={styles.toolbar}>{toolbar}</div> : null}
+      {toolbar ? (
+        <div className={`${styles.toolbar} ${variant === "light" ? styles.toolbarLight : ""}`}>
+          {toolbar}
+        </div>
+      ) : null}
 
       {/* Table */}
       <div className={styles.tableWrap}>
-        <table className={styles.table}>
+        <table className={`${styles.table} ${variant === "light" ? styles.tableLight : ""}`}>
           <thead>
             <tr>
               {columns.map((col) => (

@@ -1,4 +1,4 @@
-import { Form2290Status } from "@prisma/client";
+import { Form2290AuthorizationStatus, Form2290Status } from "@prisma/client";
 import { canMark2290Submitted, canSubmit2290Filing } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
@@ -62,6 +62,14 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
       "This filing cannot be submitted for review from its current status.",
       409,
       "INVALID_REVIEW_TRANSITION",
+    );
+  }
+
+  if (!input.markSubmitted && existing.authorization?.status !== Form2290AuthorizationStatus.SIGNED) {
+    throw new Form2290ServiceError(
+      "Client authorization must be signed before submitting to staff.",
+      400,
+      "AUTHORIZATION_REQUIRED",
     );
   }
 

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { upload2290Schedule1 } from "@/services/form2290/upload2290Schedule1";
-import { Form2290ServiceError } from "@/services/form2290/shared";
+import { canManageAll2290, Form2290ServiceError } from "@/services/form2290/shared";
 
 type UploadSchedule1Body = {
   documentId?: unknown;
@@ -39,7 +39,7 @@ export async function POST(
     const filing = await upload2290Schedule1({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
-      canManageAll: guard.isAdmin,
+      canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
       documentId,
     });
 

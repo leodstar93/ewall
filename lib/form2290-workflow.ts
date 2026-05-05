@@ -6,14 +6,24 @@ export function getForm2290StatusLabel(status: Form2290Status) {
       return "Draft";
     case Form2290Status.PENDING_REVIEW:
       return "Pending review";
+    case Form2290Status.IN_REVIEW:
+      return "In review";
     case Form2290Status.NEEDS_CORRECTION:
       return "Needs correction";
+    case Form2290Status.READY_TO_FILE:
+      return "Ready to file";
     case Form2290Status.SUBMITTED:
       return "Submitted";
+    case Form2290Status.FILED:
+      return "Filed";
     case Form2290Status.PAID:
       return "Paid";
     case Form2290Status.COMPLIANT:
       return "Compliant";
+    case Form2290Status.CANCELLED:
+      return "Cancelled";
+    case Form2290Status.REOPENED:
+      return "Reopened";
     case Form2290Status.EXPIRED:
       return "Expired";
     default:
@@ -29,6 +39,8 @@ export function getForm2290PaymentStatusLabel(status: Form2290PaymentStatus) {
       return "Pending";
     case Form2290PaymentStatus.PAID:
       return "Paid";
+    case Form2290PaymentStatus.RECEIVED:
+      return "Received";
     case Form2290PaymentStatus.WAIVED:
       return "Waived";
     default:
@@ -37,28 +49,41 @@ export function getForm2290PaymentStatusLabel(status: Form2290PaymentStatus) {
 }
 
 export function canEdit2290Filing(status: Form2290Status) {
-  return status === Form2290Status.DRAFT || status === Form2290Status.NEEDS_CORRECTION;
+  return (
+    status === Form2290Status.DRAFT ||
+    status === Form2290Status.NEEDS_CORRECTION ||
+    status === Form2290Status.REOPENED
+  );
 }
 
 export function canSubmit2290Filing(status: Form2290Status) {
-  return status === Form2290Status.DRAFT || status === Form2290Status.NEEDS_CORRECTION;
+  return canEdit2290Filing(status);
 }
 
 export function canRequest2290Correction(status: Form2290Status) {
   return (
     status === Form2290Status.PENDING_REVIEW ||
+    status === Form2290Status.IN_REVIEW ||
+    status === Form2290Status.READY_TO_FILE ||
     status === Form2290Status.SUBMITTED ||
+    status === Form2290Status.FILED ||
     status === Form2290Status.PAID
   );
 }
 
 export function canMark2290Submitted(status: Form2290Status) {
-  return status === Form2290Status.PENDING_REVIEW || status === Form2290Status.NEEDS_CORRECTION;
+  return (
+    status === Form2290Status.PENDING_REVIEW ||
+    status === Form2290Status.IN_REVIEW ||
+    status === Form2290Status.READY_TO_FILE ||
+    status === Form2290Status.NEEDS_CORRECTION
+  );
 }
 
 export function canMark2290Paid(status: Form2290Status) {
   return (
     status === Form2290Status.SUBMITTED ||
+    status === Form2290Status.FILED ||
     status === Form2290Status.PAID ||
     status === Form2290Status.COMPLIANT
   );
@@ -67,6 +92,7 @@ export function canMark2290Paid(status: Form2290Status) {
 export function canUpload2290Schedule1(status: Form2290Status) {
   return (
     status === Form2290Status.SUBMITTED ||
+    status === Form2290Status.FILED ||
     status === Form2290Status.PAID ||
     status === Form2290Status.COMPLIANT
   );
@@ -106,8 +132,14 @@ export function canAutoMark2290Compliant(input: {
 }) {
   const filedEnough =
     input.status === Form2290Status.SUBMITTED ||
+    input.status === Form2290Status.FILED ||
     input.status === Form2290Status.PAID ||
     input.status === Form2290Status.COMPLIANT;
 
-  return filedEnough && input.paymentStatus === Form2290PaymentStatus.PAID && input.hasSchedule1;
+  const paymentSatisfied =
+    input.paymentStatus === Form2290PaymentStatus.PAID ||
+    input.paymentStatus === Form2290PaymentStatus.RECEIVED ||
+    input.paymentStatus === Form2290PaymentStatus.WAIVED;
+
+  return filedEnough && paymentSatisfied && input.hasSchedule1;
 }

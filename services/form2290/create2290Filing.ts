@@ -1,12 +1,14 @@
-import { Prisma } from "@prisma/client";
+import { Form2290PaymentHandling, Prisma } from "@prisma/client";
 import type { DbClient } from "@/lib/db/types";
 import {
   assert2290TruckAccess,
   Form2290ServiceError,
   form2290FilingInclude,
   logForm2290Activity,
+  getForm2290Settings,
   resolveForm2290Db,
   resolve2290Eligibility,
+  resolve2290OrganizationId,
 } from "@/services/form2290/shared";
 
 type Create2290FilingInput = {
@@ -17,6 +19,7 @@ type Create2290FilingInput = {
   taxPeriodId: string;
   firstUsedMonth?: number | null;
   firstUsedYear?: number | null;
+  paymentHandling?: Form2290PaymentHandling | null;
   notes?: string | null;
 };
 
@@ -48,7 +51,13 @@ export async function create2290Filing(input: Create2290FilingInput) {
     );
   }
 
-  const { isEligible } = await resolve2290Eligibility(truck.grossWeight, db);
+  const [eligibility, settings, organizationId] = await Promise.all([
+    resolve2290Eligibility(truck.grossWeight, db),
+    getForm2290Settings(db),
+    resolve2290OrganizationId({ db, userId: truck.userId }),
+  ]);
+  const { isEligible } = eligibility;
+  const paymentHandling = input.paymentHandling ?? Form2290PaymentHandling.CUSTOMER_PAYS_PROVIDER;
 
   try {
     return await db.$transaction(async (tx) => {
@@ -62,15 +71,30 @@ export async function create2290Filing(input: Create2290FilingInput) {
       const filing = await tx.form2290Filing.create({
         data: {
           userId: truck.userId,
+          organizationId,
           truckId: truck.id,
           taxPeriodId: taxPeriod.id,
+          paymentHandling,
           vinSnapshot: vin,
           unitNumberSnapshot: truck.unitNumber,
           grossWeightSnapshot: truck.grossWeight ?? null,
+          serviceFeeAmount: new Prisma.Decimal(settings.serviceFeeCents).div(100),
+          efileProviderName: settings.providerName,
+          efileProviderUrl: settings.providerUrl,
+          staffInstructionsSnapshot: settings.operationalInstructions,
           firstUsedMonth: input.firstUsedMonth ?? null,
           firstUsedYear: input.firstUsedYear ?? null,
           notes: input.notes?.trim() || null,
           expiresAt: taxPeriod.endDate,
+          vehicles: {
+            create: {
+              truckId: truck.id,
+              vinSnapshot: vin,
+              unitNumberSnapshot: truck.unitNumber,
+              grossWeightSnapshot: truck.grossWeight ?? null,
+              isPrimary: true,
+            },
+          },
         },
         include: form2290FilingInclude,
       });
@@ -82,6 +106,8 @@ export async function create2290Filing(input: Create2290FilingInput) {
         metaJson: {
           truckId: truck.id,
           taxPeriodId: taxPeriod.id,
+          organizationId,
+          paymentHandling,
           isEligible,
         } satisfies Prisma.InputJsonValue,
       });

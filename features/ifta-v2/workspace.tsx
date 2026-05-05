@@ -77,6 +77,30 @@ function parseDownloadFilename(header: string | null, fallback: string) {
   return filenameMatch?.[1] || fallback;
 }
 
+async function promptPaymentReceiptFile(filing: FilingDetail) {
+  const result = await Swal.fire({
+    title: "Finalize Filing",
+    text: `Upload the payment receipt to finalize ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)}.`,
+    input: "file",
+    inputAttributes: {
+      accept: "application/pdf,image/*",
+      "aria-label": "Payment receipt",
+    },
+    showCancelButton: true,
+    confirmButtonText: "Upload receipt & finalize",
+    preConfirm: (value) => {
+      if (!(value instanceof File)) {
+        Swal.showValidationMessage("Payment receipt is required.");
+        return false;
+      }
+
+      return value;
+    },
+  });
+
+  return result.isConfirmed && result.value instanceof File ? result.value : null;
+}
+
 function pickPreferredFilingId(
   filings: FilingListItem[],
   preferredId: string | null,
@@ -752,21 +776,27 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
   }
 
   async function handleFinalize(filing: FilingDetail) {
-    const result = await Swal.fire({
-      title: "Finalize Filing",
-      text: `Finalize ${tenantCompanyName(filing.tenant)} ${filingPeriodLabel(filing)}?`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Finalize",
-    });
-    if (!result.isConfirmed) return;
+    const paymentReceipt = await promptPaymentReceiptFile(filing);
+    if (!paymentReceipt) return;
 
     await runBusyAction(
       `finalize:${filing.id}`,
       async () => {
-        await requestJson(`/api/v1/features/ifta-v2/filings/${filing.id}/finalize`, {
+        const formData = new FormData();
+        formData.append("paymentReceipt", paymentReceipt);
+
+        const response = await fetch(`/api/v1/features/ifta-v2/filings/${filing.id}/finalize`, {
           method: "POST",
+          body: formData,
         });
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not finalize the filing.");
+        }
       },
       `Filing ${filingPeriodLabel(filing)} has been finalized.`,
       filing.id,

@@ -1,16 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { is2290Eligible } from "@/lib/form2290-workflow";
-import { getForm2290Settings } from "@/services/form2290/shared";
+import { canManageAll2290, getForm2290Settings } from "@/services/form2290/shared";
 
 export async function GET() {
   const guard = await requireApiPermission("compliance2290:view");
   if (!guard.ok) return guard.res;
 
   try {
+    const canManageAll = canManageAll2290(guard.perms, guard.isAdmin);
     const [trucks, settings] = await Promise.all([
       prisma.truck.findMany({
-        where: guard.isAdmin ? undefined : { userId: guard.session.user.id ?? "" },
+        where: canManageAll ? undefined : { userId: guard.session.user.id ?? "" },
         orderBy: [{ unitNumber: "asc" }, { createdAt: "desc" }],
         include: {
           user: {

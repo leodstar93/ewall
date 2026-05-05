@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Form2290TaxPeriod, Form2290Truck } from "@/features/form2290/shared";
+import { Form2290PaymentHandling, Form2290TaxPeriod, Form2290Truck } from "@/features/form2290/shared";
 
 type Form2290FilingFormProps = {
   mode: "create" | "edit";
@@ -16,6 +16,7 @@ type Form2290FilingFormProps = {
     taxPeriodId?: string;
     firstUsedMonth?: number | null;
     firstUsedYear?: number | null;
+    paymentHandling?: Form2290PaymentHandling | null;
     notes?: string | null;
   };
   onSaved?: () => void;
@@ -50,6 +51,9 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
     props.initialValues?.firstUsedYear?.toString() ?? "",
   );
   const [notes, setNotes] = useState(props.initialValues?.notes ?? "");
+  const [paymentHandling, setPaymentHandling] = useState<Form2290PaymentHandling>(
+    props.initialValues?.paymentHandling ?? "CUSTOMER_PAYS_PROVIDER",
+  );
 
   useEffect(() => {
     let active = true;
@@ -124,6 +128,7 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
         taxPeriodId,
         firstUsedMonth: firstUsedMonth ? Number(firstUsedMonth) : null,
         firstUsedYear: firstUsedYear ? Number(firstUsedYear) : null,
+        paymentHandling,
         notes,
       };
 
@@ -258,6 +263,19 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
             onChange={(event) => setFirstUsedYear(event.target.value)}
             className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
           />
+        </label>
+
+        <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
+          <span className="font-medium text-zinc-900">Payment handling</span>
+          <select
+            value={paymentHandling}
+            onChange={(event) => setPaymentHandling(event.target.value as Form2290PaymentHandling)}
+            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+          >
+            <option value="CUSTOMER_PAYS_PROVIDER">Customer pays provider/IRS tax directly</option>
+            <option value="EWALL_COLLECTS_AND_REMITTED">EWALL collects and remits through provider</option>
+            <option value="NO_TAX_DUE">No tax due / suspended or exempt handling</option>
+          </select>
         </label>
 
         <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">

@@ -92,6 +92,11 @@ function buildNavGroups(
       label: "UCR",
       permission: "ucr:read_own",
     },
+    {
+      href: "/dashboard/2290",
+      label: "Form 2290",
+      permission: "compliance2290:view",
+    },
   ].filter((item) => {
     if (!item.permission) return true;
     return hasPermission(permissions, roles, item.permission);

@@ -88,6 +88,12 @@ function buildNavGroups(
       permission: "ucr:read",
       moduleKey: "ucr",
     },
+    {
+      href: "/admin/features/2290",
+      label: "Form 2290",
+      permission: "compliance2290:review",
+      moduleKey: "compliance2290",
+    },
   ].filter((item) => {
     if (!item.permission) return true;
     const hasExplicitAccess = hasPermission(
