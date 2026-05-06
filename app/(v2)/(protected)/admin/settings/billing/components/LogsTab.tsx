@@ -57,6 +57,7 @@ function statusTone(status: string) {
 
 function sourceLabel(record: BillingPaymentAttemptLogRecord) {
   if (record.kind === "subscription") return "Subscription";
+  if (record.kind === "form2290") return "Form 2290";
   if (record.source === "stripe_checkout") return "UCR Stripe Checkout";
   if (record.source === "stripe_saved_method") return "UCR saved Stripe";
   if (record.source === "paypal_saved_method") return "UCR saved PayPal";
@@ -67,7 +68,11 @@ function subjectLabel(record: BillingPaymentAttemptLogRecord) {
   if (record.kind === "subscription") {
     return record.subscription?.planName || record.subscription?.planCode || "Subscription charge";
   }
-
+  if (record.kind === "form2290") {
+    return record.filing
+      ? `Form 2290 · ${record.filing.legalName} · ${record.filing.year}`
+      : "Form 2290 payment";
+  }
   return record.filing
     ? `${record.filing.legalName} - ${record.filing.year}`
     : "UCR payment";
@@ -192,6 +197,7 @@ export function LogsTab() {
           ["Succeeded", succeededCount],
           ["Failed", failedCount],
           ["UCR attempts", sourceCounts?.ucrCustomerPaymentAttempts ?? 0],
+          ["Form 2290 payments", sourceCounts?.form2290Payments ?? 0],
         ].map(([label, value]) => (
           <div key={label} className={tableStyles.card}>
             <div style={{ padding: 16 }}>
@@ -242,6 +248,7 @@ export function LogsTab() {
             <option value="all">All types</option>
             <option value="subscription">Subscriptions</option>
             <option value="ucr">UCR</option>
+            <option value="form2290">Form 2290</option>
           </select>
           <select
             value={statusFilter}
@@ -294,7 +301,7 @@ export function LogsTab() {
                     <td className={tableStyles.muteCell}>{formatDateTime(log.createdAt)}</td>
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <Badge tone={log.kind === "ucr" ? "info" : "primary"} variant="light">
+                        <Badge tone={log.kind === "ucr" ? "info" : log.kind === "form2290" ? "warning" : "primary"} variant="light">
                           {sourceLabel(log)}
                         </Badge>
                         <span className={tableStyles.idCell}>{log.rawId}</span>

@@ -20,7 +20,6 @@ type Create2290FilingInput = {
   taxPeriodId: string;
   firstUsedMonth?: number | null;
   firstUsedYear?: number | null;
-  paymentHandling?: Form2290PaymentHandling | null;
   taxableGrossWeight?: number | null;
   loggingVehicle?: boolean | null;
   suspendedVehicle?: boolean | null;
@@ -84,7 +83,7 @@ export async function create2290Filing(input: Create2290FilingInput) {
     select: { id: true },
   });
   const { isEligible } = eligibility;
-  const paymentHandling = input.paymentHandling ?? Form2290PaymentHandling.CUSTOMER_PAYS_PROVIDER;
+  const paymentHandling = Form2290PaymentHandling.EWALL_COLLECTS_AND_REMITTED;
 
   if (!settings.enabled) {
     throw new Form2290ServiceError(

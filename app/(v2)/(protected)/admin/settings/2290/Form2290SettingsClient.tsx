@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Table, { type ColumnDef } from "@/app/(v2)/(protected)/admin/components/ui/Table";
 import { Form2290TaxPeriod, formatDateOnly } from "@/features/form2290/shared";
 import tableStyles from "@/app/(v2)/(protected)/admin/components/ui/DataTable.module.css";
+import layoutStyles from "@/app/(v2)/(protected)/admin/layout.module.css";
 import Form2290PeriodRatesClient from "@/app/(v2)/(protected)/admin/settings/2290/Form2290PeriodRatesClient";
 
 type SettingsPayload = {
@@ -547,6 +548,7 @@ export default function Form2290SettingsClient() {
       {selectedPeriodId
         ? createPortal(
             <div
+              className={layoutStyles.theme}
               style={{
                 position: "fixed",
                 inset: 0,

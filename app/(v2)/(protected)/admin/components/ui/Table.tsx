@@ -21,6 +21,7 @@ export type TableAction = {
   onClick: () => void;
   variant?: "default" | "primary";
   icon?: ReactNode;
+  style?: React.CSSProperties;
 };
 
 interface Props<T extends object> {
@@ -138,6 +139,7 @@ export default function Table<T extends object>({
                 type="button"
                 onClick={action.onClick}
                 className={`${styles.btn} ${action.variant === "primary" ? styles.btnPrimary : ""}`}
+                style={action.style}
               >
                 {action.icon}
                 {action.label}

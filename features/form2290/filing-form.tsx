@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Form2290PaymentHandling, Form2290TaxPeriod, Form2290Truck } from "@/features/form2290/shared";
+import { Form2290TaxPeriod, Form2290Truck } from "@/features/form2290/shared";
 
 type Form2290FilingFormProps = {
   mode: "create" | "edit";
@@ -16,7 +16,6 @@ type Form2290FilingFormProps = {
     taxPeriodId?: string;
     firstUsedMonth?: number | null;
     firstUsedYear?: number | null;
-    paymentHandling?: Form2290PaymentHandling | null;
     taxableGrossWeight?: number | null;
     loggingVehicle?: boolean | null;
     suspendedVehicle?: boolean | null;
@@ -75,10 +74,6 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
   const [irsTaxEstimate, setIrsTaxEstimate] = useState(
     props.initialValues?.irsTaxEstimate ?? "",
   );
-  const [paymentHandling, setPaymentHandling] = useState<Form2290PaymentHandling>(
-    props.initialValues?.paymentHandling ?? "CUSTOMER_PAYS_PROVIDER",
-  );
-
   useEffect(() => {
     let active = true;
 
@@ -152,7 +147,6 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
         taxPeriodId,
         firstUsedMonth: firstUsedMonth ? Number(firstUsedMonth) : null,
         firstUsedYear: firstUsedYear ? Number(firstUsedYear) : null,
-        paymentHandling,
         taxableGrossWeight: taxableGrossWeight ? Number(taxableGrossWeight) : null,
         loggingVehicle: loggingVehicle === "" ? null : loggingVehicle === "true",
         suspendedVehicle: suspendedVehicle === "" ? null : suspendedVehicle === "true",
@@ -355,18 +349,6 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
           <span>I confirm the Form 2290 filing details are accurate and ready to submit.</span>
         </label>
 
-        <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
-          <span className="font-medium text-zinc-900">Payment handling</span>
-          <select
-            value={paymentHandling}
-            onChange={(event) => setPaymentHandling(event.target.value as Form2290PaymentHandling)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            <option value="CUSTOMER_PAYS_PROVIDER">Customer pays provider/IRS tax directly</option>
-            <option value="EWALL_COLLECTS_AND_REMITTED">EWALL collects and remits through provider</option>
-            <option value="NO_TAX_DUE">No tax due / suspended or exempt handling</option>
-          </select>
-        </label>
 
         <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
           <span className="font-medium text-zinc-900">Notes</span>

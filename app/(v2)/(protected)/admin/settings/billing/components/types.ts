@@ -112,7 +112,7 @@ export type BillingGrantsPayload = {
 export type BillingPaymentAttemptLogRecord = {
   id: string;
   rawId: string;
-  kind: "subscription" | "ucr";
+  kind: "subscription" | "ucr" | "form2290";
   source: string;
   provider: string;
   status: string;
@@ -157,5 +157,6 @@ export type BillingPaymentLogsPayload = {
   sources: {
     subscriptionCharges: number;
     ucrCustomerPaymentAttempts: number;
+    form2290Payments: number;
   };
 };

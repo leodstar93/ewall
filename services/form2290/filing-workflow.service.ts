@@ -164,7 +164,7 @@ export async function claim2290Filing(input: WorkflowInput) {
     db,
     status: Form2290Status.IN_PROCESS,
     action: "ASSIGNED_TO_STAFF",
-    data: { claimedByUserId: input.actorUserId, reviewStartedAt: new Date() },
+    data: { claimedBy: { connect: { id: input.actorUserId } }, reviewStartedAt: new Date() },
     notify: {
       title: "Form 2290 in process",
       message: "Staff has started processing your Form 2290 filing.",

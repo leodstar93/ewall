@@ -1032,10 +1032,68 @@ export async function listBillingGrants() {
   };
 }
 
+function formatForm2290PaymentLog(filing: {
+  id: string;
+  paidAt: Date;
+  updatedAt: Date;
+  amountDue: { toString(): string } | null;
+  vinSnapshot: string;
+  unitNumberSnapshot: string | null;
+  taxPeriod: { name: string };
+  organization: {
+    id: string;
+    name: string | null;
+    legalName: string | null;
+    companyName: string | null;
+    dotNumber: string | null;
+  } | null;
+  user: { id: string; name: string | null; email: string | null } | null;
+}) {
+  const orgName =
+    filing.organization?.legalName ??
+    filing.organization?.name ??
+    filing.organization?.companyName ??
+    "Unnamed company";
+
+  return {
+    id: `form2290:${filing.id}`,
+    rawId: filing.id,
+    kind: "form2290" as const,
+    source: "form2290_payment",
+    provider: "MANUAL",
+    status: "PAID",
+    amountCents: Math.round(Number(filing.amountDue ?? 0) * 100),
+    currency: "USD",
+    organization: filing.organization
+      ? { id: filing.organization.id, name: orgName, dotNumber: filing.organization.dotNumber ?? "" }
+      : null,
+    customer: filing.user
+      ? { id: filing.user.id, name: filing.user.name ?? "", email: filing.user.email ?? "" }
+      : null,
+    filing: {
+      id: filing.id,
+      year: Number(filing.taxPeriod.name.split("-")[0]) || 0,
+      legalName: filing.unitNumberSnapshot ?? filing.vinSnapshot,
+      dotNumber: filing.organization?.dotNumber ?? "",
+    },
+    subscription: null,
+    paymentMethod: "",
+    idempotencyKey: "",
+    externalPaymentId: "",
+    externalOrderId: "",
+    failureCode: "",
+    failureMessage: "",
+    billedForStart: null,
+    billedForEnd: null,
+    createdAt: filing.paidAt.toISOString(),
+    updatedAt: filing.updatedAt.toISOString(),
+  };
+}
+
 export async function listBillingPaymentAttemptLogs(input?: { limit?: number }) {
   const limit = Math.min(Math.max(input?.limit ?? 200, 1), 500);
 
-  const [subscriptionCharges, ucrAttempts] = await Promise.all([
+  const [subscriptionCharges, ucrAttempts, form2290Payments] = await Promise.all([
     prisma.billingCharge.findMany({
       take: limit,
       orderBy: { createdAt: "desc" },
@@ -1099,11 +1157,32 @@ export async function listBillingPaymentAttemptLogs(input?: { limit?: number }) 
         },
       },
     }),
+    prisma.form2290Filing.findMany({
+      where: { paymentStatus: "PAID", paidAt: { not: null } },
+      take: limit,
+      orderBy: { paidAt: "desc" },
+      select: {
+        id: true,
+        paidAt: true,
+        updatedAt: true,
+        amountDue: true,
+        vinSnapshot: true,
+        unitNumberSnapshot: true,
+        taxPeriod: { select: { name: true } },
+        organization: {
+          select: { id: true, name: true, legalName: true, companyName: true, dotNumber: true },
+        },
+        user: { select: { id: true, name: true, email: true } },
+      },
+    }),
   ]);
 
   const logs = [
     ...subscriptionCharges.map(formatSubscriptionChargeLog),
     ...ucrAttempts.map(formatUcrCustomerPaymentAttemptLog),
+    ...form2290Payments
+      .filter((f): f is typeof f & { paidAt: Date } => f.paidAt !== null)
+      .map(formatForm2290PaymentLog),
   ]
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .slice(0, limit);
@@ -1114,6 +1193,7 @@ export async function listBillingPaymentAttemptLogs(input?: { limit?: number }) 
     sources: {
       subscriptionCharges: subscriptionCharges.length,
       ucrCustomerPaymentAttempts: ucrAttempts.length,
+      form2290Payments: form2290Payments.length,
     },
   };
 }

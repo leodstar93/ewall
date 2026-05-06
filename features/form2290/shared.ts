@@ -162,6 +162,11 @@ export type Form2290Filing = {
     name: string | null;
     email: string | null;
   };
+  claimedBy?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  } | null;
   organization?: {
     id: string;
     name: string | null;

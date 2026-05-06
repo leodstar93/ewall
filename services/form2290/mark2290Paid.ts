@@ -39,8 +39,9 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
 
   const filing = await db.$transaction(async (tx) => {
     const paidAt = input.paidAt ?? new Date();
-    const filing = await tx.form2290Filing.update({
-      where: { id: existing.id },
+
+    const { count } = await tx.form2290Filing.updateMany({
+      where: { id: existing.id, status: Form2290Status.DRAFT },
       data: {
         status: Form2290Status.PAID,
         paymentStatus: Form2290PaymentStatus.PAID,
@@ -50,6 +51,18 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
             ? new Prisma.Decimal(input.amountDue)
             : existing.amountDue,
       },
+    });
+
+    if (count === 0) {
+      throw new Form2290ServiceError(
+        "This filing was already paid.",
+        409,
+        "PAYMENT_ALREADY_PROCESSED",
+      );
+    }
+
+    const filing = await tx.form2290Filing.findUniqueOrThrow({
+      where: { id: existing.id },
       include: form2290FilingInclude,
     });
 

@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { Form2290PaymentHandling } from "@prisma/client";
 import {
   canEdit2290Filing,
   canMark2290Paid,
@@ -29,7 +28,6 @@ type Update2290FilingBody = {
   taxPeriodId?: unknown;
   firstUsedMonth?: unknown;
   firstUsedYear?: unknown;
-  paymentHandling?: unknown;
   taxableGrossWeight?: unknown;
   loggingVehicle?: unknown;
   suspendedVehicle?: unknown;
@@ -100,7 +98,7 @@ export async function GET(
         canUploadDocuments: isOwner || canManageAll,
         canAuthorize: isOwner && canSubmit2290Filing(filing.status),
         canStaffWorkflow: canManageAll,
-        canViewAudit: guard.isAdmin,
+        canViewAudit: guard.roles.includes("ADMIN") && guard.perms.includes("audit:read"),
       },
     });
   } catch (error) {
@@ -132,12 +130,6 @@ export async function PATCH(
       typeof body.irsTaxEstimate === "undefined" || body.irsTaxEstimate === null || body.irsTaxEstimate === ""
         ? null
         : parseMoney(body.irsTaxEstimate);
-    const paymentHandling =
-      typeof body.paymentHandling === "string" &&
-      Object.values(Form2290PaymentHandling).includes(body.paymentHandling as Form2290PaymentHandling)
-        ? (body.paymentHandling as Form2290PaymentHandling)
-        : undefined;
-
     if (typeof body.firstUsedMonth !== "undefined" && body.firstUsedMonth !== null && firstUsedMonth === null) {
       return Response.json({ error: "Invalid firstUsedMonth" }, { status: 400 });
     }
@@ -185,7 +177,6 @@ export async function PATCH(
         typeof body.firstUsedMonth === "undefined" ? undefined : firstUsedMonth,
       firstUsedYear:
         typeof body.firstUsedYear === "undefined" ? undefined : firstUsedYear,
-      paymentHandling,
       taxableGrossWeight,
       loggingVehicle:
         typeof body.loggingVehicle === "undefined" ? undefined : loggingVehicle,

@@ -1,4 +1,4 @@
-import { Form2290PaymentHandling, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { canEdit2290Filing } from "@/lib/form2290-workflow";
 import type { DbClient } from "@/lib/db/types";
 import {
@@ -22,7 +22,6 @@ type Update2290FilingInput = {
   taxPeriodId?: string;
   firstUsedMonth?: number | null;
   firstUsedYear?: number | null;
-  paymentHandling?: Form2290PaymentHandling | null;
   taxableGrossWeight?: number | null;
   loggingVehicle?: boolean | null;
   suspendedVehicle?: boolean | null;
@@ -126,10 +125,6 @@ export async function update2290Filing(input: Update2290FilingInput) {
           organizationId,
           truckId: truck.id,
           taxPeriodId: taxPeriod.id,
-          paymentHandling:
-            typeof input.paymentHandling === "undefined" || input.paymentHandling === null
-              ? existing.paymentHandling
-              : input.paymentHandling,
           vinSnapshot: vin,
           unitNumberSnapshot: truck.unitNumber,
           grossWeightSnapshot: truck.grossWeight ?? null,

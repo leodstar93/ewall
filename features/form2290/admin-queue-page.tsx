@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Table, { type ColumnDef } from "@/app/(v2)/(protected)/admin/components/ui/Table";
 import tableStyles from "@/app/(v2)/(protected)/admin/components/ui/DataTable.module.css";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
@@ -30,6 +31,10 @@ type Form2290AdminQueuePageProps = {
 
 export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProps) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id ?? null;
+  const currentUserLabel = session?.user?.name?.trim() || session?.user?.email?.trim() || "You";
+
   const apiPath = props.apiPath ?? "/api/v1/features/2290";
   const detailHrefBase = props.detailHrefBase ?? "/admin/features/2290";
   const newHref = "/dashboard/2290/new";
@@ -40,6 +45,7 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [busyFilingId, setBusyFilingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -70,6 +76,16 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function claimFiling(filingId: string) {
+    try {
+      setBusyFilingId(filingId);
+      await fetch(`/api/v1/admin/2290/${filingId}/claim`, { method: "POST" });
+      await load();
+    } finally {
+      setBusyFilingId(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -146,21 +162,54 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
     },
     { key: "updatedAt", label: "Updated", render: (_value, filing) => formatDate(filing.updatedAt) },
     {
+      key: "claimedByUserId",
+      label: "Assigned",
+      render: (_value, filing) => {
+        const isMe = Boolean(currentUserId) && filing.claimedByUserId === currentUserId;
+        const name = filing.claimedBy?.name || filing.claimedBy?.email;
+        return (
+          <Badge tone={!filing.claimedByUserId ? "light" : isMe ? "success" : "info"} variant="light">
+            {!filing.claimedByUserId ? "Unassigned" : isMe ? `Assigned to ${currentUserLabel}` : `${name ?? "Staff"}`}
+          </Badge>
+        );
+      },
+    },
+    {
       key: "id",
       label: "Actions",
       sortable: false,
-      render: (_value, filing) => (
-        <div className="flex justify-end">
-          <Link
-            href={`${detailHrefBase}/${filing.id}`}
-            aria-label="Review filing"
-            title="Review filing"
-            className={iconButtonClasses({ variant: "dark" })}
-          >
-            <ActionIcon name="view" />
-          </Link>
-        </div>
-      ),
+      render: (_value, filing) => {
+        const isAssignedToMe = Boolean(currentUserId) && filing.claimedByUserId === currentUserId;
+        return (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => void claimFiling(filing.id)}
+              disabled={busyFilingId === filing.id || isAssignedToMe}
+              aria-label={isAssignedToMe ? "Assigned to you" : "Assign to me"}
+              title={isAssignedToMe ? "Assigned to you" : "Assign to me"}
+              className={iconButtonClasses({
+                variant: "default",
+                className: busyFilingId === filing.id || isAssignedToMe ? "opacity-60" : undefined,
+              })}
+            >
+              {busyFilingId === filing.id ? (
+                <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+              ) : (
+                <ActionIcon name="roles" />
+              )}
+            </button>
+            <Link
+              href={`${detailHrefBase}/${filing.id}`}
+              aria-label="Review filing"
+              title="Review filing"
+              className={iconButtonClasses({ variant: "dark" })}
+            >
+              <ActionIcon name="view" />
+            </Link>
+          </div>
+        );
+      },
     },
   ];
 

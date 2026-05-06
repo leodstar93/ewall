@@ -50,13 +50,13 @@ export async function POST(
     if (typeof body.category !== "string" || !body.category.trim()) {
       return Response.json({ error: "category is required" }, { status: 400 });
     }
-    const weightMin = Number(body.weightMin);
-    const annualCents = Number(body.annualCents);
-    if (!Number.isInteger(weightMin) || weightMin < 0) {
-      return Response.json({ error: "weightMin must be a non-negative integer" }, { status: 400 });
+    const weightMin = Math.round(Number(body.weightMin));
+    const annualCents = Math.round(Number(body.annualCents));
+    if (Number.isNaN(weightMin) || weightMin < 0) {
+      return Response.json({ error: "weightMin must be a non-negative number" }, { status: 400 });
     }
-    if (!Number.isInteger(annualCents) || annualCents < 0) {
-      return Response.json({ error: "annualCents must be a non-negative integer" }, { status: 400 });
+    if (Number.isNaN(annualCents) || annualCents < 0) {
+      return Response.json({ error: "annualCents must be a non-negative number" }, { status: 400 });
     }
 
     const rate = await addRate(id, {

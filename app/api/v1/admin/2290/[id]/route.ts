@@ -56,7 +56,7 @@ export async function GET(
         canUploadDocuments: canManageAll,
         canAuthorize: false,
         canStaffWorkflow: canManageAll,
-        canViewAudit: guard.isAdmin,
+        canViewAudit: guard.roles.includes("ADMIN") && guard.perms.includes("audit:read"),
       },
     });
   } catch (error) {

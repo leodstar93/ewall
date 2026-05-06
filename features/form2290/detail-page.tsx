@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import tableStyles from "@/app/(v2)/(protected)/dashboard/components/ui/DataTable.module.css";
@@ -155,6 +156,20 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+const ACTION_SUCCESS_MESSAGES: Record<string, string> = {
+  submit: "Filing submitted for review.",
+  "mark-paid": "Payment confirmed.",
+  claim: "Filing assigned to you.",
+  "start-review": "Review started.",
+  "mark-ready-to-file": "Marked ready to file.",
+  "mark-payment-received": "Payment received.",
+  "mark-filed": "Marked as filed.",
+  "mark-compliant": "Filing finalized.",
+  cancel: "Filing cancelled.",
+  reopen: "Filing reopened.",
+  "request-correction": "Note sent.",
+};
+
 function StatusChip({ label, className }: { label: string; className: string }) {
   return <span className={`${styles.statusChip} ${className}`}>{label}</span>;
 }
@@ -283,6 +298,8 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
+  const [schedule1File, setSchedule1File] = useState<File | null>(null);
   const schedule1InputRef = useRef<HTMLInputElement | null>(null);
 
   const [correctionMessage, setCorrectionMessage] = useState("");
@@ -343,15 +360,12 @@ export default function Form2290DetailPage(props: DetailPageProps) {
 
   async function attachSupportingDocument() {
     if (!documentFile) {
-      const message = "Please choose a file to upload.";
-      setError(message);
-      toast.error(message);
+      toast.error("Please choose a file to upload.");
       return;
     }
 
     try {
       setBusyAction("document");
-      setError(null);
       const formData = new FormData();
       formData.append("file", documentFile);
       const documentsAttachBase =
@@ -377,9 +391,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       await load();
       toast.success("Document uploaded and attached to this filing.");
     } catch (uploadError) {
-      const message = getErrorMessage(uploadError, "Could not attach the document.");
-      setError(message);
-      toast.error(message);
+      toast.error(getErrorMessage(uploadError, "Could not attach the document."));
     } finally {
       setBusyAction(null);
     }
@@ -395,7 +407,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
 
     try {
       setBusyAction("schedule1");
-      setError(null);
       const formData = new FormData();
       formData.append("file", file);
       formData.append("name", file.name);
@@ -429,10 +440,10 @@ export default function Form2290DetailPage(props: DetailPageProps) {
 
       await load();
       toast.success("Schedule 1 uploaded and filing finalized.");
+      setFinalizeModalOpen(false);
+      setSchedule1File(null);
     } catch (uploadError) {
-      const message = getErrorMessage(uploadError, "Could not upload Schedule 1.");
-      setError(message);
-      toast.error(message);
+      toast.error(getErrorMessage(uploadError, "Could not upload Schedule 1."));
     } finally {
       setBusyAction(null);
       if (schedule1InputRef.current) {
@@ -458,7 +469,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   ) {
     try {
       setBusyAction(endpoint);
-      setError(null);
       const base =
         props.mode === "staff" &&
         endpoint !== "submit" &&
@@ -483,11 +493,10 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       }
 
       await load();
+      toast.success(ACTION_SUCCESS_MESSAGES[endpoint] ?? "Done.");
     } catch (actionError) {
-      setError(
-        actionError instanceof Error
-          ? actionError.message
-          : "The action failed.",
+      toast.error(
+        actionError instanceof Error ? actionError.message : "The action failed.",
       );
     } finally {
       setBusyAction(null);
@@ -497,15 +506,12 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   async function sendNote() {
     const message = correctionMessage.trim();
     if (!message) {
-      const validationMessage = "Write a note before sending.";
-      setError(validationMessage);
-      toast.error(validationMessage);
+      toast.error("Write a note before sending.");
       return;
     }
 
     try {
       setBusyAction("request-correction");
-      setError(null);
       const base =
         props.mode === "staff"
           ? "/api/v1/admin/2290"
@@ -531,9 +537,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       await load();
       toast.success("Note sent.");
     } catch (noteError) {
-      const message = getErrorMessage(noteError, "Could not send the note.");
-      setError(message);
-      toast.error(message);
+      toast.error(getErrorMessage(noteError, "Could not send the note."));
     } finally {
       setBusyAction(null);
     }
@@ -620,9 +624,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     { label: "Service fee", value: formatCurrency(filing.serviceFeeAmount) },
     { label: "Payment status", value: paymentStatusLabel(filing.paymentStatus) },
     { label: "Payment handling", value: filing.paymentHandling.replaceAll("_", " ") },
-    { label: "Default payment method", value: filing.defaultPaymentMethodId ? "Selected" : "Not selected" },
     { label: "Paid at", value: formatDateOnly(filing.paidAt) },
-    { label: "Payment reference", value: filing.paymentReference || "-" },
   ];
 
   const companyName =
@@ -669,7 +671,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   disabled={busyAction === "mark-paid"}
                   className={styles.primaryButton}
                 >
-                  {busyAction === "mark-paid" ? "Working..." : "Pay filing"}
+                  {busyAction === "mark-paid" ? "Working..." : "Pay now"}
                 </button>
               ) : null}
               {props.mode === "driver" && permissions.canSubmit ? (
@@ -704,18 +706,12 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => schedule1InputRef.current?.click()}
-                    disabled={busyAction === "schedule1" || filing.status !== "IN_PROCESS"}
+                    onClick={() => { setSchedule1File(null); setFinalizeModalOpen(true); }}
+                    disabled={filing.status !== "IN_PROCESS"}
                     className={styles.primaryButton}
                   >
-                    {busyAction === "schedule1" ? "Finalizing..." : "Finalize filing"}
+                    Finalize filing
                   </button>
-                  <input
-                    ref={schedule1InputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={(event) => void uploadSchedule1(event.target.files?.[0])}
-                  />
                 </>
               ) : null}
             </div>
@@ -733,8 +729,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
             />
           </div>
         </div>
-
-        {error ? <div className={styles.alertError}>{error}</div> : null}
 
         <div className={styles.section}>
           <div className={styles.twoUp}>
@@ -860,7 +854,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   firstUsedMonth: filing.firstUsedMonth,
                   firstUsedYear: filing.firstUsedYear,
                   notes: filing.notes,
-                  paymentHandling: filing.paymentHandling,
                   taxableGrossWeight: filing.taxableGrossWeightSnapshot,
                   loggingVehicle: filing.loggingVehicle,
                   suspendedVehicle: filing.suspendedVehicle,
@@ -916,6 +909,71 @@ export default function Form2290DetailPage(props: DetailPageProps) {
           </div>
         </div>
       ) : null}
+
+      {finalizeModalOpen
+        ? createPortal(
+            <div
+              className={styles.modalOverlay}
+              onClick={() => {
+                if (busyAction === "schedule1") return;
+                setFinalizeModalOpen(false);
+                setSchedule1File(null);
+              }}
+            >
+              <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.modalHeader}>
+                  <div>
+                    <p className={styles.eyebrow}>Finalize</p>
+                    <h2 className={styles.sectionTitle}>Upload Schedule 1 &amp; finalize</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() => { setFinalizeModalOpen(false); setSchedule1File(null); }}
+                    disabled={busyAction === "schedule1"}
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <label className={styles.uploadField}>
+                  <span className={styles.uploadFieldLabel}>Schedule 1 (IRS stamped)</span>
+                  <input
+                    ref={schedule1InputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setSchedule1File(e.target.files?.[0] ?? null)}
+                    className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3"
+                  />
+                  <span className={styles.uploadFieldHelp}>
+                    Upload the IRS-stamped Schedule 1. This will mark the filing as finalized.
+                  </span>
+                </label>
+
+                <div className={styles.noteActions}>
+                  <button
+                    type="button"
+                    onClick={() => { setFinalizeModalOpen(false); setSchedule1File(null); }}
+                    className={styles.secondaryButton}
+                    disabled={busyAction === "schedule1"}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void uploadSchedule1(schedule1File)}
+                    className={styles.primaryButton}
+                    style={{ background: "#2563eb", borderColor: "#2563eb" }}
+                    disabled={busyAction === "schedule1" || !schedule1File}
+                  >
+                    {busyAction === "schedule1" ? "Finalizing..." : "Finalize filing"}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

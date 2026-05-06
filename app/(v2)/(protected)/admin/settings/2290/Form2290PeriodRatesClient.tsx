@@ -30,30 +30,33 @@ const emptyDraft: Draft = {
   sortOrder: "",
 };
 
+const CATEGORIES = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V"];
+
 const inputStyle: React.CSSProperties = {
   border: "1px solid var(--br)",
   borderRadius: 8,
-  padding: "6px 10px",
+  padding: "8px 12px",
   fontSize: 13,
   outline: "none",
   width: "100%",
   color: "var(--b)",
 };
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: "0.1em",
-        color: "#aaa",
-      }}
-    >
-      {children}
-    </span>
-  );
+const labelStyle: React.CSSProperties = {
+  textTransform: "uppercase",
+  fontSize: 10,
+  letterSpacing: "0.1em",
+};
+
+function formatThousands(raw: string): string {
+  if (!raw) return "";
+  const [intPart, decPart] = raw.split(".");
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decPart !== undefined ? `${formatted}.${decPart}` : formatted;
+}
+
+function stripFormatting(value: string): string {
+  return value.replace(/,/g, "");
 }
 
 export default function Form2290PeriodRatesClient({
@@ -175,10 +178,7 @@ export default function Form2290PeriodRatesClient({
               <input
                 value={draft.category}
                 onChange={(e) =>
-                  setEditing((p) => ({
-                    ...p,
-                    [rate.id]: { ...draft, category: e.target.value },
-                  }))
+                  setEditing((p) => ({ ...p, [rate.id]: { ...draft, category: e.target.value } }))
                 }
                 style={{ ...inputStyle, width: 56 }}
               />
@@ -199,10 +199,7 @@ export default function Form2290PeriodRatesClient({
                   type="number"
                   value={draft.weightMin}
                   onChange={(e) =>
-                    setEditing((p) => ({
-                      ...p,
-                      [rate.id]: { ...draft, weightMin: Number(e.target.value) },
-                    }))
+                    setEditing((p) => ({ ...p, [rate.id]: { ...draft, weightMin: Number(e.target.value) } }))
                   }
                   style={{ ...inputStyle, width: 88 }}
                 />
@@ -213,10 +210,7 @@ export default function Form2290PeriodRatesClient({
                   onChange={(e) =>
                     setEditing((p) => ({
                       ...p,
-                      [rate.id]: {
-                        ...draft,
-                        weightMax: e.target.value ? Number(e.target.value) : null,
-                      },
+                      [rate.id]: { ...draft, weightMax: e.target.value ? Number(e.target.value) : null },
                     }))
                   }
                   style={{ ...inputStyle, width: 88 }}
@@ -237,10 +231,7 @@ export default function Form2290PeriodRatesClient({
                 type="number"
                 value={draft.annualCents}
                 onChange={(e) =>
-                  setEditing((p) => ({
-                    ...p,
-                    [rate.id]: { ...draft, annualCents: Number(e.target.value) },
-                  }))
+                  setEditing((p) => ({ ...p, [rate.id]: { ...draft, annualCents: Number(e.target.value) } }))
                 }
                 style={{ ...inputStyle, width: 100 }}
               />
@@ -259,10 +250,7 @@ export default function Form2290PeriodRatesClient({
                 type="number"
                 value={draft.sortOrder}
                 onChange={(e) =>
-                  setEditing((p) => ({
-                    ...p,
-                    [rate.id]: { ...draft, sortOrder: Number(e.target.value) },
-                  }))
+                  setEditing((p) => ({ ...p, [rate.id]: { ...draft, sortOrder: Number(e.target.value) } }))
                 }
                 style={{ ...inputStyle, width: 56 }}
               />
@@ -283,21 +271,16 @@ export default function Form2290PeriodRatesClient({
                   type="button"
                   disabled={busy === `save-${rate.id}`}
                   onClick={() => void handleSave(rate.id)}
-                  className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
-                  style={{ opacity: busy === `save-${rate.id}` ? 0.6 : 1 }}
+                  className={tableStyles.btn}
+                  style={{ background: "#16a34a", color: "#fff", borderColor: "#16a34a", opacity: busy === `save-${rate.id}` ? 0.6 : 1 }}
                 >
                   {busy === `save-${rate.id}` ? "Saving..." : "Save"}
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    setEditing((p) => {
-                      const n = { ...p };
-                      delete n[rate.id];
-                      return n;
-                    })
-                  }
+                  onClick={() => setEditing((p) => { const n = { ...p }; delete n[rate.id]; return n; })}
                   className={tableStyles.btn}
+                  style={{ background: "#dc2626", color: "#fff", borderColor: "#dc2626" }}
                 >
                   Cancel
                 </button>
@@ -307,9 +290,7 @@ export default function Form2290PeriodRatesClient({
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
               <button
                 type="button"
-                onClick={() =>
-                  setEditing((p) => ({ ...p, [rate.id]: { ...rate } }))
-                }
+                onClick={() => setEditing((p) => ({ ...p, [rate.id]: { ...rate } }))}
                 className={tableStyles.btn}
               >
                 Edit
@@ -318,17 +299,8 @@ export default function Form2290PeriodRatesClient({
                 type="button"
                 disabled={busy === `del-${rate.id}`}
                 onClick={() => void handleDelete(rate.id)}
-                style={{
-                  height: 30,
-                  padding: "0 10px",
-                  border: "1px solid #fecaca",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  background: "transparent",
-                  color: "#b91c1c",
-                  opacity: busy === `del-${rate.id}` ? 0.6 : 1,
-                }}
+                className={tableStyles.btn}
+                style={{ borderColor: "#fecaca", color: "#b91c1c", opacity: busy === `del-${rate.id}` ? 0.6 : 1 }}
               >
                 {busy === `del-${rate.id}` ? "..." : "×"}
               </button>
@@ -345,7 +317,10 @@ export default function Form2290PeriodRatesClient({
       {
         label: adding ? "Cancel" : "+ Add rate",
         onClick: () => setAdding((a) => (a ? null : { ...emptyDraft })),
-        variant: (adding ? "default" : "primary") as "default" | "primary",
+        variant: adding ? "default" : "primary",
+        style: adding
+          ? undefined
+          : { background: "#2563eb", color: "#fff", borderColor: "#2563eb" },
       },
     ],
     [adding],
@@ -355,40 +330,81 @@ export default function Form2290PeriodRatesClient({
     <div
       style={{
         display: "grid",
-        gap: 10,
-        gridTemplateColumns: "80px 1fr 1fr 120px 80px auto",
+        gap: 16,
+        gridTemplateColumns:
+          "minmax(80px, 0.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(80px, 0.4fr) auto",
         alignItems: "end",
-        paddingTop: 14,
       }}
     >
-      {(
-        [
-          ["Cat.", "category"],
-          ["Weight min", "weightMin"],
-          ["Weight max", "weightMax"],
-          ["Annual (cents)", "annualCents"],
-          ["Sort", "sortOrder"],
-        ] as const
-      ).map(([label, key]) => (
-        <label key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <FieldLabel>{label}</FieldLabel>
-          <input
-            type={key === "category" ? "text" : "number"}
-            value={adding[key]}
-            onChange={(e) =>
-              setAdding((a) => (a ? { ...a, [key]: e.target.value } : a))
-            }
-            style={inputStyle}
-            placeholder={key === "category" ? "A" : "0"}
-          />
-        </label>
-      ))}
+      <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className={tableStyles.subtitle} style={labelStyle}>Category</span>
+        <select
+          value={adding.category}
+          onChange={(e) => setAdding((a) => (a ? { ...a, category: e.target.value } : a))}
+          style={{ ...inputStyle, background: "#fff" }}
+        >
+          <option value="">—</option>
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </label>
+
+      <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className={tableStyles.subtitle} style={labelStyle}>Weight min</span>
+        <input
+          type="number"
+          value={adding.weightMin}
+          onChange={(e) => setAdding((a) => (a ? { ...a, weightMin: e.target.value } : a))}
+          style={inputStyle}
+          placeholder="0"
+        />
+      </label>
+
+      <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className={tableStyles.subtitle} style={labelStyle}>Weight max</span>
+        <input
+          type="number"
+          value={adding.weightMax}
+          onChange={(e) => setAdding((a) => (a ? { ...a, weightMax: e.target.value } : a))}
+          style={inputStyle}
+          placeholder="optional"
+        />
+      </label>
+
+      <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className={tableStyles.subtitle} style={labelStyle}>Annual (cents)</span>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={formatThousands(adding.annualCents)}
+          onChange={(e) => {
+            const raw = stripFormatting(e.target.value);
+            if (/^\d*\.?\d*$/.test(raw))
+              setAdding((a) => (a ? { ...a, annualCents: raw } : a));
+          }}
+          style={inputStyle}
+          placeholder="0"
+        />
+      </label>
+
+      <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className={tableStyles.subtitle} style={labelStyle}>Sort</span>
+        <input
+          type="number"
+          value={adding.sortOrder}
+          onChange={(e) => setAdding((a) => (a ? { ...a, sortOrder: e.target.value } : a))}
+          style={inputStyle}
+          placeholder="0"
+        />
+      </label>
+
       <button
         type="button"
         disabled={busy === "add"}
         onClick={() => void handleAdd()}
-        className={`${tableStyles.btn} ${tableStyles.btnPrimary}`}
-        style={{ height: 36 }}
+        className={tableStyles.btn}
+        style={{ background: "#16a34a", color: "#fff", borderColor: "#16a34a", opacity: busy === "add" ? 0.6 : 1, alignSelf: "flex-end" }}
       >
         {busy === "add" ? "Adding..." : "Add"}
       </button>
@@ -411,10 +427,11 @@ export default function Form2290PeriodRatesClient({
           {error}
         </div>
       ) : null}
+
       <Table
         data={loading ? [] : rates}
         columns={columns}
-        title="Rates"
+        title="Tax rate table"
         actions={actions}
         toolbar={toolbar}
         searchKeys={["category"]}

@@ -33,11 +33,11 @@ export async function PATCH(
 
     const rate = await updateRate(rateId, {
       category: typeof body.category === "string" ? body.category.trim() : undefined,
-      weightMin: body.weightMin != null ? Number(body.weightMin) : undefined,
+      weightMin: body.weightMin != null ? Math.round(Number(body.weightMin)) : undefined,
       weightMax: "weightMax" in body
-        ? (body.weightMax != null ? Number(body.weightMax) : null)
+        ? (body.weightMax != null ? Math.round(Number(body.weightMax)) : null)
         : undefined,
-      annualCents: body.annualCents != null ? Number(body.annualCents) : undefined,
+      annualCents: body.annualCents != null ? Math.round(Number(body.annualCents)) : undefined,
       sortOrder: body.sortOrder != null ? Number(body.sortOrder) : undefined,
     });
 

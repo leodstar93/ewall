@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { Form2290PaymentHandling, Form2290Status } from "@prisma/client";
+import { Form2290Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import {
@@ -25,7 +25,6 @@ type Create2290FilingBody = {
   taxPeriodId?: unknown;
   firstUsedMonth?: unknown;
   firstUsedYear?: unknown;
-  paymentHandling?: unknown;
   taxableGrossWeight?: unknown;
   loggingVehicle?: unknown;
   suspendedVehicle?: unknown;
@@ -127,12 +126,6 @@ export async function POST(request: NextRequest) {
       typeof body.irsTaxEstimate === "undefined" || body.irsTaxEstimate === null || body.irsTaxEstimate === ""
         ? null
         : parseMoney(body.irsTaxEstimate);
-    const paymentHandling =
-      typeof body.paymentHandling === "string" &&
-      Object.values(Form2290PaymentHandling).includes(body.paymentHandling as Form2290PaymentHandling)
-        ? (body.paymentHandling as Form2290PaymentHandling)
-        : undefined;
-
     if (!truckId) {
       return Response.json({ error: "vehicleId is required" }, { status: 400 });
     }
@@ -178,7 +171,6 @@ export async function POST(request: NextRequest) {
       taxPeriodId,
       firstUsedMonth,
       firstUsedYear,
-      paymentHandling,
       taxableGrossWeight,
       loggingVehicle,
       suspendedVehicle,

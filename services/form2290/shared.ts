@@ -57,6 +57,13 @@ export const form2290FilingInclude = {
   },
   authorization: true,
   schedule1Document: true,
+  claimedBy: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
 } satisfies Prisma.Form2290FilingInclude;
 
 export function resolveForm2290Db(
