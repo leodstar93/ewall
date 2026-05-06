@@ -20,7 +20,6 @@ type Form2290FilingFormProps = {
     loggingVehicle?: boolean | null;
     suspendedVehicle?: boolean | null;
     confirmationAccepted?: boolean | null;
-    irsTaxEstimate?: string | null;
     notes?: string | null;
   };
   onSaved?: () => void;
@@ -70,9 +69,6 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
   );
   const [confirmationAccepted, setConfirmationAccepted] = useState(
     Boolean(props.initialValues?.confirmationAccepted),
-  );
-  const [irsTaxEstimate, setIrsTaxEstimate] = useState(
-    props.initialValues?.irsTaxEstimate ?? "",
   );
   useEffect(() => {
     let active = true;
@@ -151,7 +147,6 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
         loggingVehicle: loggingVehicle === "" ? null : loggingVehicle === "true",
         suspendedVehicle: suspendedVehicle === "" ? null : suspendedVehicle === "true",
         confirmationAccepted,
-        irsTaxEstimate: irsTaxEstimate || null,
         notes,
       };
 
@@ -267,14 +262,18 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
 
         <label className="space-y-2 text-sm text-zinc-700">
           <span className="font-medium text-zinc-900">First used month</span>
-          <input
-            type="number"
-            min={1}
-            max={12}
+          <select
             value={firstUsedMonth}
             onChange={(event) => setFirstUsedMonth(event.target.value)}
             className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
+          >
+            <option value="">Select month</option>
+            {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+              <option key={month} value={month}>
+                {new Date(2024, month - 1, 1).toLocaleString("en-US", { month: "long" })}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="space-y-2 text-sm text-zinc-700">
@@ -325,18 +324,6 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
             <option value="false">No</option>
             <option value="true">Yes</option>
           </select>
-        </label>
-
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">IRS tax estimate</span>
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={irsTaxEstimate}
-            onChange={(event) => setIrsTaxEstimate(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          />
         </label>
 
         <label className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 md:col-span-2">

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import {
+  canDelete2290Filing,
   canEdit2290Filing,
   canMark2290Paid,
   canSubmit2290Filing,
@@ -15,6 +16,7 @@ import {
   parsePositiveInteger,
 } from "@/lib/validations/form2290";
 import { update2290Filing } from "@/services/form2290/update2290Filing";
+import { delete2290Filing } from "@/services/form2290/delete2290Filing";
 import {
   assert2290FilingAccess,
   canManageAll2290,
@@ -89,6 +91,7 @@ export async function GET(
         isOwner,
         canManageAll,
         canEdit: (isOwner || canManageAll) && canEdit2290Filing(filing.status),
+        canDelete: (isOwner || canManageAll) && canDelete2290Filing(filing.status, filing.paymentStatus),
         canSubmit: (isOwner || canManageAll) && canSubmit2290Filing(filing.status),
         canMarkSubmitted: false,
         canRequestCorrection: isOwner || canManageAll,
@@ -192,5 +195,27 @@ export async function PATCH(
     return Response.json({ filing });
   } catch (error) {
     return toErrorResponse(error, "Failed to update Form 2290 filing");
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const guard = await requireApiPermission("compliance2290:update");
+  if (!guard.ok) return guard.res;
+
+  const { id } = await params;
+
+  try {
+    await delete2290Filing({
+      filingId: id,
+      actorUserId: guard.session.user.id ?? "",
+      canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
+    });
+
+    return Response.json({ success: true });
+  } catch (error) {
+    return toErrorResponse(error, "Failed to delete Form 2290 filing");
   }
 }

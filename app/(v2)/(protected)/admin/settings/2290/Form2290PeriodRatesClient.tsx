@@ -22,6 +22,10 @@ type Draft = {
   sortOrder: string;
 };
 
+type RateDraft = Omit<Form2290RateRow, "annualCents"> & {
+  annualCents: string;
+};
+
 const emptyDraft: Draft = {
   category: "",
   weightMin: "",
@@ -59,6 +63,17 @@ function stripFormatting(value: string): string {
   return value.replace(/,/g, "");
 }
 
+function centsToDollarInput(cents: number | null | undefined): string {
+  if (cents == null) return "";
+  return (cents / 100).toFixed(2);
+}
+
+function dollarsToCents(value: string | number | null | undefined): number {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.round(parsed * 100);
+}
+
 export default function Form2290PeriodRatesClient({
   taxPeriodId,
 }: {
@@ -69,7 +84,7 @@ export default function Form2290PeriodRatesClient({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<Draft | null>(null);
-  const [editing, setEditing] = useState<Record<string, Form2290RateRow>>({});
+  const [editing, setEditing] = useState<Record<string, RateDraft>>({});
 
   const base = `/api/v1/settings/2290/tax-periods/${taxPeriodId}/rates`;
 
@@ -104,7 +119,7 @@ export default function Form2290PeriodRatesClient({
           category: adding.category.trim(),
           weightMin: Number(adding.weightMin),
           weightMax: adding.weightMax ? Number(adding.weightMax) : null,
-          annualCents: Number(adding.annualCents),
+          annualCents: dollarsToCents(adding.annualCents),
           sortOrder: adding.sortOrder ? Number(adding.sortOrder) : undefined,
         }),
       });
@@ -132,7 +147,7 @@ export default function Form2290PeriodRatesClient({
           category: draft.category,
           weightMin: draft.weightMin,
           weightMax: draft.weightMax,
-          annualCents: draft.annualCents,
+          annualCents: dollarsToCents(draft.annualCents),
           sortOrder: draft.sortOrder,
         }),
       });
@@ -228,10 +243,10 @@ export default function Form2290PeriodRatesClient({
           if (draft)
             return (
               <input
-                type="number"
-                value={draft.annualCents}
-                onChange={(e) =>
-                  setEditing((p) => ({ ...p, [rate.id]: { ...draft, annualCents: Number(e.target.value) } }))
+                  type="number"
+                  value={draft.annualCents}
+                  onChange={(e) =>
+                  setEditing((p) => ({ ...p, [rate.id]: { ...draft, annualCents: e.target.value } }))
                 }
                 style={{ ...inputStyle, width: 100 }}
               />
@@ -290,7 +305,15 @@ export default function Form2290PeriodRatesClient({
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
               <button
                 type="button"
-                onClick={() => setEditing((p) => ({ ...p, [rate.id]: { ...rate } }))}
+                onClick={() =>
+                  setEditing((p) => ({
+                    ...p,
+                    [rate.id]: {
+                      ...rate,
+                      annualCents: centsToDollarInput(rate.annualCents),
+                    },
+                  }))
+                }
                 className={tableStyles.btn}
               >
                 Edit
@@ -373,7 +396,7 @@ export default function Form2290PeriodRatesClient({
       </label>
 
       <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span className={tableStyles.subtitle} style={labelStyle}>Annual (cents)</span>
+        <span className={tableStyles.subtitle} style={labelStyle}>Annual tax ($)</span>
         <input
           type="text"
           inputMode="decimal"

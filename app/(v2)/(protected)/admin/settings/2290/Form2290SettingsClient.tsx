@@ -76,7 +76,6 @@ export default function Form2290SettingsClient() {
   const [enabled, setEnabled] = useState(true);
   const [processingMode, setProcessingMode] = useState<"STAFF_ASSISTED" | "SELF_SERVICE" | "HYBRID">("STAFF_ASSISTED");
   const [requirePaymentBeforeSubmit, setRequirePaymentBeforeSubmit] = useState(true);
-  const [collectIrsTaxEstimate, setCollectIrsTaxEstimate] = useState(false);
   const [allowCustomerPaysProvider, setAllowCustomerPaysProvider] = useState(true);
   const [allowEwallCollectsAndRemits, setAllowEwallCollectsAndRemits] = useState(true);
   const [requireSchedule1ForCompliance, setRequireSchedule1ForCompliance] = useState(true);
@@ -111,7 +110,6 @@ export default function Form2290SettingsClient() {
       setEnabled(data.settings.enabled);
       setProcessingMode(data.settings.processingMode);
       setRequirePaymentBeforeSubmit(data.settings.requirePaymentBeforeSubmit);
-      setCollectIrsTaxEstimate(data.settings.collectIrsTaxEstimate);
       setAllowCustomerPaysProvider(data.settings.allowCustomerPaysProvider);
       setAllowEwallCollectsAndRemits(data.settings.allowEwallCollectsAndRemits);
       setRequireSchedule1ForCompliance(data.settings.requireSchedule1ForCompliance);
@@ -161,7 +159,7 @@ export default function Form2290SettingsClient() {
           enabled,
           processingMode,
           requirePaymentBeforeSubmit,
-          collectIrsTaxEstimate,
+          collectIrsTaxEstimate: false,
           allowCustomerPaysProvider,
           allowEwallCollectsAndRemits,
           requireSchedule1ForCompliance,
@@ -456,10 +454,6 @@ export default function Form2290SettingsClient() {
               <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
                 <input type="checkbox" checked={requirePaymentBeforeSubmit} onChange={(e) => setRequirePaymentBeforeSubmit(e.target.checked)} />
                 <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Require payment method before submit</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
-                <input type="checkbox" checked={collectIrsTaxEstimate} onChange={(e) => setCollectIrsTaxEstimate(e.target.checked)} />
-                <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Collect IRS tax estimate</span>
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
                 <input type="checkbox" checked={allowCustomerPaysProvider} onChange={(e) => setAllowCustomerPaysProvider(e.target.checked)} />

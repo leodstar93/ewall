@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import tableStyles from "@/app/(v2)/(protected)/dashboard/components/ui/DataTable.module.css";
 import styles from "@/app/(v2)/(protected)/dashboard/ucr/[id]/ucr-detail.module.css";
@@ -34,6 +36,7 @@ type DetailPayload = {
     isOwner: boolean;
     canManageAll: boolean;
     canEdit: boolean;
+    canDelete?: boolean;
     canSubmit: boolean;
     canMarkSubmitted: boolean;
     canRequestCorrection: boolean;
@@ -290,6 +293,7 @@ function TimelineTable({ rows }: { rows: TimelineRow[] }) {
 }
 
 export default function Form2290DetailPage(props: DetailPageProps) {
+  const router = useRouter();
   const [payload, setPayload] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -543,6 +547,49 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     }
   }
 
+  async function deleteFiling() {
+    if (!payload?.filing) return;
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Delete Form 2290 filing?",
+      text: "This action cannot be undone.",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      setBusyAction("delete");
+      setError(null);
+      const response = await fetch(
+        `${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}`,
+        { method: "DELETE" },
+      );
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not delete this Form 2290 filing.");
+      }
+
+      toast.success("Form 2290 filing deleted.");
+      router.push(backHref);
+      router.refresh();
+    } catch (deleteError) {
+      const message =
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Could not delete this Form 2290 filing.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   const filing = payload?.filing ?? null;
   const permissions = payload?.permissions ?? null;
 
@@ -662,6 +709,17 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   className={styles.secondaryButton}
                 >
                   Edit filing
+                </button>
+              ) : null}
+              {props.mode === "driver" && permissions.canDelete ? (
+                <button
+                  type="button"
+                  onClick={() => void deleteFiling()}
+                  disabled={busyAction === "delete"}
+                  className={styles.secondaryButton}
+                  style={{ borderColor: "#fecaca", color: "#b91c1c" }}
+                >
+                  {busyAction === "delete" ? "Deleting..." : "Delete filing"}
                 </button>
               ) : null}
               {props.mode === "driver" && permissions.canMarkPaid ? (
@@ -858,7 +916,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   loggingVehicle: filing.loggingVehicle,
                   suspendedVehicle: filing.suspendedVehicle,
                   confirmationAccepted: Boolean(filing.confirmationAcceptedAt),
-                  irsTaxEstimate: filing.irsTaxEstimate,
                 }}
                 onSaved={() => {
                   setEditModalOpen(false);

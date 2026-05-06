@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireApiPermission } from "@/lib/rbac-api";
+import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
 import { canManageAll2290, Form2290ServiceError } from "@/services/form2290/shared";
 
 export async function run2290AdminAction(
@@ -18,9 +19,16 @@ export async function run2290AdminAction(
   try {
     const { id } = await params;
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const actorUserId = guard.session.user.id ?? "";
+    if (!actorUserId) {
+      return Response.json({ error: "Invalid session.", code: "INVALID_SESSION" }, { status: 400 });
+    }
+
+    await ensureStaffDisplayNameForUser(actorUserId);
+
     const result = await action({
       filingId: id,
-      actorUserId: guard.session.user.id ?? "",
+      actorUserId,
       canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
       body,
     });

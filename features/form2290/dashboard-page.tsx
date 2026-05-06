@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import Swal from "sweetalert2";
 import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import Table, {
@@ -116,6 +117,10 @@ function customerActionLabel(filing: Form2290Filing) {
   }
 }
 
+function canDeleteForm2290Filing(filing: Form2290Filing) {
+  return filing.status === "DRAFT" || filing.paymentStatus === "UNPAID";
+}
+
 function visibleStatusLabel(status: Form2290VisibleStatus) {
   return statusOptions.find((option) => option.value === status)?.label ?? status;
 }
@@ -185,6 +190,7 @@ export default function Form2290DashboardPage({
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalBusy, setModalBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [truckId, setTruckId] = useState("");
   const [firstUsedMonth, setFirstUsedMonth] = useState("");
@@ -397,6 +403,46 @@ export default function Form2290DashboardPage({
     }
   }
 
+  async function deleteFiling(filing: Form2290Filing) {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Delete Form 2290 filing?",
+      text: "This action cannot be undone.",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      setDeletingId(filing.id);
+      setError(null);
+      const response = await fetch(`${apiBasePath}/${filing.id}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not delete this Form 2290 filing.");
+      }
+
+      setFilings((current) => current.filter((item) => item.id !== filing.id));
+      router.refresh();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Could not delete this Form 2290 filing.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   const columns: ColumnDef<Form2290TableRow>[] = [
     {
       key: "unitNumberSnapshot",
@@ -473,22 +519,6 @@ export default function Form2290DashboardPage({
       ),
     },
     {
-      key: "schedule1DocumentId",
-      label: "Compliance",
-      sortable: false,
-      render: (_value, filing) => {
-        const compliance = getComplianceStateForFiling(filing);
-        return (
-          <Badge
-            tone={compliance.expired ? "error" : compliance.compliant ? "success" : "info"}
-            variant="light"
-          >
-            {complianceLabel(compliance)}
-          </Badge>
-        );
-      },
-    },
-    {
       key: "sortUpdatedAt",
       label: "Updated",
       render: (_value, filing) => (
@@ -515,6 +545,25 @@ export default function Form2290DashboardPage({
           >
             <ActionIcon name="view" />
           </Link>
+          {canDeleteForm2290Filing(filing) ? (
+            <button
+              type="button"
+              onClick={() => void deleteFiling(filing)}
+              disabled={deletingId === filing.id}
+              aria-label={deletingId === filing.id ? "Deleting filing" : "Delete filing"}
+              title={deletingId === filing.id ? "Deleting filing" : "Delete filing"}
+              className={iconButtonClasses({
+                variant: "danger",
+                className: deletingId === filing.id ? "opacity-60" : undefined,
+              })}
+            >
+              {deletingId === filing.id ? (
+                <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+              ) : (
+                <ActionIcon name="delete" />
+              )}
+            </button>
+          ) : null}
         </div>
       ),
     },

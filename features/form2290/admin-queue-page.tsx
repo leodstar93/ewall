@@ -10,16 +10,19 @@ import { ActionIcon, iconButtonClasses } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import { getStatusTone } from "@/lib/ui/status-utils";
 import {
-  complianceLabel,
   Form2290Filing,
   formatDate,
-  getComplianceStateForFiling,
   paymentStatusLabel,
   statusLabel,
 } from "@/features/form2290/shared";
 
 type FilingsPayload = {
   filings?: Form2290Filing[];
+  error?: string;
+};
+
+type ClaimPayload = {
+  filing?: Form2290Filing;
   error?: string;
 };
 
@@ -33,6 +36,7 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
   const router = useRouter();
   const { data: session } = useSession();
   const currentUserId = session?.user?.id ?? null;
+  const currentUserEmail = session?.user?.email?.trim() || null;
   const currentUserLabel = session?.user?.name?.trim() || session?.user?.email?.trim() || "You";
 
   const apiPath = props.apiPath ?? "/api/v1/features/2290";
@@ -80,8 +84,19 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
   async function claimFiling(filingId: string) {
     try {
       setBusyFilingId(filingId);
-      await fetch(`/api/v1/admin/2290/${filingId}/claim`, { method: "POST" });
+      setError(null);
+      const response = await fetch(`/api/v1/admin/2290/${filingId}/claim`, { method: "POST" });
+      const data = (await response.json().catch(() => ({}))) as ClaimPayload;
+      if (!response.ok || !data.filing) {
+        throw new Error(data.error || "Could not assign Form 2290 filing.");
+      }
+
+      setFilings((current) =>
+        current.map((filing) => (filing.id === filingId ? data.filing ?? filing : filing)),
+      );
       await load();
+    } catch (claimError) {
+      setError(claimError instanceof Error ? claimError.message : "Could not assign Form 2290 filing.");
     } finally {
       setBusyFilingId(null);
     }
@@ -119,12 +134,20 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
 
   const columns: ColumnDef<Form2290Filing>[] = [
     {
-      key: "userId",
-      label: "Owner",
+      key: "organizationId",
+      label: "Company",
       render: (_value, filing) => (
         <div>
-          <p style={{ fontWeight: 600, color: "var(--b)" }}>{filing.user?.name || "Unknown"}</p>
-          <p style={{ marginTop: 2, color: "#777" }}>{filing.user?.email || "-"}</p>
+          <p style={{ fontWeight: 600, color: "var(--b)" }}>
+            {filing.organization?.legalName ||
+              filing.organization?.companyName ||
+              filing.organization?.dbaName ||
+              filing.organization?.name ||
+              "Unknown company"}
+          </p>
+          <p style={{ marginTop: 2, color: "#777" }}>
+            DOT {filing.organization?.dotNumber || "-"}
+          </p>
         </div>
       ),
     },
@@ -151,21 +174,14 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
       label: "Payment",
       render: (_value, filing) => <Badge tone={getStatusTone(paymentStatusLabel(filing.paymentStatus))}>{paymentStatusLabel(filing.paymentStatus)}</Badge>,
     },
-    {
-      key: "schedule1DocumentId",
-      label: "Compliance",
-      sortable: false,
-      render: (_value, filing) => {
-        const compliance = getComplianceStateForFiling(filing);
-        return <Badge tone={getStatusTone(complianceLabel(compliance))}>{complianceLabel(compliance)}</Badge>;
-      },
-    },
     { key: "updatedAt", label: "Updated", render: (_value, filing) => formatDate(filing.updatedAt) },
     {
       key: "claimedByUserId",
       label: "Assigned",
       render: (_value, filing) => {
-        const isMe = Boolean(currentUserId) && filing.claimedByUserId === currentUserId;
+        const isMe =
+          (Boolean(currentUserId) && filing.claimedByUserId === currentUserId) ||
+          (Boolean(currentUserEmail) && filing.claimedBy?.email === currentUserEmail);
         const name = filing.claimedBy?.name || filing.claimedBy?.email;
         return (
           <Badge tone={!filing.claimedByUserId ? "light" : isMe ? "success" : "info"} variant="light">
@@ -179,7 +195,9 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
       label: "Actions",
       sortable: false,
       render: (_value, filing) => {
-        const isAssignedToMe = Boolean(currentUserId) && filing.claimedByUserId === currentUserId;
+        const isAssignedToMe =
+          (Boolean(currentUserId) && filing.claimedByUserId === currentUserId) ||
+          (Boolean(currentUserEmail) && filing.claimedBy?.email === currentUserEmail);
         return (
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <button
@@ -247,8 +265,6 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
               </span>
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
                 <option value="all">All statuses</option>
-                <option value="DRAFT">Draft</option>
-                <option value="PAID">Paid</option>
                 <option value="SUBMITTED">Submitted</option>
                 <option value="IN_PROCESS">In process</option>
                 <option value="FINALIZED">Finalized</option>

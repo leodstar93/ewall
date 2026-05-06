@@ -1,5 +1,15 @@
 import { Form2290PaymentStatus, Form2290Status } from "@prisma/client";
 
+export const STAFF_VISIBLE_2290_STATUSES = [
+  Form2290Status.SUBMITTED,
+  Form2290Status.IN_PROCESS,
+  Form2290Status.FINALIZED,
+] as const;
+
+export function isStaffVisible2290Status(status: Form2290Status) {
+  return STAFF_VISIBLE_2290_STATUSES.includes(status as (typeof STAFF_VISIBLE_2290_STATUSES)[number]);
+}
+
 export function getForm2290StatusLabel(status: Form2290Status) {
   switch (status) {
     case Form2290Status.DRAFT:
@@ -36,6 +46,13 @@ export function getForm2290PaymentStatusLabel(status: Form2290PaymentStatus) {
 
 export function canEdit2290Filing(status: Form2290Status) {
   return status === Form2290Status.DRAFT;
+}
+
+export function canDelete2290Filing(
+  status: Form2290Status,
+  paymentStatus: Form2290PaymentStatus,
+) {
+  return status === Form2290Status.DRAFT || paymentStatus === Form2290PaymentStatus.UNPAID;
 }
 
 export function canSubmit2290Filing(status: Form2290Status) {

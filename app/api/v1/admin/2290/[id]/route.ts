@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { isStaffVisible2290Status } from "@/lib/form2290-workflow";
 import { requireApiPermission } from "@/lib/rbac-api";
 import {
   assert2290FilingAccess,
@@ -34,6 +35,12 @@ export async function GET(
       actorUserId: guard.session.user.id ?? "",
       canManageAll,
     });
+    if (!isStaffVisible2290Status(filing.status)) {
+      return Response.json(
+        { error: "Form 2290 filing is not ready for staff review." },
+        { status: 404 },
+      );
+    }
 
     return Response.json({
       filing,
