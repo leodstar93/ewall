@@ -22,10 +22,15 @@ import {
   statusLabel as iftaStatusLabel,
   type FilingListItem,
 } from "@/features/ifta-v2/shared";
+import {
+  statusLabel as form2290StatusLabel,
+  type Form2290Filing,
+  type Form2290Status,
+} from "@/features/form2290/shared";
 
 type StaffFilingRow = {
   id: string;
-  module: "UCR" | "IFTA";
+  module: "UCR" | "IFTA" | "FORM2290";
   customer: string;
   company: string;
   filing: string;
@@ -49,7 +54,7 @@ type StaffFilingMetrics = {
 
 type UrgentCase = {
   id: string;
-  module: "UCR" | "IFTA";
+  module: "UCR" | "IFTA" | "FORM2290";
   title: string;
   customer: string;
   status: string;
@@ -113,6 +118,34 @@ function isOpenUcrStatus(status: UCRFilingStatus) {
 
 function isOpenIftaStatus(status: string) {
   return ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY", "PENDING_APPROVAL", "APPROVED"].includes(status);
+}
+
+const OPEN_FORM2290_STATUSES: Form2290Status[] = ["SUBMITTED", "IN_PROCESS", "PAID"];
+
+function form2290StatusTone(status: Form2290Status): BadgeTone {
+  if (status === "IN_PROCESS") return "info";
+  if (status === "SUBMITTED") return "warning";
+  if (status === "PAID") return "primary";
+  return "light";
+}
+
+function buildForm2290Rows(filings: Form2290Filing[]): StaffFilingRow[] {
+  return filings
+    .filter((f) => OPEN_FORM2290_STATUSES.includes(f.status))
+    .map((f) => ({
+      id: `form2290-${f.id}`,
+      module: "FORM2290" as const,
+      customer: f.user?.name || f.user?.email || "Unknown",
+      company: f.organization?.legalName || f.organization?.companyName || f.organization?.name || f.user?.name || "Unknown",
+      filing: `Form 2290 · ${f.taxPeriod.name}`,
+      filingMeta: [f.unitNumberSnapshot, f.vinSnapshot].filter(Boolean).join(" / "),
+      status: form2290StatusLabel(f.status),
+      statusTone: form2290StatusTone(f.status),
+      assigned: f.claimedBy?.name || f.claimedBy?.email || "Unassigned",
+      updatedLabel: formatDateTime(f.updatedAt),
+      sortRecency: -new Date(f.updatedAt).getTime(),
+      href: `/admin/features/2290/${f.id}`,
+    }));
 }
 
 function buildUcrRows(items: AdminUcrQueueItem[]): StaffFilingRow[] {
@@ -317,8 +350,11 @@ function MetricsCard({ metrics }: { metrics: StaffFilingMetrics }) {
                   minWidth: 0,
                 }}
               >
-                <Badge tone={item.module === "UCR" ? "primary" : "info"} variant="light">
-                  {item.module}
+                <Badge
+                  tone={item.module === "UCR" ? "primary" : item.module === "IFTA" ? "info" : "warning"}
+                  variant="light"
+                >
+                  {item.module === "FORM2290" ? "2290" : item.module}
                 </Badge>
                 <div style={{ minWidth: 0 }}>
                   <div
@@ -356,7 +392,7 @@ export default function StaffFilingsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "UCR" | "IFTA">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "UCR" | "IFTA" | "FORM2290">("all");
 
   useEffect(() => {
     let active = true;
@@ -366,9 +402,10 @@ export default function StaffFilingsClient() {
         setLoading(true);
         setError("");
 
-        const [ucrResult, iftaResult, metricsResult] = await Promise.allSettled([
+        const [ucrResult, iftaResult, form2290Result, metricsResult] = await Promise.allSettled([
           fetchJson<{ filings: AdminUcrQueueItem[] }>("/api/v1/admin/ucr/queue"),
           fetchJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings"),
+          fetchJson<{ filings: Form2290Filing[] }>("/api/v1/admin/2290/queue"),
           fetchStaffDashboardMetrics(),
         ]);
 
@@ -384,6 +421,10 @@ export default function StaffFilingsClient() {
           iftaResult.status === "fulfilled" && Array.isArray(iftaResult.value.filings)
             ? iftaResult.value.filings
             : [];
+        const form2290Filings =
+          form2290Result.status === "fulfilled" && Array.isArray(form2290Result.value.filings)
+            ? form2290Result.value.filings
+            : [];
 
         if (ucrResult.status === "fulfilled") {
           nextRows.push(...buildUcrRows(ucrFilings));
@@ -395,6 +436,12 @@ export default function StaffFilingsClient() {
           nextRows.push(...buildIftaRows(iftaFilings));
         } else {
           errors.push("Could not load IFTA filings.");
+        }
+
+        if (form2290Result.status === "fulfilled") {
+          nextRows.push(...buildForm2290Rows(form2290Filings));
+        } else {
+          errors.push("Could not load Form 2290 filings.");
         }
 
         setRows(nextRows);
@@ -451,8 +498,11 @@ export default function StaffFilingsClient() {
         key: "module",
         label: "Type",
         render: (_, row) => (
-          <Badge tone={row.module === "UCR" ? "primary" : "info"} variant="light">
-            {row.module}
+          <Badge
+            tone={row.module === "UCR" ? "primary" : row.module === "IFTA" ? "info" : "warning"}
+            variant="light"
+          >
+            {row.module === "FORM2290" ? "Form 2290" : row.module}
           </Badge>
         ),
       },
@@ -596,6 +646,7 @@ export default function StaffFilingsClient() {
                 { id: "all", label: "All Pending" },
                 { id: "UCR", label: "UCR" },
                 { id: "IFTA", label: "IFTA" },
+                { id: "FORM2290", label: "Form 2290" },
               ].map((tab) => (
                 <button
                   key={tab.id}

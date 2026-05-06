@@ -8,7 +8,7 @@ type GraphqlRequest = {
 
 type UrgentCase = {
   id: string;
-  module: "UCR" | "IFTA";
+  module: "UCR" | "IFTA" | "FORM2290";
   title: string;
   customer: string;
   status: string;
@@ -17,6 +17,10 @@ type UrgentCase = {
   href: string;
   score: number;
 };
+
+const FORM2290_OPEN_STATUSES = new Set(["SUBMITTED", "IN_PROCESS", "PAID"]);
+const FORM2290_FINAL_STATUSES = new Set(["FINALIZED"]);
+const FORM2290_NEEDS_ATTENTION_STATUSES = new Set(["PAID"]);
 
 const UCR_OPEN_STATUSES = new Set([
   "SUBMITTED",
@@ -131,8 +135,15 @@ function iftaPriority(status: string, ageHours: number, exceptionCount: number) 
   return { label: "In review", base: 70 };
 }
 
+function form2290Priority(status: string, ageHours: number) {
+  if (status === "PAID") return { label: "Payment received — ready to process", base: 115 };
+  if (status === "SUBMITTED") return { label: "Ready for review", base: 105 };
+  if (ageHours >= 72) return { label: "Aging case", base: 80 };
+  return { label: "In process", base: 70 };
+}
+
 async function staffDashboardMetrics() {
-  const [ucrFilings, iftaFilings] = await Promise.all([
+  const [ucrFilings, iftaFilings, form2290Filings] = await Promise.all([
     prisma.uCRFiling.findMany({
       select: {
         id: true,
@@ -183,10 +194,39 @@ async function staffDashboardMetrics() {
         },
       },
     }),
+    prisma.form2290Filing.findMany({
+      select: {
+        id: true,
+        status: true,
+        compliantAt: true,
+        filedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        taxPeriod: {
+          select: {
+            name: true,
+          },
+        },
+        user: {
+          select: {
+            name: true,
+            email: true,
+            companyProfile: {
+              select: {
+                legalName: true,
+                companyName: true,
+                dbaName: true,
+              },
+            },
+          },
+        },
+      },
+    }),
   ]);
 
   const ucrFinalized = ucrFilings.filter((filing) => UCR_FINAL_STATUSES.has(filing.status));
   const iftaFinalized = iftaFilings.filter((filing) => IFTA_FINAL_STATUSES.has(filing.status));
+  const form2290Finalized = form2290Filings.filter((filing) => FORM2290_FINAL_STATUSES.has(filing.status));
 
   const urgentUcr: UrgentCase[] = ucrFilings
     .filter((filing) => UCR_OPEN_STATUSES.has(filing.status))
@@ -228,7 +268,27 @@ async function staffDashboardMetrics() {
       };
     });
 
-  const urgentCases = [...urgentUcr, ...urgentIfta]
+  const urgentForm2290: UrgentCase[] = form2290Filings
+    .filter((filing) => FORM2290_OPEN_STATUSES.has(filing.status))
+    .map((filing) => {
+      const anchorDate = filing.createdAt;
+      const hours = ageInHours(anchorDate);
+      const priority = form2290Priority(filing.status, hours);
+
+      return {
+        id: `form2290-${filing.id}`,
+        module: "FORM2290",
+        title: `Form 2290 — ${filing.taxPeriod.name}`,
+        customer: customerName(filing),
+        status: statusLabel(filing.status),
+        ageLabel: ageLabel(anchorDate),
+        priority: priority.label,
+        href: `/admin/features/2290/${filing.id}`,
+        score: priority.base + Math.min(hours, 240) / 6,
+      };
+    });
+
+  const urgentCases = [...urgentUcr, ...urgentIfta, ...urgentForm2290]
     .sort((left, right) => right.score - left.score)
     .slice(0, 3)
     .map(({ score, ...item }) => {
@@ -239,15 +299,18 @@ async function staffDashboardMetrics() {
   return {
     pending:
       ucrFilings.filter((filing) => UCR_OPEN_STATUSES.has(filing.status)).length +
-      iftaFilings.filter((filing) => IFTA_OPEN_STATUSES.has(filing.status)).length,
-    total: ucrFilings.length + iftaFilings.length,
+      iftaFilings.filter((filing) => IFTA_OPEN_STATUSES.has(filing.status)).length +
+      form2290Filings.filter((filing) => FORM2290_OPEN_STATUSES.has(filing.status)).length,
+    total: ucrFilings.length + iftaFilings.length + form2290Filings.length,
     needsAttention:
       ucrFilings.filter((filing) => UCR_NEEDS_ATTENTION_STATUSES.has(filing.status)).length +
-      iftaFilings.filter((filing) => IFTA_NEEDS_ATTENTION_STATUSES.has(filing.status)).length,
+      iftaFilings.filter((filing) => IFTA_NEEDS_ATTENTION_STATUSES.has(filing.status)).length +
+      form2290Filings.filter((filing) => FORM2290_NEEDS_ATTENTION_STATUSES.has(filing.status)).length,
     finalizedThisMonth:
       ucrFinalized.filter((filing) => isThisMonth(filing.completedAt ?? filing.compliantAt ?? filing.updatedAt)).length +
-      iftaFinalized.filter((filing) => isThisMonth(filing.staffCompletedAt ?? filing.updatedAt)).length,
-    finalizedTotal: ucrFinalized.length + iftaFinalized.length,
+      iftaFinalized.filter((filing) => isThisMonth(filing.staffCompletedAt ?? filing.updatedAt)).length +
+      form2290Finalized.filter((filing) => isThisMonth(filing.compliantAt ?? filing.filedAt ?? filing.updatedAt)).length,
+    finalizedTotal: ucrFinalized.length + iftaFinalized.length + form2290Finalized.length,
     urgentCases,
   };
 }

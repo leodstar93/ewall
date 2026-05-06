@@ -7,7 +7,10 @@
       "Bash(dir \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\" /B)",
       "Bash(mkdir -p \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\settings\\\\2290\\\\rate-tables\\\\[id]\\\\clone\" \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\settings\\\\2290\\\\rate-tables\\\\[id]\\\\activate\" \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\settings\\\\2290\\\\rate-tables\\\\[id]\\\\rates\\\\[rateId]\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\features\\\\2290\" -Recurse -Force)",
-      "Bash(Select-Object -First 30)"
+      "Bash(Select-Object -First 30)",
+      "Bash(Select-String \"graphql\")",
+      "Bash(cd /mnt/c/Users/leods/ewall-app && npx tsc --noEmit 2>&1 | grep -i \"graphql\\\\|route.ts\" | head -20)",
+      "Read(//mnt/c/Users/leods/**)"
     ],
     "additionalDirectories": [
       "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\settings\\2290\\rate-tables\\[id]"

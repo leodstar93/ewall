@@ -87,7 +87,7 @@ export async function requireApiPermission(permission: string) {
     }
   }
 
-  return { ok: true as const, session, perms, isAdmin: isFeatureAdmin };
+  return { ok: true as const, session, perms, roles, isAdmin: isFeatureAdmin };
 }
 
 // Example usage in an API route
