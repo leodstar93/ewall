@@ -20,6 +20,11 @@ type Create2290FilingInput = {
   firstUsedMonth?: number | null;
   firstUsedYear?: number | null;
   paymentHandling?: Form2290PaymentHandling | null;
+  taxableGrossWeight?: number | null;
+  loggingVehicle?: boolean | null;
+  suspendedVehicle?: boolean | null;
+  confirmationAccepted?: boolean | null;
+  irsTaxEstimate?: string | null;
   notes?: string | null;
 };
 
@@ -56,8 +61,25 @@ export async function create2290Filing(input: Create2290FilingInput) {
     getForm2290Settings(db),
     resolve2290OrganizationId({ db, userId: truck.userId }),
   ]);
+  const defaultPaymentMethod = await db.paymentMethod.findFirst({
+    where: {
+      status: "active",
+      isDefault: true,
+      OR: [{ userId: truck.userId }, ...(organizationId ? [{ organizationId }] : [])],
+    },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+    select: { id: true },
+  });
   const { isEligible } = eligibility;
   const paymentHandling = input.paymentHandling ?? Form2290PaymentHandling.CUSTOMER_PAYS_PROVIDER;
+
+  if (!settings.enabled) {
+    throw new Form2290ServiceError(
+      "Form 2290 filing is currently disabled.",
+      409,
+      "FORM2290_DISABLED",
+    );
+  }
 
   try {
     return await db.$transaction(async (tx) => {
@@ -75,13 +97,25 @@ export async function create2290Filing(input: Create2290FilingInput) {
           truckId: truck.id,
           taxPeriodId: taxPeriod.id,
           paymentHandling,
+          defaultPaymentMethodId: defaultPaymentMethod?.id ?? null,
           vinSnapshot: vin,
           unitNumberSnapshot: truck.unitNumber,
           grossWeightSnapshot: truck.grossWeight ?? null,
+          taxableGrossWeightSnapshot: input.taxableGrossWeight ?? truck.grossWeight ?? null,
+          loggingVehicle: input.loggingVehicle ?? null,
+          suspendedVehicle: input.suspendedVehicle ?? null,
+          confirmationAcceptedAt: input.confirmationAccepted ? new Date() : null,
+          irsTaxEstimate:
+            typeof input.irsTaxEstimate === "string" && input.irsTaxEstimate.trim()
+              ? new Prisma.Decimal(input.irsTaxEstimate)
+              : null,
           serviceFeeAmount: new Prisma.Decimal(settings.serviceFeeCents).div(100),
           efileProviderName: settings.providerName,
           efileProviderUrl: settings.providerUrl,
           staffInstructionsSnapshot: settings.operationalInstructions,
+          howToProcessClientSnapshot: settings.howToProcessClient,
+          howToProcessStaffSnapshot: settings.howToProcessStaff,
+          internalStaffChecklistSnapshot: settings.internalStaffChecklist,
           firstUsedMonth: input.firstUsedMonth ?? null,
           firstUsedYear: input.firstUsedYear ?? null,
           notes: input.notes?.trim() || null,

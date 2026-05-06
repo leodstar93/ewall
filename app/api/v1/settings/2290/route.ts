@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Form2290ProcessingMode } from "@prisma/client";
 import { requireAdminSettingsApiAccess } from "@/lib/admin-settings-access";
 import { parseNonNegativeInteger, parsePositiveInteger } from "@/lib/validations/form2290";
 import { list2290SettingsBundle, update2290Settings } from "@/services/form2290/settings.service";
@@ -8,6 +9,10 @@ type UpdateSettingsBody = {
   minimumEligibleWeight?: unknown;
   expirationWarningDays?: unknown;
   serviceFeeCents?: unknown;
+  enabled?: unknown;
+  processingMode?: unknown;
+  requirePaymentBeforeSubmit?: unknown;
+  collectIrsTaxEstimate?: unknown;
   allowCustomerPaysProvider?: unknown;
   allowEwallCollectsAndRemits?: unknown;
   requireSchedule1ForCompliance?: unknown;
@@ -15,6 +20,9 @@ type UpdateSettingsBody = {
   providerName?: unknown;
   providerUrl?: unknown;
   operationalInstructions?: unknown;
+  howToProcessClient?: unknown;
+  howToProcessStaff?: unknown;
+  internalStaffChecklist?: unknown;
 };
 
 function toErrorResponse(error: unknown, fallback: string) {
@@ -75,6 +83,21 @@ export async function PATCH(request: NextRequest) {
       minimumEligibleWeight,
       expirationWarningDays,
       serviceFeeCents,
+      enabled:
+        typeof body.enabled === "boolean" ? body.enabled : existing.enabled,
+      processingMode:
+        typeof body.processingMode === "string" &&
+        Object.values(Form2290ProcessingMode).includes(body.processingMode as Form2290ProcessingMode)
+          ? (body.processingMode as Form2290ProcessingMode)
+          : existing.processingMode,
+      requirePaymentBeforeSubmit:
+        typeof body.requirePaymentBeforeSubmit === "boolean"
+          ? body.requirePaymentBeforeSubmit
+          : existing.requirePaymentBeforeSubmit,
+      collectIrsTaxEstimate:
+        typeof body.collectIrsTaxEstimate === "boolean"
+          ? body.collectIrsTaxEstimate
+          : existing.collectIrsTaxEstimate,
       allowCustomerPaysProvider:
         typeof body.allowCustomerPaysProvider === "boolean"
           ? body.allowCustomerPaysProvider
@@ -97,6 +120,18 @@ export async function PATCH(request: NextRequest) {
         typeof body.operationalInstructions === "string"
           ? body.operationalInstructions
           : existing.operationalInstructions,
+      howToProcessClient:
+        typeof body.howToProcessClient === "string"
+          ? body.howToProcessClient
+          : existing.howToProcessClient,
+      howToProcessStaff:
+        typeof body.howToProcessStaff === "string"
+          ? body.howToProcessStaff
+          : existing.howToProcessStaff,
+      internalStaffChecklist:
+        typeof body.internalStaffChecklist === "string"
+          ? body.internalStaffChecklist
+          : existing.internalStaffChecklist,
     });
 
     return Response.json({ settings });

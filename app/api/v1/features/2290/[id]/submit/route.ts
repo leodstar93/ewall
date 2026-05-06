@@ -1,12 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireApiPermission } from "@/lib/rbac-api";
-import { parseBooleanLike } from "@/lib/validations/form2290";
 import { submit2290Filing } from "@/services/form2290/submit2290Filing";
 import { canManageAll2290, Form2290ServiceError } from "@/services/form2290/shared";
-
-type SubmitBody = {
-  markSubmitted?: unknown;
-};
 
 function toErrorResponse(error: unknown, fallback: string) {
   if (error instanceof Form2290ServiceError) {
@@ -30,14 +25,10 @@ export async function POST(
   const { id } = await params;
 
   try {
-    const body = (await request.json().catch(() => ({}))) as SubmitBody;
-    const markSubmitted = parseBooleanLike(body.markSubmitted) ?? false;
-
     const filing = await submit2290Filing({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
       canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
-      markSubmitted,
     });
 
     return Response.json({ filing });

@@ -22,6 +22,11 @@ type Update2290FilingInput = {
   firstUsedMonth?: number | null;
   firstUsedYear?: number | null;
   paymentHandling?: Form2290PaymentHandling | null;
+  taxableGrossWeight?: number | null;
+  loggingVehicle?: boolean | null;
+  suspendedVehicle?: boolean | null;
+  confirmationAccepted?: boolean | null;
+  irsTaxEstimate?: string | null;
   notes?: string | null;
 };
 
@@ -99,6 +104,30 @@ export async function update2290Filing(input: Update2290FilingInput) {
           vinSnapshot: vin,
           unitNumberSnapshot: truck.unitNumber,
           grossWeightSnapshot: truck.grossWeight ?? null,
+          taxableGrossWeightSnapshot:
+            typeof input.taxableGrossWeight === "undefined"
+              ? existing.taxableGrossWeightSnapshot
+              : input.taxableGrossWeight,
+          loggingVehicle:
+            typeof input.loggingVehicle === "undefined"
+              ? existing.loggingVehicle
+              : input.loggingVehicle,
+          suspendedVehicle:
+            typeof input.suspendedVehicle === "undefined"
+              ? existing.suspendedVehicle
+              : input.suspendedVehicle,
+          confirmationAcceptedAt:
+            input.confirmationAccepted === true
+              ? new Date()
+              : input.confirmationAccepted === false
+                ? null
+                : existing.confirmationAcceptedAt,
+          irsTaxEstimate:
+            typeof input.irsTaxEstimate === "undefined"
+              ? existing.irsTaxEstimate
+              : typeof input.irsTaxEstimate === "string" && input.irsTaxEstimate.trim()
+                ? new Prisma.Decimal(input.irsTaxEstimate)
+                : null,
           firstUsedMonth:
             typeof input.firstUsedMonth === "undefined"
               ? existing.firstUsedMonth

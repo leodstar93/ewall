@@ -61,7 +61,7 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
     const filing = await tx.form2290Filing.update({
       where: { id: existing.id },
       data: {
-        status: Form2290Status.NEEDS_CORRECTION,
+        status: Form2290Status.NEED_ATTENTION,
         compliantAt: null,
       },
       include: form2290FilingInclude,
@@ -70,7 +70,7 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
     await logForm2290Activity(tx, {
       filingId: filing.id,
       actorUserId: input.actorUserId,
-      action: "CORRECTION_REQUESTED",
+      action: "NEED_ATTENTION",
       metaJson: { message },
     });
 

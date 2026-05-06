@@ -40,6 +40,7 @@ type DetailPayload = {
     canUploadDocuments: boolean;
     canAuthorize: boolean;
     canStaffWorkflow: boolean;
+    canViewAudit?: boolean;
   };
 };
 
@@ -528,6 +529,14 @@ export default function Form2290DetailPage(props: DetailPageProps) {
         ? `${filing.grossWeightSnapshot.toLocaleString("en-US")} lbs`
         : "Not set",
     },
+    {
+      label: "Taxable gross weight",
+      value: filing.taxableGrossWeightSnapshot
+        ? `${filing.taxableGrossWeightSnapshot.toLocaleString("en-US")} lbs`
+        : "Not set",
+    },
+    { label: "Logging vehicle", value: filing.loggingVehicle === null ? "Not set" : filing.loggingVehicle ? "Yes" : "No" },
+    { label: "Suspended vehicle", value: filing.suspendedVehicle === null ? "Not set" : filing.suspendedVehicle ? "Yes" : "No" },
     { label: "Tax period", value: filing.taxPeriod.name },
     {
       label: "First used",
@@ -544,6 +553,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     { label: "Service fee", value: formatCurrency(filing.serviceFeeAmount) },
     { label: "Payment status", value: paymentStatusLabel(filing.paymentStatus) },
     { label: "Payment handling", value: filing.paymentHandling.replaceAll("_", " ") },
+    { label: "Default payment method", value: filing.defaultPaymentMethodId ? "Selected" : "Not selected" },
     { label: "Paid at", value: formatDateOnly(filing.paidAt) },
     { label: "Payment reference", value: filing.paymentReference || "-" },
   ];
@@ -555,7 +565,24 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     { label: "Confirmation", value: filing.efileConfirmationNumber || "-" },
     { label: "Filed at", value: formatDateOnly(filing.filedAt) },
     { label: "Filed externally", value: formatDateOnly(filing.filedExternallyAt) },
-    { label: "Ready to file", value: formatDate(filing.readyToFileAt) },
+    { label: "Assigned at", value: formatDate(filing.reviewStartedAt) },
+  ];
+  const companyRows: KeyValueRow[] = [
+    { label: "Company", value: filing.organization?.legalName || filing.organization?.companyName || filing.organization?.name || "-" },
+    { label: "DBA", value: filing.organization?.dbaName || "-" },
+    { label: "DOT", value: filing.organization?.dotNumber || "-" },
+    { label: "EIN", value: filing.organization?.ein || "-" },
+    { label: "Phone", value: filing.organization?.businessPhone || filing.organization?.phone || "-" },
+    {
+      label: "Address",
+      value:
+        [
+          filing.organization?.addressLine1 || filing.organization?.address,
+          filing.organization?.city,
+          filing.organization?.state,
+          filing.organization?.zipCode,
+        ].filter(Boolean).join(", ") || "-",
+    },
   ];
 
   return (
@@ -624,9 +651,19 @@ export default function Form2290DetailPage(props: DetailPageProps) {
 
         {error ? <div className={styles.alertError}>{error}</div> : null}
 
-        {filing.status === "NEEDS_CORRECTION" && filing.corrections[0] ? (
+        {filing.status === "NEED_ATTENTION" && filing.corrections[0] ? (
           <div className={styles.alertInfo}>{filing.corrections[0].message}</div>
         ) : null}
+
+        <div className={styles.section}>
+          <div className={styles.sectionHeaderRow}>
+            <SectionTitle eyebrow="Company" title="Company profile snapshot" />
+            <Link href="/dashboard/profile" className={styles.secondaryButton}>
+              Edit Company Profile
+            </Link>
+          </div>
+          <KeyValueTable rows={companyRows} />
+        </div>
 
         <div className={styles.section}>
           <div className={styles.twoUp}>
@@ -697,12 +734,11 @@ export default function Form2290DetailPage(props: DetailPageProps) {
           <div className={styles.section}>
             <SectionTitle eyebrow="Workflow" title="Staff actions" />
             <div className={styles.noteActions}>
-              <button type="button" onClick={() => void runAction("claim")} disabled={busyAction === "claim"} className={styles.secondaryButton}>Claim</button>
-              <button type="button" onClick={() => void runAction("start-review")} disabled={busyAction === "start-review"} className={styles.secondaryButton}>Start review</button>
-              <button type="button" onClick={() => void runAction("mark-ready-to-file")} disabled={busyAction === "mark-ready-to-file"} className={styles.secondaryButton}>Ready to file</button>
+              <button type="button" onClick={() => void runAction("claim")} disabled={busyAction === "claim" || filing.status !== "SUBMITTED"} className={styles.secondaryButton}>Assign to me</button>
               <button type="button" onClick={() => void runAction("mark-payment-received", { amountDue: amountDue || undefined, paymentReference: paymentReference || undefined })} disabled={busyAction === "mark-payment-received"} className={styles.secondaryButton}>Payment received</button>
               <button type="button" onClick={() => void runAction("mark-filed", { efileConfirmationNumber: efileConfirmationNumber || undefined, providerName: filing.efileProviderName || undefined, providerUrl: filing.efileProviderUrl || undefined })} disabled={busyAction === "mark-filed"} className={styles.primaryButton}>Mark filed</button>
-              <button type="button" onClick={() => void runAction("mark-compliant")} disabled={busyAction === "mark-compliant"} className={styles.primaryButton}>Compliant</button>
+              <button type="button" onClick={() => void runAction("request-correction", { message: correctionMessage || "Staff requested updates before finalizing." })} disabled={busyAction === "request-correction" || filing.status !== "IN_PROCESS"} className={styles.secondaryButton}>Need attention</button>
+              <button type="button" onClick={() => void runAction("mark-compliant")} disabled={busyAction === "mark-compliant" || filing.status !== "IN_PROCESS"} className={styles.primaryButton}>Finalize filing</button>
             </div>
           </div>
         ) : null}
@@ -795,10 +831,10 @@ export default function Form2290DetailPage(props: DetailPageProps) {
           ) : null}
         </div>
 
-        <div className={styles.section}>
+        {permissions.canViewAudit ? <div className={styles.section}>
           <SectionTitle eyebrow="Activity" title="Activity timeline" />
           <TimelineTable rows={timelineRows} />
-        </div>
+        </div> : null}
       </section>
 
       {editModalOpen && permissions.canEdit ? (
@@ -828,6 +864,11 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                 firstUsedYear: filing.firstUsedYear,
                 notes: filing.notes,
                 paymentHandling: filing.paymentHandling,
+                taxableGrossWeight: filing.taxableGrossWeightSnapshot,
+                loggingVehicle: filing.loggingVehicle,
+                suspendedVehicle: filing.suspendedVehicle,
+                confirmationAccepted: Boolean(filing.confirmationAcceptedAt),
+                irsTaxEstimate: filing.irsTaxEstimate,
               }}
               onSaved={() => {
                 setEditModalOpen(false);

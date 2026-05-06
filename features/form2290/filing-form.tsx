@@ -17,6 +17,11 @@ type Form2290FilingFormProps = {
     firstUsedMonth?: number | null;
     firstUsedYear?: number | null;
     paymentHandling?: Form2290PaymentHandling | null;
+    taxableGrossWeight?: number | null;
+    loggingVehicle?: boolean | null;
+    suspendedVehicle?: boolean | null;
+    confirmationAccepted?: boolean | null;
+    irsTaxEstimate?: string | null;
     notes?: string | null;
   };
   onSaved?: () => void;
@@ -51,6 +56,25 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
     props.initialValues?.firstUsedYear?.toString() ?? "",
   );
   const [notes, setNotes] = useState(props.initialValues?.notes ?? "");
+  const [taxableGrossWeight, setTaxableGrossWeight] = useState(
+    props.initialValues?.taxableGrossWeight?.toString() ?? "",
+  );
+  const [loggingVehicle, setLoggingVehicle] = useState(
+    typeof props.initialValues?.loggingVehicle === "boolean"
+      ? String(props.initialValues.loggingVehicle)
+      : "",
+  );
+  const [suspendedVehicle, setSuspendedVehicle] = useState(
+    typeof props.initialValues?.suspendedVehicle === "boolean"
+      ? String(props.initialValues.suspendedVehicle)
+      : "",
+  );
+  const [confirmationAccepted, setConfirmationAccepted] = useState(
+    Boolean(props.initialValues?.confirmationAccepted),
+  );
+  const [irsTaxEstimate, setIrsTaxEstimate] = useState(
+    props.initialValues?.irsTaxEstimate ?? "",
+  );
   const [paymentHandling, setPaymentHandling] = useState<Form2290PaymentHandling>(
     props.initialValues?.paymentHandling ?? "CUSTOMER_PAYS_PROVIDER",
   );
@@ -129,6 +153,11 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
         firstUsedMonth: firstUsedMonth ? Number(firstUsedMonth) : null,
         firstUsedYear: firstUsedYear ? Number(firstUsedYear) : null,
         paymentHandling,
+        taxableGrossWeight: taxableGrossWeight ? Number(taxableGrossWeight) : null,
+        loggingVehicle: loggingVehicle === "" ? null : loggingVehicle === "true",
+        suspendedVehicle: suspendedVehicle === "" ? null : suspendedVehicle === "true",
+        confirmationAccepted,
+        irsTaxEstimate: irsTaxEstimate || null,
         notes,
       };
 
@@ -263,6 +292,67 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
             onChange={(event) => setFirstUsedYear(event.target.value)}
             className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
           />
+        </label>
+
+        {!selectedVehicle?.grossWeight ? (
+          <label className="space-y-2 text-sm text-zinc-700">
+            <span className="font-medium text-zinc-900">Taxable gross weight</span>
+            <input
+              type="number"
+              min={1}
+              value={taxableGrossWeight}
+              onChange={(event) => setTaxableGrossWeight(event.target.value)}
+              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+            />
+          </label>
+        ) : null}
+
+        <label className="space-y-2 text-sm text-zinc-700">
+          <span className="font-medium text-zinc-900">Logging vehicle</span>
+          <select
+            value={loggingVehicle}
+            onChange={(event) => setLoggingVehicle(event.target.value)}
+            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+          >
+            <option value="">Select</option>
+            <option value="false">No</option>
+            <option value="true">Yes</option>
+          </select>
+        </label>
+
+        <label className="space-y-2 text-sm text-zinc-700">
+          <span className="font-medium text-zinc-900">Suspended vehicle</span>
+          <select
+            value={suspendedVehicle}
+            onChange={(event) => setSuspendedVehicle(event.target.value)}
+            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+          >
+            <option value="">Select</option>
+            <option value="false">No</option>
+            <option value="true">Yes</option>
+          </select>
+        </label>
+
+        <label className="space-y-2 text-sm text-zinc-700">
+          <span className="font-medium text-zinc-900">IRS tax estimate</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={irsTaxEstimate}
+            onChange={(event) => setIrsTaxEstimate(event.target.value)}
+            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+          />
+        </label>
+
+        <label className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 md:col-span-2">
+          <input
+            type="checkbox"
+            checked={confirmationAccepted}
+            onChange={(event) => setConfirmationAccepted(event.target.checked)}
+            className="mt-1"
+          />
+          <span>I confirm the Form 2290 filing details are accurate and ready to submit.</span>
         </label>
 
         <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">

@@ -1,16 +1,9 @@
 export type Form2290Status =
   | "DRAFT"
-  | "PENDING_REVIEW"
-  | "IN_REVIEW"
-  | "NEEDS_CORRECTION"
-  | "READY_TO_FILE"
   | "SUBMITTED"
-  | "FILED"
-  | "PAID"
-  | "COMPLIANT"
-  | "EXPIRED"
-  | "CANCELLED"
-  | "REOPENED";
+  | "IN_PROCESS"
+  | "NEED_ATTENTION"
+  | "FINALIZED";
 
 export type Form2290PaymentStatus = "UNPAID" | "PENDING" | "RECEIVED" | "PAID" | "WAIVED";
 
@@ -112,6 +105,7 @@ export type Form2290Filing = {
   paymentHandling: Form2290PaymentHandling;
   serviceFeeAmount: string | null;
   paymentReference: string | null;
+  defaultPaymentMethodId: string | null;
   efileProviderName: string | null;
   efileProviderUrl: string | null;
   efileConfirmationNumber: string | null;
@@ -125,6 +119,11 @@ export type Form2290Filing = {
   vinSnapshot: string;
   unitNumberSnapshot: string | null;
   grossWeightSnapshot: number | null;
+  taxableGrossWeightSnapshot: number | null;
+  loggingVehicle: boolean | null;
+  suspendedVehicle: boolean | null;
+  confirmationAcceptedAt: string | null;
+  irsTaxEstimate: string | null;
   firstUsedMonth: number | null;
   firstUsedYear: number | null;
   amountDue: string | null;
@@ -149,6 +148,22 @@ export type Form2290Filing = {
     name: string | null;
     email: string | null;
   };
+  organization?: {
+    id: string;
+    name: string | null;
+    legalName: string | null;
+    dbaName: string | null;
+    companyName: string | null;
+    dotNumber: string | null;
+    ein: string | null;
+    phone: string | null;
+    businessPhone: string | null;
+    address: string | null;
+    addressLine1: string | null;
+    city: string | null;
+    state: string | null;
+    zipCode: string | null;
+  } | null;
 };
 
 export type Form2290DashboardSummary = {
@@ -203,28 +218,14 @@ export function statusLabel(status: Form2290Status) {
   switch (status) {
     case "DRAFT":
       return "Draft";
-    case "PENDING_REVIEW":
-      return "Pending review";
-    case "IN_REVIEW":
-      return "In review";
-    case "NEEDS_CORRECTION":
-      return "Needs correction";
-    case "READY_TO_FILE":
-      return "Ready to file";
     case "SUBMITTED":
       return "Submitted";
-    case "FILED":
-      return "Filed";
-    case "PAID":
-      return "Paid";
-    case "COMPLIANT":
-      return "Compliant";
-    case "EXPIRED":
-      return "Expired";
-    case "CANCELLED":
-      return "Cancelled";
-    case "REOPENED":
-      return "Reopened";
+    case "IN_PROCESS":
+      return "In process";
+    case "NEED_ATTENTION":
+      return "Need attention";
+    case "FINALIZED":
+      return "Finalized";
     default:
       return status;
   }
@@ -251,24 +252,14 @@ export function statusClasses(status: Form2290Status) {
   switch (status) {
     case "DRAFT":
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
-    case "PENDING_REVIEW":
-    case "IN_REVIEW":
-    case "READY_TO_FILE":
+    case "IN_PROCESS":
       return "bg-amber-50 text-amber-800 ring-amber-200";
-    case "NEEDS_CORRECTION":
+    case "NEED_ATTENTION":
       return "bg-red-50 text-red-800 ring-red-200";
     case "SUBMITTED":
-    case "FILED":
       return "bg-sky-50 text-sky-800 ring-sky-200";
-    case "PAID":
-      return "bg-emerald-50 text-emerald-800 ring-emerald-200";
-    case "COMPLIANT":
+    case "FINALIZED":
       return "bg-green-50 text-green-800 ring-green-200";
-    case "EXPIRED":
-    case "CANCELLED":
-      return "bg-red-50 text-red-800 ring-red-200";
-    case "REOPENED":
-      return "bg-violet-50 text-violet-800 ring-violet-200";
     default:
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
   }
@@ -292,8 +283,8 @@ export function paymentStatusClasses(status: Form2290PaymentStatus) {
 
 export function complianceLabel(input: { compliant: boolean; expired: boolean; correctionNeeded?: boolean }) {
   if (input.expired) return "Expired";
-  if (input.compliant) return "Compliant";
-  if (input.correctionNeeded) return "Correction needed";
+  if (input.compliant) return "Finalized";
+  if (input.correctionNeeded) return "Need attention";
   return "Pending";
 }
 
@@ -330,18 +321,17 @@ export function getComplianceStateForFiling(filing: {
 }) {
   const now = Date.now();
   const expired =
-    filing.status !== "COMPLIANT" &&
+    filing.status !== "FINALIZED" &&
     ((filing.expiresAt ? new Date(filing.expiresAt).getTime() < now : false) ||
-      (filing.taxPeriod ? new Date(filing.taxPeriod.endDate).getTime() < now : false) ||
-      filing.status === "EXPIRED");
+      (filing.taxPeriod ? new Date(filing.taxPeriod.endDate).getTime() < now : false));
   const compliant =
-    (filing.status === "SUBMITTED" || filing.status === "FILED" || filing.status === "PAID" || filing.status === "COMPLIANT") &&
+    filing.status === "FINALIZED" &&
     (filing.paymentStatus === "PAID" || filing.paymentStatus === "RECEIVED" || filing.paymentStatus === "WAIVED") &&
     Boolean(filing.schedule1DocumentId);
 
   return {
     compliant,
     expired,
-    correctionNeeded: filing.status === "NEEDS_CORRECTION",
+    correctionNeeded: filing.status === "NEED_ATTENTION",
   };
 }

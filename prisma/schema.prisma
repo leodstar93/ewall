@@ -768,17 +768,10 @@ enum UCRCustomerPaymentStatus {
 
 enum Form2290Status {
   DRAFT
-  PENDING_REVIEW
-  IN_REVIEW
-  NEEDS_CORRECTION
-  READY_TO_FILE
   SUBMITTED
-  FILED
-  PAID
-  COMPLIANT
-  EXPIRED
-  CANCELLED
-  REOPENED
+  IN_PROCESS
+  NEED_ATTENTION
+  FINALIZED
 }
 
 enum Form2290PaymentStatus {
@@ -798,6 +791,12 @@ enum Form2290PaymentHandling {
 enum Form2290FilingMethod {
   STAFF_ASSISTED_PROVIDER
   CUSTOMER_SELF_FILED
+}
+
+enum Form2290ProcessingMode {
+  STAFF_ASSISTED
+  SELF_SERVICE
+  HYBRID
 }
 
 enum Form2290AuthorizationStatus {
@@ -1763,9 +1762,13 @@ model UCRStatusTransition {
 
 model Form2290Setting {
   id                            String   @id @default(cuid())
+  enabled                       Boolean  @default(true)
+  processingMode                Form2290ProcessingMode @default(STAFF_ASSISTED)
   minimumEligibleWeight         Int      @default(55000)
   expirationWarningDays         Int      @default(30)
   serviceFeeCents               Int      @default(0)
+  requirePaymentBeforeSubmit    Boolean  @default(true)
+  collectIrsTaxEstimate         Boolean  @default(false)
   allowCustomerPaysProvider     Boolean  @default(true)
   allowEwallCollectsAndRemits   Boolean  @default(true)
   requireSchedule1ForCompliance Boolean  @default(true)
@@ -1773,6 +1776,9 @@ model Form2290Setting {
   providerName                  String?
   providerUrl                   String?
   operationalInstructions       String?  @db.Text
+  howToProcessClient            String?  @db.Text
+  howToProcessStaff             String?  @db.Text
+  internalStaffChecklist        String?  @db.Text
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
 }
@@ -1811,10 +1817,14 @@ model Form2290Filing {
   amountDue                 Decimal?                @db.Decimal(10, 2)
   serviceFeeAmount          Decimal?                @db.Decimal(10, 2)
   paymentReference          String?
+  defaultPaymentMethodId    String?
   efileProviderName         String?
   efileProviderUrl          String?
   efileConfirmationNumber   String?
   staffInstructionsSnapshot String?                 @db.Text
+  howToProcessClientSnapshot String?                @db.Text
+  howToProcessStaffSnapshot  String?                @db.Text
+  internalStaffChecklistSnapshot String?            @db.Text
   claimedByUserId           String?
   reviewStartedAt           DateTime?
   readyToFileAt             DateTime?
@@ -1827,6 +1837,11 @@ model Form2290Filing {
   reopenedAt                DateTime?
   expiresAt                 DateTime?
   schedule1DocumentId       String?
+  taxableGrossWeightSnapshot Int?
+  loggingVehicle            Boolean?
+  suspendedVehicle          Boolean?
+  confirmationAcceptedAt    DateTime?
+  irsTaxEstimate            Decimal?                @db.Decimal(10, 2)
   notes                     String?
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
@@ -1850,6 +1865,7 @@ model Form2290Filing {
   @@index([taxPeriodId])
   @@index([status, paymentStatus])
   @@index([claimedByUserId, status])
+  @@index([defaultPaymentMethodId])
 }
 
 model Form2290FilingVehicle {

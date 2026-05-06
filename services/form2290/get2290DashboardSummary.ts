@@ -47,9 +47,9 @@ export async function get2290DashboardSummary(input: Get2290DashboardSummaryInpu
 
   const pending = filings.filter((filing) =>
     filing.status === Form2290Status.DRAFT ||
-    filing.status === Form2290Status.PENDING_REVIEW ||
     filing.status === Form2290Status.SUBMITTED ||
-    filing.status === Form2290Status.PAID,
+    filing.status === Form2290Status.IN_PROCESS ||
+    filing.status === Form2290Status.NEED_ATTENTION,
   ).length;
 
   return {
@@ -57,7 +57,7 @@ export async function get2290DashboardSummary(input: Get2290DashboardSummaryInpu
     eligibleVehicles: trucks.filter((truck) => truck.is2290Eligible).length,
     totalFilings: filings.length,
     pendingFilings: pending,
-    compliantFilings: filings.filter((filing) => filing.status === Form2290Status.COMPLIANT).length,
+    compliantFilings: filings.filter((filing) => filing.status === Form2290Status.FINALIZED).length,
     expiredFilings: expired,
   };
 }

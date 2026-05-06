@@ -1,5 +1,5 @@
-import { Form2290PaymentStatus, Form2290Status, Prisma } from "@prisma/client";
-import { canAutoMark2290Compliant, canMark2290Paid } from "@/lib/form2290-workflow";
+import { Form2290PaymentStatus, Prisma } from "@prisma/client";
+import { canMark2290Paid } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import { notify2290PaymentRecorded } from "@/services/form2290/notifications";
@@ -43,12 +43,6 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
 
   const filing = await db.$transaction(async (tx) => {
     const paidAt = input.paidAt ?? new Date();
-    const canMarkCompliant = canAutoMark2290Compliant({
-      status: existing.status,
-      paymentStatus: Form2290PaymentStatus.PAID,
-      hasSchedule1: Boolean(existing.schedule1DocumentId),
-    });
-
     const filing = await tx.form2290Filing.update({
       where: { id: existing.id },
       data: {
@@ -58,8 +52,6 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
           typeof input.amountDue === "string"
             ? new Prisma.Decimal(input.amountDue)
             : existing.amountDue,
-        status: canMarkCompliant ? Form2290Status.COMPLIANT : Form2290Status.PAID,
-        compliantAt: canMarkCompliant ? paidAt : existing.compliantAt,
       },
       include: form2290FilingInclude,
     });
@@ -74,20 +66,12 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
       } satisfies Prisma.InputJsonValue,
     });
 
-    if (canMarkCompliant) {
-      await logForm2290Activity(tx, {
-        filingId: filing.id,
-        actorUserId: input.actorUserId,
-        action: "MARKED_COMPLIANT",
-      });
-    }
-
     return filing;
   });
 
   if (db === prisma) {
     await notify2290PaymentRecorded(filing, {
-      isCompliant: filing.status === Form2290Status.COMPLIANT,
+      isCompliant: false,
     });
   }
   return filing;

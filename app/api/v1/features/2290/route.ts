@@ -6,6 +6,9 @@ import {
   normalizeOptionalText,
   parseFirstUsedMonth,
   parseFirstUsedYear,
+  parseBooleanLike,
+  parseMoney,
+  parsePositiveInteger,
 } from "@/lib/validations/form2290";
 import { create2290Filing } from "@/services/form2290/create2290Filing";
 import {
@@ -23,6 +26,11 @@ type Create2290FilingBody = {
   firstUsedMonth?: unknown;
   firstUsedYear?: unknown;
   paymentHandling?: unknown;
+  taxableGrossWeight?: unknown;
+  loggingVehicle?: unknown;
+  suspendedVehicle?: unknown;
+  confirmationAccepted?: unknown;
+  irsTaxEstimate?: unknown;
   notes?: unknown;
 };
 
@@ -108,6 +116,17 @@ export async function POST(request: NextRequest) {
     const taxPeriodId = typeof body.taxPeriodId === "string" ? body.taxPeriodId : "";
     const firstUsedMonth = parseFirstUsedMonth(body.firstUsedMonth);
     const firstUsedYear = parseFirstUsedYear(body.firstUsedYear);
+    const taxableGrossWeight =
+      typeof body.taxableGrossWeight === "undefined" || body.taxableGrossWeight === null || body.taxableGrossWeight === ""
+        ? null
+        : parsePositiveInteger(body.taxableGrossWeight);
+    const loggingVehicle = parseBooleanLike(body.loggingVehicle);
+    const suspendedVehicle = parseBooleanLike(body.suspendedVehicle);
+    const confirmationAccepted = parseBooleanLike(body.confirmationAccepted);
+    const irsTaxEstimate =
+      typeof body.irsTaxEstimate === "undefined" || body.irsTaxEstimate === null || body.irsTaxEstimate === ""
+        ? null
+        : parseMoney(body.irsTaxEstimate);
     const paymentHandling =
       typeof body.paymentHandling === "string" &&
       Object.values(Form2290PaymentHandling).includes(body.paymentHandling as Form2290PaymentHandling)
@@ -126,6 +145,31 @@ export async function POST(request: NextRequest) {
     if (typeof body.firstUsedYear !== "undefined" && body.firstUsedYear !== null && firstUsedYear === null) {
       return Response.json({ error: "Invalid firstUsedYear" }, { status: 400 });
     }
+    if (
+      typeof body.taxableGrossWeight !== "undefined" &&
+      body.taxableGrossWeight !== null &&
+      body.taxableGrossWeight !== "" &&
+      taxableGrossWeight === null
+    ) {
+      return Response.json({ error: "Invalid taxableGrossWeight" }, { status: 400 });
+    }
+    if (typeof body.loggingVehicle !== "undefined" && loggingVehicle === null) {
+      return Response.json({ error: "Invalid loggingVehicle" }, { status: 400 });
+    }
+    if (typeof body.suspendedVehicle !== "undefined" && suspendedVehicle === null) {
+      return Response.json({ error: "Invalid suspendedVehicle" }, { status: 400 });
+    }
+    if (typeof body.confirmationAccepted !== "undefined" && confirmationAccepted === null) {
+      return Response.json({ error: "Invalid confirmationAccepted" }, { status: 400 });
+    }
+    if (
+      typeof body.irsTaxEstimate !== "undefined" &&
+      body.irsTaxEstimate !== null &&
+      body.irsTaxEstimate !== "" &&
+      irsTaxEstimate === null
+    ) {
+      return Response.json({ error: "Invalid irsTaxEstimate" }, { status: 400 });
+    }
 
     const filing = await create2290Filing({
       actorUserId: guard.session.user.id ?? "",
@@ -135,6 +179,11 @@ export async function POST(request: NextRequest) {
       firstUsedMonth,
       firstUsedYear,
       paymentHandling,
+      taxableGrossWeight,
+      loggingVehicle,
+      suspendedVehicle,
+      confirmationAccepted,
+      irsTaxEstimate,
       notes: normalizeOptionalText(body.notes),
     });
 

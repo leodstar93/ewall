@@ -1,5 +1,5 @@
 import { Form2290DocumentType, Form2290Status, Prisma } from "@prisma/client";
-import { canAutoMark2290Compliant, canUpload2290Schedule1 } from "@/lib/form2290-workflow";
+import { canUpload2290Schedule1 } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import { notify2290Schedule1Uploaded } from "@/services/form2290/notifications";
@@ -66,19 +66,10 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
       });
     }
 
-    const now = new Date();
-    const canMarkCompliant = canAutoMark2290Compliant({
-      status: existing.status === Form2290Status.PAID ? Form2290Status.PAID : existing.status,
-      paymentStatus: existing.paymentStatus,
-      hasSchedule1: true,
-    });
-
     const filing = await tx.form2290Filing.update({
       where: { id: existing.id },
       data: {
         schedule1DocumentId: document.id,
-        status: canMarkCompliant ? Form2290Status.COMPLIANT : existing.status,
-        compliantAt: canMarkCompliant ? now : existing.compliantAt,
       },
       include: form2290FilingInclude,
     });
@@ -92,20 +83,12 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
       } satisfies Prisma.InputJsonValue,
     });
 
-    if (canMarkCompliant) {
-      await logForm2290Activity(tx, {
-        filingId: filing.id,
-        actorUserId: input.actorUserId,
-        action: "MARKED_COMPLIANT",
-      });
-    }
-
     return filing;
   });
 
   if (db === prisma) {
     await notify2290Schedule1Uploaded(filing, {
-      isCompliant: filing.status === Form2290Status.COMPLIANT,
+      isCompliant: filing.status === Form2290Status.FINALIZED,
     });
   }
   return filing;

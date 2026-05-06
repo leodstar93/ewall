@@ -6,12 +6,16 @@ import {
   Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { canAssign2290Filing, canFinalize2290Filing } from "@/lib/form2290-workflow";
 import type { DbClient } from "@/lib/db/types";
 import { submit2290Filing } from "@/services/form2290/submit2290Filing";
 import { request2290Correction } from "@/services/form2290/request2290Correction";
 import { mark2290Paid } from "@/services/form2290/mark2290Paid";
 import { upload2290Schedule1 } from "@/services/form2290/upload2290Schedule1";
-import { notify2290WorkflowUpdated } from "@/services/form2290/notifications";
+import {
+  notify2290Finalized,
+  notify2290WorkflowUpdated,
+} from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
@@ -144,34 +148,36 @@ export async function sign2290Authorization(
 }
 
 export async function claim2290Filing(input: WorkflowInput) {
+  const db = resolveForm2290Db(input.db);
+  const existing = await requireStaff({ ...input, db });
+
+  if (!canAssign2290Filing(existing.status)) {
+    throw new Form2290ServiceError(
+      "Only submitted Form 2290 filings can be assigned.",
+      409,
+      "INVALID_ASSIGN_TRANSITION",
+    );
+  }
+
   return updateStaffStatus({
     ...input,
-    status: Form2290Status.PENDING_REVIEW,
-    action: "CLAIMED",
-    data: { claimedByUserId: input.actorUserId },
+    db,
+    status: Form2290Status.IN_PROCESS,
+    action: "ASSIGNED_TO_STAFF",
+    data: { claimedByUserId: input.actorUserId, reviewStartedAt: new Date() },
+    notify: {
+      title: "Form 2290 in process",
+      message: "Staff has started processing your Form 2290 filing.",
+    },
   });
 }
 
 export async function start2290Review(input: WorkflowInput) {
-  return updateStaffStatus({
-    ...input,
-    status: Form2290Status.IN_REVIEW,
-    action: "REVIEW_STARTED",
-    data: { claimedByUserId: input.actorUserId, reviewStartedAt: new Date() },
-  });
+  return claim2290Filing(input);
 }
 
 export async function mark2290ReadyToFile(input: WorkflowInput) {
-  return updateStaffStatus({
-    ...input,
-    status: Form2290Status.READY_TO_FILE,
-    action: "MARKED_READY_TO_FILE",
-    data: { readyToFileAt: new Date() },
-    notify: {
-      title: "Form 2290 ready to file",
-      message: "Staff completed review and the filing is ready for provider submission.",
-    },
-  });
+  return claim2290Filing(input);
 }
 
 export async function mark2290PaymentReceived(
@@ -235,8 +241,8 @@ export async function mark2290Filed(
   const filedAt = input.filedAt ?? new Date();
   return updateStaffStatus({
     ...input,
-    status: Form2290Status.FILED,
-    action: "MARKED_FILED_EXTERNALLY",
+    status: Form2290Status.IN_PROCESS,
+    action: "PROVIDER_SUBMISSION_RECORDED",
     data: {
       filedAt,
       filedExternallyAt: filedAt,
@@ -248,56 +254,81 @@ export async function mark2290Filed(
       efileConfirmationNumber: input.efileConfirmationNumber ?? undefined,
       providerName: input.providerName ?? undefined,
     } satisfies Prisma.InputJsonValue,
-    notify: {
-      title: "Form 2290 filed",
-      message: "Staff recorded the external e-file provider submission.",
-      level: NotificationLevel.SUCCESS,
-    },
   });
 }
 
 export async function mark2290Compliant(input: WorkflowInput) {
   const db = resolveForm2290Db(input.db);
   const existing = await requireStaff({ ...input, db });
-  const settings = await getForm2290Settings(db);
+  const schedule1Link = await db.form2290Document.findFirst({
+    where: {
+      filingId: existing.id,
+      type: "SCHEDULE_1",
+    },
+    select: { documentId: true },
+  });
 
-  if (settings.requireSchedule1ForCompliance && !existing.schedule1DocumentId) {
+  if (!canFinalize2290Filing(existing.status)) {
     throw new Form2290ServiceError(
-      "Schedule 1 is required before marking compliant.",
+      "Only in-process Form 2290 filings can be finalized.",
+      409,
+      "INVALID_FINALIZE_TRANSITION",
+    );
+  }
+
+  if (!schedule1Link && !existing.schedule1DocumentId) {
+    throw new Form2290ServiceError(
+      "Schedule 1 is required before finalizing this Form 2290 filing.",
       409,
       "SCHEDULE1_REQUIRED",
     );
   }
 
-  return updateStaffStatus({
-    ...input,
-    status: Form2290Status.COMPLIANT,
-    action: "MARKED_COMPLIANT",
-    data: {
-      compliantAt: new Date(),
-      paymentStatus:
-        existing.paymentStatus === Form2290PaymentStatus.UNPAID
-          ? Form2290PaymentStatus.WAIVED
-          : existing.paymentStatus,
-    },
-    notify: {
-      title: "Form 2290 compliant",
-      message: "Your filing is now marked compliant.",
-      level: NotificationLevel.SUCCESS,
-    },
+  const finalizedAt = new Date();
+  const filing = await db.$transaction(async (tx) => {
+    const next = await tx.form2290Filing.update({
+      where: { id: existing.id },
+      data: {
+        status: Form2290Status.FINALIZED,
+        compliantAt: finalizedAt,
+        schedule1DocumentId: existing.schedule1DocumentId ?? schedule1Link?.documentId,
+        paymentStatus:
+          existing.paymentStatus === Form2290PaymentStatus.UNPAID
+            ? Form2290PaymentStatus.WAIVED
+            : existing.paymentStatus,
+      },
+      include: form2290FilingInclude,
+    });
+
+    await logForm2290Activity(tx, {
+      filingId: next.id,
+      actorUserId: input.actorUserId,
+      action: "FINALIZED",
+      metaJson: {
+        schedule1DocumentId: next.schedule1DocumentId,
+      } satisfies Prisma.InputJsonValue,
+    });
+
+    return next;
   });
+
+  if (db === prisma) {
+    await notify2290Finalized(filing);
+  }
+
+  return filing;
 }
 
 export async function cancel2290Filing(input: WorkflowInput & { reason?: string | null }) {
   return updateStaffStatus({
     ...input,
-    status: Form2290Status.CANCELLED,
-    action: "CANCELLED",
-    data: { cancelledAt: new Date(), compliantAt: null },
+    status: Form2290Status.NEED_ATTENTION,
+    action: "NEED_ATTENTION",
+    data: { compliantAt: null },
     metaJson: { reason: input.reason ?? undefined } satisfies Prisma.InputJsonValue,
     notify: {
-      title: "Form 2290 cancelled",
-      message: input.reason?.trim() || "Staff cancelled this Form 2290 filing.",
+      title: "Form 2290 needs attention",
+      message: input.reason?.trim() || "Staff needs more information on this Form 2290 filing.",
       level: NotificationLevel.WARNING,
     },
   });
@@ -306,13 +337,13 @@ export async function cancel2290Filing(input: WorkflowInput & { reason?: string 
 export async function reopen2290Filing(input: WorkflowInput & { reason?: string | null }) {
   return updateStaffStatus({
     ...input,
-    status: Form2290Status.REOPENED,
-    action: "REOPENED",
-    data: { reopenedAt: new Date(), compliantAt: null },
+    status: Form2290Status.NEED_ATTENTION,
+    action: "NEED_ATTENTION",
+    data: { compliantAt: null },
     metaJson: { reason: input.reason ?? undefined } satisfies Prisma.InputJsonValue,
     notify: {
-      title: "Form 2290 reopened",
-      message: input.reason?.trim() || "Staff reopened this Form 2290 filing.",
+      title: "Form 2290 needs attention",
+      message: input.reason?.trim() || "Staff needs more information on this Form 2290 filing.",
       level: NotificationLevel.INFO,
       notifyStaff: true,
     },

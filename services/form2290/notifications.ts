@@ -164,6 +164,23 @@ export async function notify2290Schedule1Uploaded(
   });
 }
 
+export async function notify2290Finalized(filing: FilingNotificationShape) {
+  await safeCreateNotification({
+    userId: filing.userId,
+    category: NotificationCategory.FORM2290,
+    level: NotificationLevel.SUCCESS,
+    title: `Form 2290 finalized for ${filing.truck.unitNumber}`,
+    message: `Your ${filingLabel(filing)} has been finalized. Schedule 1 is available in the filing documents.`,
+    href: filingHref(filing.id),
+    actionLabel: "Open filing",
+    metadataJson: {
+      filingId: filing.id,
+      unitNumber: filing.truck.unitNumber,
+      taxPeriodName: filing.taxPeriod.name,
+    },
+  });
+}
+
 export async function notify2290WorkflowUpdated(
   filing: FilingNotificationShape,
   input: {

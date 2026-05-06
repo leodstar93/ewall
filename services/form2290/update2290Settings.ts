@@ -1,10 +1,15 @@
+import { Form2290ProcessingMode } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { Form2290ServiceError } from "@/services/form2290/shared";
 
 type Update2290SettingsInput = {
+  enabled?: boolean;
+  processingMode?: Form2290ProcessingMode;
   minimumEligibleWeight: number;
   expirationWarningDays: number;
   serviceFeeCents?: number;
+  requirePaymentBeforeSubmit?: boolean;
+  collectIrsTaxEstimate?: boolean;
   allowCustomerPaysProvider?: boolean;
   allowEwallCollectsAndRemits?: boolean;
   requireSchedule1ForCompliance?: boolean;
@@ -12,6 +17,9 @@ type Update2290SettingsInput = {
   providerName?: string | null;
   providerUrl?: string | null;
   operationalInstructions?: string | null;
+  howToProcessClient?: string | null;
+  howToProcessStaff?: string | null;
+  internalStaffChecklist?: string | null;
 };
 
 export async function update2290Settings(input: Update2290SettingsInput) {
@@ -43,9 +51,13 @@ export async function update2290Settings(input: Update2290SettingsInput) {
   }
 
   const data = {
+    enabled: input.enabled,
+    processingMode: input.processingMode,
     minimumEligibleWeight: input.minimumEligibleWeight,
     expirationWarningDays: input.expirationWarningDays,
     serviceFeeCents: input.serviceFeeCents,
+    requirePaymentBeforeSubmit: input.requirePaymentBeforeSubmit,
+    collectIrsTaxEstimate: input.collectIrsTaxEstimate,
     allowCustomerPaysProvider: input.allowCustomerPaysProvider,
     allowEwallCollectsAndRemits: input.allowEwallCollectsAndRemits,
     requireSchedule1ForCompliance: input.requireSchedule1ForCompliance,
@@ -53,6 +65,9 @@ export async function update2290Settings(input: Update2290SettingsInput) {
     providerName: input.providerName?.trim() || null,
     providerUrl: input.providerUrl?.trim() || null,
     operationalInstructions: input.operationalInstructions?.trim() || null,
+    howToProcessClient: input.howToProcessClient?.trim() || null,
+    howToProcessStaff: input.howToProcessStaff?.trim() || null,
+    internalStaffChecklist: input.internalStaffChecklist?.trim() || null,
   };
 
   const existing = await prisma.form2290Setting.findFirst({

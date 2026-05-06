@@ -10,6 +10,10 @@ type SettingsPayload = {
     minimumEligibleWeight: number;
     expirationWarningDays: number;
     serviceFeeCents: number;
+    enabled: boolean;
+    processingMode: "STAFF_ASSISTED" | "SELF_SERVICE" | "HYBRID";
+    requirePaymentBeforeSubmit: boolean;
+    collectIrsTaxEstimate: boolean;
     allowCustomerPaysProvider: boolean;
     allowEwallCollectsAndRemits: boolean;
     requireSchedule1ForCompliance: boolean;
@@ -17,6 +21,9 @@ type SettingsPayload = {
     providerName: string | null;
     providerUrl: string | null;
     operationalInstructions: string | null;
+    howToProcessClient: string | null;
+    howToProcessStaff: string | null;
+    internalStaffChecklist: string | null;
   };
   taxPeriods?: Form2290TaxPeriod[];
   error?: string;
@@ -61,6 +68,10 @@ export default function Form2290SettingsClient() {
   const [minimumEligibleWeight, setMinimumEligibleWeight] = useState("55000");
   const [expirationWarningDays, setExpirationWarningDays] = useState("30");
   const [serviceFeeCents, setServiceFeeCents] = useState("0");
+  const [enabled, setEnabled] = useState(true);
+  const [processingMode, setProcessingMode] = useState<"STAFF_ASSISTED" | "SELF_SERVICE" | "HYBRID">("STAFF_ASSISTED");
+  const [requirePaymentBeforeSubmit, setRequirePaymentBeforeSubmit] = useState(true);
+  const [collectIrsTaxEstimate, setCollectIrsTaxEstimate] = useState(false);
   const [allowCustomerPaysProvider, setAllowCustomerPaysProvider] = useState(true);
   const [allowEwallCollectsAndRemits, setAllowEwallCollectsAndRemits] = useState(true);
   const [requireSchedule1ForCompliance, setRequireSchedule1ForCompliance] = useState(true);
@@ -68,6 +79,9 @@ export default function Form2290SettingsClient() {
   const [providerName, setProviderName] = useState("");
   const [providerUrl, setProviderUrl] = useState("");
   const [operationalInstructions, setOperationalInstructions] = useState("");
+  const [howToProcessClient, setHowToProcessClient] = useState("");
+  const [howToProcessStaff, setHowToProcessStaff] = useState("");
+  const [internalStaffChecklist, setInternalStaffChecklist] = useState("");
   const [taxPeriods, setTaxPeriods] = useState<Form2290TaxPeriod[]>([]);
   const [newPeriod, setNewPeriod] = useState<TaxPeriodDraft>(emptyTaxPeriodDraft);
   const [editing, setEditing] = useState<Record<string, TaxPeriodDraft>>({});
@@ -88,6 +102,10 @@ export default function Form2290SettingsClient() {
       setMinimumEligibleWeight(data.settings.minimumEligibleWeight.toString());
       setExpirationWarningDays(data.settings.expirationWarningDays.toString());
       setServiceFeeCents(data.settings.serviceFeeCents.toString());
+      setEnabled(data.settings.enabled);
+      setProcessingMode(data.settings.processingMode);
+      setRequirePaymentBeforeSubmit(data.settings.requirePaymentBeforeSubmit);
+      setCollectIrsTaxEstimate(data.settings.collectIrsTaxEstimate);
       setAllowCustomerPaysProvider(data.settings.allowCustomerPaysProvider);
       setAllowEwallCollectsAndRemits(data.settings.allowEwallCollectsAndRemits);
       setRequireSchedule1ForCompliance(data.settings.requireSchedule1ForCompliance);
@@ -95,6 +113,9 @@ export default function Form2290SettingsClient() {
       setProviderName(data.settings.providerName ?? "");
       setProviderUrl(data.settings.providerUrl ?? "");
       setOperationalInstructions(data.settings.operationalInstructions ?? "");
+      setHowToProcessClient(data.settings.howToProcessClient ?? "");
+      setHowToProcessStaff(data.settings.howToProcessStaff ?? "");
+      setInternalStaffChecklist(data.settings.internalStaffChecklist ?? "");
       const periods = Array.isArray(data.taxPeriods) ? data.taxPeriods : [];
       setTaxPeriods(periods);
       setEditing(
@@ -131,6 +152,10 @@ export default function Form2290SettingsClient() {
           minimumEligibleWeight: Number(minimumEligibleWeight),
           expirationWarningDays: Number(expirationWarningDays),
           serviceFeeCents: Number(serviceFeeCents),
+          enabled,
+          processingMode,
+          requirePaymentBeforeSubmit,
+          collectIrsTaxEstimate,
           allowCustomerPaysProvider,
           allowEwallCollectsAndRemits,
           requireSchedule1ForCompliance,
@@ -138,6 +163,9 @@ export default function Form2290SettingsClient() {
           providerName,
           providerUrl,
           operationalInstructions,
+          howToProcessClient,
+          howToProcessStaff,
+          internalStaffChecklist,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -219,12 +247,32 @@ export default function Form2290SettingsClient() {
                 <input type="number" value={serviceFeeCents} onChange={(e) => setServiceFeeCents(e.target.value)} style={inputStyle} />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <FieldLabel>Processing mode</FieldLabel>
+                <select value={processingMode} onChange={(e) => setProcessingMode(e.target.value as "STAFF_ASSISTED" | "SELF_SERVICE" | "HYBRID")} style={inputStyle}>
+                  <option value="STAFF_ASSISTED">Staff assisted</option>
+                  <option value="SELF_SERVICE">Self service</option>
+                  <option value="HYBRID">Hybrid</option>
+                </select>
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <FieldLabel>Provider name</FieldLabel>
                 <input value={providerName} onChange={(e) => setProviderName(e.target.value)} style={inputStyle} />
               </label>
               <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
                 <FieldLabel>Provider URL</FieldLabel>
                 <input value={providerUrl} onChange={(e) => setProviderUrl(e.target.value)} style={inputStyle} />
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
+                <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+                <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Enable Form 2290 workflow</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
+                <input type="checkbox" checked={requirePaymentBeforeSubmit} onChange={(e) => setRequirePaymentBeforeSubmit(e.target.checked)} />
+                <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Require payment method before submit</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
+                <input type="checkbox" checked={collectIrsTaxEstimate} onChange={(e) => setCollectIrsTaxEstimate(e.target.checked)} />
+                <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Collect IRS tax estimate</span>
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
                 <input type="checkbox" checked={allowCustomerPaysProvider} onChange={(e) => setAllowCustomerPaysProvider(e.target.checked)} />
@@ -245,6 +293,18 @@ export default function Form2290SettingsClient() {
               <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
                 <FieldLabel>Operational instructions</FieldLabel>
                 <textarea value={operationalInstructions} onChange={(e) => setOperationalInstructions(e.target.value)} style={{ ...inputStyle, minHeight: 90 }} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
+                <FieldLabel>How to process - client</FieldLabel>
+                <textarea value={howToProcessClient} onChange={(e) => setHowToProcessClient(e.target.value)} style={{ ...inputStyle, minHeight: 90 }} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
+                <FieldLabel>How to process - staff</FieldLabel>
+                <textarea value={howToProcessStaff} onChange={(e) => setHowToProcessStaff(e.target.value)} style={{ ...inputStyle, minHeight: 90 }} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
+                <FieldLabel>Internal staff checklist</FieldLabel>
+                <textarea value={internalStaffChecklist} onChange={(e) => setInternalStaffChecklist(e.target.value)} style={{ ...inputStyle, minHeight: 90 }} />
               </label>
             </div>
             <div className={tableStyles.header} style={{ borderBottom: "none", borderTop: "1px solid var(--brl)", justifyContent: "flex-end" }}>

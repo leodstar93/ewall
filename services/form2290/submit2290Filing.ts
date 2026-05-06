@@ -1,5 +1,5 @@
-import { Form2290AuthorizationStatus, Form2290Status } from "@prisma/client";
-import { canMark2290Submitted, canSubmit2290Filing } from "@/lib/form2290-workflow";
+import { Form2290Status } from "@prisma/client";
+import { canSubmit2290Filing } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import { notify2290Submitted } from "@/services/form2290/notifications";
@@ -8,7 +8,9 @@ import {
   ensure2290Completeness,
   Form2290ServiceError,
   form2290FilingInclude,
+  getForm2290Settings,
   logForm2290Activity,
+  resolve2290OrganizationId,
   resolveForm2290Db,
 } from "@/services/form2290/shared";
 
@@ -35,6 +37,19 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     firstUsedYear: existing.firstUsedYear,
   });
 
+  if (existing.loggingVehicle === null || typeof existing.loggingVehicle === "undefined") {
+    issues.push("Logging vehicle selection is required.");
+  }
+  if (existing.suspendedVehicle === null || typeof existing.suspendedVehicle === "undefined") {
+    issues.push("Suspended vehicle selection is required.");
+  }
+  if (!existing.taxableGrossWeightSnapshot) {
+    issues.push("Taxable gross weight is required.");
+  }
+  if (!existing.confirmationAcceptedAt) {
+    issues.push("Client confirmation is required.");
+  }
+
   if (issues.length > 0) {
     throw new Form2290ServiceError(
       "Filing validation failed",
@@ -44,20 +59,7 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     );
   }
 
-  const nextStatus = input.markSubmitted ? Form2290Status.SUBMITTED : Form2290Status.PENDING_REVIEW;
-
-  if (input.markSubmitted) {
-    const allowed =
-      existing.status === Form2290Status.DRAFT ||
-      canMark2290Submitted(existing.status);
-    if (!input.canManageAll || !allowed) {
-      throw new Form2290ServiceError(
-        "This filing cannot be marked as submitted from its current status.",
-        409,
-        "INVALID_SUBMITTED_TRANSITION",
-      );
-    }
-  } else if (!canSubmit2290Filing(existing.status)) {
+  if (!canSubmit2290Filing(existing.status)) {
     throw new Form2290ServiceError(
       "This filing cannot be submitted for review from its current status.",
       409,
@@ -65,17 +67,49 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     );
   }
 
-  if (!input.markSubmitted && existing.authorization?.status !== Form2290AuthorizationStatus.SIGNED) {
+  const settings = await getForm2290Settings(db);
+  if (!settings.enabled) {
     throw new Form2290ServiceError(
-      "Client authorization must be signed before submitting to staff.",
-      400,
-      "AUTHORIZATION_REQUIRED",
+      "Form 2290 filing is currently disabled.",
+      409,
+      "FORM2290_DISABLED",
+    );
+  }
+  const organizationId =
+    existing.organizationId ??
+    (await resolve2290OrganizationId({ db, userId: existing.userId }));
+  const paymentMethodWhere = {
+    status: "active",
+    OR: [{ userId: existing.userId }, ...(organizationId ? [{ organizationId }] : [])],
+  };
+  const defaultPaymentMethod = existing.defaultPaymentMethodId
+    ? await db.paymentMethod.findFirst({
+        where: {
+          ...paymentMethodWhere,
+          id: existing.defaultPaymentMethodId,
+        },
+        select: { id: true },
+      })
+    : await db.paymentMethod.findFirst({
+        where: {
+          ...paymentMethodWhere,
+          isDefault: true,
+        },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+        select: { id: true },
+      });
+
+  if (settings.requirePaymentBeforeSubmit && !defaultPaymentMethod) {
+    throw new Form2290ServiceError(
+      "A default payment method is required before submitting this Form 2290 filing.",
+      409,
+      "PAYMENT_METHOD_REQUIRED",
     );
   }
 
   const filing = await db.$transaction(async (tx) => {
     const timestamp = new Date();
-    if (existing.status === Form2290Status.NEEDS_CORRECTION) {
+    if (existing.status === Form2290Status.NEED_ATTENTION) {
       await tx.form2290Correction.updateMany({
         where: {
           filingId: existing.id,
@@ -91,8 +125,9 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     const filing = await tx.form2290Filing.update({
       where: { id: existing.id },
       data: {
-        status: nextStatus,
-        filedAt: nextStatus === Form2290Status.SUBMITTED ? timestamp : existing.filedAt,
+        status: Form2290Status.SUBMITTED,
+        filedAt: timestamp,
+        defaultPaymentMethodId: defaultPaymentMethod?.id ?? existing.defaultPaymentMethodId,
       },
       include: form2290FilingInclude,
     });
@@ -100,16 +135,14 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     await logForm2290Activity(tx, {
       filingId: filing.id,
       actorUserId: input.actorUserId,
-      action: nextStatus === Form2290Status.SUBMITTED ? "MARKED_SUBMITTED" : "SUBMITTED_FOR_REVIEW",
+      action: "SUBMITTED",
     });
 
     return filing;
   });
 
   if (db === prisma) {
-    await notify2290Submitted(filing, {
-      submittedDirectly: nextStatus === Form2290Status.SUBMITTED,
-    });
+    await notify2290Submitted(filing);
   }
 
   return filing;

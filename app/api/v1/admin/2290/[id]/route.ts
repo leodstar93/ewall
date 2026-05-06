@@ -56,6 +56,7 @@ export async function GET(
         canUploadDocuments: canManageAll,
         canAuthorize: false,
         canStaffWorkflow: canManageAll,
+        canViewAudit: guard.isAdmin,
       },
     });
   } catch (error) {

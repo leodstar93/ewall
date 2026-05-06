@@ -3,7 +3,6 @@ import { Form2290PaymentHandling } from "@prisma/client";
 import {
   canEdit2290Filing,
   canMark2290Paid,
-  canMark2290Submitted,
   canRequest2290Correction,
   canSubmit2290Filing,
   canUpload2290Schedule1,
@@ -11,8 +10,11 @@ import {
 import { requireApiPermission } from "@/lib/rbac-api";
 import {
   normalizeOptionalText,
+  parseBooleanLike,
   parseFirstUsedMonth,
   parseFirstUsedYear,
+  parseMoney,
+  parsePositiveInteger,
 } from "@/lib/validations/form2290";
 import { update2290Filing } from "@/services/form2290/update2290Filing";
 import {
@@ -29,6 +31,11 @@ type Update2290FilingBody = {
   firstUsedMonth?: unknown;
   firstUsedYear?: unknown;
   paymentHandling?: unknown;
+  taxableGrossWeight?: unknown;
+  loggingVehicle?: unknown;
+  suspendedVehicle?: unknown;
+  confirmationAccepted?: unknown;
+  irsTaxEstimate?: unknown;
   notes?: unknown;
 };
 
@@ -78,9 +85,7 @@ export async function GET(
         canManageAll,
         canEdit: (isOwner || canManageAll) && canEdit2290Filing(filing.status),
         canSubmit: (isOwner || canManageAll) && canSubmit2290Filing(filing.status),
-        canMarkSubmitted:
-          canManageAll &&
-          (filing.status === "DRAFT" || canMark2290Submitted(filing.status)),
+        canMarkSubmitted: false,
         canRequestCorrection: canManageAll && canRequest2290Correction(filing.status),
         canMarkPaid: canManageAll && canMark2290Paid(filing.status),
         canUploadSchedule1:
@@ -88,6 +93,7 @@ export async function GET(
         canUploadDocuments: isOwner || canManageAll,
         canAuthorize: isOwner && canSubmit2290Filing(filing.status),
         canStaffWorkflow: canManageAll,
+        canViewAudit: guard.isAdmin,
       },
     });
   } catch (error) {
@@ -108,6 +114,17 @@ export async function PATCH(
     const body = (await request.json()) as Update2290FilingBody;
     const firstUsedMonth = parseFirstUsedMonth(body.firstUsedMonth);
     const firstUsedYear = parseFirstUsedYear(body.firstUsedYear);
+    const taxableGrossWeight =
+      typeof body.taxableGrossWeight === "undefined" || body.taxableGrossWeight === null || body.taxableGrossWeight === ""
+        ? null
+        : parsePositiveInteger(body.taxableGrossWeight);
+    const loggingVehicle = parseBooleanLike(body.loggingVehicle);
+    const suspendedVehicle = parseBooleanLike(body.suspendedVehicle);
+    const confirmationAccepted = parseBooleanLike(body.confirmationAccepted);
+    const irsTaxEstimate =
+      typeof body.irsTaxEstimate === "undefined" || body.irsTaxEstimate === null || body.irsTaxEstimate === ""
+        ? null
+        : parseMoney(body.irsTaxEstimate);
     const paymentHandling =
       typeof body.paymentHandling === "string" &&
       Object.values(Form2290PaymentHandling).includes(body.paymentHandling as Form2290PaymentHandling)
@@ -119,6 +136,31 @@ export async function PATCH(
     }
     if (typeof body.firstUsedYear !== "undefined" && body.firstUsedYear !== null && firstUsedYear === null) {
       return Response.json({ error: "Invalid firstUsedYear" }, { status: 400 });
+    }
+    if (
+      typeof body.taxableGrossWeight !== "undefined" &&
+      body.taxableGrossWeight !== null &&
+      body.taxableGrossWeight !== "" &&
+      taxableGrossWeight === null
+    ) {
+      return Response.json({ error: "Invalid taxableGrossWeight" }, { status: 400 });
+    }
+    if (typeof body.loggingVehicle !== "undefined" && loggingVehicle === null) {
+      return Response.json({ error: "Invalid loggingVehicle" }, { status: 400 });
+    }
+    if (typeof body.suspendedVehicle !== "undefined" && suspendedVehicle === null) {
+      return Response.json({ error: "Invalid suspendedVehicle" }, { status: 400 });
+    }
+    if (typeof body.confirmationAccepted !== "undefined" && confirmationAccepted === null) {
+      return Response.json({ error: "Invalid confirmationAccepted" }, { status: 400 });
+    }
+    if (
+      typeof body.irsTaxEstimate !== "undefined" &&
+      body.irsTaxEstimate !== null &&
+      body.irsTaxEstimate !== "" &&
+      irsTaxEstimate === null
+    ) {
+      return Response.json({ error: "Invalid irsTaxEstimate" }, { status: 400 });
     }
 
     const filing = await update2290Filing({
@@ -137,6 +179,15 @@ export async function PATCH(
       firstUsedYear:
         typeof body.firstUsedYear === "undefined" ? undefined : firstUsedYear,
       paymentHandling,
+      taxableGrossWeight,
+      loggingVehicle:
+        typeof body.loggingVehicle === "undefined" ? undefined : loggingVehicle,
+      suspendedVehicle:
+        typeof body.suspendedVehicle === "undefined" ? undefined : suspendedVehicle,
+      confirmationAccepted:
+        typeof body.confirmationAccepted === "undefined" ? undefined : confirmationAccepted,
+      irsTaxEstimate:
+        typeof body.irsTaxEstimate === "undefined" ? undefined : irsTaxEstimate,
       notes: typeof body.notes === "undefined" ? undefined : normalizeOptionalText(body.notes),
     });
 

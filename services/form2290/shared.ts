@@ -83,6 +83,10 @@ export async function getForm2290Settings(
       minimumEligibleWeight: 55000,
       expirationWarningDays: 30,
       serviceFeeCents: 0,
+      enabled: true,
+      processingMode: "STAFF_ASSISTED",
+      requirePaymentBeforeSubmit: true,
+      collectIrsTaxEstimate: false,
       allowCustomerPaysProvider: true,
       allowEwallCollectsAndRemits: true,
       requireSchedule1ForCompliance: true,
@@ -257,11 +261,7 @@ export function compute2290Compliance(input: {
     expiresAt: input.expiresAt,
     taxPeriodEndDate: input.taxPeriodEndDate,
   });
-  const compliant = canAutoMark2290Compliant({
-    status: input.status,
-    paymentStatus: input.paymentStatus,
-    hasSchedule1: Boolean(input.schedule1DocumentId),
-  });
+  const compliant = input.status === Form2290Status.FINALIZED && Boolean(input.schedule1DocumentId);
 
   return {
     compliant,

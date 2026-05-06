@@ -27,14 +27,13 @@ export async function get2290ComplianceStatus(input: Get2290ComplianceStatusInpu
 
   return {
     total: filings.length,
-    compliant: filings.filter((filing) => filing.status === Form2290Status.COMPLIANT).length,
+    compliant: filings.filter((filing) => filing.status === Form2290Status.FINALIZED).length,
     pending: filings.filter((filing) =>
       filing.status === Form2290Status.DRAFT ||
-      filing.status === Form2290Status.PENDING_REVIEW ||
       filing.status === Form2290Status.SUBMITTED ||
-      filing.status === Form2290Status.PAID,
+      filing.status === Form2290Status.IN_PROCESS,
     ).length,
-    correctionNeeded: filings.filter((filing) => filing.status === Form2290Status.NEEDS_CORRECTION).length,
+    correctionNeeded: filings.filter((filing) => filing.status === Form2290Status.NEED_ATTENTION).length,
     expired: filings.filter((filing) =>
       is2290Expired({
         status: filing.status,

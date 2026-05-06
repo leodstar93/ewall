@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { Form2290DocumentType } from "@prisma/client";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { attach2290Document } from "@/services/form2290/attach2290Document";
-import { Form2290ServiceError } from "@/services/form2290/shared";
+import { canManageAll2290, Form2290ServiceError } from "@/services/form2290/shared";
 
 type AttachBody = {
   documentId?: unknown;
@@ -48,7 +48,7 @@ export async function POST(
     const result = await attach2290Document({
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
-      canManageAll: guard.isAdmin,
+      canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
       documentId,
       type,
     });

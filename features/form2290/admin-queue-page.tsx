@@ -199,15 +199,10 @@ export default function Form2290AdminQueuePage(props: Form2290AdminQueuePageProp
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
                 <option value="all">All statuses</option>
                 <option value="DRAFT">Draft</option>
-                <option value="PENDING_REVIEW">Pending review</option>
-                <option value="IN_REVIEW">In review</option>
-                <option value="NEEDS_CORRECTION">Needs correction</option>
-                <option value="READY_TO_FILE">Ready to file</option>
                 <option value="SUBMITTED">Submitted</option>
-                <option value="FILED">Filed</option>
-                <option value="PAID">Paid</option>
-                <option value="COMPLIANT">Compliant</option>
-                <option value="CANCELLED">Cancelled</option>
+                <option value="IN_PROCESS">In process</option>
+                <option value="NEED_ATTENTION">Need attention</option>
+                <option value="FINALIZED">Finalized</option>
               </select>
             </label>
           </div>

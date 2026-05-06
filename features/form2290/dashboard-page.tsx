@@ -46,10 +46,8 @@ type Form2290DashboardPageProps = {
 
 type Form2290VisibleStatus =
   | "DRAFT"
-  | "PENDING_PAYMENT"
   | "SUBMITTED"
   | "IN_PROCESS"
-  | "APPROVED"
   | "FINALIZED";
 
 type Form2290TableRow = Form2290Filing & {
@@ -74,38 +72,24 @@ const fieldStyle: CSSProperties = {
 const statusOptions: Array<{ value: "all" | Form2290VisibleStatus; label: string }> = [
   { value: "all", label: "All statuses" },
   { value: "DRAFT", label: "Draft" },
-  { value: "PENDING_PAYMENT", label: "Pending payment" },
   { value: "SUBMITTED", label: "Submitted" },
   { value: "IN_PROCESS", label: "In process" },
-  { value: "APPROVED", label: "Approved" },
   { value: "FINALIZED", label: "Finalized" },
 ];
 
 function visibleStatusFor2290Filing(filing: Form2290Filing): Form2290VisibleStatus {
   if (
     filing.status === "DRAFT" ||
-    filing.status === "NEEDS_CORRECTION" ||
-    filing.status === "REOPENED"
+    filing.status === "NEED_ATTENTION"
   ) {
     return "DRAFT";
   }
 
-  if (
-    filing.status === "READY_TO_FILE" &&
-    (filing.paymentStatus === "UNPAID" || filing.paymentStatus === "PENDING")
-  ) {
-    return "PENDING_PAYMENT";
-  }
-
-  if (filing.status === "PENDING_REVIEW" || filing.status === "SUBMITTED") {
+  if (filing.status === "SUBMITTED") {
     return "SUBMITTED";
   }
 
-  if (filing.status === "FILED" || filing.status === "PAID") {
-    return "APPROVED";
-  }
-
-  if (filing.status === "COMPLIANT") {
+  if (filing.status === "FINALIZED") {
     return "FINALIZED";
   }
 
@@ -115,11 +99,9 @@ function visibleStatusFor2290Filing(filing: Form2290Filing): Form2290VisibleStat
 function customerActionLabel(filing: Form2290Filing) {
   switch (visibleStatusFor2290Filing(filing)) {
     case "DRAFT":
-      return filing.status === "NEEDS_CORRECTION"
+      return filing.status === "NEED_ATTENTION"
         ? "Resolve correction"
         : "View filing";
-    case "PENDING_PAYMENT":
-      return "Pay now";
     case "SUBMITTED":
       return "Pending assignment";
     case "IN_PROCESS":
@@ -139,14 +121,10 @@ function visibleStatusTone(status: Form2290VisibleStatus): BadgeTone {
   switch (status) {
     case "DRAFT":
       return "light";
-    case "PENDING_PAYMENT":
-      return "warning";
     case "SUBMITTED":
       return "info";
     case "IN_PROCESS":
       return "primary";
-    case "APPROVED":
-      return "success";
     case "FINALIZED":
       return "dark";
     default:
@@ -209,6 +187,10 @@ export default function Form2290DashboardPage({
   const [firstUsedYear, setFirstUsedYear] = useState(
     new Date().getFullYear().toString(),
   );
+  const [taxableGrossWeight, setTaxableGrossWeight] = useState("");
+  const [loggingVehicle, setLoggingVehicle] = useState("");
+  const [suspendedVehicle, setSuspendedVehicle] = useState("");
+  const [confirmationAccepted, setConfirmationAccepted] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -358,6 +340,13 @@ export default function Form2290DashboardPage({
       if (!firstUsedMonth)
         throw new Error("Please choose the first used month.");
       if (!firstUsedYear) throw new Error("Please enter the first use year.");
+      const selectedVehicle = vehicles.find((vehicle) => vehicle.id === truckId);
+      if (!selectedVehicle?.grossWeight && !taxableGrossWeight) {
+        throw new Error("Please enter the taxable gross weight.");
+      }
+      if (!loggingVehicle) throw new Error("Please confirm if this is a logging vehicle.");
+      if (!suspendedVehicle) throw new Error("Please confirm if this is a suspended vehicle.");
+      if (!confirmationAccepted) throw new Error("Please confirm the filing details.");
 
       const response = await fetch(apiBasePath, {
         method: "POST",
@@ -367,6 +356,10 @@ export default function Form2290DashboardPage({
           taxPeriodId: activeTaxPeriod.id,
           firstUsedMonth: Number(firstUsedMonth),
           firstUsedYear: Number(firstUsedYear),
+          taxableGrossWeight: taxableGrossWeight ? Number(taxableGrossWeight) : null,
+          loggingVehicle: loggingVehicle === "true",
+          suspendedVehicle: suspendedVehicle === "true",
+          confirmationAccepted,
           paymentHandling: "EWALL_COLLECTS_AND_REMITTED",
         }),
       });
@@ -751,6 +744,56 @@ export default function Form2290DashboardPage({
                     />
                   </label>
                 </div>
+
+                {!vehicles.find((vehicle) => vehicle.id === truckId)?.grossWeight ? (
+                  <label className="space-y-2 text-sm text-zinc-700">
+                    <span className="font-medium text-zinc-900">Taxable gross weight</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={taxableGrossWeight}
+                      onChange={(event) => setTaxableGrossWeight(event.target.value)}
+                      className={modalFieldClass}
+                    />
+                  </label>
+                ) : null}
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="space-y-2 text-sm text-zinc-700">
+                    <span className="font-medium text-zinc-900">Logging vehicle</span>
+                    <select
+                      value={loggingVehicle}
+                      onChange={(event) => setLoggingVehicle(event.target.value)}
+                      className={modalFieldClass}
+                    >
+                      <option value="">Select</option>
+                      <option value="false">No</option>
+                      <option value="true">Yes</option>
+                    </select>
+                  </label>
+                  <label className="space-y-2 text-sm text-zinc-700">
+                    <span className="font-medium text-zinc-900">Suspended vehicle</span>
+                    <select
+                      value={suspendedVehicle}
+                      onChange={(event) => setSuspendedVehicle(event.target.value)}
+                      className={modalFieldClass}
+                    >
+                      <option value="">Select</option>
+                      <option value="false">No</option>
+                      <option value="true">Yes</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
+                  <input
+                    type="checkbox"
+                    checked={confirmationAccepted}
+                    onChange={(event) => setConfirmationAccepted(event.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>I confirm the available company, vehicle, and filing details are accurate.</span>
+                </label>
               </div>
             )}
 
@@ -766,7 +809,7 @@ export default function Form2290DashboardPage({
               <button
                 type="button"
                 onClick={() => void createFilingFromModal()}
-                disabled={modalBusy || modalLoading || !truckId || !firstUsedMonth || !firstUsedYear}
+                disabled={modalBusy || modalLoading || !truckId || !firstUsedMonth || !firstUsedYear || !loggingVehicle || !suspendedVehicle || !confirmationAccepted}
                 className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
               >
                 {modalBusy ? "Starting..." : "Start filing"}
