@@ -800,7 +800,7 @@ export function FilingDetailPanel({
   const ucrSuccessButtonClassName =
     "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#15803d] !bg-[#16a34a] !text-white hover:!bg-[#15803d]";
   const ucrWarningButtonClassName =
-    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#fcd34d] !bg-[#fffbeb] !text-[#92400e] hover:!bg-[#fef3c7]";
+    "min-h-10 rounded-[10px] px-4 text-xs font-bold !border-[#ea580c] !bg-[#f97316] !text-white hover:!bg-[#ea580c]";
   const detailDescription = isStaffDescription(mode);
   const jurisdictionSummaryRows: JurisdictionSummaryRow[] =
     filing.jurisdictionSummaries.map((summary) => ({

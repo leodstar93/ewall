@@ -9,6 +9,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       actorUserId,
       canManageAll,
       message: typeof body.message === "string" ? body.message : "",
+      needAttention: body.needAttention === true,
     }),
   );
 }

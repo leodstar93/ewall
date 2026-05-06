@@ -50,6 +50,7 @@ type Form2290VisibleStatus =
   | "PAID"
   | "SUBMITTED"
   | "IN_PROCESS"
+  | "NEED_ATTENTION"
   | "FINALIZED";
 
 type Form2290TableRow = Form2290Filing & {
@@ -77,6 +78,7 @@ const statusOptions: Array<{ value: "all" | Form2290VisibleStatus; label: string
   { value: "PAID", label: "Paid" },
   { value: "SUBMITTED", label: "Submitted" },
   { value: "IN_PROCESS", label: "In process" },
+  { value: "NEED_ATTENTION", label: "Need attention" },
   { value: "FINALIZED", label: "Finalized" },
 ];
 
@@ -91,6 +93,10 @@ function visibleStatusFor2290Filing(filing: Form2290Filing): Form2290VisibleStat
 
   if (filing.status === "SUBMITTED") {
     return "SUBMITTED";
+  }
+
+  if (filing.status === "NEED_ATTENTION") {
+    return "NEED_ATTENTION";
   }
 
   if (filing.status === "FINALIZED") {
@@ -110,6 +116,8 @@ function customerActionLabel(filing: Form2290Filing) {
       return "Pending assignment";
     case "IN_PROCESS":
       return "Pending";
+    case "NEED_ATTENTION":
+      return "Needs attention";
     case "FINALIZED":
       return "View Schedule 1";
     default:
@@ -134,6 +142,8 @@ function visibleStatusTone(status: Form2290VisibleStatus): BadgeTone {
       return "info";
     case "IN_PROCESS":
       return "primary";
+    case "NEED_ATTENTION":
+      return "error";
     case "FINALIZED":
       return "dark";
     default:

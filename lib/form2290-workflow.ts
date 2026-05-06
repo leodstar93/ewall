@@ -3,6 +3,7 @@ import { Form2290PaymentStatus, Form2290Status } from "@prisma/client";
 export const STAFF_VISIBLE_2290_STATUSES = [
   Form2290Status.SUBMITTED,
   Form2290Status.IN_PROCESS,
+  Form2290Status.NEED_ATTENTION,
   Form2290Status.FINALIZED,
 ] as const;
 
@@ -20,6 +21,8 @@ export function getForm2290StatusLabel(status: Form2290Status) {
       return "Submitted";
     case Form2290Status.IN_PROCESS:
       return "In process";
+    case Form2290Status.NEED_ATTENTION:
+      return "Need attention";
     case Form2290Status.FINALIZED:
       return "Finalized";
     default:
@@ -45,7 +48,7 @@ export function getForm2290PaymentStatusLabel(status: Form2290PaymentStatus) {
 }
 
 export function canEdit2290Filing(status: Form2290Status) {
-  return status === Form2290Status.DRAFT;
+  return status === Form2290Status.DRAFT || status === Form2290Status.NEED_ATTENTION;
 }
 
 export function canDelete2290Filing(
@@ -56,7 +59,7 @@ export function canDelete2290Filing(
 }
 
 export function canSubmit2290Filing(status: Form2290Status) {
-  return status === Form2290Status.PAID;
+  return status === Form2290Status.PAID || status === Form2290Status.NEED_ATTENTION;
 }
 
 export function canAssign2290Filing(status: Form2290Status) {
@@ -68,7 +71,7 @@ export function canMark2290Submitted(status: Form2290Status) {
 }
 
 export function canRequest2290Correction(status: Form2290Status) {
-  return false;
+  return status === Form2290Status.SUBMITTED || status === Form2290Status.IN_PROCESS;
 }
 
 export function canMark2290Paid(status: Form2290Status) {

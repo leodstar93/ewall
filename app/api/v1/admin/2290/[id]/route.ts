@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { isStaffVisible2290Status } from "@/lib/form2290-workflow";
+import { canRequest2290Correction, isStaffVisible2290Status } from "@/lib/form2290-workflow";
 import { requireApiPermission } from "@/lib/rbac-api";
 import {
   assert2290FilingAccess,
@@ -57,7 +57,7 @@ export async function GET(
         canEdit: false,
         canSubmit: false,
         canMarkSubmitted: false,
-        canRequestCorrection: canManageAll,
+        canRequestCorrection: canManageAll && canRequest2290Correction(filing.status),
         canMarkPaid: false,
         canUploadSchedule1: canManageAll,
         canUploadDocuments: canManageAll,

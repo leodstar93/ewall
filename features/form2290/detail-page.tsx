@@ -170,7 +170,7 @@ const ACTION_SUCCESS_MESSAGES: Record<string, string> = {
   "mark-compliant": "Filing finalized.",
   cancel: "Filing cancelled.",
   reopen: "Filing reopened.",
-  "request-correction": "Note sent.",
+  "request-correction": "Need attention sent.",
 };
 
 function StatusChip({ label, className }: { label: string; className: string }) {
@@ -547,6 +547,32 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     }
   }
 
+  async function requestAttention() {
+    const result = await Swal.fire({
+      title: "Need attention",
+      input: "textarea",
+      inputLabel: "Message to client",
+      inputPlaceholder: "Tell the client what needs to be corrected.",
+      inputAttributes: {
+        "aria-label": "Message to client",
+      },
+      showCancelButton: true,
+      confirmButtonText: "Send to client",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#b22234",
+      cancelButtonColor: "#64748b",
+      inputValidator: (value) => {
+        if (!value?.trim()) return "Write a message for the client.";
+        return null;
+      },
+    });
+
+    const message = typeof result.value === "string" ? result.value.trim() : "";
+    if (!result.isConfirmed || !message) return;
+
+    await runAction("request-correction", { message, needAttention: true });
+  }
+
   async function deleteFiling() {
     if (!payload?.filing) return;
     const result = await Swal.fire({
@@ -762,6 +788,16 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   >
                     Assign to me
                   </button>
+                  {permissions.canRequestCorrection ? (
+                    <button
+                      type="button"
+                      onClick={() => void requestAttention()}
+                      disabled={busyAction === "request-correction"}
+                      className={styles.secondaryButton}
+                    >
+                      {busyAction === "request-correction" ? "Sending..." : "Need attention"}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => { setSchedule1File(null); setFinalizeModalOpen(true); }}

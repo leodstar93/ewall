@@ -3,6 +3,7 @@ export type Form2290Status =
   | "PAID"
   | "SUBMITTED"
   | "IN_PROCESS"
+  | "NEED_ATTENTION"
   | "FINALIZED";
 
 export type Form2290PaymentStatus = "UNPAID" | "PENDING" | "RECEIVED" | "PAID" | "WAIVED";
@@ -243,6 +244,8 @@ export function statusLabel(status: Form2290Status) {
       return "Submitted";
     case "IN_PROCESS":
       return "In process";
+    case "NEED_ATTENTION":
+      return "Need attention";
     case "FINALIZED":
       return "Finalized";
     default:
@@ -275,6 +278,8 @@ export function statusClasses(status: Form2290Status) {
       return "bg-emerald-50 text-emerald-800 ring-emerald-200";
     case "IN_PROCESS":
       return "bg-amber-50 text-amber-800 ring-amber-200";
+    case "NEED_ATTENTION":
+      return "bg-rose-50 text-rose-800 ring-rose-200";
     case "SUBMITTED":
       return "bg-sky-50 text-sky-800 ring-sky-200";
     case "FINALIZED":

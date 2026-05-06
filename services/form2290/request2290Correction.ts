@@ -1,4 +1,8 @@
+import { Form2290Status } from "@prisma/client";
+import { canRequest2290Correction } from "@/lib/form2290-workflow";
+import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
+import { notify2290CorrectionRequested } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
@@ -13,6 +17,7 @@ type Request2290CorrectionInput = {
   actorUserId: string;
   canManageAll: boolean;
   message: string;
+  needAttention?: boolean;
 };
 
 export async function request2290Correction(input: Request2290CorrectionInput) {
@@ -33,6 +38,11 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
     );
   }
 
+  const shouldNeedAttention =
+    Boolean(input.needAttention) &&
+    input.canManageAll &&
+    canRequest2290Correction(existing.status);
+
   const filing = await db.$transaction(async (tx) => {
     await tx.form2290Correction.create({
       data: {
@@ -45,14 +55,25 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
     await logForm2290Activity(tx, {
       filingId: existing.id,
       actorUserId: input.actorUserId,
-      action: "NOTE_ADDED",
+      action: shouldNeedAttention ? "NEED_ATTENTION" : "NOTE_ADDED",
       metaJson: { message },
     });
 
-    const filing = await tx.form2290Filing.findUnique({
-      where: { id: existing.id },
-      include: form2290FilingInclude,
-    });
+    const filing =
+      shouldNeedAttention
+        ? await tx.form2290Filing.update({
+            where: { id: existing.id },
+            data: {
+              status: Form2290Status.NEED_ATTENTION,
+              claimedBy: { disconnect: true },
+              reviewStartedAt: null,
+            },
+            include: form2290FilingInclude,
+          })
+        : await tx.form2290Filing.findUnique({
+            where: { id: existing.id },
+            include: form2290FilingInclude,
+          });
 
     if (!filing) {
       throw new Form2290ServiceError("Filing not found.", 404, "FILING_NOT_FOUND");
@@ -60,6 +81,10 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
 
     return filing;
   });
+
+  if (db === prisma && shouldNeedAttention) {
+    await notify2290CorrectionRequested(filing, message);
+  }
 
   return filing;
 }
