@@ -109,19 +109,6 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
 
   const filing = await db.$transaction(async (tx) => {
     const timestamp = new Date();
-    if (existing.status === Form2290Status.NEED_ATTENTION) {
-      await tx.form2290Correction.updateMany({
-        where: {
-          filingId: existing.id,
-          resolved: false,
-        },
-        data: {
-          resolved: true,
-          resolvedAt: timestamp,
-        },
-      });
-    }
-
     const filing = await tx.form2290Filing.update({
       where: { id: existing.id },
       data: {

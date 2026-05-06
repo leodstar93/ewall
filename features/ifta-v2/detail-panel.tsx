@@ -7,6 +7,7 @@ import DashboardTable, {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import styles from "@/features/ifta-v2/detail-panel.module.css";
 import { US_JURISDICTIONS } from "@/features/ifta/constants/us-jurisdictions";
 import {
   type FilingDetail,
@@ -1172,6 +1173,21 @@ export function FilingDetailPanel({
     setSummaryEditing(false);
   }
 
+  function SectionTitle({
+    eyebrow,
+    title,
+  }: {
+    eyebrow: string;
+    title: string;
+  }) {
+    return (
+      <div className={styles.sectionHeader}>
+        <p className={styles.eyebrow}>{eyebrow}</p>
+        <h2 className={styles.sectionTitle}>{title}</h2>
+      </div>
+    );
+  }
+
   const jurisdictionSummaryActions =
     canEditSummary || canResetSummaryOverride
       ? [
@@ -1186,7 +1202,9 @@ export function FilingDetailPanel({
           ...(canResetSummaryOverride
             ? [
                 {
-                  label: summaryResetBusy ? "Resetting..." : "Reset Manual Override",
+                  label: summaryResetBusy
+                    ? "Resetting..."
+                    : "Reset Manual Override",
                   onClick: () => void handleResetJurisdictionSummaryOverride(),
                 },
               ]
@@ -1240,9 +1258,15 @@ export function FilingDetailPanel({
                     : "Assign to me"}
               </Button>
             ) : null}
-            {filing.integrationAccount?.provider && filing.status !== "APPROVED" && filing.status !== "FINALIZED" ? (
+            {filing.integrationAccount?.provider &&
+            filing.status !== "APPROVED" &&
+            filing.status !== "FINALIZED" ? (
               <>
-                <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>
+                <span
+                  title={
+                    staffActionsLocked ? staffActionsLockedReason : undefined
+                  }
+                >
                   <Button
                     variant="outline"
                     size="sm"
@@ -1260,7 +1284,11 @@ export function FilingDetailPanel({
                   </Button>
                 </span>
                 {mode === "staff" && onSyncByDates ? (
-                  <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>
+                  <span
+                    title={
+                      staffActionsLocked ? staffActionsLockedReason : undefined
+                    }
+                  >
                     <Button
                       variant="outline"
                       size="sm"
@@ -1272,7 +1300,9 @@ export function FilingDetailPanel({
                         busyAction === "sync-dates"
                       }
                     >
-                      {busyAction === "sync-dates" ? "Syncing..." : "Sync by Dates"}
+                      {busyAction === "sync-dates"
+                        ? "Syncing..."
+                        : "Sync by Dates"}
                     </Button>
                   </span>
                 ) : null}
@@ -1302,7 +1332,11 @@ export function FilingDetailPanel({
               </Button>
             ) : null}
             {filing.status !== "APPROVED" && filing.status !== "FINALIZED" ? (
-              <span title={staffActionsLocked ? staffActionsLockedReason : undefined}>
+              <span
+                title={
+                  staffActionsLocked ? staffActionsLockedReason : undefined
+                }
+              >
                 <Button
                   variant="outline"
                   size="sm"
@@ -1351,8 +1385,7 @@ export function FilingDetailPanel({
                   className={ucrPrimaryButtonClassName}
                   onClick={() => onApprove(filing)}
                   disabled={
-                    !canSendForApproval ||
-                    busyAction === `approve:${filing.id}`
+                    !canSendForApproval || busyAction === `approve:${filing.id}`
                   }
                 >
                   {busyAction === `approve:${filing.id}`
@@ -1478,7 +1511,9 @@ export function FilingDetailPanel({
                         min="0.01"
                         step="0.01"
                         value={draftFleetMpgValue}
-                        onChange={(event) => updateDraftFleetMpg(event.target.value)}
+                        onChange={(event) =>
+                          updateDraftFleetMpg(event.target.value)
+                        }
                         disabled={summaryBusy}
                         className="h-10 w-32 rounded-lg border border-gray-300 px-3 text-sm text-gray-900 outline-none transition focus:border-[var(--b)] disabled:bg-gray-50"
                         aria-label="Fleet MPG"
@@ -1529,7 +1564,9 @@ export function FilingDetailPanel({
                         <th className="px-4 py-3 font-medium">Jurisdiction</th>
                         <th className="px-4 py-3 font-medium">Total Miles</th>
                         <th className="px-4 py-3 font-medium">Paid Gallons</th>
-                        <th className="px-4 py-3 font-medium">Taxable Gallons</th>
+                        <th className="px-4 py-3 font-medium">
+                          Taxable Gallons
+                        </th>
                         <th className="px-4 py-3 font-medium">Tax Rate</th>
                         <th className="px-4 py-3 font-medium">Net Tax</th>
                         <th className="px-4 py-3 font-medium">Action</th>
@@ -1552,7 +1589,10 @@ export function FilingDetailPanel({
                           );
 
                           return (
-                            <tr key={row.draftId} className="border-t border-gray-200">
+                            <tr
+                              key={row.draftId}
+                              className="border-t border-gray-200"
+                            >
                               <td className="px-4 py-3">
                                 <JurisdictionSearchSelect
                                   value={row.jurisdiction}
@@ -1607,7 +1647,10 @@ export function FilingDetailPanel({
                                   type="number"
                                   min="0"
                                   step="0.01"
-                                  value={calculateDraftTaxableGallons(row, draftFleetMpg)}
+                                  value={calculateDraftTaxableGallons(
+                                    row,
+                                    draftFleetMpg,
+                                  )}
                                   disabled
                                   className="h-10 w-36 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700"
                                   aria-label="Taxable gallons"
@@ -1621,7 +1664,9 @@ export function FilingDetailPanel({
                                   : "0"}
                               </td>
                               <td className="px-4 py-3 text-gray-600">
-                                {existing ? formatMoney(existing.netTax) : "$0.00"}
+                                {existing
+                                  ? formatMoney(existing.netTax)
+                                  : "$0.00"}
                               </td>
                               <td className="px-4 py-3">
                                 <Button
@@ -1629,7 +1674,9 @@ export function FilingDetailPanel({
                                   variant="outline"
                                   size="sm"
                                   className={ucrSecondaryButtonClassName}
-                                  onClick={() => removeJurisdictionDraftRow(row.draftId)}
+                                  onClick={() =>
+                                    removeJurisdictionDraftRow(row.draftId)
+                                  }
                                   disabled={summaryBusy}
                                 >
                                   Remove
@@ -1664,10 +1711,14 @@ export function FilingDetailPanel({
                         variant="outline"
                         size="sm"
                         className={ucrSecondaryButtonClassName}
-                        onClick={() => void handleResetJurisdictionSummaryOverride()}
+                        onClick={() =>
+                          void handleResetJurisdictionSummaryOverride()
+                        }
                         disabled={summaryResetBusy}
                       >
-                        {summaryResetBusy ? "Resetting..." : "Reset Manual Override"}
+                        {summaryResetBusy
+                          ? "Resetting..."
+                          : "Reset Manual Override"}
                       </Button>
                     ) : null}
                   </div>
@@ -1699,7 +1750,11 @@ export function FilingDetailPanel({
                         onClick={() => setDocumentModalOpen(true)}
                         disabled={documentBusy || staffActionsLocked}
                         aria-label="Upload document"
-                        title={staffActionsLocked ? staffActionsLockedReason : "Upload document"}
+                        title={
+                          staffActionsLocked
+                            ? staffActionsLockedReason
+                            : "Upload document"
+                        }
                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-red-600 text-lg font-semibold leading-none text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         +
@@ -1707,7 +1762,8 @@ export function FilingDetailPanel({
                     </div>
                   </div>
                   <div className="text-xs text-gray-500">
-                    {documentRows.length} record{documentRows.length === 1 ? "" : "s"}
+                    {documentRows.length} record
+                    {documentRows.length === 1 ? "" : "s"}
                   </div>
                 </div>
               </div>
@@ -1741,7 +1797,9 @@ export function FilingDetailPanel({
                           <td className="px-4 py-3 font-medium text-gray-900">
                             {row.name}
                           </td>
-                          <td className="px-4 py-3 text-gray-600">{row.type}</td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {row.type}
+                          </td>
                           <td className="px-4 py-3 text-gray-600">
                             {row.createdAt}
                           </td>
@@ -1761,19 +1819,15 @@ export function FilingDetailPanel({
               </div>
 
               <div className="border-t border-gray-200 px-5 py-4">
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--r)]">
-                  Conversation
-                </div>
-                <h3 className="mt-1 text-base font-semibold text-gray-950">
-                  Client and staff chat
-                </h3>
+                <SectionTitle eyebrow="Conversation" title="Notas" />
               </div>
 
               <div className="space-y-4 border-t border-gray-200 px-5 py-5">
                 <div className="grid gap-3">
                   {conversation.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-500">
-                      No messages yet. Use this thread to coordinate directly between client and staff.
+                      No messages yet. Use this thread to coordinate directly
+                      between client and staff.
                     </div>
                   ) : (
                     conversation.map((message) => (
@@ -1786,7 +1840,9 @@ export function FilingDetailPanel({
                         }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
-                          <strong className="text-gray-900">{message.authorName}</strong>
+                          <strong className="text-gray-900">
+                            {message.authorName}
+                          </strong>
                           <span>{formatDateTime(message.createdAt)}</span>
                         </div>
                         <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
@@ -1799,7 +1855,9 @@ export function FilingDetailPanel({
 
                 <div className="space-y-3">
                   <label className="block">
-                    <span className="text-sm font-semibold text-gray-900">Reply</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      Reply
+                    </span>
                     <textarea
                       value={chatDraft}
                       onChange={(event) => setChatDraft(event.target.value)}
@@ -1820,7 +1878,9 @@ export function FilingDetailPanel({
                       size="sm"
                       className={ucrSecondaryButtonClassName}
                       onClick={() => setChatDraft("")}
-                      disabled={staffActionsLocked || chatBusy || !chatDraft.trim()}
+                      disabled={
+                        staffActionsLocked || chatBusy || !chatDraft.trim()
+                      }
                     >
                       Clear
                     </Button>
@@ -1829,7 +1889,9 @@ export function FilingDetailPanel({
                       size="sm"
                       className={ucrPrimaryButtonClassName}
                       onClick={() => void handleSendChatMessage()}
-                      disabled={staffActionsLocked || chatBusy || !chatDraft.trim()}
+                      disabled={
+                        staffActionsLocked || chatBusy || !chatDraft.trim()
+                      }
                     >
                       {chatBusy ? "Sending..." : "Send message"}
                     </Button>
@@ -1904,7 +1966,9 @@ export function FilingDetailPanel({
                               {row.summaryDiff && expandedAuditId === row.id ? (
                                 <tr className="border-t border-gray-100 bg-gray-50/60">
                                   <td colSpan={3} className="px-4 py-4">
-                                    <AuditSummaryDiffPanel diff={row.summaryDiff} />
+                                    <AuditSummaryDiffPanel
+                                      diff={row.summaryDiff}
+                                    />
                                   </td>
                                 </tr>
                               ) : null}
@@ -2096,7 +2160,8 @@ export function FilingDetailPanel({
                 </span>
               </div>
               <p className="text-sm text-gray-500">
-                This upload uses the system auto-classification helper to label the document.
+                This upload uses the system auto-classification helper to label
+                the document.
               </p>
             </div>
 

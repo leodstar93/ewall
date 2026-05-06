@@ -70,6 +70,9 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
       where: { id: existing.id },
       data: {
         schedule1DocumentId: document.id,
+        ...(existing.status === Form2290Status.IN_PROCESS
+          ? { status: Form2290Status.FINALIZED, compliantAt: new Date() }
+          : {}),
       },
       include: form2290FilingInclude,
     });
@@ -82,6 +85,17 @@ export async function upload2290Schedule1(input: Upload2290Schedule1Input) {
         documentId: document.id,
       } satisfies Prisma.InputJsonValue,
     });
+
+    if (filing.status === Form2290Status.FINALIZED) {
+      await logForm2290Activity(tx, {
+        filingId: filing.id,
+        actorUserId: input.actorUserId,
+        action: "FINALIZED",
+        metaJson: {
+          schedule1DocumentId: document.id,
+        } satisfies Prisma.InputJsonValue,
+      });
+    }
 
     return filing;
   });

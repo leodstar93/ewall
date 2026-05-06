@@ -1,8 +1,4 @@
-import { Form2290Status } from "@prisma/client";
-import { canRequest2290Correction } from "@/lib/form2290-workflow";
-import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
-import { notify2290CorrectionRequested } from "@/services/form2290/notifications";
 import {
   assert2290FilingAccess,
   Form2290ServiceError,
@@ -28,24 +24,12 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
     canManageAll: input.canManageAll,
   });
 
-  if (!input.canManageAll) {
-    throw new Form2290ServiceError("Forbidden", 403, "FORBIDDEN");
-  }
-
   const message = input.message.trim();
   if (!message) {
     throw new Form2290ServiceError(
-      "Correction message is required.",
+      "Note message is required.",
       400,
       "CORRECTION_MESSAGE_REQUIRED",
-    );
-  }
-
-  if (!canRequest2290Correction(existing.status)) {
-    throw new Form2290ServiceError(
-      "Corrections cannot be requested from the filing's current status.",
-      409,
-      "INVALID_CORRECTION_TRANSITION",
     );
   }
 
@@ -58,27 +42,24 @@ export async function request2290Correction(input: Request2290CorrectionInput) {
       },
     });
 
-    const filing = await tx.form2290Filing.update({
+    await logForm2290Activity(tx, {
+      filingId: existing.id,
+      actorUserId: input.actorUserId,
+      action: "NOTE_ADDED",
+      metaJson: { message },
+    });
+
+    const filing = await tx.form2290Filing.findUnique({
       where: { id: existing.id },
-      data: {
-        status: Form2290Status.NEED_ATTENTION,
-        compliantAt: null,
-      },
       include: form2290FilingInclude,
     });
 
-    await logForm2290Activity(tx, {
-      filingId: filing.id,
-      actorUserId: input.actorUserId,
-      action: "NEED_ATTENTION",
-      metaJson: { message },
-    });
+    if (!filing) {
+      throw new Form2290ServiceError("Filing not found.", 404, "FILING_NOT_FOUND");
+    }
 
     return filing;
   });
 
-  if (db === prisma) {
-    await notify2290CorrectionRequested(filing, message);
-  }
   return filing;
 }

@@ -682,7 +682,7 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
         </div>
 
         <div className={styles.section}>
-          <SectionTitle eyebrow="Conversation" title="Client and staff chat" />
+          <SectionTitle eyebrow="Conversation" title="Notas" />
           <div className={styles.chatThread}>
             {conversation.length === 0 ? (
               <div className={styles.chatEmpty}>

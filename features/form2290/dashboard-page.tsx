@@ -46,6 +46,7 @@ type Form2290DashboardPageProps = {
 
 type Form2290VisibleStatus =
   | "DRAFT"
+  | "PAID"
   | "SUBMITTED"
   | "IN_PROCESS"
   | "FINALIZED";
@@ -72,17 +73,19 @@ const fieldStyle: CSSProperties = {
 const statusOptions: Array<{ value: "all" | Form2290VisibleStatus; label: string }> = [
   { value: "all", label: "All statuses" },
   { value: "DRAFT", label: "Draft" },
+  { value: "PAID", label: "Paid" },
   { value: "SUBMITTED", label: "Submitted" },
   { value: "IN_PROCESS", label: "In process" },
   { value: "FINALIZED", label: "Finalized" },
 ];
 
 function visibleStatusFor2290Filing(filing: Form2290Filing): Form2290VisibleStatus {
-  if (
-    filing.status === "DRAFT" ||
-    filing.status === "NEED_ATTENTION"
-  ) {
+  if (filing.status === "DRAFT") {
     return "DRAFT";
+  }
+
+  if (filing.status === "PAID") {
+    return "PAID";
   }
 
   if (filing.status === "SUBMITTED") {
@@ -99,9 +102,9 @@ function visibleStatusFor2290Filing(filing: Form2290Filing): Form2290VisibleStat
 function customerActionLabel(filing: Form2290Filing) {
   switch (visibleStatusFor2290Filing(filing)) {
     case "DRAFT":
-      return filing.status === "NEED_ATTENTION"
-        ? "Resolve correction"
-        : "View filing";
+      return "Pay filing";
+    case "PAID":
+      return "Submit filing";
     case "SUBMITTED":
       return "Pending assignment";
     case "IN_PROCESS":
@@ -122,6 +125,7 @@ function visibleStatusTone(status: Form2290VisibleStatus): BadgeTone {
     case "DRAFT":
       return "light";
     case "SUBMITTED":
+    case "PAID":
       return "info";
     case "IN_PROCESS":
       return "primary";

@@ -3,7 +3,6 @@ import { Form2290PaymentHandling } from "@prisma/client";
 import {
   canEdit2290Filing,
   canMark2290Paid,
-  canRequest2290Correction,
   canSubmit2290Filing,
   canUpload2290Schedule1,
 } from "@/lib/form2290-workflow";
@@ -86,8 +85,8 @@ export async function GET(
         canEdit: (isOwner || canManageAll) && canEdit2290Filing(filing.status),
         canSubmit: (isOwner || canManageAll) && canSubmit2290Filing(filing.status),
         canMarkSubmitted: false,
-        canRequestCorrection: canManageAll && canRequest2290Correction(filing.status),
-        canMarkPaid: canManageAll && canMark2290Paid(filing.status),
+        canRequestCorrection: isOwner || canManageAll,
+        canMarkPaid: (isOwner || canManageAll) && canMark2290Paid(filing.status),
         canUploadSchedule1:
           (isOwner || canManageAll) && canUpload2290Schedule1(filing.status),
         canUploadDocuments: isOwner || canManageAll,

@@ -1,0 +1,13 @@
+ALTER TYPE "Form2290Status" RENAME TO "Form2290Status_old";
+
+CREATE TYPE "Form2290Status" AS ENUM ('DRAFT', 'PAID', 'SUBMITTED', 'IN_PROCESS', 'FINALIZED');
+
+ALTER TABLE "Form2290Filing"
+  ALTER COLUMN "status" DROP DEFAULT,
+  ALTER COLUMN "status" TYPE "Form2290Status" USING CASE "status"::text
+    WHEN 'NEED_ATTENTION' THEN 'DRAFT'
+    ELSE "status"::text
+  END::"Form2290Status",
+  ALTER COLUMN "status" SET DEFAULT 'DRAFT';
+
+DROP TYPE "Form2290Status_old";

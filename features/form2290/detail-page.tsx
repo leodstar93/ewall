@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import tableStyles from "@/app/(v2)/(protected)/dashboard/components/ui/DataTable.module.css";
 import styles from "@/app/(v2)/(protected)/dashboard/ucr/[id]/ucr-detail.module.css";
 import Form2290FilingForm from "@/features/form2290/filing-form";
@@ -78,6 +78,10 @@ type TimelineRow = {
   detail: string;
   date: string;
 };
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 function StatusChip({ label, className }: { label: string; className: string }) {
   return <span className={`${styles.statusChip} ${className}`}>{label}</span>;
@@ -205,23 +209,13 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const [documentFile, setDocumentFile] = useState<File | null>(null);
-  const [documentName, setDocumentName] = useState("");
-  const [documentType, setDocumentType] =
-    useState<Form2290DocumentType>("PAYMENT_PROOF");
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
-
-  const [schedule1File, setSchedule1File] = useState<File | null>(null);
-  const [schedule1Name, setSchedule1Name] = useState("");
+  const schedule1InputRef = useRef<HTMLInputElement | null>(null);
 
   const [correctionMessage, setCorrectionMessage] = useState("");
   const [amountDue, setAmountDue] = useState("");
   const [paidAt, setPaidAt] = useState("");
-  const [signerName, setSignerName] = useState("");
-  const [signerTitle, setSignerTitle] = useState("");
-  const [signatureText, setSignatureText] = useState("");
-  const [paymentReference, setPaymentReference] = useState("");
-  const [efileConfirmationNumber, setEfileConfirmationNumber] = useState("");
 
   const detailHrefBase =
     props.detailHrefBase ??
@@ -254,12 +248,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
           ? new Date(data.filing.paidAt).toISOString().slice(0, 10)
           : "",
       );
-      setSignerName(data.filing.authorization?.signerName ?? "");
-      setSignerTitle(data.filing.authorization?.signerTitle ?? "");
-      setSignatureText(data.filing.authorization?.signatureText ?? "");
-      setPaymentReference(data.filing.paymentReference ?? "");
-      setEfileConfirmationNumber(data.filing.efileConfirmationNumber ?? "");
-      setCorrectionMessage(data.filing.corrections[0]?.message ?? "");
+      setCorrectionMessage("");
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -280,51 +269,28 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     [payload],
   );
 
-  async function uploadBaseDocument(file: File, name: string) {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("name", name.trim());
-    formData.append("category", "FORM_2290");
-
-    const response = await fetch(
-      props.documentsApiBasePath ?? "/api/v1/features/documents",
-      {
-        method: "POST",
-        body: formData,
-      },
-    );
-
-    const data = (await response.json().catch(() => ({}))) as UploadResponse;
-    if (!response.ok || !data.id) {
-      throw new Error(data.error || "Could not upload the document.");
-    }
-
-    return data.id;
-  }
-
   async function attachSupportingDocument() {
     if (!documentFile) {
-      setError("Please choose a file to upload.");
-      return;
-    }
-    if (!documentName.trim()) {
-      setError("Document name is required.");
+      const message = "Please choose a file to upload.";
+      setError(message);
+      toast.error(message);
       return;
     }
 
     try {
       setBusyAction("document");
       setError(null);
-      const documentId = await uploadBaseDocument(documentFile, documentName);
+      const formData = new FormData();
+      formData.append("file", documentFile);
+      const documentsAttachBase =
+        props.mode === "staff"
+          ? "/api/v1/features/2290"
+          : (props.apiBasePath ?? "/api/v1/features/2290");
       const response = await fetch(
-        `${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}/documents`,
+        `${documentsAttachBase}/${props.filingId}/documents`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            documentId,
-            type: documentType,
-          }),
+          body: formData,
         },
       );
       const data = (await response.json().catch(() => ({}))) as {
@@ -335,40 +301,51 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       }
 
       setDocumentFile(null);
-      setDocumentName("");
-      setDocumentType("PAYMENT_PROOF");
+      setDocumentModalOpen(false);
       await load();
+      toast.success("Document uploaded and attached to this filing.");
     } catch (uploadError) {
-      setError(
-        uploadError instanceof Error
-          ? uploadError.message
-          : "Could not attach the document.",
-      );
+      const message = getErrorMessage(uploadError, "Could not attach the document.");
+      setError(message);
+      toast.error(message);
     } finally {
       setBusyAction(null);
     }
   }
 
-  async function uploadSchedule1() {
-    if (!schedule1File) {
-      setError("Please choose a Schedule 1 file to upload.");
-      return;
-    }
-    if (!schedule1Name.trim()) {
-      setError("Schedule 1 document name is required.");
+  async function uploadSchedule1(file: File | null | undefined) {
+    if (!file) {
+      const message = "Please choose a Schedule 1 file to upload.";
+      setError(message);
+      toast.error(message);
       return;
     }
 
     try {
       setBusyAction("schedule1");
       setError(null);
-      const documentId = await uploadBaseDocument(schedule1File, schedule1Name);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("name", file.name);
+      formData.append("category", "FORM_2290");
+
+      const uploadResponse = await fetch(
+        props.documentsApiBasePath ?? "/api/v1/features/documents",
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+      const uploadData = (await uploadResponse.json().catch(() => ({}))) as UploadResponse;
+      if (!uploadResponse.ok || !uploadData.id) {
+        throw new Error(uploadData.error || "Could not upload Schedule 1.");
+      }
       const response = await fetch(
         `${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}/upload-schedule1`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documentId }),
+          body: JSON.stringify({ documentId: uploadData.id }),
         },
       );
       const data = (await response.json().catch(() => ({}))) as {
@@ -378,17 +355,17 @@ export default function Form2290DetailPage(props: DetailPageProps) {
         throw new Error(data.error || "Could not upload Schedule 1.");
       }
 
-      setSchedule1File(null);
-      setSchedule1Name("");
       await load();
+      toast.success("Schedule 1 uploaded and filing finalized.");
     } catch (uploadError) {
-      setError(
-        uploadError instanceof Error
-          ? uploadError.message
-          : "Could not upload Schedule 1.",
-      );
+      const message = getErrorMessage(uploadError, "Could not upload Schedule 1.");
+      setError(message);
+      toast.error(message);
     } finally {
       setBusyAction(null);
+      if (schedule1InputRef.current) {
+        schedule1InputRef.current.value = "";
+      }
     }
   }
 
@@ -445,30 +422,46 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     }
   }
 
-  async function signAuthorization() {
+  async function sendNote() {
+    const message = correctionMessage.trim();
+    if (!message) {
+      const validationMessage = "Write a note before sending.";
+      setError(validationMessage);
+      toast.error(validationMessage);
+      return;
+    }
+
     try {
-      setBusyAction("authorization");
+      setBusyAction("request-correction");
       setError(null);
-      const response = await fetch(
-        `${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}/authorization`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signerName, signerTitle, signatureText }),
-        },
-      );
+      const base =
+        props.mode === "staff"
+          ? "/api/v1/admin/2290"
+          : (props.apiBasePath ?? "/api/v1/features/2290");
+      const response = await fetch(`${base}/${props.filingId}/request-correction`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
+        details?: string[];
       };
-      if (!response.ok)
-        throw new Error(data.error || "Could not sign authorization.");
+      if (!response.ok) {
+        throw new Error(
+          [data.error, ...(Array.isArray(data.details) ? data.details : [])]
+            .filter(Boolean)
+            .join(" ") || "Could not send the note.",
+        );
+      }
+
+      setCorrectionMessage("");
       await load();
-    } catch (authorizationError) {
-      setError(
-        authorizationError instanceof Error
-          ? authorizationError.message
-          : "Could not sign authorization.",
-      );
+      toast.success("Note sent.");
+    } catch (noteError) {
+      const message = getErrorMessage(noteError, "Could not send the note.");
+      setError(message);
+      toast.error(message);
     } finally {
       setBusyAction(null);
     }
@@ -558,32 +551,12 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     { label: "Payment reference", value: filing.paymentReference || "-" },
   ];
 
-  const filingRows: KeyValueRow[] = [
-    { label: "Status", value: statusLabel(filing.status) },
-    { label: "Provider", value: filing.efileProviderName || "-" },
-    { label: "Provider URL", value: filing.efileProviderUrl || "-" },
-    { label: "Confirmation", value: filing.efileConfirmationNumber || "-" },
-    { label: "Filed at", value: formatDateOnly(filing.filedAt) },
-    { label: "Filed externally", value: formatDateOnly(filing.filedExternallyAt) },
-    { label: "Assigned at", value: formatDate(filing.reviewStartedAt) },
-  ];
-  const companyRows: KeyValueRow[] = [
-    { label: "Company", value: filing.organization?.legalName || filing.organization?.companyName || filing.organization?.name || "-" },
-    { label: "DBA", value: filing.organization?.dbaName || "-" },
-    { label: "DOT", value: filing.organization?.dotNumber || "-" },
-    { label: "EIN", value: filing.organization?.ein || "-" },
-    { label: "Phone", value: filing.organization?.businessPhone || filing.organization?.phone || "-" },
-    {
-      label: "Address",
-      value:
-        [
-          filing.organization?.addressLine1 || filing.organization?.address,
-          filing.organization?.city,
-          filing.organization?.state,
-          filing.organization?.zipCode,
-        ].filter(Boolean).join(", ") || "-",
-    },
-  ];
+  const companyName =
+    filing.organization?.legalName ||
+    filing.organization?.companyName ||
+    filing.organization?.name ||
+    "-";
+  const companyDot = filing.organization?.dotNumber || "-";
 
   return (
     <div className={styles.page}>
@@ -593,18 +566,20 @@ export default function Form2290DetailPage(props: DetailPageProps) {
             <div>
               <p className={styles.eyebrow}>Form 2290 Filing</p>
               <h1 className={styles.title}>
-                Unit {filing.unitNumberSnapshot || filing.truck.unitNumber}
+                {companyName}
               </h1>
               <p className={styles.subtitle}>
-                VIN {filing.vinSnapshot} | Tax period {filing.taxPeriod.name} | Updated{" "}
-                {formatDate(filing.updatedAt)}
+                Tax period {filing.taxPeriod.name} | Updated {formatDate(filing.updatedAt)}
+              </p>
+              <p className={styles.subtitle}>
+                DOT {companyDot}
               </p>
             </div>
             <div className={styles.headerActions}>
               <Link href={backHref} className={styles.secondaryButton}>
                 Back
               </Link>
-              {permissions.canEdit ? (
+              {props.mode === "driver" && permissions.canEdit ? (
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(true)}
@@ -613,7 +588,17 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   Edit filing
                 </button>
               ) : null}
-              {permissions.canSubmit ? (
+              {props.mode === "driver" && permissions.canMarkPaid ? (
+                <button
+                  type="button"
+                  onClick={() => void runAction("mark-paid", { amountDue: amountDue || undefined })}
+                  disabled={busyAction === "mark-paid"}
+                  className={styles.primaryButton}
+                >
+                  {busyAction === "mark-paid" ? "Working..." : "Pay filing"}
+                </button>
+              ) : null}
+              {props.mode === "driver" && permissions.canSubmit ? (
                 <button
                   type="button"
                   onClick={() => void runAction("submit")}
@@ -623,7 +608,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   {busyAction === "submit" ? "Working..." : "Submit for review"}
                 </button>
               ) : null}
-              {permissions.canMarkSubmitted ? (
+              {props.mode === "driver" && permissions.canMarkSubmitted ? (
                 <button
                   type="button"
                   onClick={() => void runAction("submit", { markSubmitted: true })}
@@ -632,6 +617,32 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                 >
                   Mark submitted
                 </button>
+              ) : null}
+              {props.mode === "staff" && permissions.canStaffWorkflow ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void runAction("claim")}
+                    disabled={busyAction === "claim" || filing.status !== "SUBMITTED"}
+                    className={styles.secondaryButton}
+                  >
+                    Assign to me
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => schedule1InputRef.current?.click()}
+                    disabled={busyAction === "schedule1" || filing.status !== "IN_PROCESS"}
+                    className={styles.primaryButton}
+                  >
+                    {busyAction === "schedule1" ? "Finalizing..." : "Finalize filing"}
+                  </button>
+                  <input
+                    ref={schedule1InputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(event) => void uploadSchedule1(event.target.files?.[0])}
+                  />
+                </>
               ) : null}
             </div>
           </div>
@@ -651,15 +662,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
 
         {error ? <div className={styles.alertError}>{error}</div> : null}
 
-        {filing.status === "NEED_ATTENTION" && filing.corrections[0] ? (
-          <div className={styles.alertInfo}>{filing.corrections[0].message}</div>
-        ) : null}
-
-        <div className={styles.section}>
-          <SectionTitle eyebrow="Company" title="Company profile snapshot" />
-          <KeyValueTable rows={companyRows} />
-        </div>
-
         <div className={styles.section}>
           <div className={styles.twoUp}>
             <div className={styles.subsection}>
@@ -672,71 +674,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
             </div>
           </div>
         </div>
-
-        <div className={styles.section}>
-          <div className={styles.twoUp}>
-            <div className={styles.subsection}>
-              <SectionTitle eyebrow="Filing" title="Provider filing details" />
-              <KeyValueTable rows={filingRows} />
-            </div>
-            <div className={styles.subsection}>
-              <SectionTitle eyebrow="Authorization" title="Client authorization" />
-              <KeyValueTable
-                rows={[
-                  { label: "Status", value: filing.authorization?.status ?? "UNSIGNED" },
-                  { label: "Signer", value: filing.authorization?.signerName ?? "-" },
-                  { label: "Title", value: filing.authorization?.signerTitle ?? "-" },
-                  { label: "Signed at", value: formatDate(filing.authorization?.signedAt) },
-                ]}
-              />
-            </div>
-          </div>
-        </div>
-
-        {permissions.canAuthorize ? (
-          <div className={styles.section}>
-            <SectionTitle eyebrow="Authorization" title="Sign authorization" />
-            <div className="grid gap-4 lg:grid-cols-3">
-              <label className="space-y-2 text-sm text-zinc-700">
-                <span className="font-medium text-zinc-900">Signer name</span>
-                <input value={signerName} onChange={(event) => setSignerName(event.target.value)} className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400" />
-              </label>
-              <label className="space-y-2 text-sm text-zinc-700">
-                <span className="font-medium text-zinc-900">Title</span>
-                <input value={signerTitle} onChange={(event) => setSignerTitle(event.target.value)} className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400" />
-              </label>
-              <label className="space-y-2 text-sm text-zinc-700">
-                <span className="font-medium text-zinc-900">Signature</span>
-                <input value={signatureText} onChange={(event) => setSignatureText(event.target.value)} className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400" />
-              </label>
-            </div>
-            <div className={styles.noteActions}>
-              <button type="button" onClick={() => void signAuthorization()} disabled={busyAction === "authorization"} className={styles.primaryButton}>
-                {busyAction === "authorization" ? "Signing..." : "Sign authorization"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {props.mode === "staff" ? (
-          <div className={styles.section}>
-            <SectionTitle eyebrow="ACH" title="Staff payment custody" />
-            <StaffFilingPaymentPanel filingType="form2290" filingId={props.filingId} />
-          </div>
-        ) : null}
-
-        {permissions.canStaffWorkflow ? (
-          <div className={styles.section}>
-            <SectionTitle eyebrow="Workflow" title="Staff actions" />
-            <div className={styles.noteActions}>
-              <button type="button" onClick={() => void runAction("claim")} disabled={busyAction === "claim" || filing.status !== "SUBMITTED"} className={styles.secondaryButton}>Assign to me</button>
-              <button type="button" onClick={() => void runAction("mark-payment-received", { amountDue: amountDue || undefined, paymentReference: paymentReference || undefined })} disabled={busyAction === "mark-payment-received"} className={styles.secondaryButton}>Payment received</button>
-              <button type="button" onClick={() => void runAction("mark-filed", { efileConfirmationNumber: efileConfirmationNumber || undefined, providerName: filing.efileProviderName || undefined, providerUrl: filing.efileProviderUrl || undefined })} disabled={busyAction === "mark-filed"} className={styles.primaryButton}>Mark filed</button>
-              <button type="button" onClick={() => void runAction("request-correction", { message: correctionMessage || "Staff requested updates before finalizing." })} disabled={busyAction === "request-correction" || filing.status !== "IN_PROCESS"} className={styles.secondaryButton}>Need attention</button>
-              <button type="button" onClick={() => void runAction("mark-compliant")} disabled={busyAction === "mark-compliant" || filing.status !== "IN_PROCESS"} className={styles.primaryButton}>Finalize filing</button>
-            </div>
-          </div>
-        ) : null}
 
         <div className={styles.section}>
           <div className={styles.sectionHeaderRow}>
@@ -754,72 +691,62 @@ export default function Form2290DetailPage(props: DetailPageProps) {
         </div>
 
         <div className={styles.section}>
-          <SectionTitle eyebrow="Schedule 1" title="Final Schedule 1" />
-          {filing.schedule1Document ? (
-            <DocumentsTable
-              rows={[
-                {
-                  id: filing.schedule1Document.id,
-                  name: filing.schedule1Document.name,
-                  type: "Schedule 1",
-                  date: formatDate(filing.schedule1Document.createdAt),
-                  viewHref: `${props.documentsApiBasePath ?? "/api/v1/features/documents"}/${filing.schedule1Document.id}/view`,
-                  downloadHref: `${props.documentsApiBasePath ?? "/api/v1/features/documents"}/${filing.schedule1Document.id}/download`,
-                },
-              ]}
-            />
-          ) : (
-            <div className={styles.chatEmpty}>No Schedule 1 attached yet.</div>
-          )}
-
-          {permissions.canUploadSchedule1 ? (
-            <div className={styles.chatComposer}>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <label className="space-y-2 text-sm text-zinc-700">
-                  <span className="font-medium text-zinc-900">Schedule 1 file</span>
-                  <input type="file" onChange={(event) => setSchedule1File(event.target.files?.[0] ?? null)} className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3" />
-                </label>
-                <label className="space-y-2 text-sm text-zinc-700">
-                  <span className="font-medium text-zinc-900">Schedule 1 name</span>
-                  <input value={schedule1Name} onChange={(event) => setSchedule1Name(event.target.value)} className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 outline-none ring-0 focus:border-zinc-400" />
-                </label>
-              </div>
-              <div className={styles.noteActions}>
-                <button type="button" onClick={() => void uploadSchedule1()} disabled={busyAction === "schedule1"} className={styles.primaryButton}>
-                  {busyAction === "schedule1" ? "Uploading..." : "Upload Schedule 1"}
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className={styles.section}>
-          <SectionTitle eyebrow="Corrections" title="Correction requests" />
+          <SectionTitle eyebrow="Conversation" title="Notes" />
           <div className={styles.chatThread}>
             {filing.corrections.length === 0 ? (
-              <div className={styles.chatEmpty}>No corrections requested.</div>
+              <div className={styles.chatEmpty}>No notes yet. Start the conversation here.</div>
             ) : (
-              filing.corrections.map((correction) => (
-                <article key={correction.id} className={styles.chatMessage}>
-                  <div className={styles.chatMeta}>
-                    <strong>{correction.resolved ? "Resolved" : "Open"}</strong>
-                    <span>{formatDate(correction.createdAt)}</span>
-                  </div>
-                  <p className={styles.chatBody}>{correction.message}</p>
-                </article>
-              ))
+              filing.corrections.map((note) => {
+                const isClientNote = note.requestedById === filing.userId;
+                const authorName = isClientNote
+                  ? filing.user?.name || filing.user?.email || "Client"
+                  : "Staff/Admin";
+                const ownSide =
+                  props.mode === "staff" ? !isClientNote : isClientNote;
+                return (
+                  <article
+                    key={note.id}
+                    className={`${styles.chatMessage} ${
+                      ownSide ? styles.chatMessageClient : styles.chatMessageStaff
+                    }`}
+                  >
+                    <div className={styles.chatMeta}>
+                      <strong>{authorName}</strong>
+                      <span>{formatDate(note.createdAt)}</span>
+                    </div>
+                    <p className={styles.chatBody}>{note.message}</p>
+                  </article>
+                );
+              })
             )}
           </div>
 
           {permissions.canRequestCorrection ? (
             <div className={styles.chatComposer}>
               <label className={styles.fieldBlock}>
-                <span className={styles.fieldLabel}>Correction message</span>
-                <textarea value={correctionMessage} onChange={(event) => setCorrectionMessage(event.target.value)} className={styles.textarea} />
+                <span className={styles.fieldLabel}>New note</span>
+                <textarea
+                  value={correctionMessage}
+                  onChange={(event) => setCorrectionMessage(event.target.value)}
+                  className={styles.textarea}
+                  placeholder={
+                    props.mode === "staff"
+                      ? "Write a note for the client about this filing."
+                      : "Write a note for staff about this filing."
+                  }
+                />
               </label>
               <div className={styles.noteActions}>
-                <button type="button" onClick={() => void runAction("request-correction", { message: correctionMessage })} disabled={busyAction === "request-correction"} className={styles.secondaryButton}>
-                  {busyAction === "request-correction" ? "Working..." : "Request correction"}
+                <button
+                  type="button"
+                  onClick={() => setCorrectionMessage("")}
+                  disabled={!correctionMessage || busyAction === "request-correction"}
+                  className={styles.secondaryButton}
+                >
+                  Clear
+                </button>
+                <button type="button" onClick={() => void sendNote()} disabled={busyAction === "request-correction"} className={styles.primaryButton}>
+                  {busyAction === "request-correction" ? "Sending..." : "Send note"}
                 </button>
               </div>
             </div>
@@ -897,26 +824,16 @@ export default function Form2290DetailPage(props: DetailPageProps) {
             <label className={styles.uploadField}>
               <span className={styles.uploadFieldLabel}>Document file</span>
               <input type="file" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3" />
-            </label>
-            <label className={styles.uploadField}>
-              <span className={styles.uploadFieldLabel}>Document name</span>
-              <input value={documentName} onChange={(event) => setDocumentName(event.target.value)} className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 outline-none ring-0 focus:border-zinc-400" />
-            </label>
-            <label className={styles.uploadField}>
-              <span className={styles.uploadFieldLabel}>Document type</span>
-              <select value={documentType} onChange={(event) => setDocumentType(event.target.value as Form2290DocumentType)} className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 outline-none ring-0 focus:border-zinc-400">
-                <option value="PAYMENT_PROOF">Payment proof</option>
-                <option value="SUPPORTING_DOC">Supporting doc</option>
-                <option value="AUTHORIZATION">Authorization</option>
-                <option value="PROVIDER_CONFIRMATION">Provider confirmation</option>
-              </select>
+              <span className={styles.uploadFieldHelp}>
+                The system will auto-classify and attach it to this filing.
+              </span>
             </label>
 
             <div className={styles.noteActions}>
               <button type="button" onClick={() => setDocumentModalOpen(false)} className={styles.secondaryButton} disabled={busyAction === "document"}>
                 Cancel
               </button>
-              <button type="button" onClick={() => void attachSupportingDocument()} className={styles.primaryButton} disabled={busyAction === "document" || !documentFile || !documentName.trim()}>
+              <button type="button" onClick={() => void attachSupportingDocument()} className={styles.primaryButton} disabled={busyAction === "document" || !documentFile}>
                 {busyAction === "document" ? "Uploading..." : "Upload"}
               </button>
             </div>

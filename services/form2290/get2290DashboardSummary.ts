@@ -47,9 +47,9 @@ export async function get2290DashboardSummary(input: Get2290DashboardSummaryInpu
 
   const pending = filings.filter((filing) =>
     filing.status === Form2290Status.DRAFT ||
+    filing.status === Form2290Status.PAID ||
     filing.status === Form2290Status.SUBMITTED ||
-    filing.status === Form2290Status.IN_PROCESS ||
-    filing.status === Form2290Status.NEED_ATTENTION,
+    filing.status === Form2290Status.IN_PROCESS,
   ).length;
 
   return {

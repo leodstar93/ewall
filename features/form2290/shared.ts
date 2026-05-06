@@ -1,8 +1,8 @@
 export type Form2290Status =
   | "DRAFT"
+  | "PAID"
   | "SUBMITTED"
   | "IN_PROCESS"
-  | "NEED_ATTENTION"
   | "FINALIZED";
 
 export type Form2290PaymentStatus = "UNPAID" | "PENDING" | "RECEIVED" | "PAID" | "WAIVED";
@@ -218,12 +218,12 @@ export function statusLabel(status: Form2290Status) {
   switch (status) {
     case "DRAFT":
       return "Draft";
+    case "PAID":
+      return "Paid";
     case "SUBMITTED":
       return "Submitted";
     case "IN_PROCESS":
       return "In process";
-    case "NEED_ATTENTION":
-      return "Need attention";
     case "FINALIZED":
       return "Finalized";
     default:
@@ -252,10 +252,10 @@ export function statusClasses(status: Form2290Status) {
   switch (status) {
     case "DRAFT":
       return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+    case "PAID":
+      return "bg-emerald-50 text-emerald-800 ring-emerald-200";
     case "IN_PROCESS":
       return "bg-amber-50 text-amber-800 ring-amber-200";
-    case "NEED_ATTENTION":
-      return "bg-red-50 text-red-800 ring-red-200";
     case "SUBMITTED":
       return "bg-sky-50 text-sky-800 ring-sky-200";
     case "FINALIZED":
@@ -332,6 +332,6 @@ export function getComplianceStateForFiling(filing: {
   return {
     compliant,
     expired,
-    correctionNeeded: filing.status === "NEED_ATTENTION",
+    correctionNeeded: false,
   };
 }

@@ -322,8 +322,8 @@ export async function mark2290Compliant(input: WorkflowInput) {
 export async function cancel2290Filing(input: WorkflowInput & { reason?: string | null }) {
   return updateStaffStatus({
     ...input,
-    status: Form2290Status.NEED_ATTENTION,
-    action: "NEED_ATTENTION",
+    status: Form2290Status.DRAFT,
+    action: "RETURNED_TO_DRAFT",
     data: { compliantAt: null },
     metaJson: { reason: input.reason ?? undefined } satisfies Prisma.InputJsonValue,
     notify: {
@@ -337,8 +337,8 @@ export async function cancel2290Filing(input: WorkflowInput & { reason?: string 
 export async function reopen2290Filing(input: WorkflowInput & { reason?: string | null }) {
   return updateStaffStatus({
     ...input,
-    status: Form2290Status.NEED_ATTENTION,
-    action: "NEED_ATTENTION",
+    status: Form2290Status.DRAFT,
+    action: "RETURNED_TO_DRAFT",
     data: { compliantAt: null },
     metaJson: { reason: input.reason ?? undefined } satisfies Prisma.InputJsonValue,
     notify: {

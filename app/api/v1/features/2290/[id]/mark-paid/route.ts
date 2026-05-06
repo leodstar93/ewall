@@ -25,7 +25,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireApiPermission("compliance2290:approve");
+  const guard = await requireApiPermission("compliance2290:update");
   if (!guard.ok) return guard.res;
 
   const { id } = await params;

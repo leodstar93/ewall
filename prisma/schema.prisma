@@ -768,9 +768,9 @@ enum UCRCustomerPaymentStatus {
 
 enum Form2290Status {
   DRAFT
+  PAID
   SUBMITTED
   IN_PROCESS
-  NEED_ATTENTION
   FINALIZED
 }
 

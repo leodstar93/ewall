@@ -1,4 +1,4 @@
-import { Form2290PaymentStatus, Prisma } from "@prisma/client";
+import { Form2290PaymentStatus, Form2290Status, Prisma } from "@prisma/client";
 import { canMark2290Paid } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
@@ -29,10 +29,6 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
     canManageAll: input.canManageAll,
   });
 
-  if (!input.canManageAll) {
-    throw new Form2290ServiceError("Forbidden", 403, "FORBIDDEN");
-  }
-
   if (!canMark2290Paid(existing.status)) {
     throw new Form2290ServiceError(
       "This filing cannot be marked paid from its current status.",
@@ -46,6 +42,7 @@ export async function mark2290Paid(input: Mark2290PaidInput) {
     const filing = await tx.form2290Filing.update({
       where: { id: existing.id },
       data: {
+        status: Form2290Status.PAID,
         paymentStatus: Form2290PaymentStatus.PAID,
         paidAt,
         amountDue:

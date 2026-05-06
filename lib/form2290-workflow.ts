@@ -4,12 +4,12 @@ export function getForm2290StatusLabel(status: Form2290Status) {
   switch (status) {
     case Form2290Status.DRAFT:
       return "Draft";
+    case Form2290Status.PAID:
+      return "Paid";
     case Form2290Status.SUBMITTED:
       return "Submitted";
     case Form2290Status.IN_PROCESS:
       return "In process";
-    case Form2290Status.NEED_ATTENTION:
-      return "Need attention";
     case Form2290Status.FINALIZED:
       return "Finalized";
     default:
@@ -35,11 +35,11 @@ export function getForm2290PaymentStatusLabel(status: Form2290PaymentStatus) {
 }
 
 export function canEdit2290Filing(status: Form2290Status) {
-  return status === Form2290Status.DRAFT || status === Form2290Status.NEED_ATTENTION;
+  return status === Form2290Status.DRAFT;
 }
 
 export function canSubmit2290Filing(status: Form2290Status) {
-  return canEdit2290Filing(status);
+  return status === Form2290Status.PAID;
 }
 
 export function canAssign2290Filing(status: Form2290Status) {
@@ -51,11 +51,11 @@ export function canMark2290Submitted(status: Form2290Status) {
 }
 
 export function canRequest2290Correction(status: Form2290Status) {
-  return status === Form2290Status.IN_PROCESS;
+  return false;
 }
 
 export function canMark2290Paid(status: Form2290Status) {
-  return status === Form2290Status.SUBMITTED || status === Form2290Status.IN_PROCESS;
+  return status === Form2290Status.DRAFT;
 }
 
 export function canUpload2290Schedule1(status: Form2290Status) {
