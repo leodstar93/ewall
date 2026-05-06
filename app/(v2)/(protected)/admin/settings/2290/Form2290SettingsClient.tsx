@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Table, { type ColumnDef } from "@/app/(v2)/(protected)/admin/components/ui/Table";
 import { Form2290TaxPeriod, formatDateOnly } from "@/features/form2290/shared";
 import tableStyles from "@/app/(v2)/(protected)/admin/components/ui/DataTable.module.css";
 
@@ -65,6 +66,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default function Form2290SettingsClient() {
+  const [activeTab, setActiveTab] = useState<"rules" | "tax-periods">("rules");
   const [minimumEligibleWeight, setMinimumEligibleWeight] = useState("55000");
   const [expirationWarningDays, setExpirationWarningDays] = useState("30");
   const [serviceFeeCents, setServiceFeeCents] = useState("0");
@@ -222,6 +224,159 @@ export default function Form2290SettingsClient() {
     } finally { setBusy(null); }
   }
 
+  const taxPeriodColumns = useMemo<ColumnDef<Form2290TaxPeriod>[]>(
+    () => [
+      {
+        key: "name",
+        label: "Name",
+        render: (_value, period) => {
+          const draft = editing[period.id];
+          if (!draft) return period.name;
+
+          return (
+            <input
+              value={draft.name}
+              onChange={(e) =>
+                setEditing((current) => ({
+                  ...current,
+                  [period.id]: { ...draft, name: e.target.value },
+                }))
+              }
+              style={inputStyle}
+            />
+          );
+        },
+      },
+      {
+        key: "startDate",
+        label: "Start",
+        render: (_value, period) => {
+          const draft = editing[period.id];
+          if (!draft) return formatDateOnly(period.startDate);
+
+          return (
+            <input
+              type="date"
+              value={draft.startDate}
+              onChange={(e) =>
+                setEditing((current) => ({
+                  ...current,
+                  [period.id]: { ...draft, startDate: e.target.value },
+                }))
+              }
+              style={inputStyle}
+            />
+          );
+        },
+      },
+      {
+        key: "endDate",
+        label: "End",
+        render: (_value, period) => {
+          const draft = editing[period.id];
+          if (!draft) return formatDateOnly(period.endDate);
+
+          return (
+            <input
+              type="date"
+              value={draft.endDate}
+              onChange={(e) =>
+                setEditing((current) => ({
+                  ...current,
+                  [period.id]: { ...draft, endDate: e.target.value },
+                }))
+              }
+              style={inputStyle}
+            />
+          );
+        },
+      },
+      {
+        key: "filingDeadline",
+        label: "Deadline",
+        render: (_value, period) => {
+          const draft = editing[period.id];
+          if (!draft) return formatDateOnly(period.filingDeadline);
+
+          return (
+            <input
+              type="date"
+              value={draft.filingDeadline}
+              onChange={(e) =>
+                setEditing((current) => ({
+                  ...current,
+                  [period.id]: { ...draft, filingDeadline: e.target.value },
+                }))
+              }
+              style={inputStyle}
+            />
+          );
+        },
+      },
+      {
+        key: "isActive",
+        label: "Active",
+        render: (_value, period) => {
+          const draft = editing[period.id];
+          if (!draft) return period.isActive ? "Yes" : "No";
+
+          return (
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={draft.isActive}
+                onChange={(e) =>
+                  setEditing((current) => ({
+                    ...current,
+                    [period.id]: { ...draft, isActive: e.target.checked },
+                  }))
+                }
+              />
+              {draft.isActive ? "Active" : "Inactive"}
+            </label>
+          );
+        },
+      },
+      {
+        key: "id",
+        label: "Actions",
+        sortable: false,
+        render: (_value, period) => (
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => void updateTaxPeriod(period.id)}
+              disabled={busy === `update-${period.id}`}
+              className={tableStyles.btn}
+              style={{ opacity: busy === `update-${period.id}` ? 0.6 : 1 }}
+            >
+              {busy === `update-${period.id}` ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void deleteTaxPeriod(period.id)}
+              disabled={busy === `delete-${period.id}`}
+              style={{
+                height: 30,
+                padding: "0 12px",
+                border: "1px solid #fecaca",
+                borderRadius: 6,
+                fontSize: 12,
+                cursor: "pointer",
+                background: "transparent",
+                color: "#b91c1c",
+                opacity: busy === `delete-${period.id}` ? 0.6 : 1,
+              }}
+            >
+              {busy === `delete-${period.id}` ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [busy, editing],
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {error ? <div style={{ borderRadius: 10, border: "1px solid #fecaca", background: "#fef2f2", padding: "10px 14px", fontSize: 13, color: "#b91c1c" }}>{error}</div> : null}
@@ -231,6 +386,27 @@ export default function Form2290SettingsClient() {
         <div className={tableStyles.card}><div style={{ padding: 20, fontSize: 13, color: "#aaa" }}>Loading Form 2290 settings...</div></div>
       ) : (
         <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {[
+              { key: "rules" as const, label: "Rules" },
+              { key: "tax-periods" as const, label: "Create Tax Period" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={
+                  activeTab === tab.key
+                    ? `${tableStyles.btn} ${tableStyles.btnPrimary}`
+                    : tableStyles.btn
+                }
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "rules" ? (
           <div className={tableStyles.card}>
             <div className={tableStyles.header}><div className={tableStyles.title}>Rules</div></div>
             <div style={{ padding: 20, display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
@@ -313,7 +489,8 @@ export default function Form2290SettingsClient() {
               </button>
             </div>
           </div>
-
+          ) : (
+          <>
           <div className={tableStyles.card}>
             <div className={tableStyles.header}><div className={tableStyles.title}>Create tax period</div></div>
             <div style={{ padding: 20, display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
@@ -345,64 +522,14 @@ export default function Form2290SettingsClient() {
             </div>
           </div>
 
-          <div className={tableStyles.card}>
-            <div className={tableStyles.header}><div className={tableStyles.title}>Tax periods</div><div className={tableStyles.subtitle}>{taxPeriods.length} period(s)</div></div>
-            {taxPeriods.length === 0 ? (
-              <div style={{ padding: 20, fontSize: 13, color: "#aaa" }}>No Form 2290 tax periods configured yet.</div>
-            ) : (
-              <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-                {taxPeriods.map((period) => {
-                  const draft = editing[period.id];
-                  if (!draft) return null;
-                  return (
-                    <div key={period.id} style={{ border: "1px solid var(--brl)", borderRadius: 10, padding: 16 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: "var(--b)", display: "flex", alignItems: "center", gap: 8 }}>
-                            {period.name}
-                            {period.isActive && <span style={{ fontSize: 11, fontWeight: 700, background: "var(--b)", color: "#fff", borderRadius: 20, padding: "2px 10px" }}>Active</span>}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#777", marginTop: 2 }}>
-                            {formatDateOnly(period.startDate)} to {formatDateOnly(period.endDate)}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button type="button" onClick={() => void updateTaxPeriod(period.id)} disabled={busy === `update-${period.id}`} className={tableStyles.btn} style={{ opacity: busy === `update-${period.id}` ? 0.6 : 1 }}>
-                            {busy === `update-${period.id}` ? "Saving..." : "Save"}
-                          </button>
-                          <button type="button" onClick={() => void deleteTaxPeriod(period.id)} disabled={busy === `delete-${period.id}`} style={{ height: 30, padding: "0 12px", border: "1px solid #fecaca", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: "#b91c1c", opacity: busy === `delete-${period.id}` ? 0.6 : 1 }}>
-                            {busy === `delete-${period.id}` ? "Deleting..." : "Delete"}
-                          </button>
-                        </div>
-                      </div>
-                      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: "1 / -1" }}>
-                          <FieldLabel>Name</FieldLabel>
-                          <input value={draft.name} onChange={(e) => setEditing((c) => ({ ...c, [period.id]: { ...draft, name: e.target.value } }))} style={inputStyle} />
-                        </label>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          <FieldLabel>Start date</FieldLabel>
-                          <input type="date" value={draft.startDate} onChange={(e) => setEditing((c) => ({ ...c, [period.id]: { ...draft, startDate: e.target.value } }))} style={inputStyle} />
-                        </label>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          <FieldLabel>End date</FieldLabel>
-                          <input type="date" value={draft.endDate} onChange={(e) => setEditing((c) => ({ ...c, [period.id]: { ...draft, endDate: e.target.value } }))} style={inputStyle} />
-                        </label>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          <FieldLabel>Filing deadline</FieldLabel>
-                          <input type="date" value={draft.filingDeadline} onChange={(e) => setEditing((c) => ({ ...c, [period.id]: { ...draft, filingDeadline: e.target.value } }))} style={inputStyle} />
-                        </label>
-                        <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--brl)", borderRadius: 8 }}>
-                          <input type="checkbox" checked={draft.isActive} onChange={(e) => setEditing((c) => ({ ...c, [period.id]: { ...draft, isActive: e.target.checked } }))} />
-                          <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Active period</span>
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <Table
+            data={taxPeriods}
+            columns={taxPeriodColumns}
+            title="Tax periods"
+            searchKeys={["name"]}
+          />
+          </>
+          )}
         </>
       )}
     </div>

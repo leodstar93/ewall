@@ -656,12 +656,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
         ) : null}
 
         <div className={styles.section}>
-          <div className={styles.sectionHeaderRow}>
-            <SectionTitle eyebrow="Company" title="Company profile snapshot" />
-            <Link href="/dashboard/profile" className={styles.secondaryButton}>
-              Edit Company Profile
-            </Link>
-          </div>
+          <SectionTitle eyebrow="Company" title="Company profile snapshot" />
           <KeyValueTable rows={companyRows} />
         </div>
 
