@@ -11,6 +11,7 @@ import {
   resolve2290Eligibility,
   resolve2290OrganizationId,
 } from "@/services/form2290/shared";
+import { calculate2290FilingCharges } from "@/services/form2290/filing-calculation.service";
 
 type Update2290FilingInput = {
   db?: DbClient;
@@ -75,19 +76,47 @@ export async function update2290Filing(input: Update2290FilingInput) {
     );
   }
 
-  const [eligibility, organizationId] = await Promise.all([
+  const taxableWeight =
+    typeof input.taxableGrossWeight === "undefined"
+      ? existing.taxableGrossWeightSnapshot
+      : input.taxableGrossWeight;
+
+  const firstUsedMonth =
+    typeof input.firstUsedMonth === "undefined"
+      ? existing.firstUsedMonth
+      : input.firstUsedMonth;
+
+  const isLogging =
+    typeof input.loggingVehicle === "undefined"
+      ? existing.loggingVehicle
+      : input.loggingVehicle;
+
+  const isSuspended =
+    typeof input.suspendedVehicle === "undefined"
+      ? existing.suspendedVehicle
+      : input.suspendedVehicle;
+
+  const [eligibility, organizationId, charges] = await Promise.all([
     resolve2290Eligibility(truck.grossWeight, db),
     resolve2290OrganizationId({ db, userId: truck.userId }),
+    calculate2290FilingCharges({
+      db,
+      taxPeriodId: taxPeriod.id,
+      weight: taxableWeight,
+      firstUsedMonth,
+      isLogging,
+      isSuspended,
+      taxableAmount: input.irsTaxEstimate ?? null,
+    }),
   ]);
   const { isEligible } = eligibility;
+  const { taxCalc } = charges;
 
   try {
     return await db.$transaction(async (tx) => {
       await tx.truck.update({
         where: { id: truck.id },
-        data: {
-          is2290Eligible: isEligible,
-        },
+        data: { is2290Eligible: isEligible },
       });
 
       const filing = await tx.form2290Filing.update({
@@ -128,6 +157,7 @@ export async function update2290Filing(input: Update2290FilingInput) {
               : typeof input.irsTaxEstimate === "string" && input.irsTaxEstimate.trim()
                 ? new Prisma.Decimal(input.irsTaxEstimate)
                 : null,
+          amountDue: charges.amountDue ?? existing.amountDue,
           firstUsedMonth:
             typeof input.firstUsedMonth === "undefined"
               ? existing.firstUsedMonth
@@ -142,11 +172,9 @@ export async function update2290Filing(input: Update2290FilingInput) {
         include: form2290FilingInclude,
       });
 
+      // Recreate primary vehicle snapshot with updated rate data
       await tx.form2290FilingVehicle.deleteMany({
-        where: {
-          filingId: existing.id,
-          isPrimary: true,
-        },
+        where: { filingId: existing.id, isPrimary: true },
       });
       await tx.form2290FilingVehicle.create({
         data: {
@@ -156,6 +184,12 @@ export async function update2290Filing(input: Update2290FilingInput) {
           unitNumberSnapshot: truck.unitNumber,
           grossWeightSnapshot: truck.grossWeight ?? null,
           isPrimary: true,
+          rateCategory: taxCalc?.rateCategory ?? null,
+          annualTaxCents: taxCalc?.annualTaxCents ?? null,
+          calculatedTaxCents: taxCalc?.calculatedTaxCents ?? null,
+          rateSnapshot: taxCalc?.rateSnapshot
+            ? (taxCalc.rateSnapshot as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
         },
       });
 
@@ -168,6 +202,8 @@ export async function update2290Filing(input: Update2290FilingInput) {
           taxPeriodId: taxPeriod.id,
           organizationId,
           isEligible,
+          rateCategory: taxCalc?.rateCategory ?? null,
+          calculatedTaxCents: taxCalc?.calculatedTaxCents ?? null,
         } satisfies Prisma.InputJsonValue,
       });
 

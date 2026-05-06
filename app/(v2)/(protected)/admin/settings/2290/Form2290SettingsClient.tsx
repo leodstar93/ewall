@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Table, { type ColumnDef } from "@/app/(v2)/(protected)/admin/components/ui/Table";
 import { Form2290TaxPeriod, formatDateOnly } from "@/features/form2290/shared";
 import tableStyles from "@/app/(v2)/(protected)/admin/components/ui/DataTable.module.css";
+import Form2290PeriodRatesClient from "@/app/(v2)/(protected)/admin/settings/2290/Form2290PeriodRatesClient";
 
 type SettingsPayload = {
   settings?: {
@@ -87,6 +89,7 @@ export default function Form2290SettingsClient() {
   const [taxPeriods, setTaxPeriods] = useState<Form2290TaxPeriod[]>([]);
   const [newPeriod, setNewPeriod] = useState<TaxPeriodDraft>(emptyTaxPeriodDraft);
   const [editing, setEditing] = useState<Record<string, TaxPeriodDraft>>({});
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -345,6 +348,13 @@ export default function Form2290SettingsClient() {
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <button
               type="button"
+              onClick={() => setSelectedPeriodId(period.id)}
+              className={tableStyles.btn}
+            >
+              Rate Table
+            </button>
+            <button
+              type="button"
               onClick={() => void updateTaxPeriod(period.id)}
               disabled={busy === `update-${period.id}`}
               className={tableStyles.btn}
@@ -389,7 +399,7 @@ export default function Form2290SettingsClient() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {[
               { key: "rules" as const, label: "Rules" },
-              { key: "tax-periods" as const, label: "Create Tax Period" },
+              { key: "tax-periods" as const, label: "Tax Periods" },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -528,10 +538,80 @@ export default function Form2290SettingsClient() {
             title="Tax periods"
             searchKeys={["name"]}
           />
+
           </>
           )}
         </>
       )}
+
+      {selectedPeriodId
+        ? createPortal(
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 1000,
+                background: "rgba(0,0,0,0.45)",
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "center",
+                padding: "48px 20px",
+                overflowY: "auto",
+              }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setSelectedPeriodId(null);
+              }}
+            >
+              <div
+                style={{
+                  background: "var(--bg, #fff)",
+                  borderRadius: 12,
+                  width: "100%",
+                  maxWidth: 960,
+                  boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "14px 20px",
+                    borderBottom: "1px solid var(--brl)",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 15, color: "var(--b)" }}>
+                    {taxPeriods.find((p) => p.id === selectedPeriodId)?.name ?? "Tax Period"} — Rate Table
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPeriodId(null)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 22,
+                      lineHeight: 1,
+                      color: "#888",
+                      padding: "0 4px",
+                    }}
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div style={{ padding: 20, overflowY: "auto" }}>
+                  <Form2290PeriodRatesClient taxPeriodId={selectedPeriodId} />
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

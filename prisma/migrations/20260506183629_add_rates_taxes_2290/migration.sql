@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Form2290Rate" ALTER COLUMN "updatedAt" DROP DEFAULT;

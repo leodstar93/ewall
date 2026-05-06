@@ -845,6 +845,31 @@ async function upsertSampleUcrBrackets() {
   }
 }
 
+const IRS_2025_2026_RATES = [
+  { id: "irs_r25_A", category: "A", weightMin: 55000, weightMax: 55000, annualCents: 10000,  sortOrder: 1  },
+  { id: "irs_r25_B", category: "B", weightMin: 55001, weightMax: 56000, annualCents: 12200,  sortOrder: 2  },
+  { id: "irs_r25_C", category: "C", weightMin: 56001, weightMax: 57000, annualCents: 14400,  sortOrder: 3  },
+  { id: "irs_r25_D", category: "D", weightMin: 57001, weightMax: 58000, annualCents: 16600,  sortOrder: 4  },
+  { id: "irs_r25_E", category: "E", weightMin: 58001, weightMax: 59000, annualCents: 18800,  sortOrder: 5  },
+  { id: "irs_r25_F", category: "F", weightMin: 59001, weightMax: 60000, annualCents: 21000,  sortOrder: 6  },
+  { id: "irs_r25_G", category: "G", weightMin: 60001, weightMax: 61000, annualCents: 23200,  sortOrder: 7  },
+  { id: "irs_r25_H", category: "H", weightMin: 61001, weightMax: 62000, annualCents: 25400,  sortOrder: 8  },
+  { id: "irs_r25_I", category: "I", weightMin: 62001, weightMax: 63000, annualCents: 27600,  sortOrder: 9  },
+  { id: "irs_r25_J", category: "J", weightMin: 63001, weightMax: 64000, annualCents: 29800,  sortOrder: 10 },
+  { id: "irs_r25_K", category: "K", weightMin: 64001, weightMax: 65000, annualCents: 32000,  sortOrder: 11 },
+  { id: "irs_r25_L", category: "L", weightMin: 65001, weightMax: 66000, annualCents: 34200,  sortOrder: 12 },
+  { id: "irs_r25_M", category: "M", weightMin: 66001, weightMax: 67000, annualCents: 36400,  sortOrder: 13 },
+  { id: "irs_r25_N", category: "N", weightMin: 67001, weightMax: 68000, annualCents: 38600,  sortOrder: 14 },
+  { id: "irs_r25_O", category: "O", weightMin: 68001, weightMax: 69000, annualCents: 40800,  sortOrder: 15 },
+  { id: "irs_r25_P", category: "P", weightMin: 69001, weightMax: 70000, annualCents: 43000,  sortOrder: 16 },
+  { id: "irs_r25_Q", category: "Q", weightMin: 70001, weightMax: 71000, annualCents: 45200,  sortOrder: 17 },
+  { id: "irs_r25_R", category: "R", weightMin: 71001, weightMax: 72000, annualCents: 47400,  sortOrder: 18 },
+  { id: "irs_r25_S", category: "S", weightMin: 72001, weightMax: 73000, annualCents: 49600,  sortOrder: 19 },
+  { id: "irs_r25_T", category: "T", weightMin: 73001, weightMax: 74000, annualCents: 51800,  sortOrder: 20 },
+  { id: "irs_r25_U", category: "U", weightMin: 74001, weightMax: 75000, annualCents: 54000,  sortOrder: 21 },
+  { id: "irs_r25_V", category: "V", weightMin: 75001, weightMax: null,  annualCents: 55000,  sortOrder: 22 },
+] as const;
+
 async function upsertForm2290Defaults() {
   await prisma.form2290Setting.upsert({
     where: { id: "default-form2290-settings" },
@@ -885,6 +910,28 @@ async function upsertForm2290Defaults() {
       isActive: true,
     },
   });
+
+  for (const rate of IRS_2025_2026_RATES) {
+    await prisma.form2290Rate.upsert({
+      where: { id: rate.id },
+      update: {
+        category: rate.category,
+        weightMin: rate.weightMin,
+        weightMax: rate.weightMax ?? null,
+        annualCents: rate.annualCents,
+        sortOrder: rate.sortOrder,
+      },
+      create: {
+        id: rate.id,
+        taxPeriodId: "form2290-tax-period-2025-2026",
+        category: rate.category,
+        weightMin: rate.weightMin,
+        weightMax: rate.weightMax ?? null,
+        annualCents: rate.annualCents,
+        sortOrder: rate.sortOrder,
+      },
+    });
+  }
 }
 
 async function upsertDmvRequirementTemplates() {

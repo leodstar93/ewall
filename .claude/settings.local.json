@@ -4,7 +4,11 @@
       "Bash(npx prisma *)",
       "Bash(npx tsc *)",
       "Bash(xargs grep *)",
-      "Bash(dir \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\" /B)"
+      "Bash(dir \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\" /B)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\settings\\\\2290\\\\rate-tables\\\\[id]\\\\clone\" \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\settings\\\\2290\\\\rate-tables\\\\[id]\\\\activate\" \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\settings\\\\2290\\\\rate-tables\\\\[id]\\\\rates\\\\[rateId]\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\settings\\2290\\rate-tables\\[id]"
     ]
   }
 }

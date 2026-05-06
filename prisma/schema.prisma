@@ -1793,10 +1793,30 @@ model Form2290TaxPeriod {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  loggingMultiplier Decimal  @default(0.75) @db.Decimal(5, 4)
+
   filings Form2290Filing[]
+  rates   Form2290Rate[]
 
   @@index([startDate, endDate])
   @@index([isActive])
+}
+
+model Form2290Rate {
+  id          String   @id @default(cuid())
+  taxPeriodId String
+  category    String
+  weightMin   Int
+  weightMax   Int?
+  annualCents Int
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  taxPeriod Form2290TaxPeriod @relation(fields: [taxPeriodId], references: [id], onDelete: Cascade)
+
+  @@unique([taxPeriodId, category])
+  @@index([taxPeriodId, weightMin])
 }
 
 model Form2290Filing {
@@ -1876,6 +1896,10 @@ model Form2290FilingVehicle {
   unitNumberSnapshot  String?
   grossWeightSnapshot Int?
   isPrimary           Boolean  @default(false)
+  rateCategory        String?
+  annualTaxCents      Int?
+  calculatedTaxCents  Int?
+  rateSnapshot        Json?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

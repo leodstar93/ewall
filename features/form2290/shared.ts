@@ -93,6 +93,20 @@ export type Form2290FilingVehicle = {
   unitNumberSnapshot: string | null;
   grossWeightSnapshot: number | null;
   isPrimary: boolean;
+  rateCategory: string | null;
+  annualTaxCents: number | null;
+  calculatedTaxCents: number | null;
+  rateSnapshot: unknown | null;
+};
+
+export type Form2290RateRow = {
+  id: string;
+  taxPeriodId: string;
+  category: string;
+  weightMin: number;
+  weightMax: number | null;
+  annualCents: number;
+  sortOrder: number;
 };
 
 export type Form2290Filing = {
@@ -334,4 +348,22 @@ export function getComplianceStateForFiling(filing: {
     expired,
     correctionNeeded: false,
   };
+}
+
+export function formatWeightRange(
+  weightMin: number,
+  weightMax: number | null,
+): string {
+  if (weightMax === null) return `Over ${weightMin.toLocaleString("en-US")} lbs`;
+  if (weightMin === weightMax) return `${weightMin.toLocaleString("en-US")} lbs`;
+  return `${weightMin.toLocaleString("en-US")} – ${weightMax.toLocaleString("en-US")} lbs`;
+}
+
+export function formatCentsAsDollars(cents: number | null | undefined): string {
+  if (cents == null) return "-";
+  return (cents / 100).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  });
 }
