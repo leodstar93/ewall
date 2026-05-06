@@ -185,6 +185,36 @@ export async function update2290Filing(input: Update2290FilingInput) {
       );
     }
 
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    ) {
+      throw new Form2290ServiceError(
+        "The selected vehicle, tax period, or company profile could not be linked to this filing.",
+        400,
+        "INVALID_FILING_REFERENCE",
+      );
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      throw new Form2290ServiceError(
+        "The Form 2290 filing or one of its related records was not found.",
+        404,
+        "FILING_RELATED_RECORD_NOT_FOUND",
+      );
+    }
+
+    if (error instanceof Prisma.PrismaClientValidationError) {
+      throw new Form2290ServiceError(
+        "The filing update has invalid data. Please review the form fields and try again.",
+        400,
+        "INVALID_FILING_UPDATE_DATA",
+      );
+    }
+
     throw error;
   }
 }

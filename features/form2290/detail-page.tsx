@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import tableStyles from "@/app/(v2)/(protected)/dashboard/components/ui/DataTable.module.css";
 import styles from "@/app/(v2)/(protected)/dashboard/ucr/[id]/ucr-detail.module.css";
+import form2290Styles from "@/features/form2290/detail-page.module.css";
 import Form2290FilingForm from "@/features/form2290/filing-form";
 import {
   complianceClasses,
@@ -78,6 +79,77 @@ type TimelineRow = {
   detail: string;
   date: string;
 };
+
+function formatAuditEvent(action: string) {
+  return action.replaceAll("_", " ");
+}
+
+function formatAuditLabel(key: string) {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatAuditValue(key: string, value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return value.toLocaleString("en-US");
+  if (typeof value !== "string") return null;
+
+  if (key.toLowerCase().includes("amount")) {
+    return formatCurrency(value);
+  }
+
+  if (key.toLowerCase().includes("at") && !Number.isNaN(Date.parse(value))) {
+    return formatDate(value);
+  }
+
+  return value.replaceAll("_", " ");
+}
+
+function formatAuditDetail(metaJson: unknown) {
+  const fallback = "Status updated";
+  if (!metaJson || typeof metaJson !== "object") {
+    return fallback;
+  }
+
+  const meta = metaJson as Record<string, unknown>;
+  if (typeof meta.fromStatus === "string" && typeof meta.toStatus === "string") {
+    return `${meta.fromStatus.replaceAll("_", " ")} to ${meta.toStatus.replaceAll("_", " ")}`;
+  }
+
+  const candidates = [
+    meta.message,
+    meta.reason,
+    meta.documentName,
+    meta.documentType,
+    meta.status,
+  ];
+  const detail = candidates.find(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  );
+
+  if (detail) return detail.replaceAll("_", " ");
+
+  const hiddenKeys = new Set([
+    "documentId",
+    "filingId",
+    "organizationId",
+    "schedule1DocumentId",
+    "taxPeriodId",
+    "truckId",
+  ]);
+  const detailParts = Object.entries(meta)
+    .filter(([key]) => !hiddenKeys.has(key) && !key.toLowerCase().endsWith("id"))
+    .map(([key, value]) => {
+      const formattedValue = formatAuditValue(key, value);
+      return formattedValue ? `${formatAuditLabel(key)}: ${formattedValue}` : null;
+    })
+    .filter((value): value is string => Boolean(value));
+
+  return detailParts.length > 0 ? detailParts.join("; ") : fallback;
+}
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -486,15 +558,17 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   const timelineRows = useMemo<TimelineRow[]>(() => {
     if (!filing) return [];
 
-    return filing.activityLogs.map((entry) => ({
-      id: entry.id,
-      event: entry.action.replaceAll("_", " "),
-      detail:
-        entry.metaJson && typeof entry.metaJson === "object"
-          ? JSON.stringify(entry.metaJson)
-          : "Form 2290 filing activity",
-      date: formatDate(entry.createdAt),
-    }));
+    return [...filing.activityLogs]
+      .sort(
+        (left, right) =>
+          new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+      )
+      .map((entry) => ({
+        id: entry.id,
+        event: formatAuditEvent(entry.action),
+        detail: formatAuditDetail(entry.metaJson),
+        date: formatDate(entry.createdAt),
+      }));
   }, [filing]);
 
   if (loading) {
@@ -754,14 +828,14 @@ export default function Form2290DetailPage(props: DetailPageProps) {
         </div>
 
         {permissions.canViewAudit ? <div className={styles.section}>
-          <SectionTitle eyebrow="Activity" title="Activity timeline" />
+          <SectionTitle eyebrow="Audit" title="Audit" />
           <TimelineTable rows={timelineRows} />
         </div> : null}
       </section>
 
       {editModalOpen && permissions.canEdit ? (
-        <div className={styles.modalOverlay} onClick={() => setEditModalOpen(false)}>
-          <div className={styles.modalCard} onClick={(event) => event.stopPropagation()}>
+        <div className={`${styles.modalOverlay} ${form2290Styles.editModalOverlay}`} onClick={() => setEditModalOpen(false)}>
+          <div className={`${styles.modalCard} ${form2290Styles.editModalCard}`} onClick={(event) => event.stopPropagation()}>
             <div className={styles.modalHeader}>
               <div>
                 <p className={styles.eyebrow}>Edit</p>
@@ -772,31 +846,33 @@ export default function Form2290DetailPage(props: DetailPageProps) {
               </button>
             </div>
 
-            <Form2290FilingForm
-              mode="edit"
-              filingId={filing.id}
-              detailHrefBase={detailHrefBase}
-              apiBasePath={props.apiBasePath}
-              vehiclesApiPath={`${props.apiBasePath ?? "/api/v1/features/2290"}/vehicles`}
-              taxPeriodsApiPath={`${props.apiBasePath ?? "/api/v1/features/2290"}/tax-periods`}
-              initialValues={{
-                truckId: filing.truckId,
-                taxPeriodId: filing.taxPeriodId,
-                firstUsedMonth: filing.firstUsedMonth,
-                firstUsedYear: filing.firstUsedYear,
-                notes: filing.notes,
-                paymentHandling: filing.paymentHandling,
-                taxableGrossWeight: filing.taxableGrossWeightSnapshot,
-                loggingVehicle: filing.loggingVehicle,
-                suspendedVehicle: filing.suspendedVehicle,
-                confirmationAccepted: Boolean(filing.confirmationAcceptedAt),
-                irsTaxEstimate: filing.irsTaxEstimate,
-              }}
-              onSaved={() => {
-                setEditModalOpen(false);
-                void load();
-              }}
-            />
+            <div className={form2290Styles.editModalBody}>
+              <Form2290FilingForm
+                mode="edit"
+                filingId={filing.id}
+                detailHrefBase={detailHrefBase}
+                apiBasePath={props.apiBasePath}
+                vehiclesApiPath={`${props.apiBasePath ?? "/api/v1/features/2290"}/vehicles`}
+                taxPeriodsApiPath={`${props.apiBasePath ?? "/api/v1/features/2290"}/tax-periods`}
+                initialValues={{
+                  truckId: filing.truckId,
+                  taxPeriodId: filing.taxPeriodId,
+                  firstUsedMonth: filing.firstUsedMonth,
+                  firstUsedYear: filing.firstUsedYear,
+                  notes: filing.notes,
+                  paymentHandling: filing.paymentHandling,
+                  taxableGrossWeight: filing.taxableGrossWeightSnapshot,
+                  loggingVehicle: filing.loggingVehicle,
+                  suspendedVehicle: filing.suspendedVehicle,
+                  confirmationAccepted: Boolean(filing.confirmationAcceptedAt),
+                  irsTaxEstimate: filing.irsTaxEstimate,
+                }}
+                onSaved={() => {
+                  setEditModalOpen(false);
+                  void load();
+                }}
+              />
+            </div>
           </div>
         </div>
       ) : null}

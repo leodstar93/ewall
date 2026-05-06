@@ -47,7 +47,15 @@ function toErrorResponse(error: unknown, fallback: string) {
   }
 
   console.error(fallback, error);
-  return Response.json({ error: fallback }, { status: 500 });
+  return Response.json(
+    {
+      error:
+        error instanceof Error && error.message
+          ? error.message
+          : fallback,
+    },
+    { status: 500 },
+  );
 }
 
 export async function GET(
