@@ -71,6 +71,10 @@ function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function filingEntryDateValue(filing: FilingDetail | null) {
+  return dateInputValue(filing?.periodStart) || todayInputValue();
+}
+
 function addDaysToDateInput(value: string, days: number) {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
@@ -305,7 +309,7 @@ function buildJurisdictionRows(filing: FilingDetail | null) {
         : (summaryGallons.get(jurisdiction) ?? 0) > 0
           ? summaryGallons.get(jurisdiction)!.toFixed(3)
           : "",
-      entryDate: manualDateByJurisdiction.get(jurisdiction) ?? todayInputValue(),
+      entryDate: manualDateByJurisdiction.get(jurisdiction) ?? filingEntryDateValue(filing),
       hasManualMiles: manualMilesByJurisdiction.has(jurisdiction),
       hasManualGallons: manualGallonsByJurisdiction.has(jurisdiction),
     }));
@@ -478,7 +482,7 @@ export default function IftaAutomationTruckerFilingPage({
         jurisdiction: "",
         miles: "",
         gallons: "",
-        entryDate: todayInputValue(),
+        entryDate: filingEntryDateValue(filing),
         hasManualMiles: true,
         hasManualGallons: true,
         isManualDraft: true,

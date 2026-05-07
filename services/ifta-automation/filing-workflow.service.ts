@@ -244,7 +244,7 @@ export class FilingWorkflowService {
       const jurisdiction = normalizeJurisdictionCode(line.jurisdiction);
       const gallons = Number(line.gallons);
       const filingVehicleId = line.filingVehicleId?.trim() || null;
-      const purchasedAt = parseOptionalDate(line.purchasedAt) ?? new Date();
+      const purchasedAt = parseOptionalDate(line.purchasedAt) ?? filing.periodStart;
 
       if (!jurisdiction || jurisdiction.length < 2 || jurisdiction.length > 3) {
         throw new IftaAutomationError(
@@ -264,14 +264,6 @@ export class FilingWorkflowService {
 
       if (gallons === 0) {
         continue;
-      }
-
-      if (purchasedAt < filing.periodStart || purchasedAt > filing.periodEnd) {
-        throw new IftaAutomationError(
-          "Manual fuel purchase dates must stay inside the filing quarter.",
-          400,
-          "IFTA_MANUAL_PURCHASE_OUTSIDE_PERIOD",
-        );
       }
 
       normalizedLines.push({
@@ -371,7 +363,7 @@ export class FilingWorkflowService {
     for (const line of input.lines) {
       const jurisdiction = normalizeJurisdictionCode(line.jurisdiction);
       const taxableMiles = Number(line.taxableMiles);
-      const tripDate = parseOptionalDate(line.tripDate) ?? new Date();
+      const tripDate = parseOptionalDate(line.tripDate) ?? filing.periodStart;
 
       if (!jurisdiction || jurisdiction.length < 2 || jurisdiction.length > 3) {
         throw new IftaAutomationError(
@@ -391,14 +383,6 @@ export class FilingWorkflowService {
 
       if (taxableMiles === 0) {
         continue;
-      }
-
-      if (tripDate < filing.periodStart || tripDate > filing.periodEnd) {
-        throw new IftaAutomationError(
-          "Manual distance dates must stay inside the filing quarter.",
-          400,
-          "IFTA_MANUAL_DISTANCE_OUTSIDE_PERIOD",
-        );
       }
 
       normalizedLines.push({
