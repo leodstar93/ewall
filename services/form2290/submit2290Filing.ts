@@ -3,6 +3,7 @@ import { canSubmit2290Filing } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import { notify2290Submitted } from "@/services/form2290/notifications";
+import { get2290PaymentAccounting } from "@/services/form2290/payment-accounting";
 import {
   assert2290FilingAccess,
   ensure2290Completeness,
@@ -64,6 +65,20 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
       "This filing cannot be submitted for review from its current status.",
       409,
       "INVALID_REVIEW_TRANSITION",
+    );
+  }
+
+  const paymentAccounting = get2290PaymentAccounting({
+    amountDue: existing.amountDue,
+    serviceFeeAmount: existing.serviceFeeAmount,
+    paymentStatus: existing.paymentStatus,
+    customerPaidAmount: existing.customerPaidAmount,
+  });
+  if (paymentAccounting.balanceDue > 0) {
+    throw new Form2290ServiceError(
+      `An additional payment of $${paymentAccounting.balanceDue.toFixed(2)} is required before submitting this Form 2290 filing.`,
+      409,
+      "ADDITIONAL_PAYMENT_REQUIRED",
     );
   }
 

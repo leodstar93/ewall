@@ -693,8 +693,14 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   ];
 
   const paymentRows: KeyValueRow[] = [
-    { label: "Amount due", value: formatCurrency(filing.amountDue) },
+    {
+      label: "Tax amount",
+      value: formatCurrency(filing.amountDue),
+    },
     { label: "Service fee", value: formatCurrency(filing.serviceFeeAmount) },
+    { label: "Paid amount", value: formatCurrency(filing.customerPaidAmount) },
+    { label: "Balance due", value: formatCurrency(filing.customerBalanceDue) },
+    { label: "Credit", value: formatCurrency(filing.customerCreditAmount) },
     { label: "Payment status", value: paymentStatusLabel(filing.paymentStatus) },
     { label: "Payment handling", value: filing.paymentHandling.replaceAll("_", " ") },
     { label: "Paid at", value: formatDateOnly(filing.paidAt) },
@@ -751,7 +757,11 @@ export default function Form2290DetailPage(props: DetailPageProps) {
               {props.mode === "driver" && permissions.canMarkPaid ? (
                 <button
                   type="button"
-                  onClick={() => void runAction("mark-paid", { amountDue: amountDue || undefined })}
+                  onClick={() =>
+                    void runAction("mark-paid", {
+                      amountDue: filing.customerBalanceDue || amountDue || undefined,
+                    })
+                  }
                   disabled={busyAction === "mark-paid"}
                   className={styles.primaryButton}
                 >

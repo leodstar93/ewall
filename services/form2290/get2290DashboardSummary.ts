@@ -1,7 +1,7 @@
 import { Form2290Status } from "@prisma/client";
 import type { DbClient } from "@/lib/db/types";
 import { is2290Expired } from "@/lib/form2290-workflow";
-import { resolveForm2290Db } from "@/services/form2290/shared";
+import { resolve2290OrganizationId, resolveForm2290Db } from "@/services/form2290/shared";
 
 type Get2290DashboardSummaryInput = {
   db?: DbClient;
@@ -11,8 +11,33 @@ type Get2290DashboardSummaryInput = {
 
 export async function get2290DashboardSummary(input: Get2290DashboardSummaryInput) {
   const db = resolveForm2290Db(input.db);
-  const truckWhere = input.canManageAll ? {} : { userId: input.userId };
-  const filingWhere = input.canManageAll ? {} : { userId: input.userId };
+  const organizationId = input.canManageAll
+    ? null
+    : await resolve2290OrganizationId({ db, userId: input.userId });
+  const organizationMemberIds = organizationId
+    ? (
+        await db.organizationMember.findMany({
+          where: { organizationId },
+          select: { userId: true },
+        })
+      ).map((member) => member.userId)
+    : [];
+  const truckWhere = input.canManageAll
+    ? {}
+    : { userId: { in: organizationMemberIds.length ? organizationMemberIds : [input.userId] } };
+  const filingWhere = input.canManageAll
+    ? {}
+    : {
+        OR: [
+          { userId: input.userId },
+          ...(organizationId
+            ? [
+                { organizationId },
+                { truck: { userId: { in: organizationMemberIds } } },
+              ]
+            : []),
+        ],
+      };
 
   const [trucks, filings] = await Promise.all([
     db.truck.findMany({
@@ -49,6 +74,7 @@ export async function get2290DashboardSummary(input: Get2290DashboardSummaryInpu
     filing.status === Form2290Status.DRAFT ||
     filing.status === Form2290Status.PAID ||
     filing.status === Form2290Status.SUBMITTED ||
+    filing.status === Form2290Status.NEED_ATTENTION ||
     filing.status === Form2290Status.IN_PROCESS,
   ).length;
 

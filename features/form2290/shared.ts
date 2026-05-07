@@ -142,6 +142,9 @@ export type Form2290Filing = {
   firstUsedMonth: number | null;
   firstUsedYear: number | null;
   amountDue: string | null;
+  customerPaidAmount: string;
+  customerBalanceDue: string;
+  customerCreditAmount: string;
   filedAt: string | null;
   paidAt: string | null;
   compliantAt: string | null;

@@ -75,7 +75,7 @@ export function canRequest2290Correction(status: Form2290Status) {
 }
 
 export function canMark2290Paid(status: Form2290Status) {
-  return status === Form2290Status.DRAFT;
+  return status === Form2290Status.DRAFT || status === Form2290Status.NEED_ATTENTION;
 }
 
 export function canUpload2290Schedule1(status: Form2290Status) {

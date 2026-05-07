@@ -174,7 +174,7 @@ function buildRows(items: Form2290Filing[]): Form2290TableRow[] {
         .join(" ")
         .toLowerCase(),
       sortUpdatedAt: -new Date(item.updatedAt).getTime(),
-      sortAmountDue: Number(item.amountDue ?? item.serviceFeeAmount ?? 0),
+      sortAmountDue: Number(item.customerBalanceDue ?? item.amountDue ?? item.serviceFeeAmount ?? 0),
       sortFirstUsed: -firstUsed,
     };
   });
@@ -507,9 +507,9 @@ export default function Form2290DashboardPage({
       render: (_value, filing) => (
         <div
           className={`${tableStyles.nameCell} ${tableStyles.compactCell}`}
-          title={`Service fee ${formatCurrency(filing.serviceFeeAmount)}`}
+          title={`Paid ${formatCurrency(filing.customerPaidAmount)} · Credit ${formatCurrency(filing.customerCreditAmount)}`}
         >
-          <p>{formatCurrency(filing.amountDue ?? filing.serviceFeeAmount)}</p>
+          <p>{formatCurrency(filing.customerBalanceDue ?? filing.amountDue ?? filing.serviceFeeAmount)}</p>
           <p className="text-zinc-500">{paymentStatusLabel(filing.paymentStatus)}</p>
         </div>
       ),

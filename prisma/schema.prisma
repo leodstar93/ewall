@@ -1838,6 +1838,9 @@ model Form2290Filing {
   firstUsedYear             Int?
   amountDue                 Decimal?                @db.Decimal(10, 2)
   serviceFeeAmount          Decimal?                @db.Decimal(10, 2)
+  customerPaidAmount        Decimal                 @default(0) @db.Decimal(10, 2)
+  customerBalanceDue        Decimal                 @default(0) @db.Decimal(10, 2)
+  customerCreditAmount      Decimal                 @default(0) @db.Decimal(10, 2)
   paymentReference          String?
   defaultPaymentMethodId    String?
   efileProviderName         String?

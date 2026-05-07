@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Form2290Status, Prisma } from "@prisma/client";
 import { canEdit2290Filing } from "@/lib/form2290-workflow";
 import type { DbClient } from "@/lib/db/types";
 import {
@@ -12,6 +12,7 @@ import {
   resolve2290OrganizationId,
 } from "@/services/form2290/shared";
 import { calculate2290FilingCharges } from "@/services/form2290/filing-calculation.service";
+import { build2290PaymentAccountingUpdate } from "@/services/form2290/payment-accounting";
 
 type Update2290FilingInput = {
   db?: DbClient;
@@ -110,6 +111,16 @@ export async function update2290Filing(input: Update2290FilingInput) {
   ]);
   const { isEligible } = eligibility;
   const { taxCalc } = charges;
+  const nextAmountDue = charges.amountDue ?? existing.amountDue;
+  const paymentAccounting = build2290PaymentAccountingUpdate({
+    amountDue: nextAmountDue,
+    serviceFeeAmount: charges.serviceFeeAmount,
+    paymentStatus: existing.paymentStatus,
+    customerPaidAmount: existing.customerPaidAmount,
+  });
+  const shouldUpdatePaymentAccounting =
+    existing.status === Form2290Status.DRAFT ||
+    existing.status === Form2290Status.NEED_ATTENTION;
 
   try {
     return await db.$transaction(async (tx) => {
@@ -152,7 +163,9 @@ export async function update2290Filing(input: Update2290FilingInput) {
               : typeof input.irsTaxEstimate === "string" && input.irsTaxEstimate.trim()
                 ? new Prisma.Decimal(input.irsTaxEstimate)
                 : null,
-          amountDue: charges.amountDue ?? existing.amountDue,
+          amountDue: nextAmountDue,
+          serviceFeeAmount: charges.serviceFeeAmount,
+          ...(shouldUpdatePaymentAccounting ? paymentAccounting.data : {}),
           firstUsedMonth:
             typeof input.firstUsedMonth === "undefined"
               ? existing.firstUsedMonth
@@ -199,6 +212,14 @@ export async function update2290Filing(input: Update2290FilingInput) {
           isEligible,
           rateCategory: taxCalc?.rateCategory ?? null,
           calculatedTaxCents: taxCalc?.calculatedTaxCents ?? null,
+          customerBalanceDue:
+            shouldUpdatePaymentAccounting
+              ? paymentAccounting.balanceDue
+              : undefined,
+          customerCreditAmount:
+            shouldUpdatePaymentAccounting
+              ? paymentAccounting.creditAmount
+              : undefined,
         } satisfies Prisma.InputJsonValue,
       });
 

@@ -1,4 +1,4 @@
-import { Form2290PaymentHandling, Prisma } from "@prisma/client";
+import { Form2290PaymentHandling, Form2290PaymentStatus, Prisma } from "@prisma/client";
 import type { DbClient } from "@/lib/db/types";
 import {
   assert2290TruckAccess,
@@ -11,6 +11,7 @@ import {
   resolve2290OrganizationId,
 } from "@/services/form2290/shared";
 import { calculate2290FilingCharges } from "@/services/form2290/filing-calculation.service";
+import { build2290PaymentAccountingUpdate } from "@/services/form2290/payment-accounting";
 
 type Create2290FilingInput = {
   db?: DbClient;
@@ -93,7 +94,13 @@ export async function create2290Filing(input: Create2290FilingInput) {
     );
   }
 
-  const { taxCalc } = charges;
+      const { taxCalc } = charges;
+      const paymentAccounting = build2290PaymentAccountingUpdate({
+        amountDue: charges.amountDue,
+        serviceFeeAmount: charges.serviceFeeAmount,
+        paymentStatus: Form2290PaymentStatus.UNPAID,
+        customerPaidAmount: 0,
+      });
 
   try {
     return await db.$transaction(async (tx) => {
@@ -123,6 +130,7 @@ export async function create2290Filing(input: Create2290FilingInput) {
               : null,
           amountDue: charges.amountDue,
           serviceFeeAmount: charges.serviceFeeAmount,
+          ...paymentAccounting.data,
           efileProviderName: settings.providerName,
           efileProviderUrl: settings.providerUrl,
           staffInstructionsSnapshot: settings.operationalInstructions,

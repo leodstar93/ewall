@@ -95,7 +95,10 @@ export async function GET(
         canSubmit: (isOwner || canManageAll) && canSubmit2290Filing(filing.status),
         canMarkSubmitted: false,
         canRequestCorrection: isOwner || canManageAll,
-        canMarkPaid: (isOwner || canManageAll) && canMark2290Paid(filing.status),
+        canMarkPaid:
+          (isOwner || canManageAll) &&
+          canMark2290Paid(filing.status) &&
+          Number(filing.customerBalanceDue ?? filing.amountDue ?? 0) > 0,
         canUploadSchedule1:
           (isOwner || canManageAll) && canUpload2290Schedule1(filing.status),
         canUploadDocuments: isOwner || canManageAll,

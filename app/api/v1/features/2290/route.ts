@@ -54,19 +54,33 @@ export async function GET(request: NextRequest) {
   const compliance = request.nextUrl.searchParams.get("compliance");
 
   try {
+    const canManageAll = canManageAll2290(guard.perms, guard.isAdmin);
+    const actorUserId = guard.session.user.id ?? "";
+    const actorOrganizationId = canManageAll
+      ? null
+      : await resolve2290OrganizationId({ userId: actorUserId });
+    const organizationMemberIds = actorOrganizationId
+      ? (
+          await prisma.organizationMember.findMany({
+            where: { organizationId: actorOrganizationId },
+            select: { userId: true },
+          })
+        ).map((member) => member.userId)
+      : [];
+
     const filings = await prisma.form2290Filing.findMany({
       where: {
-        ...(canManageAll2290(guard.perms, guard.isAdmin)
+        ...(canManageAll
           ? {}
           : {
               OR: [
-                { userId: guard.session.user.id ?? "" },
-                {
-                  organizationId:
-                    (await resolve2290OrganizationId({
-                      userId: guard.session.user.id ?? "",
-                    })) ?? "__none__",
-                },
+                { userId: actorUserId },
+                ...(actorOrganizationId
+                  ? [
+                      { organizationId: actorOrganizationId },
+                      { truck: { userId: { in: organizationMemberIds } } },
+                    ]
+                  : []),
               ],
             }),
         ...(status && Object.values(Form2290Status).includes(status as Form2290Status)

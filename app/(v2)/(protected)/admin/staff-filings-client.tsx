@@ -120,12 +120,12 @@ function isOpenIftaStatus(status: string) {
   return ["READY_FOR_REVIEW", "IN_REVIEW", "SNAPSHOT_READY", "PENDING_APPROVAL", "APPROVED"].includes(status);
 }
 
-const OPEN_FORM2290_STATUSES: Form2290Status[] = ["SUBMITTED", "IN_PROCESS", "PAID"];
+const OPEN_FORM2290_STATUSES: Form2290Status[] = ["SUBMITTED", "IN_PROCESS", "NEED_ATTENTION"];
 
 function form2290StatusTone(status: Form2290Status): BadgeTone {
   if (status === "IN_PROCESS") return "info";
   if (status === "SUBMITTED") return "warning";
-  if (status === "PAID") return "primary";
+  if (status === "NEED_ATTENTION") return "error";
   return "light";
 }
 
