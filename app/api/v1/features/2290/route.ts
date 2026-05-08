@@ -21,7 +21,9 @@ import {
 
 type Create2290FilingBody = {
   vehicleId?: unknown;
+  vehicleIds?: unknown;
   truckId?: unknown;
+  truckIds?: unknown;
   taxPeriodId?: unknown;
   firstUsedMonth?: unknown;
   firstUsedYear?: unknown;
@@ -32,6 +34,22 @@ type Create2290FilingBody = {
   irsTaxEstimate?: unknown;
   notes?: unknown;
 };
+
+function parseVehicleIds(body: Create2290FilingBody) {
+  const values = Array.isArray(body.vehicleIds)
+    ? body.vehicleIds
+    : Array.isArray(body.truckIds)
+      ? body.truckIds
+      : [];
+  const ids = values.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const fallback =
+    typeof body.vehicleId === "string"
+      ? body.vehicleId
+      : typeof body.truckId === "string"
+        ? body.truckId
+        : "";
+  return Array.from(new Set([...ids, fallback].filter(Boolean)));
+}
 
 function toErrorResponse(error: unknown, fallback: string) {
   if (error instanceof Form2290ServiceError) {
@@ -120,12 +138,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as Create2290FilingBody;
-    const truckId =
-      typeof body.vehicleId === "string"
-        ? body.vehicleId
-        : typeof body.truckId === "string"
-          ? body.truckId
-          : "";
+    const truckIds = parseVehicleIds(body);
+    const truckId = truckIds[0] ?? "";
     const taxPeriodId = typeof body.taxPeriodId === "string" ? body.taxPeriodId : "";
     const firstUsedMonth = parseFirstUsedMonth(body.firstUsedMonth);
     const firstUsedYear = parseFirstUsedYear(body.firstUsedYear);
@@ -182,6 +196,7 @@ export async function POST(request: NextRequest) {
       actorUserId: guard.session.user.id ?? "",
       canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
       truckId,
+      truckIds,
       taxPeriodId,
       firstUsedMonth,
       firstUsedYear,

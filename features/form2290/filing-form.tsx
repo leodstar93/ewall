@@ -13,6 +13,7 @@ type Form2290FilingFormProps = {
   taxPeriodsApiPath?: string;
   initialValues?: {
     truckId?: string;
+    truckIds?: string[];
     taxPeriodId?: string;
     firstUsedMonth?: number | null;
     firstUsedYear?: number | null;
@@ -30,6 +31,11 @@ type VehiclesPayload = {
   error?: string;
 };
 
+type UpdateVehiclePayload = {
+  vehicle?: Form2290Truck;
+  error?: string;
+};
+
 type TaxPeriodsPayload = {
   taxPeriods?: Form2290TaxPeriod[];
   activeTaxPeriod?: Form2290TaxPeriod | null;
@@ -42,10 +48,19 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
   const [taxPeriods, setTaxPeriods] = useState<Form2290TaxPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [weightBusy, setWeightBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [weightModalTruck, setWeightModalTruck] = useState<Form2290Truck | null>(null);
+  const [weightDraft, setWeightDraft] = useState("");
 
-  const [truckId, setTruckId] = useState(props.initialValues?.truckId ?? "");
+  const [selectedTruckIds, setSelectedTruckIds] = useState<string[]>(
+    props.initialValues?.truckIds?.length
+      ? props.initialValues.truckIds
+      : props.initialValues?.truckId
+        ? [props.initialValues.truckId]
+        : [],
+  );
   const [taxPeriodId, setTaxPeriodId] = useState(props.initialValues?.taxPeriodId ?? "");
   const [firstUsedMonth, setFirstUsedMonth] = useState(
     props.initialValues?.firstUsedMonth?.toString() ?? "",
@@ -54,19 +69,6 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
     props.initialValues?.firstUsedYear?.toString() ?? "",
   );
   const [notes, setNotes] = useState(props.initialValues?.notes ?? "");
-  const [taxableGrossWeight, setTaxableGrossWeight] = useState(
-    props.initialValues?.taxableGrossWeight?.toString() ?? "",
-  );
-  const [loggingVehicle, setLoggingVehicle] = useState(
-    typeof props.initialValues?.loggingVehicle === "boolean"
-      ? String(props.initialValues.loggingVehicle)
-      : "",
-  );
-  const [suspendedVehicle, setSuspendedVehicle] = useState(
-    typeof props.initialValues?.suspendedVehicle === "boolean"
-      ? String(props.initialValues.suspendedVehicle)
-      : "",
-  );
   const [confirmationAccepted, setConfirmationAccepted] = useState(
     Boolean(props.initialValues?.confirmationAccepted),
   );
@@ -101,8 +103,8 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
         setVehicles(nextVehicles);
         setTaxPeriods(nextPeriods);
 
-        if (!props.initialValues?.truckId && nextVehicles[0]) {
-          setTruckId((current) => current || nextVehicles[0].id);
+        if (!props.initialValues?.truckId && !props.initialValues?.truckIds?.length && nextVehicles[0]) {
+          setSelectedTruckIds((current) => (current.length ? current : [nextVehicles[0].id]));
         }
         if (!props.initialValues?.taxPeriodId) {
           setTaxPeriodId((current) => current || periodsData.activeTaxPeriod?.id || nextPeriods[0]?.id || "");
@@ -123,13 +125,90 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
   }, [
     props.initialValues?.taxPeriodId,
     props.initialValues?.truckId,
+    props.initialValues?.truckIds,
     props.taxPeriodsApiPath,
     props.vehiclesApiPath,
   ]);
 
-  const selectedVehicle = useMemo(
-    () => vehicles.find((vehicle) => vehicle.id === truckId) ?? null,
-    [truckId, vehicles],
+  const selectedVehicles = useMemo(
+    () => selectedTruckIds.map((id) => vehicles.find((vehicle) => vehicle.id === id)).filter((vehicle): vehicle is Form2290Truck => Boolean(vehicle)),
+    [selectedTruckIds, vehicles],
+  );
+  const selectedVehicle = selectedVehicles[0] ?? null;
+  const selectedTaxPeriod =
+    taxPeriods.find((period) => period.id === taxPeriodId) ??
+    taxPeriods.find((period) => period.isActive) ??
+    null;
+
+  function toggleTruck(id: string) {
+    setSelectedTruckIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  }
+
+  function toggleAllTrucks() {
+    setSelectedTruckIds((current) =>
+      vehicles.length > 0 && current.length === vehicles.length
+        ? []
+        : vehicles.map((vehicle) => vehicle.id),
+    );
+  }
+
+  function openWeightModal(vehicle: Form2290Truck) {
+    setWeightModalTruck(vehicle);
+    setWeightDraft(vehicle.grossWeight?.toString() ?? "");
+    setError(null);
+  }
+
+  async function saveVehicleWeight() {
+    if (!weightModalTruck) return;
+
+    try {
+      setWeightBusy(true);
+      setError(null);
+
+      const response = await fetch(props.vehiclesApiPath ?? "/api/v1/features/2290/vehicles", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          truckId: weightModalTruck.id,
+          grossWeight: weightDraft ? Number(weightDraft) : null,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as UpdateVehiclePayload;
+
+      if (!response.ok || !data.vehicle) {
+        throw new Error(data.error || "Could not update vehicle weight.");
+      }
+
+      setVehicles((current) =>
+        current.map((vehicle) => (vehicle.id === data.vehicle?.id ? data.vehicle : vehicle)),
+      );
+      setWeightModalTruck(null);
+      setWeightDraft("");
+    } catch (weightError) {
+      setError(weightError instanceof Error ? weightError.message : "Could not update vehicle weight.");
+    } finally {
+      setWeightBusy(false);
+    }
+  }
+
+  const hasSelectedVehicleWithoutVin = selectedVehicles.some((vehicle) => !vehicle.vin);
+  const selectedWithoutGrossWeight = selectedVehicles.filter((vehicle) => !vehicle.grossWeight);
+  const missingWeightMessage = selectedWithoutGrossWeight.length
+    ? `Missing weight on selected trucks: ${selectedWithoutGrossWeight
+        .map((vehicle) => vehicle.unitNumber || vehicle.vin || vehicle.id)
+        .join(", ")}. Click Missing to add the weight before starting the filing.`
+    : null;
+
+  const selectedVehicleSummary = useMemo(
+    () =>
+      selectedVehicles.length
+        ? selectedVehicles
+            .map((vehicle) => `${vehicle.unitNumber || "Unit"}${vehicle.vin ? ` (${vehicle.vin})` : ""}`)
+            .join(", ")
+        : "No vehicles selected",
+    [selectedVehicles],
   );
 
   async function save() {
@@ -139,13 +218,10 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
       setMessage(null);
 
       const payload = {
-        vehicleId: truckId,
+        vehicleIds: selectedTruckIds,
         taxPeriodId,
         firstUsedMonth: firstUsedMonth ? Number(firstUsedMonth) : null,
         firstUsedYear: firstUsedYear ? Number(firstUsedYear) : null,
-        taxableGrossWeight: taxableGrossWeight ? Number(taxableGrossWeight) : null,
-        loggingVehicle: loggingVehicle === "" ? null : loggingVehicle === "true",
-        suspendedVehicle: suspendedVehicle === "" ? null : suspendedVehicle === "true",
         confirmationAccepted,
         notes,
       };
@@ -199,7 +275,7 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
           {props.mode === "create" ? "Create Form 2290 draft" : "Update Form 2290 draft"}
         </h3>
         <p className="mt-1 text-sm text-zinc-600">
-          Choose the vehicle, confirm the active tax period, and capture the first-used timing for this filing.
+          Choose one or more vehicles, confirm the active tax period, and capture the first-used timing for this filing.
         </p>
       </div>
 
@@ -216,22 +292,53 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2 text-sm text-zinc-700 md:col-span-2">
-          <span className="font-medium text-zinc-900">Vehicle</span>
-          <select
-            value={truckId}
-            onChange={(event) => setTruckId(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            {vehicles.length === 0 && <option value="">No vehicles available</option>}
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {vehicle.unitNumber} {vehicle.vin ? `- ${vehicle.vin}` : "- VIN missing"}
-                {vehicle.user?.name ? ` - ${vehicle.user.name}` : vehicle.user?.email ? ` - ${vehicle.user.email}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="space-y-2 text-sm text-zinc-700 md:col-span-2">
+          <span className="font-medium text-zinc-900">Vehicles</span>
+          <div className="max-h-64 overflow-auto rounded-2xl border border-zinc-200 bg-white">
+            <div className="grid grid-cols-[1fr_130px] border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={vehicles.length > 0 && selectedTruckIds.length === vehicles.length}
+                  onChange={toggleAllTrucks}
+                />
+                <span>Select all</span>
+              </label>
+              <span>Weight</span>
+            </div>
+            {vehicles.length === 0 ? (
+              <div className="px-4 py-3 text-zinc-500">No vehicles available</div>
+            ) : (
+              vehicles.map((vehicle) => (
+                <div key={vehicle.id} className="grid grid-cols-[1fr_130px] items-center gap-3 border-b border-zinc-100 px-4 py-3 last:border-b-0">
+                  <label className="flex min-w-0 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedTruckIds.includes(vehicle.id)}
+                      onChange={() => toggleTruck(vehicle.id)}
+                    />
+                    <span className="min-w-0 truncate">
+                      {vehicle.unitNumber} {vehicle.vin ? `- ${vehicle.vin}` : "- VIN missing"}
+                      {vehicle.user?.name ? ` - ${vehicle.user.name}` : vehicle.user?.email ? ` - ${vehicle.user.email}` : ""}
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => openWeightModal(vehicle)}
+                    className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
+                      vehicle.grossWeight
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : "border-amber-200 bg-amber-50 text-amber-800"
+                    }`}
+                  >
+                    {vehicle.grossWeight ? `${vehicle.grossWeight.toLocaleString("en-US")} lbs` : "Missing"}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <p className="text-xs text-zinc-500">{selectedVehicles.length} selected: {selectedVehicleSummary}</p>
+        </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">VIN</p>
@@ -245,20 +352,12 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
           </p>
         </div>
 
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">Tax period</span>
-          <select
-            value={taxPeriodId}
-            onChange={(event) => setTaxPeriodId(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            {taxPeriods.map((period) => (
-              <option key={period.id} value={period.id}>
-                {period.name} {period.isActive ? "- Active" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Active tax period</p>
+          <p className="mt-2 text-sm font-medium text-zinc-900">
+            {selectedTaxPeriod?.name || "Not available"}
+          </p>
+        </div>
 
         <label className="space-y-2 text-sm text-zinc-700">
           <span className="font-medium text-zinc-900">First used month</span>
@@ -287,44 +386,11 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
           />
         </label>
 
-        {!selectedVehicle?.grossWeight ? (
-          <label className="space-y-2 text-sm text-zinc-700">
-            <span className="font-medium text-zinc-900">Taxable gross weight</span>
-            <input
-              type="number"
-              min={1}
-              value={taxableGrossWeight}
-              onChange={(event) => setTaxableGrossWeight(event.target.value)}
-              className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-            />
-          </label>
+        {missingWeightMessage ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 md:col-span-2">
+            {missingWeightMessage}
+          </div>
         ) : null}
-
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">Logging vehicle</span>
-          <select
-            value={loggingVehicle}
-            onChange={(event) => setLoggingVehicle(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            <option value="">Select</option>
-            <option value="false">No</option>
-            <option value="true">Yes</option>
-          </select>
-        </label>
-
-        <label className="space-y-2 text-sm text-zinc-700">
-          <span className="font-medium text-zinc-900">Suspended vehicle</span>
-          <select
-            value={suspendedVehicle}
-            onChange={(event) => setSuspendedVehicle(event.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
-          >
-            <option value="">Select</option>
-            <option value="false">No</option>
-            <option value="true">Yes</option>
-          </select>
-        </label>
 
         <label className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 md:col-span-2">
           <input
@@ -354,9 +420,9 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
         </div>
       )}
 
-      {selectedVehicle && !selectedVehicle.vin && (
+        {hasSelectedVehicleWithoutVin && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          A VIN is required before this filing can be saved.
+          A VIN is required on every selected vehicle before this filing can be saved.
         </div>
       )}
 
@@ -364,12 +430,66 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
         <button
           type="button"
           onClick={() => void save()}
-          disabled={busy || !truckId || !taxPeriodId || !selectedVehicle?.vin}
+          disabled={busy || selectedTruckIds.length === 0 || !taxPeriodId || hasSelectedVehicleWithoutVin || selectedWithoutGrossWeight.length > 0}
           className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
         >
           {busy ? "Saving..." : props.mode === "create" ? "Create draft" : "Save changes"}
         </button>
       </div>
+
+      {weightModalTruck ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/45 px-4 py-6">
+          <div className="w-full max-w-md rounded-[24px] border border-zinc-200 bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Truck weight</p>
+                <h3 className="mt-1 text-lg font-semibold text-zinc-950">
+                  {weightModalTruck.unitNumber || "Truck"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeightModalTruck(null)}
+                disabled={weightBusy}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 text-lg leading-none text-zinc-600 hover:bg-zinc-50 disabled:opacity-60"
+                aria-label="Close"
+              >
+                x
+              </button>
+            </div>
+
+            <label className="mt-5 block space-y-2 text-sm text-zinc-700">
+              <span className="font-medium text-zinc-900">Gross weight</span>
+              <input
+                type="number"
+                min={1}
+                value={weightDraft}
+                onChange={(event) => setWeightDraft(event.target.value)}
+                className="w-full rounded-2xl border border-zinc-200 px-4 py-3 outline-none ring-0 focus:border-zinc-400"
+              />
+            </label>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setWeightModalTruck(null)}
+                disabled={weightBusy}
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveVehicleWeight()}
+                disabled={weightBusy || !weightDraft}
+                className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+              >
+                {weightBusy ? "Saving..." : "Save weight"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

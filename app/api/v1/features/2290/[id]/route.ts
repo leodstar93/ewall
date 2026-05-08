@@ -25,7 +25,9 @@ import {
 
 type Update2290FilingBody = {
   vehicleId?: unknown;
+  vehicleIds?: unknown;
   truckId?: unknown;
+  truckIds?: unknown;
   taxPeriodId?: unknown;
   firstUsedMonth?: unknown;
   firstUsedYear?: unknown;
@@ -36,6 +38,22 @@ type Update2290FilingBody = {
   irsTaxEstimate?: unknown;
   notes?: unknown;
 };
+
+function parseVehicleIds(body: Update2290FilingBody) {
+  const values = Array.isArray(body.vehicleIds)
+    ? body.vehicleIds
+    : Array.isArray(body.truckIds)
+      ? body.truckIds
+      : [];
+  const ids = values.filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const fallback =
+    typeof body.vehicleId === "string"
+      ? body.vehicleId
+      : typeof body.truckId === "string"
+        ? body.truckId
+        : "";
+  return Array.from(new Set([...ids, fallback].filter(Boolean)));
+}
 
 function toErrorResponse(error: unknown, fallback: string) {
   if (error instanceof Form2290ServiceError) {
@@ -168,12 +186,18 @@ export async function PATCH(
       filingId: id,
       actorUserId: guard.session.user.id ?? "",
       canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
+      truckIds:
+        typeof body.vehicleIds !== "undefined" || typeof body.truckIds !== "undefined"
+          ? parseVehicleIds(body)
+          : undefined,
       truckId:
-        typeof body.vehicleId === "string"
-          ? body.vehicleId
-          : typeof body.truckId === "string"
-            ? body.truckId
-            : undefined,
+        typeof body.vehicleIds !== "undefined" || typeof body.truckIds !== "undefined"
+          ? undefined
+          : typeof body.vehicleId === "string"
+            ? body.vehicleId
+            : typeof body.truckId === "string"
+              ? body.truckId
+              : undefined,
       taxPeriodId: typeof body.taxPeriodId === "string" ? body.taxPeriodId : undefined,
       firstUsedMonth:
         typeof body.firstUsedMonth === "undefined" ? undefined : firstUsedMonth,

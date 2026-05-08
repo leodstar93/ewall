@@ -39,6 +39,11 @@ type VehiclesPayload = {
   error?: string;
 };
 
+type UpdateVehiclePayload = {
+  vehicle?: Form2290Truck;
+  error?: string;
+};
+
 type Form2290DashboardPageProps = {
   apiBasePath?: string;
   detailHrefBase?: string;
@@ -164,6 +169,10 @@ function buildRows(items: Form2290Filing[]): Form2290TableRow[] {
       searchableText: [
         item.unitNumberSnapshot ?? item.truck.unitNumber,
         item.vinSnapshot,
+        ...(item.vehicles ?? []).flatMap((vehicle) => [
+          vehicle.unitNumberSnapshot ?? "",
+          vehicle.vinSnapshot ?? "",
+        ]),
         item.truck.make ?? "",
         item.truck.model ?? "",
         item.taxPeriod.name,
@@ -200,16 +209,16 @@ export default function Form2290DashboardPage({
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalBusy, setModalBusy] = useState(false);
+  const [weightBusy, setWeightBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
-  const [truckId, setTruckId] = useState("");
+  const [weightModalTruck, setWeightModalTruck] = useState<Form2290Truck | null>(null);
+  const [weightDraft, setWeightDraft] = useState("");
+  const [selectedTruckIds, setSelectedTruckIds] = useState<string[]>([]);
   const [firstUsedMonth, setFirstUsedMonth] = useState("");
   const [firstUsedYear, setFirstUsedYear] = useState(
     new Date().getFullYear().toString(),
   );
-  const [taxableGrossWeight, setTaxableGrossWeight] = useState("");
-  const [loggingVehicle, setLoggingVehicle] = useState("");
-  const [suspendedVehicle, setSuspendedVehicle] = useState("");
   const [confirmationAccepted, setConfirmationAccepted] = useState(false);
 
   const load = useCallback(async () => {
@@ -325,7 +334,7 @@ export default function Form2290DashboardPage({
       setActiveTaxPeriod(
         periodsData.activeTaxPeriod ?? nextTaxPeriods[0] ?? null,
       );
-      setTruckId((current) => current || nextVehicles[0]?.id || "");
+      setSelectedTruckIds((current) => (current.length ? current : nextVehicles[0]?.id ? [nextVehicles[0].id] : []));
     } catch (modalLoadError) {
       setModalError(
         modalLoadError instanceof Error
@@ -349,36 +358,90 @@ export default function Form2290DashboardPage({
     setModalError(null);
   }
 
+  function toggleTruckSelection(id: string) {
+    setSelectedTruckIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  }
+
+  function toggleAllTruckSelection() {
+    setSelectedTruckIds((current) =>
+      vehicles.length > 0 && current.length === vehicles.length
+        ? []
+        : vehicles.map((vehicle) => vehicle.id),
+    );
+  }
+
+  function openWeightModal(vehicle: Form2290Truck) {
+    setWeightModalTruck(vehicle);
+    setWeightDraft(vehicle.grossWeight?.toString() ?? "");
+    setModalError(null);
+  }
+
+  async function saveVehicleWeight() {
+    if (!weightModalTruck) return;
+
+    try {
+      setWeightBusy(true);
+      setModalError(null);
+      const response = await fetch(`${apiBasePath}/vehicles`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          truckId: weightModalTruck.id,
+          grossWeight: weightDraft ? Number(weightDraft) : null,
+        }),
+      });
+      const data = (await response.json().catch(() => ({}))) as UpdateVehiclePayload;
+
+      if (!response.ok || !data.vehicle) {
+        throw new Error(data.error || "Could not update truck weight.");
+      }
+
+      setVehicles((current) =>
+        current.map((vehicle) => (vehicle.id === data.vehicle?.id ? data.vehicle : vehicle)),
+      );
+      setWeightModalTruck(null);
+      setWeightDraft("");
+    } catch (weightError) {
+      setModalError(weightError instanceof Error ? weightError.message : "Could not update truck weight.");
+    } finally {
+      setWeightBusy(false);
+    }
+  }
+
   async function createFilingFromModal() {
     try {
       setModalBusy(true);
       setModalError(null);
 
-      if (!truckId) throw new Error("Please choose a truck.");
+      if (selectedTruckIds.length === 0) throw new Error("Please choose at least one truck.");
       if (!activeTaxPeriod?.id)
         throw new Error("No active Form 2290 tax period is available.");
       if (!firstUsedMonth)
         throw new Error("Please choose the first used month.");
       if (!firstUsedYear) throw new Error("Please enter the first use year.");
-      const selectedVehicle = vehicles.find((vehicle) => vehicle.id === truckId);
-      if (!selectedVehicle?.grossWeight && !taxableGrossWeight) {
-        throw new Error("Please enter the taxable gross weight.");
+      const selectedVehicles = selectedTruckIds
+        .map((id) => vehicles.find((vehicle) => vehicle.id === id))
+        .filter((vehicle): vehicle is Form2290Truck => Boolean(vehicle));
+      const missingWeightVehicles = selectedVehicles.filter((vehicle) => !vehicle.grossWeight);
+      if (missingWeightVehicles.length) {
+        throw new Error(
+          `Missing weight on selected trucks: ${missingWeightVehicles
+            .map((vehicle) => vehicle.unitNumber || vehicle.vin || vehicle.id)
+            .join(", ")}.`,
+        );
       }
-      if (!loggingVehicle) throw new Error("Please confirm if this is a logging vehicle.");
-      if (!suspendedVehicle) throw new Error("Please confirm if this is a suspended vehicle.");
       if (!confirmationAccepted) throw new Error("Please confirm the filing details.");
 
       const response = await fetch(apiBasePath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vehicleId: truckId,
+          vehicleIds: selectedTruckIds,
           taxPeriodId: activeTaxPeriod.id,
           firstUsedMonth: Number(firstUsedMonth),
           firstUsedYear: Number(firstUsedYear),
-          taxableGrossWeight: taxableGrossWeight ? Number(taxableGrossWeight) : null,
-          loggingVehicle: loggingVehicle === "true",
-          suspendedVehicle: suspendedVehicle === "true",
           confirmationAccepted,
           paymentHandling: "EWALL_COLLECTS_AND_REMITTED",
         }),
@@ -470,6 +533,7 @@ export default function Form2290DashboardPage({
         >
           <p>
             {filing.unitNumberSnapshot || filing.truck.unitNumber}
+            {(filing.vehicles?.length ?? 0) > 1 ? ` +${(filing.vehicles?.length ?? 1) - 1}` : ""}
           </p>
           <p className="text-zinc-500">{filing.vinSnapshot}</p>
         </div>
@@ -763,21 +827,59 @@ export default function Form2290DashboardPage({
               </div>
             ) : (
               <div className="mt-5 grid gap-4">
-                <label className="space-y-2 text-sm text-zinc-700">
-                  <span className="font-medium text-zinc-900">Truck</span>
-                  <select
-                    value={truckId}
-                    onChange={(event) => setTruckId(event.target.value)}
-                    className={modalFieldClass}
-                  >
-                    {vehicles.length === 0 ? <option value="">No trucks available</option> : null}
-                    {vehicles.map((vehicle) => (
-                      <option key={vehicle.id} value={vehicle.id}>
-                        {vehicle.unitNumber} {vehicle.vin ? `- ${vehicle.vin}` : "- VIN missing"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="space-y-2 text-sm text-zinc-700">
+                  <span className="font-medium text-zinc-900">Trucks</span>
+                  <div className="max-h-56 overflow-auto rounded-2xl border border-zinc-200 bg-white">
+                    <div className="grid grid-cols-[1fr_130px] border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={vehicles.length > 0 && selectedTruckIds.length === vehicles.length}
+                          onChange={toggleAllTruckSelection}
+                        />
+                        <span>Select all</span>
+                      </label>
+                      <span>Weight</span>
+                    </div>
+                    {vehicles.length === 0 ? (
+                      <div className="px-4 py-3 text-zinc-500">No trucks available</div>
+                    ) : (
+                      vehicles.map((vehicle) => (
+                        <div key={vehicle.id} className="grid grid-cols-[1fr_130px] items-center gap-3 border-b border-zinc-100 px-4 py-3 last:border-b-0">
+                          <label className="flex min-w-0 items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedTruckIds.includes(vehicle.id)}
+                              onChange={() => toggleTruckSelection(vehicle.id)}
+                            />
+                            <span className="min-w-0 truncate">
+                              {vehicle.unitNumber} {vehicle.vin ? `- ${vehicle.vin}` : "- VIN missing"}
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => openWeightModal(vehicle)}
+                            className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
+                              vehicle.grossWeight
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                : "border-amber-200 bg-amber-50 text-amber-800"
+                            }`}
+                          >
+                            {vehicle.grossWeight ? `${vehicle.grossWeight.toLocaleString("en-US")} lbs` : "Missing"}
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-500">{selectedTruckIds.length} selected</p>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Active tax period</p>
+                  <p className="mt-2 font-medium text-zinc-950">
+                    {activeTaxPeriod?.name || "Not available"}
+                  </p>
+                </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-2 text-sm text-zinc-700">
@@ -808,45 +910,23 @@ export default function Form2290DashboardPage({
                   </label>
                 </div>
 
-                {!vehicles.find((vehicle) => vehicle.id === truckId)?.grossWeight ? (
-                  <label className="space-y-2 text-sm text-zinc-700">
-                    <span className="font-medium text-zinc-900">Taxable gross weight</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={taxableGrossWeight}
-                      onChange={(event) => setTaxableGrossWeight(event.target.value)}
-                      className={modalFieldClass}
-                    />
-                  </label>
-                ) : null}
+                {(() => {
+                  const missingWeightVehicles = selectedTruckIds
+                    .map((id) => vehicles.find((vehicle) => vehicle.id === id))
+                    .filter((vehicle): vehicle is Form2290Truck => Boolean(vehicle && !vehicle.grossWeight));
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="space-y-2 text-sm text-zinc-700">
-                    <span className="font-medium text-zinc-900">Logging vehicle</span>
-                    <select
-                      value={loggingVehicle}
-                      onChange={(event) => setLoggingVehicle(event.target.value)}
-                      className={modalFieldClass}
-                    >
-                      <option value="">Select</option>
-                      <option value="false">No</option>
-                      <option value="true">Yes</option>
-                    </select>
-                  </label>
-                  <label className="space-y-2 text-sm text-zinc-700">
-                    <span className="font-medium text-zinc-900">Suspended vehicle</span>
-                    <select
-                      value={suspendedVehicle}
-                      onChange={(event) => setSuspendedVehicle(event.target.value)}
-                      className={modalFieldClass}
-                    >
-                      <option value="">Select</option>
-                      <option value="false">No</option>
-                      <option value="true">Yes</option>
-                    </select>
-                  </label>
-                </div>
+                  if (!missingWeightVehicles.length) return null;
+
+                  return (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      Missing weight on selected trucks:{" "}
+                      {missingWeightVehicles
+                        .map((vehicle) => vehicle.unitNumber || vehicle.vin || vehicle.id)
+                        .join(", ")}
+                      . Click Missing to add the weight before starting the filing.
+                    </div>
+                  );
+                })()}
 
                 <label className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
                   <input
@@ -872,10 +952,74 @@ export default function Form2290DashboardPage({
               <button
                 type="button"
                 onClick={() => void createFilingFromModal()}
-                disabled={modalBusy || modalLoading || !truckId || !firstUsedMonth || !firstUsedYear || !loggingVehicle || !suspendedVehicle || !confirmationAccepted}
+                disabled={
+                  modalBusy ||
+                  modalLoading ||
+                  selectedTruckIds.length === 0 ||
+                  !firstUsedMonth ||
+                  !firstUsedYear ||
+                  !confirmationAccepted ||
+                  selectedTruckIds
+                    .map((id) => vehicles.find((vehicle) => vehicle.id === id))
+                    .some((vehicle) => vehicle && !vehicle.grossWeight)
+                }
                 className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
               >
                 {modalBusy ? "Starting..." : "Start filing"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {weightModalTruck ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950/45 px-4 py-6">
+          <div className="w-full max-w-md rounded-[24px] border border-zinc-200 bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Truck weight</p>
+                <h3 className="mt-1 text-lg font-semibold text-zinc-950">
+                  {weightModalTruck.unitNumber || "Truck"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeightModalTruck(null)}
+                disabled={weightBusy}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 text-lg leading-none text-zinc-600 hover:bg-zinc-50 disabled:opacity-60"
+                aria-label="Close"
+              >
+                x
+              </button>
+            </div>
+
+            <label className="mt-5 block space-y-2 text-sm text-zinc-700">
+              <span className="font-medium text-zinc-900">Gross weight</span>
+              <input
+                type="number"
+                min={1}
+                value={weightDraft}
+                onChange={(event) => setWeightDraft(event.target.value)}
+                className={modalFieldClass}
+              />
+            </label>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setWeightModalTruck(null)}
+                disabled={weightBusy}
+                className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveVehicleWeight()}
+                disabled={weightBusy || !weightDraft}
+                className="inline-flex items-center justify-center rounded-2xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+              >
+                {weightBusy ? "Saving..." : "Save weight"}
               </button>
             </div>
           </div>

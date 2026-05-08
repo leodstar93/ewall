@@ -17,7 +17,8 @@ type Create2290FilingInput = {
   db?: DbClient;
   actorUserId: string;
   canManageAll: boolean;
-  truckId: string;
+  truckId?: string;
+  truckIds?: string[];
   taxPeriodId: string;
   firstUsedMonth?: number | null;
   firstUsedYear?: number | null;
@@ -29,49 +30,108 @@ type Create2290FilingInput = {
   notes?: string | null;
 };
 
+function normalizeTruckIds(input: Create2290FilingInput) {
+  return Array.from(
+    new Set(
+      [...(input.truckIds ?? []), input.truckId].filter((id): id is string =>
+        Boolean(id?.trim()),
+      ),
+    ),
+  );
+}
+
 export async function create2290Filing(input: Create2290FilingInput) {
   const db = resolveForm2290Db(input.db);
-  const [truck, taxPeriod] = await Promise.all([
-    assert2290TruckAccess({
-      db,
-      truckId: input.truckId,
-      actorUserId: input.actorUserId,
-      canManageAll: input.canManageAll,
-    }),
+  const truckIds = normalizeTruckIds(input);
+
+  if (!truckIds.length) {
+    throw new Form2290ServiceError("At least one vehicle is required.", 400, "VEHICLE_REQUIRED");
+  }
+
+  const [trucks, taxPeriod] = await Promise.all([
+    Promise.all(
+      truckIds.map((truckId) =>
+        assert2290TruckAccess({
+          db,
+          truckId,
+          actorUserId: input.actorUserId,
+          canManageAll: input.canManageAll,
+        }),
+      ),
+    ),
     db.form2290TaxPeriod.findUnique({
       where: { id: input.taxPeriodId },
     }),
   ]);
+  const truck = trucks[0];
 
   if (!taxPeriod) {
     throw new Form2290ServiceError("Tax period not found", 404, "TAX_PERIOD_NOT_FOUND");
   }
 
-  const vin = truck.vin?.trim();
-
-  if (!vin) {
+  if (trucks.some((item) => item.userId !== truck.userId)) {
     throw new Form2290ServiceError(
-      "The selected vehicle needs a VIN before creating a 2290 filing.",
+      "All vehicles in a Form 2290 filing must belong to the same client.",
+      400,
+      "MIXED_CLIENT_VEHICLES",
+    );
+  }
+
+  const missingVinTruck = trucks.find((item) => !item.vin?.trim());
+
+  if (missingVinTruck) {
+    throw new Form2290ServiceError(
+      `Vehicle ${missingVinTruck.unitNumber || missingVinTruck.id} needs a VIN before creating a 2290 filing.`,
       400,
       "VIN_REQUIRED",
     );
   }
 
-  const taxableWeight = input.taxableGrossWeight ?? truck.grossWeight ?? null;
+  const duplicate = await db.form2290Filing.findFirst({
+    where: {
+      taxPeriodId: taxPeriod.id,
+      OR: [
+        { truckId: { in: truckIds } },
+        { vehicles: { some: { truckId: { in: truckIds } } } },
+      ],
+    },
+    select: { id: true },
+  });
 
-  const [eligibility, settings, organizationId, charges] = await Promise.all([
+  if (duplicate) {
+    throw new Form2290ServiceError(
+      "A Form 2290 filing already exists for one of these vehicles and tax period.",
+      409,
+      "DUPLICATE_FILING",
+    );
+  }
+
+  const vehicleChargeRows = await Promise.all(
+    trucks.map(async (item) => {
+      const taxableWeight = input.taxableGrossWeight ?? item.grossWeight ?? null;
+      const charges = await calculate2290FilingCharges({
+        db,
+        taxPeriodId: input.taxPeriodId,
+        weight: taxableWeight,
+        firstUsedMonth: input.firstUsedMonth ?? null,
+        isLogging: input.loggingVehicle ?? null,
+        isSuspended: input.suspendedVehicle ?? null,
+        taxableAmount: input.irsTaxEstimate ?? null,
+      });
+
+      return { truck: item, taxableWeight, charges };
+    }),
+  );
+  const amountDue = vehicleChargeRows.reduce<Prisma.Decimal | null>((total, row) => {
+    if (!row.charges.amountDue) return total;
+    return (total ?? new Prisma.Decimal(0)).plus(row.charges.amountDue);
+  }, null);
+  const serviceFeeAmount = vehicleChargeRows[0]?.charges.serviceFeeAmount ?? new Prisma.Decimal(0);
+
+  const [eligibility, settings, organizationId] = await Promise.all([
     resolve2290Eligibility(truck.grossWeight, db),
     getForm2290Settings(db),
     resolve2290OrganizationId({ db, userId: truck.userId }),
-    calculate2290FilingCharges({
-      db,
-      taxPeriodId: input.taxPeriodId,
-      weight: taxableWeight,
-      firstUsedMonth: input.firstUsedMonth ?? null,
-      isLogging: input.loggingVehicle ?? null,
-      isSuspended: input.suspendedVehicle ?? null,
-      taxableAmount: input.irsTaxEstimate ?? null,
-    }),
   ]);
 
   const defaultPaymentMethod = await db.paymentMethod.findFirst({
@@ -101,20 +161,27 @@ export async function create2290Filing(input: Create2290FilingInput) {
     );
   }
 
-      const { taxCalc } = charges;
-      const paymentAccounting = build2290PaymentAccountingUpdate({
-        amountDue: charges.amountDue,
-        serviceFeeAmount: charges.serviceFeeAmount,
-        paymentStatus: Form2290PaymentStatus.UNPAID,
-        customerPaidAmount: 0,
-      });
+  const paymentAccounting = build2290PaymentAccountingUpdate({
+    amountDue,
+    serviceFeeAmount,
+    paymentStatus: Form2290PaymentStatus.UNPAID,
+    customerPaidAmount: 0,
+  });
 
   try {
     return await db.$transaction(async (tx) => {
-      await tx.truck.update({
-        where: { id: truck.id },
-        data: { is2290Eligible: isEligible },
-      });
+      await Promise.all(
+        trucks.map((item) =>
+          tx.truck.update({
+            where: { id: item.id },
+            data: {
+              is2290Eligible:
+                typeof item.grossWeight === "number" &&
+                item.grossWeight >= settings.minimumEligibleWeight,
+            },
+          }),
+        ),
+      );
 
       const filing = await tx.form2290Filing.create({
         data: {
@@ -124,10 +191,10 @@ export async function create2290Filing(input: Create2290FilingInput) {
           taxPeriodId: taxPeriod.id,
           paymentHandling,
           defaultPaymentMethodId: defaultPaymentMethod?.id ?? null,
-          vinSnapshot: vin,
+          vinSnapshot: truck.vin?.trim() ?? "",
           unitNumberSnapshot: truck.unitNumber,
           grossWeightSnapshot: truck.grossWeight ?? null,
-          taxableGrossWeightSnapshot: taxableWeight,
+          taxableGrossWeightSnapshot: vehicleChargeRows[0]?.taxableWeight ?? null,
           loggingVehicle: input.loggingVehicle ?? null,
           suspendedVehicle: input.suspendedVehicle ?? null,
           confirmationAcceptedAt: input.confirmationAccepted ? new Date() : null,
@@ -135,8 +202,8 @@ export async function create2290Filing(input: Create2290FilingInput) {
             typeof input.irsTaxEstimate === "string" && input.irsTaxEstimate.trim()
               ? new Prisma.Decimal(input.irsTaxEstimate)
               : null,
-          amountDue: charges.amountDue,
-          serviceFeeAmount: charges.serviceFeeAmount,
+          amountDue,
+          serviceFeeAmount,
           ...paymentAccounting.data,
           efileProviderName: settings.providerName,
           efileProviderUrl: settings.providerUrl,
@@ -149,19 +216,19 @@ export async function create2290Filing(input: Create2290FilingInput) {
           notes: input.notes?.trim() || null,
           expiresAt: taxPeriod.endDate,
           vehicles: {
-            create: {
-              truckId: truck.id,
-              vinSnapshot: vin,
-              unitNumberSnapshot: truck.unitNumber,
-              grossWeightSnapshot: truck.grossWeight ?? null,
-              isPrimary: true,
-              rateCategory: taxCalc?.rateCategory ?? null,
-              annualTaxCents: taxCalc?.annualTaxCents ?? null,
-              calculatedTaxCents: taxCalc?.calculatedTaxCents ?? null,
-              rateSnapshot: taxCalc?.rateSnapshot
-                ? (taxCalc.rateSnapshot as Prisma.InputJsonValue)
+            create: vehicleChargeRows.map((row, index) => ({
+              truckId: row.truck.id,
+              vinSnapshot: row.truck.vin?.trim() ?? "",
+              unitNumberSnapshot: row.truck.unitNumber,
+              grossWeightSnapshot: row.truck.grossWeight ?? null,
+              isPrimary: index === 0,
+              rateCategory: row.charges.taxCalc?.rateCategory ?? null,
+              annualTaxCents: row.charges.taxCalc?.annualTaxCents ?? null,
+              calculatedTaxCents: row.charges.taxCalc?.calculatedTaxCents ?? null,
+              rateSnapshot: row.charges.taxCalc?.rateSnapshot
+                ? (row.charges.taxCalc.rateSnapshot as Prisma.InputJsonValue)
                 : Prisma.JsonNull,
-            },
+            })),
           },
         },
         include: form2290FilingInclude,
@@ -173,12 +240,16 @@ export async function create2290Filing(input: Create2290FilingInput) {
         action: "CREATED",
         metaJson: {
           truckId: truck.id,
+          truckIds,
           taxPeriodId: taxPeriod.id,
           organizationId,
           paymentHandling,
           isEligible,
-          rateCategory: taxCalc?.rateCategory ?? null,
-          calculatedTaxCents: taxCalc?.calculatedTaxCents ?? null,
+          vehicleCount: vehicleChargeRows.length,
+          calculatedTaxCents: vehicleChargeRows.reduce(
+            (total, row) => total + (row.charges.taxCalc?.calculatedTaxCents ?? 0),
+            0,
+          ),
         } satisfies Prisma.InputJsonValue,
       });
 

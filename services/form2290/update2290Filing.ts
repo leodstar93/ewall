@@ -20,6 +20,7 @@ type Update2290FilingInput = {
   actorUserId: string;
   canManageAll: boolean;
   truckId?: string;
+  truckIds?: string[];
   taxPeriodId?: string;
   firstUsedMonth?: number | null;
   firstUsedYear?: number | null;
@@ -30,6 +31,11 @@ type Update2290FilingInput = {
   irsTaxEstimate?: string | null;
   notes?: string | null;
 };
+
+function normalizeTruckIds(input: Update2290FilingInput, existingTruckId: string) {
+  const provided = input.truckIds?.length ? input.truckIds : input.truckId ? [input.truckId] : [];
+  return Array.from(new Set((provided.length ? provided : [existingTruckId]).filter((id) => Boolean(id?.trim()))));
+}
 
 export async function update2290Filing(input: Update2290FilingInput) {
   const db = resolveForm2290Db(input.db);
@@ -48,14 +54,18 @@ export async function update2290Filing(input: Update2290FilingInput) {
     );
   }
 
-  const truck = input.truckId
-    ? await assert2290TruckAccess({
+  const truckIds = normalizeTruckIds(input, existing.truckId);
+  const trucks = await Promise.all(
+    truckIds.map((truckId) =>
+      assert2290TruckAccess({
         db,
-        truckId: input.truckId,
+        truckId,
         actorUserId: input.actorUserId,
         canManageAll: input.canManageAll,
-      })
-    : existing.truck;
+      }),
+    ),
+  );
+  const truck = trucks[0];
   const taxPeriod = input.taxPeriodId
     ? await db.form2290TaxPeriod.findUnique({
         where: { id: input.taxPeriodId },
@@ -66,13 +76,41 @@ export async function update2290Filing(input: Update2290FilingInput) {
     throw new Form2290ServiceError("Tax period not found", 404, "TAX_PERIOD_NOT_FOUND");
   }
 
-  const vin = truck.vin?.trim();
-
-  if (!vin) {
+  if (trucks.some((item) => item.userId !== truck.userId)) {
     throw new Form2290ServiceError(
-      "The selected vehicle needs a VIN before saving the filing.",
+      "All vehicles in a Form 2290 filing must belong to the same client.",
+      400,
+      "MIXED_CLIENT_VEHICLES",
+    );
+  }
+
+  const missingVinTruck = trucks.find((item) => !item.vin?.trim());
+
+  if (missingVinTruck) {
+    throw new Form2290ServiceError(
+      `Vehicle ${missingVinTruck.unitNumber || missingVinTruck.id} needs a VIN before saving the filing.`,
       400,
       "VIN_REQUIRED",
+    );
+  }
+
+  const duplicate = await db.form2290Filing.findFirst({
+    where: {
+      id: { not: existing.id },
+      taxPeriodId: taxPeriod.id,
+      OR: [
+        { truckId: { in: truckIds } },
+        { vehicles: { some: { truckId: { in: truckIds } } } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (duplicate) {
+    throw new Form2290ServiceError(
+      "A Form 2290 filing already exists for one of these vehicles and tax period.",
+      409,
+      "DUPLICATE_FILING",
     );
   }
 
@@ -96,25 +134,40 @@ export async function update2290Filing(input: Update2290FilingInput) {
       ? existing.suspendedVehicle
       : input.suspendedVehicle;
 
-  const [eligibility, organizationId, charges] = await Promise.all([
+  const vehicleChargeRows = await Promise.all(
+    trucks.map(async (item, index) => {
+      const rowWeight =
+        index === 0
+          ? taxableWeight
+          : input.taxableGrossWeight ?? item.grossWeight ?? null;
+      const charges = await calculate2290FilingCharges({
+        db,
+        taxPeriodId: taxPeriod.id,
+        weight: rowWeight,
+        firstUsedMonth,
+        isLogging,
+        isSuspended,
+        taxableAmount: input.irsTaxEstimate ?? null,
+      });
+
+      return { truck: item, taxableWeight: rowWeight, charges };
+    }),
+  );
+  const amountDue = vehicleChargeRows.reduce<Prisma.Decimal | null>((total, row) => {
+    if (!row.charges.amountDue) return total;
+    return (total ?? new Prisma.Decimal(0)).plus(row.charges.amountDue);
+  }, null);
+  const serviceFeeAmount = vehicleChargeRows[0]?.charges.serviceFeeAmount ?? new Prisma.Decimal(0);
+
+  const [eligibility, organizationId] = await Promise.all([
     resolve2290Eligibility(truck.grossWeight, db),
     resolve2290OrganizationId({ db, userId: truck.userId }),
-    calculate2290FilingCharges({
-      db,
-      taxPeriodId: taxPeriod.id,
-      weight: taxableWeight,
-      firstUsedMonth,
-      isLogging,
-      isSuspended,
-      taxableAmount: input.irsTaxEstimate ?? null,
-    }),
   ]);
   const { isEligible } = eligibility;
-  const { taxCalc } = charges;
-  const nextAmountDue = charges.amountDue ?? existing.amountDue;
+  const nextAmountDue = amountDue ?? existing.amountDue;
   const paymentAccounting = build2290PaymentAccountingUpdate({
     amountDue: nextAmountDue,
-    serviceFeeAmount: charges.serviceFeeAmount,
+    serviceFeeAmount,
     paymentStatus: existing.paymentStatus,
     customerPaidAmount: existing.customerPaidAmount,
   });
@@ -136,7 +189,7 @@ export async function update2290Filing(input: Update2290FilingInput) {
           organizationId,
           truckId: truck.id,
           taxPeriodId: taxPeriod.id,
-          vinSnapshot: vin,
+          vinSnapshot: truck.vin?.trim() ?? "",
           unitNumberSnapshot: truck.unitNumber,
           grossWeightSnapshot: truck.grossWeight ?? null,
           taxableGrossWeightSnapshot:
@@ -164,7 +217,7 @@ export async function update2290Filing(input: Update2290FilingInput) {
                 ? new Prisma.Decimal(input.irsTaxEstimate)
                 : null,
           amountDue: nextAmountDue,
-          serviceFeeAmount: charges.serviceFeeAmount,
+          serviceFeeAmount,
           ...(shouldUpdatePaymentAccounting ? paymentAccounting.data : {}),
           firstUsedMonth:
             typeof input.firstUsedMonth === "undefined"
@@ -180,25 +233,24 @@ export async function update2290Filing(input: Update2290FilingInput) {
         include: form2290FilingInclude,
       });
 
-      // Recreate primary vehicle snapshot with updated rate data
       await tx.form2290FilingVehicle.deleteMany({
-        where: { filingId: existing.id, isPrimary: true },
+        where: { filingId: existing.id },
       });
-      await tx.form2290FilingVehicle.create({
-        data: {
+      await tx.form2290FilingVehicle.createMany({
+        data: vehicleChargeRows.map((row, index) => ({
           filingId: existing.id,
-          truckId: truck.id,
-          vinSnapshot: vin,
-          unitNumberSnapshot: truck.unitNumber,
-          grossWeightSnapshot: truck.grossWeight ?? null,
-          isPrimary: true,
-          rateCategory: taxCalc?.rateCategory ?? null,
-          annualTaxCents: taxCalc?.annualTaxCents ?? null,
-          calculatedTaxCents: taxCalc?.calculatedTaxCents ?? null,
-          rateSnapshot: taxCalc?.rateSnapshot
-            ? (taxCalc.rateSnapshot as Prisma.InputJsonValue)
+          truckId: row.truck.id,
+          vinSnapshot: row.truck.vin?.trim() ?? "",
+          unitNumberSnapshot: row.truck.unitNumber,
+          grossWeightSnapshot: row.truck.grossWeight ?? null,
+          isPrimary: index === 0,
+          rateCategory: row.charges.taxCalc?.rateCategory ?? null,
+          annualTaxCents: row.charges.taxCalc?.annualTaxCents ?? null,
+          calculatedTaxCents: row.charges.taxCalc?.calculatedTaxCents ?? null,
+          rateSnapshot: row.charges.taxCalc?.rateSnapshot
+            ? (row.charges.taxCalc.rateSnapshot as Prisma.InputJsonValue)
             : Prisma.JsonNull,
-        },
+        })),
       });
 
       await logForm2290Activity(tx, {
@@ -207,11 +259,15 @@ export async function update2290Filing(input: Update2290FilingInput) {
         action: "UPDATED",
         metaJson: {
           truckId: truck.id,
+          truckIds,
           taxPeriodId: taxPeriod.id,
           organizationId,
           isEligible,
-          rateCategory: taxCalc?.rateCategory ?? null,
-          calculatedTaxCents: taxCalc?.calculatedTaxCents ?? null,
+          vehicleCount: vehicleChargeRows.length,
+          calculatedTaxCents: vehicleChargeRows.reduce(
+            (total, row) => total + (row.charges.taxCalc?.calculatedTaxCents ?? 0),
+            0,
+          ),
           customerBalanceDue:
             shouldUpdatePaymentAccounting
               ? paymentAccounting.balanceDue

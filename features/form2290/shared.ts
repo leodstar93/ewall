@@ -90,6 +90,7 @@ export type Form2290Authorization = {
 
 export type Form2290FilingVehicle = {
   id: string;
+  truckId: string | null;
   vinSnapshot: string;
   unitNumberSnapshot: string | null;
   grossWeightSnapshot: number | null;

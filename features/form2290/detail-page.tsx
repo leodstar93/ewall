@@ -73,6 +73,15 @@ type DocumentRow = {
   downloadHref: string;
 };
 
+type FilingVehicleRow = {
+  id: string;
+  unit: string;
+  vin: string;
+  grossWeight: string;
+  taxAmount: string;
+  primary: string;
+};
+
 type TimelineRow = {
   id: string;
   event: string;
@@ -245,6 +254,43 @@ function DocumentsTable({ rows }: { rows: DocumentRow[] }) {
                     </a>
                   </div>
                 </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FilingVehiclesTable({ rows }: { rows: FilingVehicleRow[] }) {
+  return (
+    <div className={tableStyles.tableWrap}>
+      <table className={tableStyles.table}>
+        <thead>
+          <tr>
+            <th>Unit</th>
+            <th>VIN</th>
+            <th>Weight</th>
+            <th>Tax</th>
+            <th>Primary</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={5} className={styles.emptyCell}>
+                No trucks linked to this filing.
+              </td>
+            </tr>
+          ) : (
+            rows.map((row) => (
+              <tr key={row.id}>
+                <td className={tableStyles.nameCell}>{row.unit}</td>
+                <td className={tableStyles.muteCell}>{row.vin}</td>
+                <td className={tableStyles.muteCell}>{row.grossWeight}</td>
+                <td className={tableStyles.muteCell}>{row.taxAmount}</td>
+                <td className={tableStyles.muteCell}>{row.primary}</td>
               </tr>
             ))
           )}
@@ -651,37 +697,33 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     return null;
   }
 
-  const vehicleRows: KeyValueRow[] = [
-    { label: "Unit", value: filing.unitNumberSnapshot || filing.truck.unitNumber || "-" },
-    { label: "VIN", value: filing.vinSnapshot || "-" },
-    {
-      label: "Vehicle",
-      value: [filing.truck.year, filing.truck.make, filing.truck.model].filter(Boolean).join(" ") || "-",
-    },
-    {
-      label: "Gross weight",
-      value: filing.grossWeightSnapshot
-        ? `${filing.grossWeightSnapshot.toLocaleString("en-US")} lbs`
-        : "Not set",
-    },
-    {
-      label: "Taxable gross weight",
-      value: filing.taxableGrossWeightSnapshot
-        ? `${filing.taxableGrossWeightSnapshot.toLocaleString("en-US")} lbs`
-        : "Not set",
-    },
-    { label: "Logging vehicle", value: filing.loggingVehicle === null ? "Not set" : filing.loggingVehicle ? "Yes" : "No" },
-    { label: "Suspended vehicle", value: filing.suspendedVehicle === null ? "Not set" : filing.suspendedVehicle ? "Yes" : "No" },
-    { label: "Tax period", value: filing.taxPeriod.name },
-    {
-      label: "First used",
-      value:
-        filing.firstUsedMonth && filing.firstUsedYear
-          ? `${filing.firstUsedMonth}/${filing.firstUsedYear}`
-          : "Not set",
-    },
-    { label: "Expires", value: formatDateOnly(filing.expiresAt) },
-  ];
+  const filingVehicleRows: FilingVehicleRow[] =
+    filing.vehicles?.length
+      ? filing.vehicles.map((vehicle) => ({
+          id: vehicle.id,
+          unit: vehicle.unitNumberSnapshot || "-",
+          vin: vehicle.vinSnapshot || "-",
+          grossWeight: vehicle.grossWeightSnapshot
+            ? `${vehicle.grossWeightSnapshot.toLocaleString("en-US")} lbs`
+            : "Missing",
+          taxAmount:
+            typeof vehicle.calculatedTaxCents === "number"
+              ? formatCurrency((vehicle.calculatedTaxCents / 100).toFixed(2))
+              : "-",
+          primary: vehicle.isPrimary ? "Yes" : "No",
+        }))
+      : [
+          {
+            id: filing.truckId,
+            unit: filing.unitNumberSnapshot || filing.truck.unitNumber || "-",
+            vin: filing.vinSnapshot || "-",
+            grossWeight: filing.grossWeightSnapshot
+              ? `${filing.grossWeightSnapshot.toLocaleString("en-US")} lbs`
+              : "Missing",
+            taxAmount: formatCurrency(filing.amountDue),
+            primary: "Yes",
+          },
+        ];
 
   const paymentRows: KeyValueRow[] = [
     {
@@ -822,7 +864,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
           <div className={styles.twoUp}>
             <div className={styles.subsection}>
               <SectionTitle eyebrow="Vehicle" title="Vehicle and period" />
-              <KeyValueTable rows={vehicleRows} />
+              <FilingVehiclesTable rows={filingVehicleRows} />
             </div>
             <div className={styles.subsection}>
               <SectionTitle eyebrow="Payment" title="Payment details" />
@@ -938,6 +980,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                 taxPeriodsApiPath={`${props.apiBasePath ?? "/api/v1/features/2290"}/tax-periods`}
                 initialValues={{
                   truckId: filing.truckId,
+                  truckIds: filing.vehicles?.map((vehicle) => vehicle.truckId).filter((id): id is string => Boolean(id)) ?? [filing.truckId],
                   taxPeriodId: filing.taxPeriodId,
                   firstUsedMonth: filing.firstUsedMonth,
                   firstUsedYear: filing.firstUsedYear,

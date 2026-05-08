@@ -37,12 +37,6 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     firstUsedYear: existing.firstUsedYear,
   });
 
-  if (existing.loggingVehicle === null || typeof existing.loggingVehicle === "undefined") {
-    issues.push("Logging vehicle selection is required.");
-  }
-  if (existing.suspendedVehicle === null || typeof existing.suspendedVehicle === "undefined") {
-    issues.push("Suspended vehicle selection is required.");
-  }
   if (!existing.taxableGrossWeightSnapshot) {
     issues.push("Taxable gross weight is required.");
   }
