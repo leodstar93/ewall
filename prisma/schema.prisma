@@ -704,6 +704,12 @@ enum IftaJurisdictionPaymentMethod {
   UNKNOWN
 }
 
+enum IftaAuthorizationStatus {
+  UNSIGNED
+  SIGNED
+  REVOKED
+}
+
 enum UCRFilingStatus {
   DRAFT
   AWAITING_CUSTOMER_PAYMENT
@@ -765,6 +771,12 @@ enum UCRCustomerPaymentStatus {
   FAILED
   REFUNDED
   PARTIALLY_REFUNDED
+}
+
+enum UCRAuthorizationStatus {
+  UNSIGNED
+  SIGNED
+  REVOKED
 }
 
 enum Form2290Status {
@@ -1188,9 +1200,37 @@ model IftaFiling {
   exceptions            IftaException[]
   snapshots             IftaQuarterSnapshot[]
   audits                IftaAuditLog[]
+  authorization         IftaClientAuthorization?
 
   @@unique([tenantId, year, quarter])
   @@index([tenantId, status])
+}
+
+model IftaAdminSetting {
+  id             String   @id @default(cuid())
+  disclosureText String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model IftaClientAuthorization {
+  id             String                  @id @default(cuid())
+  filingId       String                  @unique
+  status         IftaAuthorizationStatus @default(UNSIGNED)
+  signerName     String?
+  signerTitle    String?
+  signatureText  String?                 @db.Text
+  disclosureText String?                 @db.Text
+  signedAt       DateTime?
+  signedByUserId String?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  filing IftaFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([status, signedAt])
 }
 
 model IftaPortalCredential {
@@ -1568,6 +1608,7 @@ model UCRAdminSetting {
   serviceFeeMode        String   @default("FLAT")
   defaultServiceFee     Decimal? @db.Decimal(10, 2)
   defaultProcessingFee  Decimal? @db.Decimal(10, 2)
+  disclosureText        String?  @db.Text
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -1643,6 +1684,7 @@ model UCRFiling {
   events                  UCRFilingEvent[]
   transitions             UCRStatusTransition[]
   customerPaymentAttempts UCRCustomerPaymentAttempt[]
+  authorization           UCRClientAuthorization?
 
   @@unique([userId, filingYear])
   @@index([userId, filingYear])
@@ -1731,6 +1773,26 @@ model UCRWorkItem {
   @@index([filingId])
   @@index([assignedToId])
   @@index([status])
+}
+
+model UCRClientAuthorization {
+  id             String                 @id @default(cuid())
+  filingId       String                 @unique
+  status         UCRAuthorizationStatus @default(UNSIGNED)
+  signerName     String?
+  signerTitle    String?
+  signatureText  String?                @db.Text
+  disclosureText String?                @db.Text
+  signedAt       DateTime?
+  signedByUserId String?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  filing UCRFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@index([status, signedAt])
 }
 
 model UCRFilingEvent {

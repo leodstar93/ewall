@@ -245,6 +245,8 @@ export type FilingDetail = FilingListItem & {
   snapshots: FilingSnapshot[];
   audits: FilingAudit[];
   documents: IftaAutomationDocument[];
+  authorization?: { status: string; signerName: string | null } | null;
+  disclosureText?: string | null;
 };
 
 export type IftaVisibleStatus = UnifiedWorkflowStatus | "NEEDS_ATTENTION";

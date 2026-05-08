@@ -76,6 +76,7 @@ export const iftaAutomationFilingInclude = Prisma.validator<Prisma.IftaFilingInc
   audits: {
     orderBy: [{ createdAt: "desc" }],
   },
+  authorization: true,
 });
 
 export type IftaAutomationFilingDetail = Prisma.IftaFilingGetPayload<{

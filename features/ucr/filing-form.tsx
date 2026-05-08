@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UCRFilingStatus, formatCurrency } from "@/features/ucr/shared";
+import LegalDisclosureModal from "@/components/legal/LegalDisclosureModal";
 
 type UcrFilingFormProps = {
   mode: "create" | "edit";
@@ -10,6 +11,7 @@ type UcrFilingFormProps = {
   apiBasePath?: string;
   currentStatus?: UCRFilingStatus | null;
   detailHrefBase?: string;
+  disclosureText?: string | null;
   initialValues?: {
     year?: number;
     legalName?: string;
@@ -45,6 +47,8 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [disclosureModalOpen, setDisclosureModalOpen] = useState(false);
+  const [pendingSubmitId, setPendingSubmitId] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -95,17 +99,11 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
     };
   }, [year, vehicleCount, props.apiBasePath]);
 
-  async function persist(submitAfterSave: boolean) {
+  async function saveDraft(): Promise<string | null> {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
     try {
-      setBusy(true);
-      setError(null);
-      setMessage(null);
-
-      const payload = {
-        year,
-        vehicleCount,
-      };
-
       const saveResponse = await fetch(
         props.mode === "create"
           ? (props.apiBasePath ?? "/api/v1/features/ucr")
@@ -113,7 +111,7 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
         {
           method: props.mode === "create" ? "POST" : "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ year, vehicleCount }),
         },
       );
       const saveData = (await saveResponse.json().catch(() => ({}))) as {
@@ -121,7 +119,6 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
         error?: string;
         details?: string[];
       };
-
       if (!saveResponse.ok || !saveData.filing) {
         throw new Error(
           [saveData.error, ...(Array.isArray(saveData.details) ? saveData.details : [])]
@@ -129,44 +126,61 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
             .join(" ") || "Could not save the filing.",
         );
       }
-
-      const savedId = saveData.filing.id;
-
-      if (submitAfterSave) {
-        const submitResponse = await fetch(
-          `${props.apiBasePath ?? "/api/v1/features/ucr"}/${savedId}/submit`,
-          { method: "POST" },
-        );
-        const submitData = (await submitResponse.json().catch(() => ({}))) as {
-          error?: string;
-          details?: string[];
-        };
-
-        if (!submitResponse.ok) {
-          throw new Error(
-            [submitData.error, ...(Array.isArray(submitData.details) ? submitData.details : [])]
-              .filter(Boolean)
-              .join(" ") || "Could not submit the filing.",
-          );
-        }
-
-        setMessage("Filing is ready for payment.");
-      } else {
-        setMessage(props.mode === "create" ? "Draft created." : "Draft updated.");
-      }
-
-      props.onSaved?.();
-      router.push(`${props.detailHrefBase ?? "/ucr"}/${savedId}`);
-      router.refresh();
-    } catch (actionError) {
-      setError(
-        actionError instanceof Error
-          ? actionError.message
-          : "The filing action failed.",
-      );
+      return saveData.filing.id;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The filing action failed.");
+      return null;
     } finally {
       setBusy(false);
     }
+  }
+
+  async function persist(submitAfterSave: boolean) {
+    const savedId = await saveDraft();
+    if (!savedId) return;
+
+    if (!submitAfterSave) {
+      setMessage(props.mode === "create" ? "Draft created." : "Draft updated.");
+      props.onSaved?.();
+      router.push(`${props.detailHrefBase ?? "/ucr"}/${savedId}`);
+      router.refresh();
+      return;
+    }
+
+    setPendingSubmitId(savedId);
+    setDisclosureModalOpen(true);
+  }
+
+  async function signAndSubmit(signerData: { signerName: string; signerTitle: string; signatureText: string }) {
+    if (!pendingSubmitId) return;
+    const base = props.apiBasePath ?? "/api/v1/features/ucr";
+
+    const authResponse = await fetch(`${base}/${pendingSubmitId}/authorization`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(signerData),
+    });
+    const authData = (await authResponse.json().catch(() => ({}))) as { error?: string };
+    if (!authResponse.ok) {
+      throw new Error(authData.error || "Could not save your signature.");
+    }
+
+    const submitResponse = await fetch(`${base}/${pendingSubmitId}/submit`, { method: "POST" });
+    const submitData = (await submitResponse.json().catch(() => ({}))) as { error?: string; details?: string[] };
+    if (!submitResponse.ok) {
+      throw new Error(
+        [submitData.error, ...(Array.isArray(submitData.details) ? submitData.details : [])]
+          .filter(Boolean)
+          .join(" ") || "Could not submit the filing.",
+      );
+    }
+
+    setDisclosureModalOpen(false);
+    setPendingSubmitId(null);
+    setMessage("Filing is ready for payment.");
+    props.onSaved?.();
+    router.push(`${props.detailHrefBase ?? "/ucr"}/${pendingSubmitId}`);
+    router.refresh();
   }
 
   const canSubmit =
@@ -280,6 +294,15 @@ export default function UcrFilingForm(props: UcrFilingFormProps) {
           </button>
         ) : null}
       </div>
+
+      {disclosureModalOpen ? (
+        <LegalDisclosureModal
+          module="ucr"
+          disclosureText={props.disclosureText ?? ""}
+          onSign={(signerData) => signAndSubmit(signerData)}
+          onCancel={() => { setDisclosureModalOpen(false); setPendingSubmitId(null); }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1108,6 +1108,18 @@ export class FilingWorkflowService {
       );
     }
 
+    const authorization = await db.iftaClientAuthorization.findUnique({
+      where: { filingId: filing.id },
+      select: { status: true },
+    });
+    if (!authorization || authorization.status !== "SIGNED") {
+      throw new IftaAutomationError(
+        "A signed legal disclosure is required before approving this filing.",
+        409,
+        "DISCLOSURE_NOT_SIGNED",
+      );
+    }
+
     const updated = await db.iftaFiling.update({
       where: { id: filing.id },
       data: {

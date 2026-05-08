@@ -11,6 +11,7 @@ const tabs = [
   { href: "/admin/settings/integrations", label: "Integrations" },
   { href: "/admin/settings/ucr", label: "UCR" },
   { href: "/admin/settings/billing", label: "Billing" },
+  { href: "/admin/settings/ifta", label: "IFTA" },
   { href: "/admin/settings/ifta-tax-rates", label: "IFTA Tax Rates" },
   { href: "/admin/settings/ucr-rates", label: "UCR Rates" },
   { href: "/admin/settings/2290", label: "Form 2290" },

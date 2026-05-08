@@ -881,6 +881,7 @@ async function upsertForm2290Defaults() {
       id: "default-form2290-settings",
       minimumEligibleWeight: 55000,
       expirationWarningDays: 30,
+      authorizationText: FORM_2290_DISCLOSURE_TEXT,
     },
   });
 
@@ -984,6 +985,45 @@ async function upsertDmvFeeRules() {
   }
 }
 
+const UCR_DISCLOSURE_TEXT = `By submitting this Unified Carrier Registration (UCR) filing, I, the undersigned, certify that the information provided is true, accurate, and complete to the best of my knowledge. I understand that submitting false or misleading information in connection with this registration may subject me and/or my company to civil penalties and other sanctions under applicable federal and state law.
+
+I authorize this filing to be submitted on behalf of the carrier identified herein and confirm that I am duly authorized to act on behalf of said carrier. I acknowledge that the UCR registration fees are non-refundable once processed and that it is my responsibility to maintain accurate and current registration information for all qualifying vehicles.
+
+By signing below, I agree to the terms and conditions of the Unified Carrier Registration Agreement and accept full legal responsibility for the accuracy of this submission.`;
+
+const IFTA_DISCLOSURE_TEXT = `By approving this International Fuel Tax Agreement (IFTA) filing, I, the undersigned, certify under penalty of perjury that all information contained in this return, including any accompanying schedules, is true, correct, and complete to the best of my knowledge and belief.
+
+I understand that this filing will be submitted to the applicable base jurisdiction and that inaccurate or fraudulent reporting may result in audits, penalties, interest charges, and potential revocation of my IFTA license. I confirm that the mileage and fuel purchase data reported herein accurately reflects the actual operations of the vehicles covered under this filing.
+
+I am duly authorized to sign and approve this return on behalf of the carrier identified in this filing. By approving, I accept full legal and financial responsibility for the accuracy of the data submitted.`;
+
+const FORM_2290_DISCLOSURE_TEXT = `By submitting this Form 2290 — Heavy Highway Vehicle Use Tax Return — I, the undersigned, declare under penalty of perjury that this return, including any accompanying schedules and statements, is true, correct, and complete to the best of my knowledge and belief.
+
+I understand that this filing will be submitted to the Internal Revenue Service (IRS) and that willful failure to file, pay the applicable tax, or knowingly submitting false information may result in civil and criminal penalties under the Internal Revenue Code. I confirm that the vehicles listed herein are subject to the Heavy Highway Vehicle Use Tax and that the taxable gross weights reported are accurate.
+
+I am authorized to sign and submit this return on behalf of the taxpayer identified herein. By submitting, I authorize the processing of this return and accept full legal responsibility for the accuracy and completeness of all information provided.`;
+
+async function upsertDisclosureTexts() {
+  await prisma.uCRAdminSetting.upsert({
+    where: { id: "default-ucr-settings" },
+    update: {},
+    create: {
+      id: "default-ucr-settings",
+      activeYear: new Date().getFullYear(),
+      disclosureText: UCR_DISCLOSURE_TEXT,
+    },
+  });
+
+  await prisma.iftaAdminSetting.upsert({
+    where: { id: "default-ifta-settings" },
+    update: {},
+    create: {
+      id: "default-ifta-settings",
+      disclosureText: IFTA_DISCLOSURE_TEXT,
+    },
+  });
+}
+
 async function main() {
   console.log("🌱 Seeding RBAC...");
 
@@ -993,6 +1033,7 @@ async function main() {
   await upsertJurisdictions();
   await upsertSampleUcrBrackets();
   await upsertForm2290Defaults();
+  await upsertDisclosureTexts();
   await upsertDmvRequirementTemplates();
   await upsertDmvFeeRules();
   await seedIftaJurisdictionProcedures(prisma);

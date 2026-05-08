@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import LegalDisclosureModal, { type LegalDisclosureSignPayload } from "@/components/legal/LegalDisclosureModal";
 import { toast } from "react-toastify";
 import DashboardTable, {
   type ColumnDef,
@@ -411,6 +413,8 @@ export default function IftaAutomationTruckerFilingPage({
   const [syncDatesModalOpen, setSyncDatesModalOpen] = useState(false);
   const [syncDateStart, setSyncDateStart] = useState("");
   const [syncDateEnd, setSyncDateEnd] = useState("");
+  const [disclosureModalOpen, setDisclosureModalOpen] = useState(false);
+  const [disclosureText, setDisclosureText] = useState<string | null>(null);
 
   function openSyncDatesModal() {
     if (!filing) return;
@@ -433,6 +437,7 @@ export default function IftaAutomationTruckerFilingPage({
         `/api/v1/features/ifta-v2/filings/${filingId}`,
       );
       setFiling(data.filing);
+      setDisclosureText(data.filing.disclosureText ?? null);
       setJurisdictionRows(buildJurisdictionRows(data.filing));
       setEditingRowId(null);
     } catch (error) {
@@ -640,7 +645,7 @@ export default function IftaAutomationTruckerFilingPage({
     }
   }
 
-  async function handleClientApprove() {
+  async function runClientApprove() {
     if (!filing) return;
 
     setBusyAction("client-approve");
@@ -662,6 +667,35 @@ export default function IftaAutomationTruckerFilingPage({
     } finally {
       setBusyAction(null);
     }
+  }
+
+  function handleClientApprove() {
+    if (!filing) return;
+    if (filing.authorization?.status === "SIGNED") {
+      void runClientApprove();
+    } else {
+      setDisclosureModalOpen(true);
+    }
+  }
+
+  async function handleAuthorizeAndApprove(payload: LegalDisclosureSignPayload) {
+    if (!filing) return;
+
+    const response = await fetch(
+      `/api/v1/features/ifta-v2/filings/${filing.id}/authorize`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) {
+      throw new Error(data.error || "Could not save your authorization.");
+    }
+
+    setDisclosureModalOpen(false);
+    await runClientApprove();
   }
 
   async function handleClientRejectApproval() {
@@ -1552,6 +1586,18 @@ export default function IftaAutomationTruckerFilingPage({
           </form>
         </div>
       ) : null}
+
+      {disclosureModalOpen
+        ? createPortal(
+            <LegalDisclosureModal
+              module="ifta"
+              disclosureText={disclosureText ?? ""}
+              onSign={handleAuthorizeAndApprove}
+              onCancel={() => setDisclosureModalOpen(false)}
+            />,
+            document.body,
+          )
+        : null}
     </>
   );
 }

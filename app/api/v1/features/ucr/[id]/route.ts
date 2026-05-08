@@ -234,10 +234,16 @@ export async function GET(
       ? actorNames.get(filing.assignedToStaffId) || "Staff"
       : "Staff";
 
+    const ucrSettings = await prisma.uCRAdminSetting.findFirst({
+      orderBy: { updatedAt: "desc" },
+      select: { disclosureText: true },
+    });
+
     return Response.json({
       filing,
       timeline: canViewAudit ? buildTimeline(filing) : [],
       conversation: buildConversation(filing, actorNames, fallbackStaffName),
+      disclosureText: ucrSettings?.disclosureText ?? null,
       permissions: {
         isOwner,
         canManageAll,

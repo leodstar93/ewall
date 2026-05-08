@@ -52,7 +52,13 @@ export async function GET(
       }
     }
 
-    const documents = await listIftaAutomationDocuments(id, prisma);
+    const [documents, iftaSettings] = await Promise.all([
+      listIftaAutomationDocuments(id, prisma),
+      prisma.iftaAdminSetting.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { disclosureText: true },
+      }),
+    ]);
     const roles = Array.isArray(guard.session.user.roles) ? guard.session.user.roles : [];
     const canViewAudit = canReadAudit(roles, guard.perms);
     const latestSummaryOverrideAudit = await prisma.iftaAuditLog.findFirst({
@@ -76,6 +82,7 @@ export async function GET(
         documents,
         manualSummaryOverrideActive:
           latestSummaryOverrideAudit?.action === "filing.jurisdiction_summary.replace",
+        disclosureText: iftaSettings?.disclosureText ?? null,
       },
     });
   } catch (error) {

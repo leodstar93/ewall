@@ -21,6 +21,7 @@ import {
   canManageAll2290,
   compute2290Compliance,
   Form2290ServiceError,
+  getForm2290Settings,
 } from "@/services/form2290/shared";
 
 type Update2290FilingBody = {
@@ -93,17 +94,21 @@ export async function GET(
     });
 
     const isOwner = filing.userId === guard.session.user.id;
-    const compliance = compute2290Compliance({
-      status: filing.status,
-      paymentStatus: filing.paymentStatus,
-      schedule1DocumentId: filing.schedule1DocumentId,
-      expiresAt: filing.expiresAt,
-      taxPeriodEndDate: filing.taxPeriod.endDate,
-    });
+    const [compliance, settings] = await Promise.all([
+      Promise.resolve(compute2290Compliance({
+        status: filing.status,
+        paymentStatus: filing.paymentStatus,
+        schedule1DocumentId: filing.schedule1DocumentId,
+        expiresAt: filing.expiresAt,
+        taxPeriodEndDate: filing.taxPeriod.endDate,
+      })),
+      getForm2290Settings(),
+    ]);
 
     return Response.json({
       filing,
       compliance,
+      disclosureText: settings.authorizationText ?? null,
       permissions: {
         isOwner,
         canManageAll,

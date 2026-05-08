@@ -21,6 +21,7 @@ import {
 type DetailPayload = {
   filing: UcrFiling;
   timeline: UcrTimelineItem[];
+  disclosureText: string | null;
   permissions: {
     isOwner: boolean;
     canManageAll: boolean;
@@ -321,6 +322,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
           apiBasePath="/api/v1/features/ucr"
           currentStatus={filing.status}
           detailHrefBase={props.detailHrefBase}
+          disclosureText={payload?.disclosureText ?? null}
           initialValues={{
             year: filing.year,
             legalName: filing.legalName,

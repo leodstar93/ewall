@@ -11,6 +11,7 @@ import styles from "@/app/(v2)/(protected)/dashboard/ucr/[id]/ucr-detail.module.
 import form2290Styles from "@/features/form2290/detail-page.module.css";
 import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import Form2290FilingForm from "@/features/form2290/filing-form";
+import LegalDisclosureModal from "@/components/legal/LegalDisclosureModal";
 import {
   complianceClasses,
   complianceLabel,
@@ -33,6 +34,7 @@ type DetailPayload = {
     compliant: boolean;
     expired: boolean;
   };
+  disclosureText: string | null;
   permissions: {
     isOwner: boolean;
     canManageAll: boolean;
@@ -345,6 +347,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
   const [achModalOpen, setAchModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
+  const [disclosureModalOpen, setDisclosureModalOpen] = useState(false);
   const [schedule1File, setSchedule1File] = useState<File | null>(null);
   const schedule1InputRef = useRef<HTMLInputElement | null>(null);
 
@@ -653,6 +656,31 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     }
   }
 
+  async function signAuthorization(signerData: { signerName: string; signerTitle: string; signatureText: string }) {
+    const base = props.apiBasePath ?? "/api/v1/features/2290";
+    const response = await fetch(`${base}/${props.filingId}/authorization`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(signerData),
+    });
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) {
+      throw new Error(data.error || "Could not save your signature.");
+    }
+    setDisclosureModalOpen(false);
+    await load({ showLoading: false });
+    await runAction("submit");
+  }
+
+  function handleSubmitClick() {
+    const authorization = payload?.filing.authorization;
+    if (authorization?.status === "SIGNED") {
+      void runAction("submit");
+    } else {
+      setDisclosureModalOpen(true);
+    }
+  }
+
   const filing = payload?.filing ?? null;
   const permissions = payload?.permissions ?? null;
 
@@ -790,7 +818,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
               {props.mode === "driver" && permissions.canSubmit ? (
                 <button
                   type="button"
-                  onClick={() => void runAction("submit")}
+                  onClick={handleSubmitClick}
                   disabled={busyAction === "submit"}
                   className={styles.primaryButton}
                 >
@@ -1138,6 +1166,18 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                 </div>
               </div>
             </div>,
+            document.body,
+          )
+        : null}
+
+      {disclosureModalOpen && permissions.canAuthorize
+        ? createPortal(
+            <LegalDisclosureModal
+              module="2290"
+              disclosureText={payload?.disclosureText ?? ""}
+              onSign={(signerData) => signAuthorization(signerData)}
+              onCancel={() => setDisclosureModalOpen(false)}
+            />,
             document.body,
           )
         : null}

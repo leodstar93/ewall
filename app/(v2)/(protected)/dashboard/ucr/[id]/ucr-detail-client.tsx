@@ -28,6 +28,7 @@ type DetailPayload = {
   filing: UcrFiling;
   timeline: UcrTimelineItem[];
   conversation: ConversationMessage[];
+  disclosureText: string | null;
   permissions: {
     isOwner: boolean;
     canManageAll: boolean;
@@ -727,6 +728,7 @@ export default function UcrDetailClient({ filingId }: Props) {
               apiBasePath="/api/v1/features/ucr"
               currentStatus={filing.status}
               detailHrefBase="/dashboard/ucr"
+              disclosureText={payload?.disclosureText ?? null}
               initialValues={{
                 year: filing.year,
                 legalName: filing.legalName,

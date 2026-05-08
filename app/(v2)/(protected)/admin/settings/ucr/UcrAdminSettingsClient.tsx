@@ -11,6 +11,7 @@ type UcrAdminSetting = {
   serviceFeeMode: string;
   defaultServiceFee: string | null;
   defaultProcessingFee: string | null;
+  disclosureText: string | null;
 };
 
 const inputStyle: React.CSSProperties = {
@@ -177,6 +178,17 @@ export default function UcrAdminSettingsClient() {
                   onChange={(e) => setSettings((c) => c ? { ...c, allowCustomerCheckout: e.target.checked } : c)}
                 />
                 <span style={{ fontSize: 13, color: "var(--b)", fontWeight: 500 }}>Allow customer checkout</span>
+              </label>
+
+              <label style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+                <FieldLabel>Client disclosure text</FieldLabel>
+                <textarea
+                  value={settings.disclosureText ?? ""}
+                  onChange={(e) => setSettings((c) => c ? { ...c, disclosureText: e.target.value || null } : c)}
+                  rows={6}
+                  placeholder="Enter the legal disclosure statement shown to clients before they submit their UCR filing..."
+                  style={{ ...inputStyle, resize: "vertical" }}
+                />
               </label>
             </div>
 

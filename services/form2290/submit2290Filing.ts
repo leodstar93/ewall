@@ -61,6 +61,18 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     );
   }
 
+  const authorization = await db.form2290ClientAuthorization.findUnique({
+    where: { filingId: existing.id },
+    select: { status: true },
+  });
+  if (!authorization || authorization.status !== "SIGNED") {
+    throw new Form2290ServiceError(
+      "A signed legal disclosure is required before submitting this filing.",
+      409,
+      "DISCLOSURE_NOT_SIGNED",
+    );
+  }
+
   const settings = await getForm2290Settings(db);
   if (!settings.enabled) {
     throw new Form2290ServiceError(

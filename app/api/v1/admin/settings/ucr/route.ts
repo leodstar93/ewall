@@ -10,6 +10,7 @@ type UcrSettingsBody = {
   serviceFeeMode?: unknown;
   defaultServiceFee?: unknown;
   defaultProcessingFee?: unknown;
+  disclosureText?: unknown;
 };
 
 function parseOptionalMoney(value: unknown) {
@@ -79,6 +80,12 @@ export async function PATCH(request: NextRequest) {
         parseOptionalMoney(body.defaultProcessingFee) === null
           ? null
           : parseOptionalMoney(body.defaultProcessingFee),
+      disclosureText:
+        typeof body.disclosureText === "undefined"
+          ? settings.disclosureText
+          : typeof body.disclosureText === "string"
+            ? body.disclosureText.trim() || null
+            : null,
     },
   });
 

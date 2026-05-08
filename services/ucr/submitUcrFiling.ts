@@ -59,6 +59,18 @@ export async function submitUcrFiling(
     );
   }
 
+  const authorization = await db.uCRClientAuthorization.findUnique({
+    where: { filingId: input.filingId },
+    select: { status: true },
+  });
+  if (!authorization || authorization.status !== "SIGNED") {
+    throw new UcrServiceError(
+      "A signed legal disclosure is required before submitting this filing.",
+      409,
+      "DISCLOSURE_NOT_SIGNED",
+    );
+  }
+
   const issues = validateFilingCompleteness({
     year: filing.year,
     legalName: filing.legalName,
