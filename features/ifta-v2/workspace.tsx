@@ -656,8 +656,11 @@ export function IftaWorkspace({ mode }: IftaWorkspaceProps) {
       toast.success(`Filing ${filingPeriodLabel(data.filing)} is ready in the workspace.`);
       await refreshWorkspace({ preferredFilingId: data.filing.id });
     } catch (error) {
-      if ((error as Error & { code?: string }).code === "IFTA_ELD_REQUIRED") {
+      const code = (error as Error & { code?: string }).code;
+      if (code === "IFTA_ELD_REQUIRED") {
         toast.error("An ELD provider must be connected before creating a filing. Use the ELD Connection panel above.");
+      } else if (code === "IFTA_JURISDICTION_INACTIVE") {
+        toast.error(getErrorMessage(error, "IFTA filings are not available for your base state. Please contact support."));
       } else {
         toast.error(getErrorMessage(error, "Could not create the IFTA filing."));
       }

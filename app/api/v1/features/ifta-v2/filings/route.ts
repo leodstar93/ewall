@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { buildFilingWhere, canReviewAllIfta, getActorTenant } from "@/services/ifta-automation/access";
 import { CanonicalNormalizationService } from "@/services/ifta-automation/canonical-normalization.service";
-import { getCurrentQuarter } from "@/services/ifta-automation/shared";
+import { getCurrentQuarter, normalizeJurisdictionCode } from "@/services/ifta-automation/shared";
 import { handleIftaAutomationError, parseProvider } from "@/services/ifta-automation/http";
 import { ProviderConnectionService } from "@/services/ifta-automation/provider-connection.service";
 import { ensureStaffDisplayNameForUser } from "@/lib/services/staff-display-name.service";
@@ -119,6 +119,28 @@ export async function POST(request: Request) {
         : currentQuarter.quarter;
     const provider = typeof body.provider === "undefined" ? null : parseProvider(body.provider);
     const tenant = await getActorTenant(userId);
+
+    const companyState = await prisma.companyProfile.findUnique({
+      where: { id: tenant.id },
+      select: { state: true },
+    });
+    const baseJurisdiction = normalizeJurisdictionCode(companyState?.state);
+    if (baseJurisdiction) {
+      const procedure = await prisma.iftaJurisdictionProcedure.findUnique({
+        where: { jurisdiction: baseJurisdiction },
+        select: { isActive: true },
+      });
+      if (procedure && !procedure.isActive) {
+        return Response.json(
+          {
+            error: `IFTA filings are not currently available for your base state (${baseJurisdiction}). Please contact support.`,
+            code: "IFTA_JURISDICTION_INACTIVE",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const existingFiling = await prisma.iftaFiling.findUnique({
       where: {
         tenantId_year_quarter: {
