@@ -28,8 +28,39 @@
   box-shadow: none;
 }
 
+.achModalOverlay {
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.achModalCard {
+  width: min(1180px, 100%);
+  max-width: 1180px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.achModalBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.achModalBody > section {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
 @media (max-width: 640px) {
   .editModalOverlay {
+    padding: 12px;
+  }
+
+  .achModalOverlay {
     padding: 12px;
   }
 
@@ -37,5 +68,9 @@
     max-height: calc(100vh - 24px);
     height: calc(100vh - 24px);
     padding: 14px;
+  }
+
+  .achModalCard {
+    max-height: calc(100vh - 24px);
   }
 }

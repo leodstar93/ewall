@@ -7,6 +7,7 @@ import {
   ACH_PAYMENT_PROVIDER,
   ACH_PAYMENT_TYPE,
   FILING_PAYMENT_USAGE_STATUSES,
+  FILING_TYPES,
   FINANCIAL_AUDIT_ACTIONS,
   FINANCIAL_AUDIT_RESOURCES,
   type FilingPaymentUsageStatus,
@@ -31,6 +32,7 @@ import {
   normalizeRevealReason,
 } from "@/lib/ach/validation";
 import { ensureUserOrganization, getUserOrganizationId } from "@/lib/services/organization.service";
+import { mark2290PaymentReceived } from "@/services/form2290/filing-workflow.service";
 
 const ACTIVE_ACH_METHOD_STATUSES = [
   ACH_PAYMENT_METHOD_STATUSES.ACTIVE,
@@ -871,6 +873,13 @@ async function updateFilingPaymentUsage(
     throw new AchServiceError("Filing payment usage not found.", 404);
   }
 
+  if (
+    usage.status === FILING_PAYMENT_USAGE_STATUSES.PAID &&
+    status === FILING_PAYMENT_USAGE_STATUSES.PAID
+  ) {
+    return formatFilingPaymentUsage(usage);
+  }
+
   const paymentDate =
     status === FILING_PAYMENT_USAGE_STATUSES.PAID
       ? payload.paymentDate
@@ -940,6 +949,19 @@ async function updateFilingPaymentUsage(
     targetUserId: filing.userId,
     userAgent: requestMetadata.userAgent,
   });
+
+  if (
+    filingType === FILING_TYPES.FORM2290 &&
+    status === FILING_PAYMENT_USAGE_STATUSES.PAID
+  ) {
+    await mark2290PaymentReceived({
+      filingId,
+      actorUserId,
+      canManageAll: true,
+      paidAmount: updatedUsage.amount?.toString() ?? null,
+      paymentReference: updatedUsage.confirmationNumber,
+    });
+  }
 
   return formatFilingPaymentUsage(updatedUsage);
 }

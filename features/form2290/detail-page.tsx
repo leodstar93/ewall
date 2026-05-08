@@ -9,6 +9,7 @@ import { toast } from "react-toastify";
 import tableStyles from "@/app/(v2)/(protected)/dashboard/components/ui/DataTable.module.css";
 import styles from "@/app/(v2)/(protected)/dashboard/ucr/[id]/ucr-detail.module.css";
 import form2290Styles from "@/features/form2290/detail-page.module.css";
+import StaffFilingPaymentPanel from "@/components/ach/StaffFilingPaymentPanel";
 import Form2290FilingForm from "@/features/form2290/filing-form";
 import {
   complianceClasses,
@@ -161,7 +162,6 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 const ACTION_SUCCESS_MESSAGES: Record<string, string> = {
   submit: "Filing submitted for review.",
-  "mark-paid": "Payment confirmed.",
   claim: "Filing assigned to you.",
   "start-review": "Review started.",
   "mark-ready-to-file": "Marked ready to file.",
@@ -301,13 +301,13 @@ export default function Form2290DetailPage(props: DetailPageProps) {
 
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [achModalOpen, setAchModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [finalizeModalOpen, setFinalizeModalOpen] = useState(false);
   const [schedule1File, setSchedule1File] = useState<File | null>(null);
   const schedule1InputRef = useRef<HTMLInputElement | null>(null);
 
   const [correctionMessage, setCorrectionMessage] = useState("");
-  const [amountDue, setAmountDue] = useState("");
   const [paidAt, setPaidAt] = useState("");
 
   const detailHrefBase =
@@ -335,7 +335,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       }
 
       setPayload(data);
-      setAmountDue(data.filing.amountDue ?? "");
       setPaidAt(
         data.filing.paidAt
           ? new Date(data.filing.paidAt).toISOString().slice(0, 10)
@@ -460,7 +459,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     endpoint:
       | "submit"
       | "request-correction"
-      | "mark-paid"
       | "claim"
       | "start-review"
       | "mark-ready-to-file"
@@ -475,8 +473,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       setBusyAction(endpoint);
       const base =
         props.mode === "staff" &&
-        endpoint !== "submit" &&
-        endpoint !== "mark-paid"
+        endpoint !== "submit"
           ? "/api/v1/admin/2290"
           : (props.apiBasePath ?? "/api/v1/features/2290");
       const response = await fetch(`${base}/${props.filingId}/${endpoint}`, {
@@ -485,10 +482,23 @@ export default function Form2290DetailPage(props: DetailPageProps) {
         body: JSON.stringify(body ?? {}),
       });
       const data = (await response.json().catch(() => ({}))) as {
+        code?: string;
         error?: string;
         details?: string[];
       };
       if (!response.ok) {
+        if (endpoint === "submit" && data.code === "ACH_PAYMENT_METHOD_REQUIRED") {
+          toast.error(
+            <span>
+              {data.error || "An active, authorized ACH payment method is required."}{" "}
+              <Link href="/dashboard/payments" className={styles.inlineLink}>
+                Add ACH payment method
+              </Link>
+            </span>,
+          );
+          return;
+        }
+
         throw new Error(
           [data.error, ...(Array.isArray(data.details) ? data.details : [])]
             .filter(Boolean)
@@ -754,20 +764,6 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   {busyAction === "delete" ? "Deleting..." : "Delete filing"}
                 </button>
               ) : null}
-              {props.mode === "driver" && permissions.canMarkPaid ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void runAction("mark-paid", {
-                      amountDue: filing.customerBalanceDue || amountDue || undefined,
-                    })
-                  }
-                  disabled={busyAction === "mark-paid"}
-                  className={styles.primaryButton}
-                >
-                  {busyAction === "mark-paid" ? "Working..." : "Pay now"}
-                </button>
-              ) : null}
               {props.mode === "driver" && permissions.canSubmit ? (
                 <button
                   type="button"
@@ -797,6 +793,13 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                     className={styles.secondaryButton}
                   >
                     Assign to me
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAchModalOpen(true)}
+                    className={styles.secondaryButton}
+                  >
+                    AHC Info
                   </button>
                   {permissions.canRequestCorrection ? (
                     <button
@@ -1012,6 +1015,42 @@ export default function Form2290DetailPage(props: DetailPageProps) {
           </div>
         </div>
       ) : null}
+
+      {achModalOpen && props.mode === "staff" && permissions.canStaffWorkflow
+        ? createPortal(
+            <div
+              className={`${styles.modalOverlay} ${form2290Styles.achModalOverlay}`}
+              onClick={() => setAchModalOpen(false)}
+            >
+              <div
+                className={`${styles.modalCard} ${form2290Styles.achModalCard}`}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className={styles.modalHeader}>
+                  <div>
+                    <p className={styles.eyebrow}>AHC Info</p>
+                    <h2 className={styles.sectionTitle}>ACH Manual Payment</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() => setAchModalOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className={form2290Styles.achModalBody}>
+                  <StaffFilingPaymentPanel
+                    filingId={filing.id}
+                    filingType="form2290"
+                    showManualTracking={false}
+                  />
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
 
       {finalizeModalOpen
         ? createPortal(

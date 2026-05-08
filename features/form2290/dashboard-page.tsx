@@ -109,7 +109,7 @@ function visibleStatusFor2290Filing(filing: Form2290Filing): Form2290VisibleStat
 function customerActionLabel(filing: Form2290Filing) {
   switch (visibleStatusFor2290Filing(filing)) {
     case "DRAFT":
-      return "Pay filing";
+      return "Submit filing";
     case "PAID":
       return "Submit filing";
     case "SUBMITTED":
@@ -126,7 +126,7 @@ function customerActionLabel(filing: Form2290Filing) {
 }
 
 function canDeleteForm2290Filing(filing: Form2290Filing) {
-  return filing.status === "DRAFT" || filing.paymentStatus === "UNPAID";
+  return filing.status === "DRAFT";
 }
 
 function visibleStatusLabel(status: Form2290VisibleStatus) {

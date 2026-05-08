@@ -10,6 +10,7 @@ import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Swal from "sweetalert2";
+import { ACH_CONSENT_TEXT, ACH_CONSENT_VERSION } from "@/lib/ach/consent";
 import Table, { type ColumnDef } from "../components/ui/Table";
 import tableStyles from "../components/ui/DataTable.module.css";
 import styles from "./page.module.css";
@@ -51,6 +52,26 @@ type PaymentTableRow = PaymentMethod & {
   searchText: string;
   sortCreatedAt: number;
   sortProvider: string;
+};
+
+type AchFormState = {
+  accountNumber: string;
+  accountType: "checking" | "savings";
+  bankName: string;
+  confirmAccountNumber: string;
+  holderName: string;
+  label: string;
+  routingNumber: string;
+};
+
+const emptyAchForm: AchFormState = {
+  accountNumber: "",
+  accountType: "checking",
+  bankName: "",
+  confirmAccountNumber: "",
+  holderName: "",
+  label: "",
+  routingNumber: "",
 };
 
 const cardElementOptions = {
@@ -292,6 +313,201 @@ function StripeCardSetupForm({
   );
 }
 
+function AchSetupForm({
+  onSaved,
+  onError,
+}: {
+  onSaved: () => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [form, setForm] = useState<AchFormState>(emptyAchForm);
+  const [accepted, setAccepted] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState("");
+
+  const updateField = <K extends keyof AchFormState>(
+    key: K,
+    value: AchFormState[K],
+  ) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleSaveAch = async () => {
+    if (!accepted) {
+      const message = "ACH authorization is required before saving this bank account.";
+      setLocalError(message);
+      onError(message);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setLocalError("");
+
+      const createResponse = await fetch("/api/v1/payment-methods/ach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const created = (await createResponse.json().catch(() => ({}))) as
+        | PaymentMethod
+        | { error?: string };
+
+      if (!createResponse.ok || !("id" in created)) {
+        throw new Error(
+          "error" in created && created.error
+            ? created.error
+            : "ACH payment method could not be saved.",
+        );
+      }
+
+      const authorizeResponse = await fetch(
+        `/api/v1/payment-methods/ach/${created.id}/authorize`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            consentText: ACH_CONSENT_TEXT,
+            consentVersion: ACH_CONSENT_VERSION,
+          }),
+        },
+      );
+      const authorized = (await authorizeResponse.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!authorizeResponse.ok) {
+        throw new Error(authorized.error || "ACH authorization could not be recorded.");
+      }
+
+      setForm(emptyAchForm);
+      setAccepted(false);
+      await onSaved();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "ACH payment method could not be saved.";
+      setLocalError(message);
+      onError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.panelHeader}>
+        <p className={styles.sectionEyebrow}>ACH</p>
+        <h3 className={styles.panelTitle}>Save bank account</h3>
+        <p className={styles.sectionText}>
+          Add the bank account staff can use for Form 2290 government portal payments.
+        </p>
+      </div>
+
+      <div className={styles.formGrid}>
+        <label className={styles.fieldBlock}>
+          <span className={styles.fieldLabel}>Bank name</span>
+          <input
+            value={form.bankName}
+            onChange={(event) => updateField("bankName", event.target.value)}
+            className={styles.textInput}
+            placeholder="Bank of America"
+          />
+        </label>
+
+        <label className={styles.fieldBlock}>
+          <span className={styles.fieldLabel}>Account holder</span>
+          <input
+            value={form.holderName}
+            onChange={(event) => updateField("holderName", event.target.value)}
+            className={styles.textInput}
+            placeholder="Company legal name"
+          />
+        </label>
+
+        <label className={styles.fieldBlock}>
+          <span className={styles.fieldLabel}>Routing number</span>
+          <input
+            inputMode="numeric"
+            value={form.routingNumber}
+            onChange={(event) => updateField("routingNumber", event.target.value)}
+            className={styles.textInput}
+            placeholder="9 digits"
+          />
+        </label>
+
+        <label className={styles.fieldBlock}>
+          <span className={styles.fieldLabel}>Account type</span>
+          <select
+            value={form.accountType}
+            onChange={(event) =>
+              updateField("accountType", event.target.value as AchFormState["accountType"])
+            }
+            className={styles.textInput}
+          >
+            <option value="checking">Checking</option>
+            <option value="savings">Savings</option>
+          </select>
+        </label>
+
+        <label className={styles.fieldBlock}>
+          <span className={styles.fieldLabel}>Account number</span>
+          <input
+            inputMode="numeric"
+            type="password"
+            value={form.accountNumber}
+            onChange={(event) => updateField("accountNumber", event.target.value)}
+            className={styles.textInput}
+            placeholder="4 to 17 digits"
+          />
+        </label>
+
+        <label className={styles.fieldBlock}>
+          <span className={styles.fieldLabel}>Confirm account number</span>
+          <input
+            inputMode="numeric"
+            type="password"
+            value={form.confirmAccountNumber}
+            onChange={(event) => updateField("confirmAccountNumber", event.target.value)}
+            className={styles.textInput}
+            placeholder="Re-enter account number"
+          />
+        </label>
+
+        <label className={`${styles.fieldBlock} ${styles.fullSpan}`}>
+          <span className={styles.fieldLabel}>Label</span>
+          <input
+            value={form.label}
+            onChange={(event) => updateField("label", event.target.value)}
+            className={styles.textInput}
+            placeholder="Main operating account"
+          />
+        </label>
+      </div>
+
+      <label className={styles.checkboxRow}>
+        <input
+          type="checkbox"
+          checked={accepted}
+          onChange={(event) => setAccepted(event.target.checked)}
+          className={styles.checkbox}
+        />
+        <span className={styles.checkboxText}>{ACH_CONSENT_TEXT}</span>
+      </label>
+
+      {localError ? <Banner tone="error" message={localError} /> : null}
+
+      <button
+        type="button"
+        onClick={() => void handleSaveAch()}
+        className={styles.primaryButton}
+        disabled={saving}
+      >
+        {saving ? "Saving ACH..." : "Save and activate ACH"}
+      </button>
+    </section>
+  );
+}
+
 export default function PaymentsPageClient() {
   const router = useRouter();
   const pathname = usePathname();
@@ -303,6 +519,7 @@ export default function PaymentsPageClient() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState("");
   const [defaultingId, setDefaultingId] = useState("");
+  const [authorizingId, setAuthorizingId] = useState("");
   const [startingPayPal, setStartingPayPal] = useState(false);
   const [savingPayPal, setSavingPayPal] = useState(false);
   const [makeDefault, setMakeDefault] = useState(true);
@@ -517,6 +734,40 @@ export default function PaymentsPageClient() {
     }
   };
 
+  const handleAuthorizeAch = async (id: string) => {
+    try {
+      setAuthorizingId(id);
+      setBanner(null);
+
+      const response = await fetch(`/api/v1/payment-methods/ach/${id}/authorize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          consentText: ACH_CONSENT_TEXT,
+          consentVersion: ACH_CONSENT_VERSION,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to authorize ACH payment method.");
+      }
+
+      await loadData();
+      setBanner({ tone: "success", message: "ACH payment method activated." });
+    } catch (error) {
+      setBanner({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to authorize ACH payment method.",
+      });
+    } finally {
+      setAuthorizingId("");
+    }
+  };
+
   const handlePayPalStart = async () => {
     try {
       setStartingPayPal(true);
@@ -617,6 +868,16 @@ export default function PaymentsPageClient() {
       sortable: false,
       render: (_, item) => (
         <div className={styles.tableActionRow}>
+          {isAchMethod(item) && item.status === "pending_authorization" ? (
+            <button
+              type="button"
+              onClick={() => void handleAuthorizeAch(item.id)}
+              disabled={authorizingId === item.id}
+              className={styles.primaryButton}
+            >
+              {authorizingId === item.id ? "Activating..." : "Authorize"}
+            </button>
+          ) : null}
           {!item.isDefault && !isAchMethod(item) ? (
             <button
               type="button"
@@ -637,7 +898,9 @@ export default function PaymentsPageClient() {
               ? isAchMethod(item)
                 ? "Revoking..."
                 : "Deleting..."
-              : "Delete"}
+              : isAchMethod(item)
+                ? "Revoke"
+                : "Delete"}
           </button>
         </div>
       ),
@@ -714,6 +977,14 @@ export default function PaymentsPageClient() {
               />
             </section>
           )}
+
+          <AchSetupForm
+            onSaved={async () => {
+              await loadData();
+              setBanner({ tone: "success", message: "ACH payment method saved and activated." });
+            }}
+            onError={(message) => setBanner({ tone: "error", message })}
+          />
         </div>
 
         {loading ? (

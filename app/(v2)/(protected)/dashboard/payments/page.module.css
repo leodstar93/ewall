@@ -23,7 +23,7 @@
 .topGrid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
 }
 
@@ -157,6 +157,45 @@
   padding: 16px;
 }
 
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fieldBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fullSpan {
+  grid-column: 1 / -1;
+}
+
+.fieldLabel {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.textInput {
+  min-height: 40px;
+  border: 1px solid var(--br);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  padding: 0 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.textInput:focus {
+  border-color: var(--b);
+  box-shadow: 0 0 0 3px rgba(0, 40, 104, 0.12);
+}
+
 .loadingLine {
   height: 22px;
   width: 42%;
@@ -273,6 +312,10 @@
 
   .tableActionRow {
     justify-content: flex-start;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
   }
 
   .primaryButton,

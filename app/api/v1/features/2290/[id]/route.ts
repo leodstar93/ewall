@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import {
   canDelete2290Filing,
   canEdit2290Filing,
-  canMark2290Paid,
   canSubmit2290Filing,
   canUpload2290Schedule1,
 } from "@/lib/form2290-workflow";
@@ -95,10 +94,7 @@ export async function GET(
         canSubmit: (isOwner || canManageAll) && canSubmit2290Filing(filing.status),
         canMarkSubmitted: false,
         canRequestCorrection: isOwner || canManageAll,
-        canMarkPaid:
-          (isOwner || canManageAll) &&
-          canMark2290Paid(filing.status) &&
-          Number(filing.customerBalanceDue ?? filing.amountDue ?? 0) > 0,
+        canMarkPaid: false,
         canUploadSchedule1:
           (isOwner || canManageAll) && canUpload2290Schedule1(filing.status),
         canUploadDocuments: isOwner || canManageAll,

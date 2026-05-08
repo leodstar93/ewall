@@ -77,6 +77,13 @@ export async function create2290Filing(input: Create2290FilingInput) {
   const defaultPaymentMethod = await db.paymentMethod.findFirst({
     where: {
       status: "active",
+      provider: "ach_vault",
+      type: "ach_vault",
+      authorizations: {
+        some: {
+          status: "active",
+        },
+      },
       isDefault: true,
       OR: [{ userId: truck.userId }, ...(organizationId ? [{ organizationId }] : [])],
     },

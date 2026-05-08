@@ -17,6 +17,11 @@ import {
   notify2290WorkflowUpdated,
 } from "@/services/form2290/notifications";
 import {
+  build2290PaymentAccountingUpdate,
+  decimalFromMoney,
+  get2290PaymentAccounting,
+} from "@/services/form2290/payment-accounting";
+import {
   assert2290FilingAccess,
   Form2290ServiceError,
   form2290FilingInclude,
@@ -183,6 +188,7 @@ export async function mark2290ReadyToFile(input: WorkflowInput) {
 export async function mark2290PaymentReceived(
   input: WorkflowInput & {
     amountDue?: string | null;
+    paidAmount?: string | null;
     paymentReference?: string | null;
   },
 ) {
@@ -191,16 +197,36 @@ export async function mark2290PaymentReceived(
   const now = new Date();
 
   const filing = await db.$transaction(async (tx) => {
+    const currentAccounting = get2290PaymentAccounting({
+      amountDue: existing.amountDue,
+      serviceFeeAmount: existing.serviceFeeAmount,
+      paymentStatus: existing.paymentStatus,
+      customerPaidAmount: existing.customerPaidAmount,
+    });
+    const receivedAmount =
+      typeof input.paidAmount === "string" && input.paidAmount.trim()
+        ? Number(input.paidAmount)
+        : typeof input.amountDue === "string" && input.amountDue.trim()
+          ? Number(input.amountDue)
+          : currentAccounting.balanceDue || currentAccounting.totalAmount;
+    const nextPaidAmount = Number(
+      (currentAccounting.paidAmount + receivedAmount).toFixed(2),
+    );
+    const nextAccounting = build2290PaymentAccountingUpdate({
+      amountDue: existing.amountDue,
+      serviceFeeAmount: existing.serviceFeeAmount,
+      paymentStatus: Form2290PaymentStatus.RECEIVED,
+      customerPaidAmount: nextPaidAmount,
+    });
     const next = await tx.form2290Filing.update({
       where: { id: existing.id },
       data: {
-        paymentStatus: Form2290PaymentStatus.RECEIVED,
+        paymentStatus: nextAccounting.paymentStatus,
         paymentReceivedAt: now,
         paidAt: now,
-        amountDue:
-          typeof input.amountDue === "string" && input.amountDue.trim()
-            ? new Prisma.Decimal(input.amountDue)
-            : existing.amountDue,
+        customerPaidAmount: decimalFromMoney(nextPaidAmount),
+        customerBalanceDue: decimalFromMoney(nextAccounting.balanceDue),
+        customerCreditAmount: decimalFromMoney(nextAccounting.creditAmount),
         paymentReference: input.paymentReference?.trim() || existing.paymentReference,
       },
       include: form2290FilingInclude,
@@ -212,6 +238,10 @@ export async function mark2290PaymentReceived(
       action: "PAYMENT_RECEIVED",
       metaJson: {
         amountDue: input.amountDue ?? undefined,
+        paidAmount: receivedAmount,
+        customerPaidAmount: nextPaidAmount,
+        customerBalanceDue: nextAccounting.balanceDue,
+        customerCreditAmount: nextAccounting.creditAmount,
         paymentReference: input.paymentReference ?? undefined,
       } satisfies Prisma.InputJsonValue,
     });

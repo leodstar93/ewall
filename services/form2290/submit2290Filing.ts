@@ -3,7 +3,6 @@ import { canSubmit2290Filing } from "@/lib/form2290-workflow";
 import { prisma } from "@/lib/prisma";
 import type { DbClient } from "@/lib/db/types";
 import { notify2290Submitted } from "@/services/form2290/notifications";
-import { get2290PaymentAccounting } from "@/services/form2290/payment-accounting";
 import {
   assert2290FilingAccess,
   ensure2290Completeness,
@@ -68,20 +67,6 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     );
   }
 
-  const paymentAccounting = get2290PaymentAccounting({
-    amountDue: existing.amountDue,
-    serviceFeeAmount: existing.serviceFeeAmount,
-    paymentStatus: existing.paymentStatus,
-    customerPaidAmount: existing.customerPaidAmount,
-  });
-  if (paymentAccounting.balanceDue > 0) {
-    throw new Form2290ServiceError(
-      `An additional payment of $${paymentAccounting.balanceDue.toFixed(2)} is required before submitting this Form 2290 filing.`,
-      409,
-      "ADDITIONAL_PAYMENT_REQUIRED",
-    );
-  }
-
   const settings = await getForm2290Settings(db);
   if (!settings.enabled) {
     throw new Form2290ServiceError(
@@ -95,9 +80,16 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
     (await resolve2290OrganizationId({ db, userId: existing.userId }));
   const paymentMethodWhere = {
     status: "active",
+    provider: "ach_vault",
+    type: "ach_vault",
+    authorizations: {
+      some: {
+        status: "active",
+      },
+    },
     OR: [{ userId: existing.userId }, ...(organizationId ? [{ organizationId }] : [])],
   };
-  const defaultPaymentMethod = existing.defaultPaymentMethodId
+  const preferredPaymentMethod = existing.defaultPaymentMethodId
     ? await db.paymentMethod.findFirst({
         where: {
           ...paymentMethodWhere,
@@ -105,30 +97,28 @@ export async function submit2290Filing(input: Submit2290FilingInput) {
         },
         select: { id: true },
       })
-    : await db.paymentMethod.findFirst({
-        where: {
-          ...paymentMethodWhere,
-          isDefault: true,
-        },
-        orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
-        select: { id: true },
-      });
+    : null;
+  const defaultPaymentMethod =
+    preferredPaymentMethod ??
+    (await db.paymentMethod.findFirst({
+      where: paymentMethodWhere,
+      orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+      select: { id: true },
+    }));
 
   if (settings.requirePaymentBeforeSubmit && !defaultPaymentMethod) {
     throw new Form2290ServiceError(
-      "A default payment method is required before submitting this Form 2290 filing.",
+      "An active, authorized ACH payment method is required before submitting this Form 2290 filing.",
       409,
-      "PAYMENT_METHOD_REQUIRED",
+      "ACH_PAYMENT_METHOD_REQUIRED",
     );
   }
 
   const filing = await db.$transaction(async (tx) => {
-    const timestamp = new Date();
     const filing = await tx.form2290Filing.update({
       where: { id: existing.id },
       data: {
         status: Form2290Status.SUBMITTED,
-        filedAt: timestamp,
         defaultPaymentMethodId: defaultPaymentMethod?.id ?? existing.defaultPaymentMethodId,
       },
       include: form2290FilingInclude,

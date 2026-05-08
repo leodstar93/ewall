@@ -114,9 +114,11 @@ function actorLabel(actor: { name: string | null; email: string | null }) {
 export default function StaffFilingPaymentPanel({
   filingId,
   filingType,
+  showManualTracking = true,
 }: {
   filingId: string;
   filingType: FilingTypeRoute;
+  showManualTracking?: boolean;
 }) {
   const [workspace, setWorkspace] = useState<WorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -444,7 +446,7 @@ export default function StaffFilingPaymentPanel({
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className={showManualTracking ? "mt-5 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]" : "mt-5 grid gap-6"}>
         <div className="space-y-5">
           <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5">
             <label className="space-y-2 text-sm text-zinc-700">
@@ -577,7 +579,7 @@ export default function StaffFilingPaymentPanel({
           </div>
         </div>
 
-        <div className="space-y-5">
+        {showManualTracking ? <div className="space-y-5">
           <div className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-5">
             <h4 className="text-lg font-semibold text-zinc-950">Manual payment tracking</h4>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -772,7 +774,7 @@ export default function StaffFilingPaymentPanel({
               )}
             </div>
           </div>
-        </div>
+        </div> : null}
       </div>
     </section>
   );

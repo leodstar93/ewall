@@ -26,6 +26,14 @@ type Mark2290PaidInput = {
 };
 
 export async function mark2290Paid(input: Mark2290PaidInput) {
+  if (!input.canManageAll) {
+    throw new Form2290ServiceError(
+      "Customer payments for Form 2290 must be handled by staff using the authorized ACH workflow.",
+      403,
+      "STAFF_PAYMENT_REQUIRED",
+    );
+  }
+
   const db = resolveForm2290Db(input.db);
   const existing = await assert2290FilingAccess({
     db,

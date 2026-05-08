@@ -53,13 +53,17 @@ export function canEdit2290Filing(status: Form2290Status) {
 
 export function canDelete2290Filing(
   status: Form2290Status,
-  paymentStatus: Form2290PaymentStatus,
+  _paymentStatus: Form2290PaymentStatus,
 ) {
-  return status === Form2290Status.DRAFT || paymentStatus === Form2290PaymentStatus.UNPAID;
+  return status === Form2290Status.DRAFT;
 }
 
 export function canSubmit2290Filing(status: Form2290Status) {
-  return status === Form2290Status.PAID || status === Form2290Status.NEED_ATTENTION;
+  return (
+    status === Form2290Status.DRAFT ||
+    status === Form2290Status.PAID ||
+    status === Form2290Status.NEED_ATTENTION
+  );
 }
 
 export function canAssign2290Filing(status: Form2290Status) {
