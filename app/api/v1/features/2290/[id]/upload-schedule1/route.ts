@@ -29,11 +29,24 @@ export async function POST(
   const { id } = await params;
 
   try {
-    const body = (await request.json().catch(() => ({}))) as UploadSchedule1Body;
-    const documentId = typeof body.documentId === "string" ? body.documentId : "";
+    const contentType = request.headers.get("content-type") || "";
+    let documentId = "";
+    let file: File | null = null;
 
-    if (!documentId) {
-      return Response.json({ error: "documentId is required" }, { status: 400 });
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const uploaded = formData.get("file");
+      if (!(uploaded instanceof File)) {
+        return Response.json({ error: "file is required" }, { status: 400 });
+      }
+      file = uploaded;
+    } else {
+      const body = (await request.json().catch(() => ({}))) as UploadSchedule1Body;
+      documentId = typeof body.documentId === "string" ? body.documentId : "";
+
+      if (!documentId) {
+        return Response.json({ error: "documentId is required" }, { status: 400 });
+      }
     }
 
     const filing = await upload2290Schedule1({
@@ -41,6 +54,7 @@ export async function POST(
       actorUserId: guard.session.user.id ?? "",
       canManageAll: canManageAll2290(guard.perms, guard.isAdmin),
       documentId,
+      file,
     });
 
     return Response.json({ filing });

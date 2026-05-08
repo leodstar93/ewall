@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { NextRequest } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
+import { randomUUID } from "crypto";
 import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
 import { autoClassifyDocument } from "@/services/documents/auto-classify";
 
@@ -75,9 +76,8 @@ export async function POST(request: NextRequest) {
 
     // In a real app, you would upload the file to cloud storage (S3, Cloudinary, etc.)
     // Generate unique filename
-    const timestamp = Date.now();
     const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const uniqueFileName = `${timestamp}-${sanitizedFileName}`;
+    const uniqueFileName = `${Date.now()}-${randomUUID()}-${sanitizedFileName}`;
 
     // LOCAL STORAGE IMPLEMENTATION
     // Save file to /public/uploads directory

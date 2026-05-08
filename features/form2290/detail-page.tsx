@@ -50,11 +50,6 @@ type DetailPayload = {
   };
 };
 
-type UploadResponse = {
-  id?: string;
-  error?: string;
-};
-
 type DetailPageProps = {
   filingId: string;
   mode: "driver" | "staff";
@@ -317,9 +312,10 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     props.backHref ??
     (props.mode === "staff" ? "/admin/features/2290" : "/2290");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { showLoading?: boolean }) => {
+    const showLoading = options?.showLoading ?? true;
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setError(null);
       const response = await fetch(
         `${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}`,
@@ -348,7 +344,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
           : "Could not load the filing.",
       );
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [props.apiBasePath, props.filingId]);
 
@@ -412,26 +408,11 @@ export default function Form2290DetailPage(props: DetailPageProps) {
       setBusyAction("schedule1");
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("name", file.name);
-      formData.append("category", "FORM_2290");
-
-      const uploadResponse = await fetch(
-        props.documentsApiBasePath ?? "/api/v1/features/documents",
-        {
-          method: "POST",
-          body: formData,
-        },
-      );
-      const uploadData = (await uploadResponse.json().catch(() => ({}))) as UploadResponse;
-      if (!uploadResponse.ok || !uploadData.id) {
-        throw new Error(uploadData.error || "Could not upload Schedule 1.");
-      }
       const response = await fetch(
         `${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}/upload-schedule1`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documentId: uploadData.id }),
+          body: formData,
         },
       );
       const data = (await response.json().catch(() => ({}))) as {
@@ -1043,6 +1024,7 @@ export default function Form2290DetailPage(props: DetailPageProps) {
                   <StaffFilingPaymentPanel
                     filingId={filing.id}
                     filingType="form2290"
+                    onAuditRecorded={() => load({ showLoading: false })}
                     showManualTracking={false}
                   />
                 </div>

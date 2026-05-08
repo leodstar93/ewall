@@ -12,6 +12,7 @@ import {
   FINANCIAL_AUDIT_RESOURCES,
   type FilingPaymentUsageStatus,
   type FilingType,
+  normalizeFilingTypeRouteSegment,
 } from "@/lib/ach/constants";
 import { ACH_CONSENT_TEXT, ACH_CONSENT_VERSION } from "@/lib/ach/consent";
 import {
@@ -324,6 +325,25 @@ function formatFilingPaymentUsage(usage: {
   };
 }
 
+function normalizeRevealFilingContext(rawInput: unknown) {
+  if (!rawInput || typeof rawInput !== "object" || Array.isArray(rawInput)) {
+    return null;
+  }
+
+  const payload = rawInput as Record<string, unknown>;
+  if (typeof payload.filingId !== "string" || typeof payload.filingType !== "string") {
+    return null;
+  }
+
+  const filingId = payload.filingId.trim();
+  if (!filingId) return null;
+
+  return {
+    filingId,
+    filingType: normalizeFilingTypeRouteSegment(payload.filingType),
+  };
+}
+
 export async function listUserPaymentMethods(userId: string) {
   const organization = await ensureUserOrganization(userId);
   const methods = await prisma.paymentMethod.findMany({
@@ -599,6 +619,7 @@ export async function revealAchPaymentMethod(
 ) {
   const paymentMethod = await getAchMethodById(paymentMethodId);
   const reason = normalizeRevealReason(rawInput);
+  const filingContext = normalizeRevealFilingContext(rawInput);
 
   if (!paymentMethod.secureVault) {
     throw new AchServiceError("Secure ACH vault record is unavailable.", 500);
@@ -619,10 +640,19 @@ export async function revealAchPaymentMethod(
 
   const routingNumber = decryptAchSecret(paymentMethod.secureVault.routingNumberEncrypted);
   const accountNumber = decryptAchSecret(paymentMethod.secureVault.accountNumberEncrypted);
+  const filing = filingContext
+    ? await resolveFilingTarget(filingContext.filingType, filingContext.filingId)
+    : null;
+
+  if (filing && filing.userId !== paymentMethod.userId) {
+    throw new AchServiceError("ACH payment method does not belong to this filing.", 403);
+  }
 
   await writeFinancialAccessAudit(prisma, {
     action: FINANCIAL_AUDIT_ACTIONS.REVEAL,
     actorUserId,
+    filingId: filing?.filingId ?? null,
+    filingType: filing?.filingType ?? null,
     ipAddress: requestMetadata.ipAddress,
     paymentMethodId,
     reason,
@@ -631,6 +661,37 @@ export async function revealAchPaymentMethod(
     targetUserId: paymentMethod.userId,
     userAgent: requestMetadata.userAgent,
   });
+
+  if (filing) {
+    await writeFinancialAccessAudit(prisma, {
+      action: FINANCIAL_AUDIT_ACTIONS.USE_FOR_PAYMENT,
+      actorUserId,
+      filingId: filing.filingId,
+      filingType: filing.filingType,
+      ipAddress: requestMetadata.ipAddress,
+      paymentMethodId,
+      reason,
+      resourceId: filing.filingId,
+      resourceType: FINANCIAL_AUDIT_RESOURCES.FILING,
+      targetUserId: paymentMethod.userId,
+      userAgent: requestMetadata.userAgent,
+    });
+
+    if (filing.filingType === FILING_TYPES.FORM2290) {
+      await prisma.form2290ActivityLog.create({
+        data: {
+          filingId: filing.filingId,
+          actorUserId,
+          action: "ACH_INFO_REVEALED",
+          metaJson: {
+            reason,
+            auditAction: FINANCIAL_AUDIT_ACTIONS.USE_FOR_PAYMENT,
+            paymentMethodId,
+          },
+        },
+      });
+    }
+  }
 
   return {
     accountNumber,

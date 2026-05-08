@@ -114,10 +114,12 @@ function actorLabel(actor: { name: string | null; email: string | null }) {
 export default function StaffFilingPaymentPanel({
   filingId,
   filingType,
+  onAuditRecorded,
   showManualTracking = true,
 }: {
   filingId: string;
   filingType: FilingTypeRoute;
+  onAuditRecorded?: () => Promise<void> | void;
   showManualTracking?: boolean;
 }) {
   const [workspace, setWorkspace] = useState<WorkspacePayload | null>(null);
@@ -262,7 +264,11 @@ export default function StaffFilingPaymentPanel({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: revealReason }),
+          body: JSON.stringify({
+            filingId,
+            filingType,
+            reason: revealReason,
+          }),
         },
       );
       const payload = (await response.json().catch(() => ({}))) as RevealPayload & {
@@ -274,6 +280,7 @@ export default function StaffFilingPaymentPanel({
       }
 
       setRevealData(payload);
+      await onAuditRecorded?.();
       flashMessage("Full ACH details are visible for 60 seconds.");
     } catch (revealError) {
       setError(

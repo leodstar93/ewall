@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "fs/promises";
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import type { AppEnvironment, DbClient, DbTransactionClient } from "@/lib/db/types";
 import { getStorageDiskDirectory, getStoragePublicUrl } from "@/lib/storage/resolve-storage";
@@ -21,9 +22,8 @@ export async function createStoredDocument(input: CreateStoredDocumentInput) {
   const uploadsDir = getStorageDiskDirectory(environment);
   await mkdir(uploadsDir, { recursive: true });
 
-  const timestamp = Date.now();
   const sanitizedFileName = input.file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-  const uniqueFileName = `${timestamp}-${sanitizedFileName}`;
+  const uniqueFileName = `${Date.now()}-${randomUUID()}-${sanitizedFileName}`;
   const filePath = getStorageDiskDirectory(environment, uniqueFileName);
   const fileBuffer = await input.file.arrayBuffer();
 
