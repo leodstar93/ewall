@@ -4,17 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import tableStyles from "@/app/(v2)/(protected)/admin/components/ui/DataTable.module.css";
 
-const tabs = [
+const tabs: { href: string; label: string; also?: string[] }[] = [
   { href: "/admin/settings", label: "General" },
   { href: "/admin/settings/news-updates", label: "News & Updates" },
   { href: "/admin/settings/email-templates", label: "Email Templates" },
   { href: "/admin/settings/integrations", label: "Integrations" },
-  { href: "/admin/settings/ucr", label: "UCR" },
+  { href: "/admin/settings/ucr", label: "UCR", also: ["/admin/settings/ucr-rates", "/admin/settings/ucr-disclosure"] },
   { href: "/admin/settings/billing", label: "Billing" },
-  { href: "/admin/settings/ifta", label: "IFTA" },
-  { href: "/admin/settings/ifta-tax-rates", label: "IFTA Tax Rates" },
-  { href: "/admin/settings/ucr-rates", label: "UCR Rates" },
-  { href: "/admin/settings/2290", label: "Form 2290" },
+  { href: "/admin/settings/ifta-tax-rates", label: "IFTA Tax Rates", also: ["/admin/settings/ifta", "/admin/settings/ifta-process"] },
+  { href: "/admin/settings/2290", label: "Form 2290", also: ["/admin/settings/2290-tax-periods", "/admin/settings/2290-disclosure"] },
   { href: "/admin/settings/dmv", label: "DMV Registration" },
   { href: "/admin/settings/db", label: "Database" },
 ];
@@ -27,7 +25,8 @@ export default function SettingsTabs() {
       {tabs.map((tab) => {
         const active =
           pathname === tab.href ||
-          (tab.href !== "/admin/settings" && pathname?.startsWith(`${tab.href}/`));
+          (tab.href !== "/admin/settings" && pathname?.startsWith(`${tab.href}/`)) ||
+          (tab.also?.some((p) => pathname === p || pathname?.startsWith(`${p}/`)) ?? false);
 
         return (
           <Link

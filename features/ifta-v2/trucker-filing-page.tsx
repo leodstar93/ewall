@@ -940,6 +940,11 @@ export default function IftaAutomationTruckerFilingPage({
     ]),
   );
   const fleetMpg = calculateFleetMpg(jurisdictionRows);
+  const totalMiles = jurisdictionRows.reduce((sum, row) => sum + Number(row.miles || 0), 0);
+  const totalGallons = jurisdictionRows.reduce((sum, row) => sum + Number(row.gallons || 0), 0);
+  const totalTaxDue = filing.jurisdictionSummaries.reduce((sum, s) => sum + toNumber(s.taxDue), 0);
+  const totalTaxCredit = filing.jurisdictionSummaries.reduce((sum, s) => sum + toNumber(s.taxCredit), 0);
+  const totalNetTax = filing.jurisdictionSummaries.reduce((sum, s) => sum + toNumber(s.netTax), 0);
   const jurisdictionSummaryColumns: ColumnDef<JurisdictionEditorRow>[] = [
     {
       key: "jurisdiction",
@@ -1267,7 +1272,29 @@ export default function IftaAutomationTruckerFilingPage({
               ) : null}
             </div>
           ) : (
-            <div>
+            <div className="space-y-4">
+              {/* Summary card */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                {[
+                  { label: "Total Miles", value: formatNumber(totalMiles) },
+                  { label: "Paid Gallons", value: formatNumber(totalGallons, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) },
+                  { label: "Fleet MPG", value: fleetMpg > 0 ? formatNumber(fleetMpg, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—" },
+                  { label: "Tax Due", value: formatMoney(totalTaxDue) },
+                  { label: "Tax Credit", value: formatMoney(totalTaxCredit) },
+                  { label: "Net Tax", value: formatMoney(totalNetTax) },
+                ].map(({ label, value }) => (
+                  <div
+                    key={label}
+                    className="flex flex-col gap-1 rounded-[10px] border border-(--br) bg-white px-4 py-3"
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-(--r)">
+                      {label}
+                    </span>
+                    <span className="text-base font-semibold text-(--b)">{value}</span>
+                  </div>
+                ))}
+              </div>
+
               <DashboardTable
                 data={jurisdictionRows}
                 columns={jurisdictionSummaryColumns}

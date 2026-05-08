@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import SettingsTabs from "../components/SettingsTabs";
 import IftaSubTabs from "../components/IftaSubTabs";
-import IftaTaxRatesSettingsClient from "./IftaTaxRatesSettingsClient";
+import IftaProcessSettingsPanel from "../ifta-tax-rates/IftaProcessSettingsPanel";
 import { requireAdminSettingsAccess } from "@/lib/admin-settings-access";
 
-export default async function AdminIftaTaxRatesPage() {
-  const access = await requireAdminSettingsAccess("iftaTaxRates:read");
+export default async function AdminIftaProcessPage() {
+  const access = await requireAdminSettingsAccess("ifta:settings");
   if (!access.ok) {
     redirect(access.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
   }
@@ -14,7 +14,7 @@ export default async function AdminIftaTaxRatesPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsTabs />
       <IftaSubTabs />
-      <IftaTaxRatesSettingsClient />
+      <IftaProcessSettingsPanel />
     </div>
   );
 }

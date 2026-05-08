@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import SettingsTabs from "../components/SettingsTabs";
-import IftaSubTabs from "../components/IftaSubTabs";
-import IftaTaxRatesSettingsClient from "./IftaTaxRatesSettingsClient";
+import UcrSubTabs from "../components/UcrSubTabs";
+import UcrDisclosureClient from "./UcrDisclosureClient";
 import { requireAdminSettingsAccess } from "@/lib/admin-settings-access";
 
-export default async function AdminIftaTaxRatesPage() {
-  const access = await requireAdminSettingsAccess("iftaTaxRates:read");
+export default async function AdminUcrDisclosurePage() {
+  const access = await requireAdminSettingsAccess("ucr:manage_settings");
   if (!access.ok) {
     redirect(access.reason === "UNAUTHENTICATED" ? "/login" : "/forbidden");
   }
@@ -13,8 +13,8 @@ export default async function AdminIftaTaxRatesPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsTabs />
-      <IftaSubTabs />
-      <IftaTaxRatesSettingsClient />
+      <UcrSubTabs />
+      <UcrDisclosureClient />
     </div>
   );
 }

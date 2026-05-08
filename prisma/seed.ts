@@ -876,6 +876,7 @@ async function upsertForm2290Defaults() {
     update: {
       minimumEligibleWeight: 55000,
       expirationWarningDays: 30,
+      authorizationText: FORM_2290_DISCLOSURE_TEXT,
     },
     create: {
       id: "default-form2290-settings",

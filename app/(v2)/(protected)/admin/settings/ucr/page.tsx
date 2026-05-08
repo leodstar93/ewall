@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import SettingsTabs from "../components/SettingsTabs";
+import UcrSubTabs from "../components/UcrSubTabs";
 import UcrAdminSettingsClient from "./UcrAdminSettingsClient";
 import { requireAdminSettingsAccess } from "@/lib/admin-settings-access";
 
@@ -12,6 +13,7 @@ export default async function AdminUcrSettingsPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SettingsTabs />
+      <UcrSubTabs />
       <UcrAdminSettingsClient />
     </div>
   );

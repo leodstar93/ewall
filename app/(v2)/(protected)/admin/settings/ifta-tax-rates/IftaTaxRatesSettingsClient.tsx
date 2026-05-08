@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import IftaTaxRateEditDialog from "@/components/ifta/IftaTaxRateEditDialog";
-import IftaProcessSettingsPanel from "./IftaProcessSettingsPanel";
 import type {
   IftaTaxRateImportResult,
   IftaTaxRateTableRow,
@@ -199,7 +198,6 @@ function IftaTaxRatesOverviewCard(props: {
 }
 
 export default function IftaTaxRatesSettingsClient() {
-  const [activeTab, setActiveTab] = useState<"rates" | "process">("rates");
   const [filters, setFilters] = useState<TaxRateFilterState>({
     year: new Date().getFullYear(),
     quarter: getQuarterFromDate(new Date()),
@@ -424,35 +422,7 @@ export default function IftaTaxRatesSettingsClient() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab("rates")}
-          className={
-            activeTab === "rates"
-              ? `${tableStyles.btn} ${tableStyles.btnPrimary}`
-              : tableStyles.btn
-          }
-        >
-          Tax Rates
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("process")}
-          className={
-            activeTab === "process"
-              ? `${tableStyles.btn} ${tableStyles.btnPrimary}`
-              : tableStyles.btn
-          }
-        >
-          IFTA Process
-        </button>
-      </div>
-
-      {activeTab === "process" ? <IftaProcessSettingsPanel /> : null}
-
-      {activeTab === "rates" ? (
-        <>
+      <>
       <IftaTaxRatesOverviewCard
         filters={filters}
         validation={validation}
@@ -484,8 +454,7 @@ export default function IftaTaxRatesSettingsClient() {
         onClose={() => setEditingRow(null)}
         onSave={handleSaveRate}
       />
-        </>
-      ) : null}
+      </>
     </div>
   );
 }
