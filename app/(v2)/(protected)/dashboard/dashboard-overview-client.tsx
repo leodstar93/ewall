@@ -25,6 +25,10 @@ import {
   type FilingListItem,
   visibleStatusForIftaFiling,
 } from "@/features/ifta-v2/shared";
+import {
+  statusLabel as form2290StatusLabel,
+  type Form2290Filing,
+} from "@/features/form2290/shared";
 import type { CompanyProfileFormData } from "@/components/settings/company/companyProfileTypes";
 
 type DocumentItem = {
@@ -90,6 +94,18 @@ function toItemStatusFromIfta(status: string) {
   };
 }
 
+function toItemStatusFromForm2290(status: string): { label: string; tone: BadgeTone } {
+  switch (status) {
+    case "DRAFT": return { label: form2290StatusLabel("DRAFT"), tone: "light" };
+    case "PAID": return { label: form2290StatusLabel("PAID"), tone: "info" };
+    case "SUBMITTED": return { label: form2290StatusLabel("SUBMITTED"), tone: "info" };
+    case "IN_PROCESS": return { label: form2290StatusLabel("IN_PROCESS"), tone: "primary" };
+    case "NEED_ATTENTION": return { label: form2290StatusLabel("NEED_ATTENTION"), tone: "error" };
+    case "FINALIZED": return { label: form2290StatusLabel("FINALIZED"), tone: "dark" };
+    default: return { label: status, tone: "light" };
+  }
+}
+
 function toTruckStatus(truck: TruckRecord): DashboardTruckRow["status"] {
   if (!truck.isActive) return "Inactivo";
   if ((truck._count?.trips ?? 0) > 0) return "En transito";
@@ -119,6 +135,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [ucrFilings, setUcrFilings] = useState<UcrFiling[]>([]);
   const [iftaFilings, setIftaFilings] = useState<FilingListItem[]>([]);
+  const [form2290Filings, setForm2290Filings] = useState<Form2290Filing[]>([]);
   const [managedSlides, setManagedSlides] = useState<AdSlide[]>([]);
 
   function handleTruckUpdated(updatedTruck: TruckRecord) {
@@ -161,7 +178,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
         setLoading(true);
         setError("");
 
-        const [trucksResult, documentsResult, ucrResult, iftaResult, newsResult] =
+        const [trucksResult, documentsResult, ucrResult, iftaResult, form2290Result, newsResult] =
           await Promise.allSettled([
             fetchJson<{ trucks: TruckRecord[] }>("/api/v1/features/ifta/trucks?status=all"),
             fetchJson<{ documents: DocumentItem[] }>("/api/v1/features/documents"),
@@ -169,6 +186,9 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
               fallbackOnModuleAccessRequired: { filings: [] },
             }),
             fetchJson<{ filings: FilingListItem[] }>("/api/v1/features/ifta-v2/filings", {
+              fallbackOnModuleAccessRequired: { filings: [] },
+            }),
+            fetchJson<{ filings: Form2290Filing[] }>("/api/v1/features/2290", {
               fallbackOnModuleAccessRequired: { filings: [] },
             }),
             fetchJson<{ slides: AdSlide[] }>("/api/v1/news-updates?audience=TRUCKER"),
@@ -206,6 +226,12 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
         } else {
           errors.push("Could not load IFTA filings.");
           setIftaFilings([]);
+        }
+
+        if (form2290Result.status === "fulfilled") {
+          setForm2290Filings(Array.isArray(form2290Result.value.filings) ? form2290Result.value.filings : []);
+        } else {
+          setForm2290Filings([]);
         }
 
         if (newsResult.status === "fulfilled") {
@@ -306,7 +332,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
 
   const activityRows = useMemo<Item[]>(() => {
     const combined: OverviewActivity[] = [
-      ...ucrFilings.map((filing) => {
+      ...ucrFilings.filter((filing) => workflowStageForFiling(filing) !== "COMPLETED").map((filing) => {
         const status = toItemStatusFromUcr(filing);
 
         return {
@@ -320,7 +346,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
           href: `/dashboard/ucr/${filing.id}`,
         };
       }),
-      ...iftaFilings.map((filing) => {
+      ...iftaFilings.filter((filing) => filing.status !== "APPROVED" && filing.status !== "FINALIZED").map((filing) => {
         const status = toItemStatusFromIfta(filing.status);
 
         return {
@@ -334,6 +360,23 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
           amount: Number(filing.totalNetTax ?? 0),
           sortDate: new Date(filing.updatedAt || filing.lastCalculatedAt || 0).getTime(),
           href: `/dashboard/ifta-v2/${filing.id}`,
+        };
+      }),
+      ...form2290Filings.filter((filing) => filing.status !== "FINALIZED").map((filing) => {
+        const status = toItemStatusFromForm2290(filing.status);
+        const label = filing.unitNumberSnapshot
+          ? `2290 ${filing.unitNumberSnapshot}`
+          : `2290 ${filing.taxPeriod?.name ?? ""}`;
+
+        return {
+          name: label.trim(),
+          category: "Form 2290",
+          status: status.label,
+          statusTone: status.tone,
+          date: new Date(filing.updatedAt).toLocaleDateString("en-US"),
+          amount: Number(filing.customerBalanceDue ?? filing.amountDue ?? filing.serviceFeeAmount ?? 0),
+          sortDate: new Date(filing.updatedAt).getTime(),
+          href: `/dashboard/2290/${filing.id}`,
         };
       }),
     ]
@@ -350,7 +393,7 @@ export default function DashboardOverviewClient({ companyProfile }: Props) {
       amount: item.amount,
       href: item.href,
     }));
-  }, [iftaFilings, ucrFilings]);
+  }, [iftaFilings, ucrFilings, form2290Filings]);
 
   return (
     <div className={styles.content}>
