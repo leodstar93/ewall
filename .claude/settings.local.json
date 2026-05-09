@@ -12,10 +12,12 @@
       "Bash(cd /mnt/c/Users/leods/ewall-app && npx tsc --noEmit 2>&1 | grep -i \"graphql\\\\|route.ts\" | head -20)",
       "Read(//mnt/c/Users/leods/**)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\leods\\\\ewall-app\" -Directory -ErrorAction SilentlyContinue)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(mkdir -p \"c:/Users/leods/ewall-app/app/api/v1/features/2290/[id]/refill\")"
     ],
     "additionalDirectories": [
-      "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\settings\\2290\\rate-tables\\[id]"
+      "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\settings\\2290\\rate-tables\\[id]",
+      "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\features\\2290\\[id]"
     ]
   }
 }

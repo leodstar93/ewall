@@ -211,6 +211,7 @@ export default function Form2290DashboardPage({
   const [modalBusy, setModalBusy] = useState(false);
   const [weightBusy, setWeightBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [refillingId, setRefillingId] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [weightModalTruck, setWeightModalTruck] = useState<Form2290Truck | null>(null);
   const [weightDraft, setWeightDraft] = useState("");
@@ -476,6 +477,40 @@ export default function Form2290DashboardPage({
     }
   }
 
+  async function refillFiling(filing: Form2290Filing) {
+    try {
+      setRefillingId(filing.id);
+      setError(null);
+      const response = await fetch(`${apiBasePath}/${filing.id}/refill`, {
+        method: "POST",
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        filing?: { id: string };
+        skippedCount?: number;
+        error?: string;
+        code?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not refill this Form 2290 filing.");
+      }
+
+      await load();
+      if (data.filing?.id) {
+        router.push(`${detailHrefBase}/${data.filing.id}`);
+      }
+      router.refresh();
+    } catch (refillError) {
+      setError(
+        refillError instanceof Error
+          ? refillError.message
+          : "Could not refill this Form 2290 filing.",
+      );
+    } finally {
+      setRefillingId(null);
+    }
+  }
+
   async function deleteFiling(filing: Form2290Filing) {
     const result = await Swal.fire({
       icon: "warning",
@@ -619,6 +654,25 @@ export default function Form2290DashboardPage({
           >
             <ActionIcon name="view" />
           </Link>
+          {activeTaxPeriod && filing.taxPeriodId !== activeTaxPeriod.id ? (
+            <button
+              type="button"
+              onClick={() => void refillFiling(filing)}
+              disabled={refillingId === filing.id}
+              aria-label={refillingId === filing.id ? "Refilling..." : "Refill to current period"}
+              title={refillingId === filing.id ? "Refilling..." : "Refill to current period"}
+              className={iconButtonClasses({
+                variant: "brand",
+                className: refillingId === filing.id ? "opacity-60" : undefined,
+              })}
+            >
+              {refillingId === filing.id ? (
+                <span className="h-2 w-2 animate-pulse rounded-full bg-current" />
+              ) : (
+                <ActionIcon name="refill" />
+              )}
+            </button>
+          ) : null}
           {canDeleteForm2290Filing(filing) ? (
             <button
               type="button"

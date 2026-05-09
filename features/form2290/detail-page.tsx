@@ -18,6 +18,7 @@ import {
   documentTypeLabel,
   Form2290DocumentType,
   Form2290Filing,
+  Form2290TaxPeriod,
   formatCurrency,
   formatDate,
   formatDateOnly,
@@ -353,6 +354,8 @@ export default function Form2290DetailPage(props: DetailPageProps) {
 
   const [correctionMessage, setCorrectionMessage] = useState("");
   const [paidAt, setPaidAt] = useState("");
+  const [activeTaxPeriod, setActiveTaxPeriod] = useState<Form2290TaxPeriod | null>(null);
+  const [refillingFiling, setRefillingFiling] = useState(false);
 
   const detailHrefBase =
     props.detailHrefBase ??
@@ -366,18 +369,25 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     try {
       if (showLoading) setLoading(true);
       setError(null);
-      const response = await fetch(
-        `${props.apiBasePath ?? "/api/v1/features/2290"}/${props.filingId}`,
-        {
-          cache: "no-store",
-        },
-      );
+      const base = props.apiBasePath ?? "/api/v1/features/2290";
+      const [response, periodsResponse] = await Promise.all([
+        fetch(`${base}/${props.filingId}`, { cache: "no-store" }),
+        fetch(`${base}/tax-periods`, { cache: "no-store" }),
+      ]);
       const data = (await response
         .json()
         .catch(() => ({}))) as DetailPayload & { error?: string };
       if (!response.ok || !data.filing) {
         throw new Error(data.error || "Could not load the Form 2290 filing.");
       }
+
+      const periodsData = (await periodsResponse.json().catch(() => ({}))) as {
+        activeTaxPeriod?: Form2290TaxPeriod | null;
+        taxPeriods?: Form2290TaxPeriod[];
+      };
+      setActiveTaxPeriod(
+        periodsData.activeTaxPeriod ?? periodsData.taxPeriods?.[0] ?? null,
+      );
 
       setPayload(data);
       setPaidAt(
@@ -672,6 +682,40 @@ export default function Form2290DetailPage(props: DetailPageProps) {
     await runAction("submit");
   }
 
+  async function handleRefill() {
+    try {
+      setRefillingFiling(true);
+      const base = props.apiBasePath ?? "/api/v1/features/2290";
+      const response = await fetch(`${base}/${props.filingId}/refill`, {
+        method: "POST",
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        filing?: { id: string };
+        skippedCount?: number;
+        error?: string;
+        code?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error || "Could not refill this filing.");
+      }
+      toast.success(
+        data.skippedCount
+          ? `New filing created. ${data.skippedCount} truck(s) already filed for this period were skipped.`
+          : "New filing created for the current tax period.",
+      );
+      if (data.filing?.id) {
+        router.push(`${detailHrefBase}/${data.filing.id}`);
+        router.refresh();
+      }
+    } catch (refillError) {
+      toast.error(
+        refillError instanceof Error ? refillError.message : "Could not refill this filing.",
+      );
+    } finally {
+      setRefillingFiling(false);
+    }
+  }
+
   function handleSubmitClick() {
     const authorization = payload?.filing.authorization;
     if (authorization?.status === "SIGNED") {
@@ -795,6 +839,16 @@ export default function Form2290DetailPage(props: DetailPageProps) {
               <Link href={backHref} className={styles.secondaryButton}>
                 Back
               </Link>
+              {activeTaxPeriod && filing.taxPeriodId !== activeTaxPeriod.id ? (
+                <button
+                  type="button"
+                  onClick={() => void handleRefill()}
+                  disabled={refillingFiling}
+                  className={styles.secondaryButton}
+                >
+                  {refillingFiling ? "Refilling..." : "Refill to current period"}
+                </button>
+              ) : null}
               {props.mode === "driver" && permissions.canEdit ? (
                 <button
                   type="button"

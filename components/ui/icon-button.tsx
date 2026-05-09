@@ -7,6 +7,7 @@ export type ActionIconName =
   | "edit"
   | "key"
   | "login"
+  | "refill"
   | "roles"
   | "view";
 
@@ -109,6 +110,13 @@ export function ActionIcon({
           <path d="M11.2 4.6h3.1a1.1 1.1 0 0 1 1.1 1.1v8.6a1.1 1.1 0 0 1-1.1 1.1h-3.1" />
           <path d="M8.8 13.6 12.4 10 8.8 6.4" />
           <path d="M12.4 10H4.6" />
+        </>
+      ) : null}
+
+      {name === "refill" ? (
+        <>
+          <path d="M16.2 3.8A7.2 7.2 0 1 1 5.4 5.4" />
+          <path d="M3.8 3.8v3.6h3.6" />
         </>
       ) : null}
     </svg>

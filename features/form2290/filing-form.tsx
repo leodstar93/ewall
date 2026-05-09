@@ -340,19 +340,7 @@ export default function Form2290FilingForm(props: Form2290FilingFormProps) {
           <p className="text-xs text-zinc-500">{selectedVehicles.length} selected: {selectedVehicleSummary}</p>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">VIN</p>
-          <p className="mt-2 text-sm font-medium text-zinc-900">{selectedVehicle?.vin || "Missing VIN"}</p>
-        </div>
-
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Gross weight</p>
-          <p className="mt-2 text-sm font-medium text-zinc-900">
-            {selectedVehicle?.grossWeight?.toLocaleString("en-US") || "Not set"}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 md:col-span-2">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Active tax period</p>
           <p className="mt-2 text-sm font-medium text-zinc-900">
             {selectedTaxPeriod?.name || "Not available"}
