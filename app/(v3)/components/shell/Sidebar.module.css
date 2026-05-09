@@ -1,0 +1,246 @@
+.sidebar {
+  background: var(--v3-sb-bg);
+  color: var(--v3-sb-ink);
+  border-right: 1px solid var(--v3-sb-hover);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 12px;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.25s ease;
+  font-family: var(--v3-font);
+}
+
+/* ── Brand ── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 18px;
+  border-bottom: 1px solid var(--v3-sb-hover);
+  margin-bottom: 14px;
+}
+
+.logoBox {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--v3-accent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.brandText {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.brandName {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.brandSub {
+  font-size: 11px;
+  color: var(--v3-sb-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Nav ── */
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--v3-sb-hover) transparent;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.groupLabel {
+  font-size: 10.5px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--v3-sb-muted);
+  padding: 0 10px 6px;
+  font-weight: 600;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--v3-sb-ink);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 400;
+  position: relative;
+  transition: background 0.12s ease;
+}
+
+.navItem[data-collapsed='true'] {
+  padding: 10px 0;
+  justify-content: center;
+}
+
+.navItem:hover {
+  background: var(--v3-sb-hover);
+}
+
+.navItem[data-active='true'] {
+  background: var(--v3-sb-active);
+  color: #fff;
+  font-weight: 500;
+}
+
+.navItem[data-active='true']:hover {
+  background: var(--v3-sb-active);
+}
+
+.activeBar {
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--v3-accent);
+  border-radius: 2px;
+}
+
+.navLabel {
+  flex: 1;
+}
+
+.badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--v3-sb-hover);
+  color: var(--v3-sb-ink);
+  padding: 1px 7px;
+  border-radius: 999px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.badge[data-active='true'] {
+  background: var(--v3-accent);
+  color: #0E1116;
+}
+
+/* ── Footer ── */
+.footer {
+  border-top: 1px solid var(--v3-sb-hover);
+  padding-top: 12px;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settingsBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--v3-sb-ink);
+  text-decoration: none;
+  font-size: 13.5px;
+  transition: background 0.12s ease;
+}
+
+.settingsBtn[data-collapsed='true'] {
+  padding: 10px 0;
+  justify-content: center;
+}
+
+.settingsBtn:hover {
+  background: var(--v3-sb-hover);
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px;
+}
+
+.userRow[data-collapsed='true'] {
+  padding: 8px 0;
+  justify-content: center;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #B5895A, #8C6A41);
+  display: grid;
+  place-items: center;
+  color: #0E1116;
+  font-weight: 600;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.userInfo {
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.userName {
+  font-size: 12.5px;
+  color: #fff;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userRole {
+  font-size: 11px;
+  color: var(--v3-sb-muted);
+}
+
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--v3-sb-muted) 33%, transparent);
+  color: var(--v3-sb-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  transition: background 0.12s ease;
+  margin-top: 4px;
+}
+
+.collapseBtn:hover {
+  background: var(--v3-sb-hover);
+}

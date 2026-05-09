@@ -1,0 +1,5 @@
+.card {
+  background: var(--v3-panel);
+  border: 1px solid var(--v3-line);
+  border-radius: var(--v3-radius);
+}

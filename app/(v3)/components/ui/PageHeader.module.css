@@ -1,0 +1,57 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 28px 0;
+}
+
+.left {
+  min-width: 0;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.crumb {
+  font-size: 12px;
+  color: var(--v3-muted);
+}
+
+.crumbActive {
+  font-size: 12px;
+  color: var(--v3-ink);
+  font-weight: 500;
+}
+
+.sep {
+  font-size: 12px;
+  color: var(--v3-muted);
+  margin: 0 2px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--v3-ink);
+  letter-spacing: -0.4px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--v3-muted);
+  margin: 4px 0 0;
+}
+
+.action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

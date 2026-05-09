@@ -1,0 +1,85 @@
+/* ─── V3 Design Tokens ─────────────────────────────────────────────────────── */
+/* Navy is the default theme. Graphite and Forest override via data-theme attr  */
+
+.v3Root {
+  /* Surface */
+  --v3-bg:            #F6F5F1;
+  --v3-panel:         #FFFFFF;
+  --v3-ink:           #0E1116;
+  --v3-muted:         #5B6470;
+  --v3-line:          #E7E4DC;
+  --v3-soft-line:     #EFEDE6;
+  --v3-chip-bg:       #F1EFE8;
+
+  /* Brand */
+  --v3-primary:       #15233D;
+  --v3-primary-soft:  #E9EDF5;
+  --v3-accent:        #B5895A;
+
+  /* Sidebar (always dark) */
+  --v3-sb-bg:         #0E1116;
+  --v3-sb-ink:        #E7E4DC;
+  --v3-sb-muted:      #7C8593;
+  --v3-sb-hover:      #1A1F27;
+  --v3-sb-active:     #22293A;
+
+  /* Semantic */
+  --v3-success:       #2F7D54;
+  --v3-success-bg:    #E6F1EA;
+  --v3-warn:          #9A6E1B;
+  --v3-warn-bg:       #FBF1DD;
+  --v3-danger:        #A23A3A;
+  --v3-danger-bg:     #F7E7E7;
+  --v3-info:          #2A4A7F;
+  --v3-info-bg:       #E6ECF6;
+
+  /* Layout */
+  --v3-sidebar-w:           252px;
+  --v3-sidebar-w-collapsed: 72px;
+  --v3-topbar-h:            60px;
+  --v3-radius:              12px;
+  --v3-font:                'Inter', system-ui, sans-serif;
+
+  /* Base */
+  min-height: 100dvh;
+  background: var(--v3-bg);
+  color: var(--v3-ink);
+  font-family: var(--v3-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Graphite ──────────────────────────────────────────────────────────────── */
+.v3Root[data-theme='graphite'] {
+  --v3-bg:            #F2F2F0;
+  --v3-ink:           #111114;
+  --v3-muted:         #5C5C63;
+  --v3-line:          #E4E3DF;
+  --v3-soft-line:     #EDECE8;
+  --v3-chip-bg:       #EFEEEA;
+  --v3-primary:       #1B1B1F;
+  --v3-primary-soft:  #ECECEA;
+  --v3-accent:        #C7724A;
+  --v3-sb-bg:         #111114;
+  --v3-sb-ink:        #E4E3DF;
+  --v3-sb-muted:      #7A7A82;
+  --v3-sb-hover:      #1C1C20;
+  --v3-sb-active:     #26262C;
+}
+
+/* ─── Forest ────────────────────────────────────────────────────────────────── */
+.v3Root[data-theme='forest'] {
+  --v3-bg:            #F4F4EE;
+  --v3-ink:           #0F1612;
+  --v3-muted:         #566058;
+  --v3-line:          #E3E5DD;
+  --v3-soft-line:     #ECEDE5;
+  --v3-chip-bg:       #EEEFE8;
+  --v3-primary:       #1E3A2D;
+  --v3-primary-soft:  #E7EEE9;
+  --v3-sb-bg:         #0F1612;
+  --v3-sb-ink:        #E3E5DD;
+  --v3-sb-muted:      #7A8580;
+  --v3-sb-hover:      #19211C;
+  --v3-sb-active:     #222C26;
+}
