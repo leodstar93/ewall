@@ -29,7 +29,8 @@ export function Sidebar({
   const pathname = usePathname()
 
   function isActive(href: string) {
-    if (href === '/dashboard' || href === '/admin') return pathname === href
+    const roots = ['/v3/dashboard', '/v3/admin']
+    if (roots.includes(href)) return pathname === href
     return pathname.startsWith(href)
   }
 

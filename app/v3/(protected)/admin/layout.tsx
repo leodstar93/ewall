@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
-import { ShellLayout } from '@/app/(v3)/components/shell/ShellLayout'
-import { adminNavGroups } from '@/app/(v3)/components/shell/nav-config/admin-nav'
+import { ShellLayout } from '@/app/v3/components/shell/ShellLayout'
+import { adminNavGroups } from '@/app/v3/components/shell/nav-config/admin-nav'
 
 export default async function AdminV3Layout({ children }: { children: React.ReactNode }) {
   const session = await auth()

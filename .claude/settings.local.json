@@ -13,7 +13,14 @@
       "Read(//mnt/c/Users/leods/**)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\leods\\\\ewall-app\" -Directory -ErrorAction SilentlyContinue)",
       "Bash(Select-Object Name)",
-      "Bash(mkdir -p \"c:/Users/leods/ewall-app/app/api/v1/features/2290/[id]/refill\")"
+      "Bash(mkdir -p \"c:/Users/leods/ewall-app/app/api/v1/features/2290/[id]/refill\")",
+      "Bash(grep -o '\"client-pages.*\"' \"C:\\\\Users\\\\leods\\\\.claude\\\\projects\\\\c--Users-leods-ewall-app\\\\5c5eb205-e3a5-413e-a26f-3a3455bb6cd5.jsonl\" | head -5)",
+      "Read(//c/Users/leods/.claude/projects/c--Users-leods-ewall-app/**)",
+      "Bash(grep -n \"ActionItems\\\\|FilingsStepper\\\\|EwallUpdates\\\\|HelpBand\\\\|WelcomeHero\" \"C:\\\\Users\\\\leods\\\\.claude\\\\projects\\\\c--Users-leods-ewall-app\\\\5c5eb205-e3a5-413e-a26f-3a3455bb6cd5.jsonl\" | head -30)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\leods\\\\ewall-app\" -Force)",
+      "Bash(Select-Object -Property Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "WebFetch(domain:api.anthropic.com)"
     ],
     "additionalDirectories": [
       "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\settings\\2290\\rate-tables\\[id]",
