@@ -20,7 +20,12 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\leods\\\\ewall-app\" -Force)",
       "Bash(Select-Object -Property Name, PSIsContainer)",
       "Bash(Format-Table -AutoSize)",
-      "WebFetch(domain:api.anthropic.com)"
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\leods\\\\ewall-app\\\\design_output.txt\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\leods\\\\ewall-app\\\\design_settings.jsx\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\leods\\\\ewall-app\\\\design_admin_settings.jsx\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Output \"done\")",
+      "PowerShell(\"done\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\settings\\2290\\rate-tables\\[id]",

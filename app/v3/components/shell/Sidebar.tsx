@@ -15,6 +15,7 @@ interface SidebarProps {
   userRole?: string
   userInitials?: string
   orgName?: string
+  settingsHref?: string
 }
 
 export function Sidebar({
@@ -25,6 +26,7 @@ export function Sidebar({
   userRole,
   userInitials,
   orgName,
+  settingsHref = '/v3/dashboard/settings',
 }: SidebarProps) {
   const pathname = usePathname()
 
@@ -94,7 +96,7 @@ export function Sidebar({
       {/* ── Footer ── */}
       <div className={styles.footer}>
         <Link
-          href="/dashboard/settings"
+          href={settingsHref}
           className={styles.settingsBtn}
           data-collapsed={collapsed}
         >

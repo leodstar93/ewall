@@ -15,6 +15,7 @@ interface ShellLayoutProps {
   userRole?: string
   userInitials?: string
   orgName?: string
+  settingsHref?: string
 }
 
 export function ShellLayout({
@@ -26,6 +27,7 @@ export function ShellLayout({
   userRole,
   userInitials,
   orgName,
+  settingsHref,
 }: ShellLayoutProps) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -39,6 +41,7 @@ export function ShellLayout({
         userRole={userRole}
         userInitials={userInitials}
         orgName={orgName}
+        settingsHref={settingsHref}
       />
       <div className={styles.main}>
         <Topbar title={title} breadcrumb={breadcrumb} />

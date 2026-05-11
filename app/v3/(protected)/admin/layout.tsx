@@ -17,6 +17,7 @@ export default async function AdminV3Layout({ children }: { children: React.Reac
       userRole="Staff"
       userInitials={userInitials}
       orgName="Truckers Unidos · Ops"
+      settingsHref="/v3/admin/settings"
     >
       {children}
     </ShellLayout>

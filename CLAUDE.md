@@ -1,6 +1,6 @@
 # CLAUDE.md — EWALL App
 
-Last updated: 2026-05-10
+Last updated: 2026-05-10 (v3 design system added)
 
 > Full domain detail lives in `CODEX_CONTEXT.md`. This file gives Claude Code fast orientation and working rules for every session.
 
@@ -52,28 +52,164 @@ Core rule: **routes stay thin**. Business logic belongs in `services/*` or `lib/
 
 ---
 
-## 4. v3 UI Shell — Current Active Work
+## 4. v3 UI Shell — Design System & Current State
 
-A new UI shell is being built under `app/v3/`. It replaces the v2 shell visually but reuses all existing API routes and business logic.
+The v3 shell is a professional redesign by Claude Design, implemented under `app/v3/`. It reuses ALL existing `api/v1` routes and business logic — only the UI layer changes.
 
-**Status:** early — layout, shell components, and some dashboard pages exist. No admin features ported yet.
+### Design origin
+- Designed in Claude Design (claude.ai/design) from the file `CODEX_CONTEXT.md`
+- Font: **Inter** (all weights)
+- Grid: **8px** base, `10–12px` border-radius, soft shadows
+- Three themes: **navy** (default), **graphite**, **forest**
+- Two portals: **Admin/Staff shell** (`Ewall Dashboard`) and **Client portal** (`Ewall Client`)
 
-Key files:
-- `app/v3/layout.tsx` — root layout wrapper
-- `app/v3/lib/themes.ts` — theme definitions (`navy` | `graphite` | `forest`, default `navy`)
-- `app/v3/components/shell/ShellLayout.tsx` — main authenticated shell
-- `app/v3/components/shell/Sidebar.tsx` — sidebar nav
-- `app/v3/components/shell/Topbar.tsx` — top bar
-- `app/v3/components/shell/nav-config/` — nav config types, `admin-nav.ts`, `dashboard-nav.ts`
-- `app/v3/components/ui/` — v3 primitives: `Card`, `Pill`, `StatCard`, `PageHeader`, `SectionHeader`, `V3Icon`, `EwallLogo`
-- `app/v3/(protected)/dashboard/` — customer dashboard pages (home, trucks, filings, documents, drivers, billing, support)
-- `app/v3/(protected)/admin/` — admin overview page (stub)
+### Design tokens — `app/v3/layout.module.css`
 
-When working on v3:
-- Use CSS Modules (`.module.css` per component), not inline Tailwind classes on layout/shell elements.
-- Follow existing v3 component patterns before introducing new primitives.
-- All data fetching calls existing `api/v1` routes — do not create parallel v3 API routes.
-- The old `app/(v3)/` route group was deleted; canonical v3 path is `app/v3/`.
+All tokens are CSS custom properties on `.v3Root`. Use them everywhere:
+
+```
+--v3-bg           warm off-white surface (#F6F5F1 navy)
+--v3-panel        white card background
+--v3-ink          near-black text (#0E1116)
+--v3-muted        secondary text (#5B6470)
+--v3-line         border (#E7E4DC)
+--v3-soft-line    divider / lighter border
+--v3-chip-bg      chip/tag background
+--v3-primary      deep navy (#15233D) — CTA buttons, hero bands
+--v3-primary-soft soft navy tint — info banners
+--v3-accent       brass (#B5895A) — active indicator, avatar gradient, highlights
+--v3-sb-bg        sidebar dark background (#0E1116)
+--v3-sb-ink / --v3-sb-muted / --v3-sb-hover / --v3-sb-active
+--v3-success / --v3-success-bg
+--v3-warn / --v3-warn-bg
+--v3-danger / --v3-danger-bg
+--v3-info / --v3-info-bg
+--v3-sidebar-w (252px) / --v3-sidebar-w-collapsed (72px)
+--v3-topbar-h (60px)
+--v3-font  'Inter', system-ui, sans-serif
+```
+
+Graphite and Forest override tokens via `data-theme` attribute on `.v3Root`.
+
+### UI primitives — `app/v3/components/ui/`
+
+| Component | Props | Notes |
+|---|---|---|
+| `Card` | `noPadding?`, `style?` | `border-radius: 12px`, `border: 1px solid --v3-line` |
+| `Pill` | `tone: 'success'\|'warn'\|'danger'\|'info'\|'neutral'` | Dot + label, uses semantic color tokens |
+| `StatCard` | `label`, `value`, `delta?`, `deltaTone?`, `sub?` | KPI card with optional sparkline area |
+| `SectionHeader` | `title`, `subtitle?`, `action?` | Card header row with optional right slot |
+| `PageHeader` | `title`, `subtitle?`, `action?` | Page-level header |
+| `V3Icon` | `name: IconName`, `size?`, `stroke?` | SVG icon set (see `V3Icon.tsx` for full list) |
+| `EwallLogo` | `size?`, `color?` | E/T logomark SVG |
+
+### Shell — `app/v3/components/shell/`
+
+- `ShellLayout.tsx` — wraps Sidebar + Topbar + `<main>`. Props: `navGroups`, `title`, `breadcrumb`, `userName`, `userRole`, `userInitials`, `orgName`
+- `Sidebar.tsx` — dark sidebar with brand, collapsible nav groups, Settings link, user avatar footer
+- `Topbar.tsx` — sticky header with page title, breadcrumb, search button, **notification bell dropdown** (6 items, unread count, mark-all-read)
+- `ShellLayout.module.css`, `Sidebar.module.css`, `Topbar.module.css`
+
+### Navigation configs — `app/v3/components/shell/nav-config/`
+
+```
+types.ts          NavItem { id, label, href, icon, badge?, permission? }
+                  NavGroup { label?, items }
+
+admin-nav.ts      adminNavGroups  — for ADMIN role
+                  staffNavGroups  — for STAFF role (Workspace + Compliance only)
+
+dashboard-nav.ts  dashboardNavGroups — for TRUCKER/client portal
+```
+
+**Admin nav structure:**
+```
+Workspace     Overview, Documents
+Compliance    IFTA (badge 3), UCR, Form 2290, DMV renewals (badge 7)
+Operations    Reports, Team          ← admin only
+Settings      (footer link)
+```
+
+**Staff nav structure (STAFF = same business actions as Admin, but no Operations/Settings):**
+```
+Workspace     Overview, Documents
+Compliance    IFTA (badge 3), UCR, Form 2290, DMV renewals (badge 7)
+```
+
+**Client/Trucker nav structure:**
+```
+Workspace     Overview, Fleet (badge 8), Filings (badge 2), Documents, Drivers
+Account       Billing, Get help
+```
+
+> Fleet lives ONLY in the client portal. It is NOT in the admin/staff shell.
+
+### Role model in v3
+
+| Role | Shell | Access |
+|---|---|---|
+| `ADMIN` | Admin shell (`/v3/admin`) | Full: Workspace, Compliance, Operations, Settings |
+| `STAFF` | Admin shell (`/v3/admin`) | Workspace + Compliance only. Same business actions as Admin; only Settings (system rates, fees, templates) is blocked |
+| `TRUCKER` | Client portal (`/v3/dashboard`) | Their own fleet, filings, documents, billing |
+
+### v3 pages — current state
+
+All pages use **static mock data** (no API calls yet). UI is complete; backend integration is pending.
+
+**Client portal `/v3/dashboard`** — all pages implemented:
+
+| Route | File | What it shows |
+|---|---|---|
+| `/v3/dashboard` | `home.tsx` | Welcome hero (company info, truck count, open to-dos), 3 action cards (Pay UCR / Sign IFTA / Upload receipts), filing stepper (IFTA Q2, UCR, 2290), fleet preview table (5 trucks), Updates from Ewall feed, bilingual help band |
+| `/v3/dashboard/trucks` | `trucks/trucks.tsx` | 4 stat cards (Total/On road/Maintenance/Idle), trucks table (6 rows: Unit, VIN, Plate, Driver, Odometer, Status), + Add truck button |
+| `/v3/dashboard/filings` | `filings/filings.tsx` | Info card about filing workflow, filings table (5 rows: IFTA Q2/Q1/Q4, UCR, Form 2290 — Status, Amount, Due/Filed, View button), + Start a filing button |
+| `/v3/dashboard/documents` | `documents/documents.tsx` | Drag-drop upload card, documents table (5 rows: COI, fuel receipts, Schedule 1, TX registration, CDL renewal — Tag, Size, Uploaded, download button) |
+| `/v3/dashboard/drivers` | `drivers/drivers.tsx` | Drivers table (6 rows: name, CDL, expiry with 60-day warning, Truck, Status, Phone), + Add driver button |
+| `/v3/dashboard/billing` | `billing/billing.tsx` | Current plan card (Fleet $89/mo, 8/25 trucks, next charge), payment method card (Visa), invoices table (5 paid invoices), Change plan / Update card buttons |
+| `/v3/dashboard/support` | `support/support.tsx` | Hero support card (bilingual, 7am–7pm CT, Start chat / Schedule call), 6 topic cards (IFTA/UCR/2290/DMV/Docs/Drivers), conversations feed (3 items) |
+
+**Admin/Staff shell `/v3/admin`** — overview and settings implemented, compliance feature pages pending:
+
+| Route | File | What it shows |
+|---|---|---|
+| `/v3/admin` | `overview.tsx` | Greeting strip (personalized), 4 stat cards (11 compliance open, 38 filings MTD $48k, 18 active units, $268 avg cost), compliance queue table (4 filings with progress bars), fleet snapshot table (5 trucks, status filter tabs), live fleet map visualization (7 units + legend), activity feed (5 items), footer band (Smart assistant, week's payments, support card) |
+| `/v3/admin/settings` | `settings/settings.tsx` | 11-section settings (side-nav): IFTA tax rates (quarter selector, sync banner, scrollable state table), UCR fee schedule (3 stat cards + brackets), Form 2290 HVUT brackets, DMV fees by state, Jurisdictions (interactive 48-state grid), Service fees, Filing workflows (toggles + SLA cards), Roles & permissions matrix (6 roles), News & updates (posts table + composer), Email templates (10 templates + IFTA editor + variable panel + preview), System & branding (org info + data retention) |
+
+**Client portal settings:**
+
+| Route | File | What it shows |
+|---|---|---|
+| `/v3/dashboard/settings` | `settings/settings.tsx` | 6-section settings (side-nav): Company profile (name, EIN, address, MC/DOT, contact), Billing & plan (current plan card, Stripe payment method, invoices table), Integrations (Motive ELD, QuickBooks, IFTA Plus toggles), Notifications (per-event toggles for email/SMS/push), Security (2FA setup, active sessions table), Audit log (activity table with export) |
+
+**Shared settings CSS:** `app/v3/components/ui/settings.module.css` — both portals import this. Contains `.page`, `.sidenav`, form primitives, toggle, table, and stat-mini-card classes.
+
+**Layouts with auth:**
+- `dashboard/layout.tsx` — ShellLayout with `dashboardNavGroups`, role "Fleet admin", redirects to login if no session
+- `admin/layout.tsx` — ShellLayout with `adminNavGroups`, role "Staff", org "Truckers Unidos · Ops", redirects to login if no session
+
+### Design pages NOT yet in v3
+
+These were designed in Claude Design and need to be built:
+
+| Priority | Page | Location | Notes |
+|---|---|---|---|
+| Medium | **IFTA list + detail** | `/v3/admin/features/ifta-v2` | Filing queue, per-quarter jurisdiction breakdown bars |
+| Medium | **UCR list + detail** | `/v3/admin/features/ucr` | Multi-year registrations, bracket, fee, certificate numbers |
+| Medium | **Form 2290 list + detail** | `/v3/admin/features/2290` | Vehicle-by-vehicle HVUT table, Schedule 1 download card |
+| Medium | **DMV renewals list + detail** | `/v3/admin/features/dmv` | Days-left pills, auto-renew status, bulk renew action |
+| Medium | **Individual filing detail** | `/v3/admin/features/[module]/[id]` | Step tracker, documents, chat/messages panel, role-aware actions |
+| Low | **Reports** | `/v3/admin/reports` | Saved + custom reports grid (admin only) |
+| Low | **Team** | `/v3/admin/users` | Members, roles, status, last seen |
+
+### v3 coding rules
+
+- Use CSS Modules (`.module.css` per component), not inline Tailwind on layout/shell elements.
+- Inline styles are acceptable for one-off data-driven values (colors from tokens, dynamic widths).
+- Follow existing component patterns (`Card`, `Pill`, `V3Icon`) before introducing new primitives.
+- All data goes through existing `api/v1` routes — never create parallel v3 API routes.
+- The old `app/(v3)/` route group (with parentheses) was deleted. Canonical path is `app/v3/` (no parentheses).
+- When adding pages, pass the correct `navGroups` (admin vs staff vs dashboard) to `ShellLayout`.
+- For role-aware nav, select `adminNavGroups` vs `staffNavGroups` from `admin-nav.ts` based on session role.
 
 ---
 

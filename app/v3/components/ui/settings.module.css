@@ -1,0 +1,350 @@
+/* Shared layout for all v3 settings pages */
+
+.page {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 24px;
+  padding: 28px;
+  align-items: flex-start;
+  min-height: calc(100dvh - var(--v3-topbar-h));
+}
+
+.adminPage {
+  grid-template-columns: 232px 1fr;
+}
+
+/* ── Side nav ── */
+.sidenav {
+  position: sticky;
+  top: calc(var(--v3-topbar-h) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sideLabel {
+  font-size: 10.5px;
+  color: var(--v3-muted);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 0 10px 8px;
+}
+
+.sideBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--v3-ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  font-family: var(--v3-font);
+  transition: background 0.1s ease;
+  width: 100%;
+}
+
+.sideBtn:hover {
+  background: var(--v3-soft-line);
+}
+
+.sideBtn[data-active='true'] {
+  background: var(--v3-primary-soft);
+  color: var(--v3-primary);
+  font-weight: 600;
+}
+
+.sideHint {
+  margin-top: 20px;
+  padding: 14px;
+  background: var(--v3-bg);
+  border: 1px solid var(--v3-line);
+  border-radius: 10px;
+}
+
+.sideHintTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v3-ink);
+  margin-bottom: 4px;
+}
+
+.sideHintBody {
+  font-size: 11.5px;
+  color: var(--v3-muted);
+  line-height: 1.45;
+}
+
+.sideHintBtn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 6px;
+  background: var(--v3-panel);
+  border: 1px solid var(--v3-line);
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: var(--v3-ink);
+  cursor: pointer;
+  font-weight: 500;
+  font-family: var(--v3-font);
+}
+
+/* ── Content area ── */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.btnSecondary {
+  background: var(--v3-panel);
+  color: var(--v3-ink);
+  border: 1px solid var(--v3-line);
+  border-radius: 7px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-weight: 500;
+  font-family: var(--v3-font);
+}
+
+.btnPrimary {
+  background: var(--v3-primary);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-weight: 500;
+  font-family: var(--v3-font);
+}
+
+/* ── Form primitives ── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--v3-ink);
+  letter-spacing: 0.1px;
+}
+
+.fieldHint {
+  font-size: 11px;
+  color: var(--v3-muted);
+  line-height: 1.4;
+}
+
+.input {
+  background: var(--v3-panel);
+  border: 1px solid var(--v3-line);
+  border-radius: 7px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  color: var(--v3-ink);
+  outline: none;
+  font-family: var(--v3-font);
+  width: 100%;
+}
+
+.input:focus {
+  border-color: var(--v3-primary);
+}
+
+.select {
+  background: var(--v3-panel);
+  border: 1px solid var(--v3-line);
+  border-radius: 7px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  color: var(--v3-ink);
+  outline: none;
+  font-family: var(--v3-font);
+  width: 100%;
+}
+
+.textarea {
+  background: var(--v3-panel);
+  border: 1px solid var(--v3-line);
+  border-radius: 7px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  color: var(--v3-ink);
+  outline: none;
+  font-family: var(--v3-font);
+  resize: vertical;
+  line-height: 1.5;
+  width: 100%;
+}
+
+.textareaMono {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ── Toggle ── */
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--v3-soft-line);
+}
+
+.toggleText {
+  flex: 1;
+}
+
+.toggleLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--v3-ink);
+}
+
+.toggleDesc {
+  font-size: 11.5px;
+  color: var(--v3-muted);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.toggleTrack {
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.toggleThumb {
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Tables ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.tableScroll {
+  border: 1px solid var(--v3-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.th {
+  padding: 10px 16px;
+  font-size: 10.5px;
+  color: var(--v3-muted);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--v3-line);
+  background: var(--v3-bg);
+  text-align: left;
+}
+
+.thRight {
+  text-align: right;
+}
+
+.td {
+  padding: 12px 16px;
+  color: var(--v3-ink);
+  border-bottom: 1px solid var(--v3-soft-line);
+}
+
+.tdRight {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tdMuted {
+  color: var(--v3-muted);
+}
+
+.chip {
+  background: var(--v3-chip-bg);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  display: inline-block;
+}
+
+.iconBtn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--v3-muted);
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── Stat mini cards ── */
+.statsRow {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.statMini {
+  padding: 12px 14px;
+  background: var(--v3-bg);
+  border: 1px solid var(--v3-line);
+  border-radius: 8px;
+}
+
+.statMiniLabel {
+  font-size: 10.5px;
+  color: var(--v3-muted);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.statMiniValue {
+  font-size: 18px;
+  color: var(--v3-ink);
+  font-weight: 600;
+  margin-top: 4px;
+  letter-spacing: -0.3px;
+}
+
+.statMiniSub {
+  font-size: 11px;
+  color: var(--v3-muted);
+  margin-top: 2px;
+}

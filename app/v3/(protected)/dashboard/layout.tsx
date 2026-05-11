@@ -16,6 +16,7 @@ export default async function DashboardV3Layout({ children }: { children: React.
       userName={userName}
       userRole="Fleet admin"
       userInitials={userInitials}
+      settingsHref="/v3/dashboard/settings"
     >
       {children}
     </ShellLayout>
