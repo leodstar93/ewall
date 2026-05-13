@@ -1,7 +1,14 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { ShellLayout } from '@/app/v3/components/shell/ShellLayout'
-import { adminNavGroups } from '@/app/v3/components/shell/nav-config/admin-nav'
+import { adminNavGroups, staffNavGroups } from '@/app/v3/components/shell/nav-config/admin-nav'
+import { ensureUserOrganization } from '@/lib/services/organization.service'
+
+function displayRole(roles: string[]): string {
+  if (roles.includes('ADMIN')) return 'Admin'
+  if (roles.includes('STAFF')) return 'Staff'
+  return roles[0] ?? 'Member'
+}
 
 export default async function AdminV3Layout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -9,14 +16,18 @@ export default async function AdminV3Layout({ children }: { children: React.Reac
 
   const userName     = session.user.name ?? undefined
   const userInitials = userName?.split(' ').map(p => p[0]).join('').slice(0, 2)
+  const userRole     = displayRole(session.user.roles)
+  const isAdmin      = session.user.roles.includes('ADMIN')
+
+  const org = await ensureUserOrganization(session.user.id)
 
   return (
     <ShellLayout
-      navGroups={adminNavGroups}
+      navGroups={isAdmin ? adminNavGroups : staffNavGroups}
       userName={userName}
-      userRole="Staff"
+      userRole={userRole}
       userInitials={userInitials}
-      orgName="Truckers Unidos · Ops"
+      orgName={org.name}
       settingsHref="/v3/admin/settings"
     >
       {children}
