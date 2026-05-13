@@ -3,9 +3,53 @@
 import { useState } from 'react'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
+import type { PillTone } from '@/app/v3/components/ui/Pill'
 import { SectionHeader } from '@/app/v3/components/ui/SectionHeader'
 import { V3Icon } from '@/app/v3/components/ui/V3Icon'
 import s from '@/app/v3/components/ui/settings.module.css'
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+interface CompanyData {
+  legalName: string | null; dbaName: string | null
+  dotNumber: string | null; mcNumber: string | null; ein: string | null
+  phone: string | null; addressLine1: string | null
+  city: string | null; state: string | null; zipCode: string | null
+  saferPowerUnits: number | null; saferDrivers: number | null
+  saferOperatingStatus: string | null; saferEntityType: string | null
+}
+
+interface PlanInfo {
+  name: string; priceDollars: number; interval: string
+  status: string; nextChargeDate: string | null
+}
+
+interface PaymentMethodInfo {
+  type: string; brand: string | null; last4: string | null
+  expMonth: number | null; expYear: number | null
+  holderName: string | null; paypalEmail: string | null; bankName: string | null
+}
+
+interface InvoiceRow { id: string; date: string; desc: string; amount: number; status: string }
+
+interface IntegrationRow {
+  id: string; provider: string; status: string
+  orgName: string | null; lastSyncedAt: string | null
+}
+
+interface AuditRow { id: string; title: string; message: string; level: string; when: string }
+
+interface Props {
+  userEmail: string
+  userName: string
+  company: CompanyData
+  plan: PlanInfo | null
+  paymentMethod: PaymentMethodInfo | null
+  invoiceRows: InvoiceRow[]
+  truckCount: number
+  integrationRows: IntegrationRow[]
+  auditRows: AuditRow[]
+}
 
 type Section = 'company' | 'billing' | 'integrations' | 'notifications' | 'security' | 'audit'
 
@@ -18,7 +62,8 @@ const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'audit',         label: 'Audit log',        icon: <V3Icon name="clock"    size={15} /> },
 ]
 
-/* ── Shared form primitives ── */
+// ── Shared form primitives ─────────────────────────────────────────────────────
+
 function Field({ label, hint, children, span = 1 }: { label: string; hint?: string; children: React.ReactNode; span?: number }) {
   return (
     <div className={s.field} style={{ gridColumn: `span ${span}` }}>
@@ -60,57 +105,44 @@ function Toggle({ on, onChange, label, desc }: { on: boolean; onChange: () => vo
   )
 }
 
-/* ── Company profile ── */
-function CompanyPanel() {
+// ── Company profile ────────────────────────────────────────────────────────────
+
+function CompanyPanel({ company }: { company: CompanyData }) {
+  const authorityItems = [
+    { l: 'Operating status',  v: company.saferOperatingStatus ?? '—' },
+    { l: 'Entity type',       v: company.saferEntityType ?? '—' },
+    { l: 'Power units',       v: company.saferPowerUnits != null ? String(company.saferPowerUnits) : '—' },
+    { l: 'Drivers',           v: company.saferDrivers != null ? String(company.saferDrivers) : '—' },
+  ]
+
   return (
     <>
       <Card>
-        <SectionHeader
-          title="Company profile"
-          subtitle="Used on filings, invoices, and the public carrier profile."
-        />
+        <SectionHeader title="Company profile" subtitle="Used on filings, invoices, and the public carrier profile." />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Field label="Legal name"><Input defaultValue="Truckers Unidos LLC" /></Field>
-          <Field label="DBA / Trade name"><Input defaultValue="Truckers Unidos" /></Field>
-          <Field label="USDOT number"><Input defaultValue="3812450" /></Field>
-          <Field label="MC number"><Input defaultValue="MC-1284091" /></Field>
-          <Field label="EIN"><Input defaultValue="86-2104938" /></Field>
-          <Field label="State of incorporation">
-            <Select options={['Texas', 'California', 'Arizona', 'Florida', 'Other']} defaultValue="Texas" />
-          </Field>
+          <Field label="Legal name"><Input defaultValue={company.legalName ?? ''} /></Field>
+          <Field label="DBA / Trade name"><Input defaultValue={company.dbaName ?? ''} /></Field>
+          <Field label="USDOT number"><Input defaultValue={company.dotNumber ?? ''} /></Field>
+          <Field label="MC number"><Input defaultValue={company.mcNumber ?? ''} /></Field>
+          <Field label="EIN"><Input defaultValue={company.ein ?? ''} /></Field>
+          <Field label="Phone"><Input defaultValue={company.phone ?? ''} /></Field>
           <Field label="Street address" span={2}>
-            <Input defaultValue="4820 Industrial Blvd, Suite 210" />
+            <Input defaultValue={company.addressLine1 ?? ''} />
           </Field>
-          <Field label="City"><Input defaultValue="Laredo" /></Field>
+          <Field label="City"><Input defaultValue={company.city ?? ''} /></Field>
           <Field label="State / ZIP">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <Select options={['TX', 'CA', 'AZ', 'NM', 'FL']} defaultValue="TX" />
-              <Input defaultValue="78041" />
+              <Input defaultValue={company.state ?? ''} placeholder="State" />
+              <Input defaultValue={company.zipCode ?? ''} placeholder="ZIP" />
             </div>
-          </Field>
-          <Field label="Primary contact"><Input defaultValue="Juan García" /></Field>
-          <Field label="Contact email"><Input defaultValue="juan@truckersunidos.com" /></Field>
-          <Field label="Contact phone"><Input defaultValue="(956) 555-0142" /></Field>
-          <Field label="Preferred language">
-            <Select
-              options={['English (US)', 'Español (Mexico)', 'Español (US)']}
-              defaultValue="Español (Mexico)"
-            />
           </Field>
         </div>
       </Card>
 
       <Card>
-        <SectionHeader title="Operating authority" subtitle="Shown on annual reports and registrations." />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-          {[
-            { l: 'Authority type',           v: 'Common · Contract' },
-            { l: 'Operation classification', v: 'Authorized for hire' },
-            { l: 'Cargo carried',            v: 'General freight · Refrigerated' },
-            { l: 'Power units',              v: '24' },
-            { l: 'Drivers',                  v: '21' },
-            { l: 'Hazmat',                   v: 'No' },
-          ].map(b => (
+        <SectionHeader title="Operating authority" subtitle="From FMCSA SAFER — updated automatically." />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+          {authorityItems.map(b => (
             <div key={b.l} style={{ padding: '12px 14px', background: 'var(--v3-bg)', border: '1px solid var(--v3-line)', borderRadius: 8 }}>
               <div style={{ fontSize: 10.5, color: 'var(--v3-muted)', letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>{b.l}</div>
               <div style={{ fontSize: 13, color: 'var(--v3-ink)', fontWeight: 500, marginTop: 5 }}>{b.v}</div>
@@ -122,49 +154,97 @@ function CompanyPanel() {
   )
 }
 
-/* ── Billing & plan ── */
-const INVOICES = [
-  { no: 'INV-2026-04', date: 'Apr 30, 2026', desc: 'Pro plan · monthly',             amt: 480 },
-  { no: 'INV-2026-03', date: 'Mar 31, 2026', desc: 'Pro plan · monthly',             amt: 480 },
-  { no: 'INV-2026-02', date: 'Feb 29, 2026', desc: 'Pro plan + 2 add-on filings',    amt: 612 },
-  { no: 'INV-2026-01', date: 'Jan 31, 2026', desc: 'Pro plan · monthly',             amt: 480 },
-]
+// ── Billing ────────────────────────────────────────────────────────────────────
 
-function BillingPanel() {
+function planTone(status: string): PillTone {
+  if (status === 'ACTIVE' || status === 'TRIALING') return 'success'
+  if (status === 'PAST_DUE') return 'danger'
+  return 'neutral'
+}
+
+function chargeTone(status: string): PillTone {
+  const s = status.toLowerCase()
+  if (s === 'succeeded' || s === 'paid') return 'success'
+  if (s === 'failed' || s === 'refunded') return 'danger'
+  if (s === 'pending') return 'warn'
+  return 'neutral'
+}
+
+function chargeLabel(status: string): string {
+  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
+}
+
+function renderPmCard(pm: PaymentMethodInfo) {
+  if (pm.type === 'card' && pm.last4) {
+    const expStr = pm.expMonth && pm.expYear
+      ? `Exp ${String(pm.expMonth).padStart(2, '0')}/${String(pm.expYear).slice(-2)}`
+      : ''
+    return (
+      <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+          <div style={{ width: 36, height: 24, borderRadius: 4, background: '#1A1F71', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 9, fontWeight: 700, letterSpacing: 0.5, flexShrink: 0 }}>
+            {(pm.brand ?? 'CARD').toUpperCase().slice(0, 4)}
+          </div>
+          <div>
+            <div style={{ fontSize: 12.5, color: 'var(--v3-ink)', fontWeight: 500 }}>•••• {pm.last4}</div>
+            <div style={{ fontSize: 11, color: 'var(--v3-muted)', marginTop: 1 }}>{[expStr, pm.holderName].filter(Boolean).join(' · ')}</div>
+          </div>
+        </div>
+      </>
+    )
+  }
+  if (pm.type === 'paypal' && pm.paypalEmail) {
+    return <div style={{ fontSize: 12.5, color: 'var(--v3-ink)', marginTop: 12 }}>{pm.paypalEmail}</div>
+  }
+  if (pm.type === 'ach_vault') {
+    return <div style={{ fontSize: 12.5, color: 'var(--v3-ink)', marginTop: 12 }}>ACH · {pm.bankName ?? 'Bank account'}</div>
+  }
+  return <div style={{ fontSize: 12.5, color: 'var(--v3-muted)', marginTop: 12 }}>No payment method on file</div>
+}
+
+function BillingPanel({ plan, paymentMethod, invoiceRows, truckCount }: {
+  plan: PlanInfo | null
+  paymentMethod: PaymentMethodInfo | null
+  invoiceRows: InvoiceRow[]
+  truckCount: number
+}) {
   return (
     <>
       <Card>
         <SectionHeader title="Current plan" />
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 14 }}>
           <div style={{ padding: 18, background: 'var(--v3-primary)', color: '#fff', borderRadius: 10 }}>
-            <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>Pro fleet</div>
-            <div style={{ fontSize: 24, fontWeight: 600, marginTop: 10, letterSpacing: -0.5 }}>
-              $480 <span style={{ fontSize: 12, opacity: 0.7, fontWeight: 400 }}>/ month</span>
+            <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>
+              {plan ? plan.name : 'No active plan'}
             </div>
-            <div style={{ fontSize: 11.5, opacity: 0.7, marginTop: 4 }}>Renews May 31 · 24 units included</div>
-            <button style={{ marginTop: 14, background: 'var(--v3-accent)', color: '#0E1116', border: 'none', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
-              Change plan
-            </button>
+            {plan && (
+              <>
+                <div style={{ fontSize: 24, fontWeight: 600, marginTop: 10, letterSpacing: -0.5 }}>
+                  ${plan.priceDollars.toLocaleString()} <span style={{ fontSize: 12, opacity: 0.7, fontWeight: 400 }}>/ {plan.interval}</span>
+                </div>
+                <div style={{ fontSize: 11.5, opacity: 0.7, marginTop: 4 }}>
+                  {plan.nextChargeDate ? `Renews ${plan.nextChargeDate}` : planTone(plan.status) === 'success' ? 'Active' : plan.status}
+                </div>
+                <button style={{ marginTop: 14, background: 'var(--v3-accent)', color: '#0E1116', border: 'none', borderRadius: 7, padding: '7px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                  Change plan
+                </button>
+              </>
+            )}
           </div>
+
           <div style={{ padding: 18, border: '1px solid var(--v3-line)', borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: 'var(--v3-muted)', letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>Units in use</div>
+            <div style={{ fontSize: 11, color: 'var(--v3-muted)', letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>Trucks registered</div>
             <div style={{ fontSize: 22, fontWeight: 600, color: 'var(--v3-ink)', marginTop: 10, letterSpacing: -0.4 }}>
-              24 <span style={{ fontSize: 12, color: 'var(--v3-muted)', fontWeight: 400 }}>/ 50</span>
+              {truckCount}
             </div>
-            <div style={{ height: 5, background: 'var(--v3-soft-line)', borderRadius: 3, marginTop: 10, overflow: 'hidden' }}>
-              <div style={{ width: '48%', height: '100%', background: 'var(--v3-primary)' }} />
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--v3-muted)', marginTop: 6 }}>48% of plan capacity</div>
+            <div style={{ fontSize: 11, color: 'var(--v3-muted)', marginTop: 6 }}>vehicles on account</div>
           </div>
+
           <div style={{ padding: 18, border: '1px solid var(--v3-line)', borderRadius: 10 }}>
             <div style={{ fontSize: 11, color: 'var(--v3-muted)', letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>Payment method</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-              <div style={{ width: 36, height: 24, borderRadius: 4, background: '#1A1F71', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 9, fontWeight: 700, letterSpacing: 0.5 }}>VISA</div>
-              <div>
-                <div style={{ fontSize: 12.5, color: 'var(--v3-ink)', fontWeight: 500 }}>•••• 4821</div>
-                <div style={{ fontSize: 11, color: 'var(--v3-muted)', marginTop: 1 }}>Exp 09/2028</div>
-              </div>
-            </div>
+            {paymentMethod ? renderPmCard(paymentMethod) : (
+              <div style={{ fontSize: 12.5, color: 'var(--v3-muted)', marginTop: 12 }}>None on file</div>
+            )}
             <button style={{ marginTop: 10, background: 'transparent', color: 'var(--v3-ink)', border: '1px solid var(--v3-line)', borderRadius: 6, padding: '5px 10px', fontSize: 11.5, cursor: 'pointer', fontWeight: 500 }}>
               Update card
             </button>
@@ -186,19 +266,20 @@ function BillingPanel() {
         <table className={s.table}>
           <thead>
             <tr>
-              {['Invoice', 'Date', 'Description', 'Amount', 'Status', ''].map((h, i) => (
-                <th key={i} className={`${s.th} ${i === 3 ? s.thRight : ''}`}>{h}</th>
+              {['Date', 'Description', 'Amount', 'Status', ''].map((h, i) => (
+                <th key={i} className={`${s.th} ${i === 2 ? s.thRight : ''}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {INVOICES.map(row => (
-              <tr key={row.no}>
-                <td className={s.td} style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11.5, fontWeight: 500 }}>{row.no}</td>
+            {invoiceRows.length === 0 ? (
+              <tr><td colSpan={5} className={s.td} style={{ textAlign: 'center', color: 'var(--v3-muted)' }}>No charges yet.</td></tr>
+            ) : invoiceRows.map(row => (
+              <tr key={row.id}>
                 <td className={`${s.td} ${s.tdMuted}`}>{row.date}</td>
                 <td className={s.td}>{row.desc}</td>
-                <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 500 }}>${row.amt}</td>
-                <td className={s.td}><Pill tone="success">Paid</Pill></td>
+                <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 500 }}>${row.amount.toLocaleString()}</td>
+                <td className={s.td}><Pill tone={chargeTone(row.status)}>{chargeLabel(row.status)}</Pill></td>
                 <td className={s.td} style={{ textAlign: 'right' }}>
                   <button className={s.iconBtn}><V3Icon name="download" size={14} /></button>
                 </td>
@@ -211,39 +292,75 @@ function BillingPanel() {
   )
 }
 
-/* ── Integrations ── */
-const INTEGRATIONS = [
-  { name: 'Samsara ELD',         desc: 'Auto-import HOS, miles, and IFTA jurisdictions from your fleet ELDs.',         tone: 'success' as const, last: 'Synced 4 min ago' },
-  { name: 'KeepTruckin / Motive', desc: 'Alternative ELD provider for hours-of-service and IFTA mileage.',             tone: 'neutral' as const, last: '—' },
-  { name: 'QuickBooks Online',    desc: 'Push invoices, fuel receipts, and IFTA payments to your accounting.',          tone: 'success' as const, last: 'Synced today, 6:12 am' },
-  { name: 'WEX fuel card',        desc: 'Import fuel purchases automatically and reconcile against IFTA.',              tone: 'success' as const, last: '12 receipts today' },
-  { name: 'Comdata fuel card',    desc: 'Alternative fuel-card import for IFTA.',                                       tone: 'neutral' as const, last: '—' },
-  { name: 'IRS e-file (2290)',    desc: 'Direct submission to IRS with stamped Schedule 1 returned to your inbox.',     tone: 'success' as const, last: 'Verified Apr 02' },
+// ── Integrations ───────────────────────────────────────────────────────────────
+
+const PROVIDER_META: Record<string, { name: string; desc: string }> = {
+  MOTIVE:  { name: 'Motive ELD',    desc: 'Auto-import HOS, miles, and IFTA jurisdictions from your Motive fleet.' },
+  SAMSARA: { name: 'Samsara ELD',   desc: 'Import HOS and IFTA mileage from Samsara-equipped trucks.' },
+  OTHER:   { name: 'ELD Provider',  desc: 'Custom ELD integration for hours-of-service and IFTA mileage.' },
+}
+
+const STATIC_INTEGRATIONS = [
+  { name: 'QuickBooks Online', desc: 'Push invoices, fuel receipts, and IFTA payments to your accounting.' },
+  { name: 'WEX fuel card',     desc: 'Import fuel purchases automatically and reconcile against IFTA.' },
+  { name: 'Comdata fuel card', desc: 'Alternative fuel-card import for IFTA.' },
+  { name: 'IRS e-file (2290)', desc: 'Direct submission to IRS with stamped Schedule 1 returned to your inbox.' },
 ]
 
-function IntegrationsPanel() {
+function eldTone(status: string): PillTone {
+  if (status === 'CONNECTED') return 'success'
+  if (status === 'EXPIRED' || status === 'ERROR') return 'danger'
+  if (status === 'PENDING') return 'warn'
+  return 'neutral'
+}
+
+function IntegrationsPanel({ integrationRows }: { integrationRows: IntegrationRow[] }) {
   return (
     <Card>
       <SectionHeader title="Integrations" subtitle="Connect the systems Ewall reads from." />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-        {INTEGRATIONS.map(int => (
+        {integrationRows.map(int => {
+          const meta = PROVIDER_META[int.provider] ?? { name: int.provider, desc: 'Integration' }
+          const tone = eldTone(int.status)
+          const label = int.status === 'CONNECTED' ? 'Connected' : int.status.charAt(0) + int.status.slice(1).toLowerCase()
+          const lastText = int.lastSyncedAt ? `Synced ${int.lastSyncedAt}` : '—'
+          return (
+            <div key={int.id} style={{ border: '1px solid var(--v3-line)', borderRadius: 10, padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--v3-ink)' }}>{meta.name}</div>
+                  {int.orgName && <div style={{ fontSize: 11, color: 'var(--v3-muted)', marginTop: 1 }}>{int.orgName}</div>}
+                  <div style={{ fontSize: 12, color: 'var(--v3-muted)', marginTop: 4, lineHeight: 1.5 }}>{meta.desc}</div>
+                </div>
+                <Pill tone={tone}>{label}</Pill>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--v3-soft-line)' }}>
+                <div style={{ fontSize: 11, color: 'var(--v3-muted)' }}>{lastText}</div>
+                <button style={{
+                  background: tone === 'success' ? 'transparent' : 'var(--v3-primary)',
+                  color: tone === 'success' ? 'var(--v3-ink)' : '#fff',
+                  border: tone === 'success' ? '1px solid var(--v3-line)' : 'none',
+                  borderRadius: 6, padding: '5px 11px', fontSize: 11.5, cursor: 'pointer', fontWeight: 500,
+                }}>
+                  {tone === 'success' ? 'Configure' : 'Reconnect'}
+                </button>
+              </div>
+            </div>
+          )
+        })}
+        {STATIC_INTEGRATIONS.map(int => (
           <div key={int.name} style={{ border: '1px solid var(--v3-line)', borderRadius: 10, padding: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--v3-ink)' }}>{int.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--v3-muted)', marginTop: 4, lineHeight: 1.5 }}>{int.desc}</div>
               </div>
-              <Pill tone={int.tone}>{int.tone === 'success' ? 'Connected' : 'Available'}</Pill>
+              <Pill tone="neutral">Available</Pill>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--v3-soft-line)' }}>
-              <div style={{ fontSize: 11, color: 'var(--v3-muted)' }}>{int.last}</div>
-              <button style={{
-                background: int.tone === 'success' ? 'transparent' : 'var(--v3-primary)',
-                color: int.tone === 'success' ? 'var(--v3-ink)' : '#fff',
-                border: int.tone === 'success' ? '1px solid var(--v3-line)' : 'none',
-                borderRadius: 6, padding: '5px 11px', fontSize: 11.5, cursor: 'pointer', fontWeight: 500,
-              }}>
-                {int.tone === 'success' ? 'Configure' : 'Connect'}
+              <div style={{ fontSize: 11, color: 'var(--v3-muted)' }}>—</div>
+              <button style={{ background: 'var(--v3-primary)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 11px', fontSize: 11.5, cursor: 'pointer', fontWeight: 500 }}>
+                Connect
               </button>
             </div>
           </div>
@@ -253,7 +370,8 @@ function IntegrationsPanel() {
   )
 }
 
-/* ── Notifications ── */
+// ── Notifications ──────────────────────────────────────────────────────────────
+
 function NotificationsPanel() {
   const [st, setSt] = useState({
     iftaDue: true, ucrDue: true, dmvExpiry: true,
@@ -288,21 +406,15 @@ function NotificationsPanel() {
   )
 }
 
-/* ── Security ── */
-const SESSIONS = [
-  { device: 'MacBook Pro · Chrome', loc: 'Laredo, TX',    when: 'Active now',     current: true },
-  { device: 'iPhone 15 · Safari',   loc: 'Laredo, TX',    when: '2 hr ago' },
-  { device: 'Windows · Edge',        loc: 'Houston, TX',   when: 'Yesterday' },
-  { device: 'iPad · Safari',         loc: 'Monterrey, MX', when: 'Apr 28, 2026' },
-]
+// ── Security ───────────────────────────────────────────────────────────────────
 
-function SecurityPanel() {
+function SecurityPanel({ userEmail }: { userEmail: string }) {
   return (
     <>
       <Card>
         <SectionHeader title="Sign-in & 2FA" />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Field label="Email"><Input defaultValue="juan@truckersunidos.com" /></Field>
+          <Field label="Email"><Input defaultValue={userEmail} /></Field>
           <Field label="Password">
             <div style={{ display: 'flex', gap: 8 }}>
               <Input type="password" defaultValue="••••••••••" readOnly style={{ flex: 1 }} />
@@ -310,63 +422,43 @@ function SecurityPanel() {
             </div>
           </Field>
         </div>
-        <Toggle on={true} onChange={() => {}} label="Two-factor authentication" desc="Required for admin role · Authenticator app · Last verified May 06" />
-        <Toggle on={true} onChange={() => {}} label="SSO via Google Workspace" desc="Members of truckersunidos.com can sign in with Google." />
-        <Toggle on={false} onChange={() => {}} label="IP allow-list" desc="Restrict admin access to office IPs only." />
+        <Toggle on={false} onChange={() => {}} label="Two-factor authentication" desc="Protect your account with an authenticator app." />
+        <Toggle on={false} onChange={() => {}} label="IP allow-list" desc="Restrict admin access to specific IPs." />
       </Card>
 
-      <Card noPadding>
-        <div style={{ padding: '18px 20px 12px' }}>
-          <SectionHeader
-            title="Active sessions"
-            action={
-              <button style={{ background: 'transparent', color: 'var(--v3-danger)', border: '1px solid var(--v3-danger-bg)', borderRadius: 6, padding: '6px 11px', fontSize: 11.5, cursor: 'pointer', fontWeight: 500 }}>
-                Sign out all other devices
-              </button>
-            }
-          />
+      <Card>
+        <SectionHeader
+          title="Active sessions"
+          action={
+            <button style={{ background: 'transparent', color: 'var(--v3-danger)', border: '1px solid var(--v3-danger-bg)', borderRadius: 6, padding: '6px 11px', fontSize: 11.5, cursor: 'pointer', fontWeight: 500 }}>
+              Sign out all devices
+            </button>
+          }
+        />
+        <div style={{ marginTop: 16, padding: '14px 16px', background: 'var(--v3-bg)', borderRadius: 8, border: '1px solid var(--v3-line)', fontSize: 12.5, color: 'var(--v3-muted)' }}>
+          Current session is active. Session details are managed by your sign-in provider.
         </div>
-        {SESSIONS.map((sess, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 80px', alignItems: 'center', gap: 12, padding: '13px 20px', borderTop: '1px solid var(--v3-soft-line)' }}>
-            <div>
-              <div style={{ fontSize: 12.5, color: 'var(--v3-ink)', fontWeight: 500 }}>{sess.device}</div>
-              {sess.current && <div style={{ fontSize: 11, color: 'var(--v3-success)', marginTop: 1, fontWeight: 500 }}>This device</div>}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--v3-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <V3Icon name="pin" size={12} /> {sess.loc}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--v3-muted)' }}>{sess.when}</div>
-            <div style={{ textAlign: 'right' }}>
-              {!sess.current && (
-                <button style={{ background: 'transparent', color: 'var(--v3-muted)', border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 500 }}>Revoke</button>
-              )}
-            </div>
-          </div>
-        ))}
       </Card>
     </>
   )
 }
 
-/* ── Audit log ── */
-const AUDIT_LOG = [
-  { who: 'Juan García',  what: 'updated company billing address',              when: 'Today · 9:42 am',    tone: 'info'    as const },
-  { who: 'Ana Morales',  what: 'submitted IFTA 2026 · Q2 for review',         when: 'Today · 9:14 am',    tone: 'success' as const },
-  { who: 'System',       what: 'auto-renewed UCR 2026 registration ($525)',    when: 'Yesterday · 11:00 pm', tone: 'success' as const },
-  { who: 'Juan García',  what: 'invited sofia@truckersunidos.com as Compliance', when: 'May 06 · 2:18 pm', tone: 'info'    as const },
-  { who: 'TX DMV',       what: 'flagged TRK-309 registration expiring May 18', when: 'May 05 · 8:00 am',  tone: 'warn'    as const },
-  { who: 'Ana Morales',  what: 'uploaded 6 fuel receipts (April batch)',        when: 'May 03 · 4:22 pm',  tone: 'info'    as const },
-  { who: 'Juan García',  what: 'changed two-factor method to authenticator app', when: 'May 02 · 10:11 am', tone: 'info'   as const },
-  { who: 'System',       what: 'IRS accepted Form 2290 FY 2026 · 24 units',   when: 'Apr 02 · 6:48 am',  tone: 'success' as const },
-]
+// ── Audit log ──────────────────────────────────────────────────────────────────
 
-function AuditPanel() {
+function levelTone(level: string): PillTone {
+  if (level === 'SUCCESS') return 'success'
+  if (level === 'WARNING') return 'warn'
+  if (level === 'ERROR') return 'danger'
+  return 'info'
+}
+
+function AuditPanel({ auditRows }: { auditRows: AuditRow[] }) {
   return (
     <Card noPadding>
       <div style={{ padding: '18px 20px 12px' }}>
         <SectionHeader
           title="Audit log"
-          subtitle="Every change to compliance data, billing, and access — kept for 7 years."
+          subtitle="Recent notifications and system events on your account."
           action={
             <button className={s.btnSecondary} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '6px 11px' }}>
               <V3Icon name="download" size={12} /> Export CSV
@@ -374,17 +466,20 @@ function AuditPanel() {
           }
         />
       </div>
-      {AUDIT_LOG.map((e, i) => {
-        const bg = e.tone === 'success' ? 'var(--v3-success-bg)' : e.tone === 'warn' ? 'var(--v3-warn-bg)' : 'var(--v3-primary-soft)'
-        const color = e.tone === 'success' ? 'var(--v3-success)' : e.tone === 'warn' ? 'var(--v3-warn)' : 'var(--v3-primary)'
+      {auditRows.length === 0 ? (
+        <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>No activity yet.</div>
+      ) : auditRows.map(e => {
+        const tone = levelTone(e.level)
+        const bg = tone === 'success' ? 'var(--v3-success-bg)' : tone === 'warn' ? 'var(--v3-warn-bg)' : tone === 'danger' ? 'var(--v3-danger-bg)' : 'var(--v3-primary-soft)'
+        const color = tone === 'success' ? 'var(--v3-success)' : tone === 'warn' ? 'var(--v3-warn)' : tone === 'danger' ? 'var(--v3-danger)' : 'var(--v3-primary)'
         return (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '32px 1fr auto', alignItems: 'flex-start', gap: 12, padding: '13px 20px', borderTop: '1px solid var(--v3-soft-line)' }}>
+          <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '32px 1fr auto', alignItems: 'flex-start', gap: 12, padding: '13px 20px', borderTop: '1px solid var(--v3-soft-line)' }}>
             <div style={{ width: 28, height: 28, borderRadius: 7, background: bg, color, display: 'grid', placeItems: 'center' }}>
-              <V3Icon name={e.tone === 'success' ? 'check' : e.tone === 'warn' ? 'shield' : 'more'} size={13} />
+              <V3Icon name={tone === 'success' ? 'check' : tone === 'warn' ? 'shield' : 'more'} size={13} />
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--v3-ink)' }}>
-              <span style={{ fontWeight: 500 }}>{e.who}</span>
-              <span style={{ color: 'var(--v3-muted)' }}> {e.what}</span>
+              <span style={{ fontWeight: 500 }}>{e.title}</span>
+              {e.message && <span style={{ color: 'var(--v3-muted)' }}> · {e.message}</span>}
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--v3-muted)', whiteSpace: 'nowrap' }}>{e.when}</div>
           </div>
@@ -394,22 +489,24 @@ function AuditPanel() {
   )
 }
 
-/* ── Main ── */
-export function ClientSettingsPage() {
+// ── Main ───────────────────────────────────────────────────────────────────────
+
+export function ClientSettingsPage({
+  userEmail, userName, company, plan, paymentMethod, invoiceRows, truckCount, integrationRows, auditRows,
+}: Props) {
   const [section, setSection] = useState<Section>('company')
 
   const panels: Record<Section, React.ReactNode> = {
-    company:       <CompanyPanel />,
-    billing:       <BillingPanel />,
-    integrations:  <IntegrationsPanel />,
+    company:       <CompanyPanel company={company} />,
+    billing:       <BillingPanel plan={plan} paymentMethod={paymentMethod} invoiceRows={invoiceRows} truckCount={truckCount} />,
+    integrations:  <IntegrationsPanel integrationRows={integrationRows} />,
     notifications: <NotificationsPanel />,
-    security:      <SecurityPanel />,
-    audit:         <AuditPanel />,
+    security:      <SecurityPanel userEmail={userEmail} />,
+    audit:         <AuditPanel auditRows={auditRows} />,
   }
 
   return (
     <div className={s.page}>
-      {/* Side nav */}
       <nav className={s.sidenav}>
         <div className={s.sideLabel}>Settings</div>
         {SECTIONS.map(sec => (
@@ -431,7 +528,6 @@ export function ClientSettingsPage() {
         </div>
       </nav>
 
-      {/* Content */}
       <div className={s.content}>
         {panels[section]}
         <div className={s.actions}>
