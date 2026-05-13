@@ -6,16 +6,33 @@ import { Pill } from '@/app/v3/components/ui/Pill'
 import type { PillTone } from '@/app/v3/components/ui/Pill'
 import { SectionHeader } from '@/app/v3/components/ui/SectionHeader'
 
-const STATS = [
-  { label: 'Action needed', value: '7', sub: 'expiring within 30 days' },
-  { label: 'Upcoming', value: '5', sub: 'expiring in 31–90 days' },
-  { label: 'Amount due', value: '$8,160', sub: 'across 7 renewals' },
-  { label: 'Auto-renew active', value: '14', sub: 'of 24 vehicles' },
-]
+type RenewalRow = {
+  id: string
+  unit: string
+  state: string
+  plate: string
+  expires: string
+  daysLeft: number
+  status: string
+  statusTone: PillTone
+}
 
-type Filter = 'All' | 'Action needed' | 'Upcoming' | 'Renewed' | 'Auto-renew'
+interface Stats {
+  actionNeeded: number
+  upcoming: number
+  expired: number
+  total: number
+}
 
-function daysLeftPillTone(days: number): PillTone {
+interface Props {
+  stats: Stats
+  renewalRows: RenewalRow[]
+}
+
+type Filter = 'All' | 'Action needed' | 'Upcoming' | 'Active' | 'Expired'
+const FILTER_TABS: Filter[] = ['All', 'Action needed', 'Upcoming', 'Active', 'Expired']
+
+function daysLeftTone(days: number): PillTone {
   if (days < 0) return 'danger'
   if (days <= 14) return 'danger'
   if (days <= 30) return 'warn'
@@ -23,45 +40,21 @@ function daysLeftPillTone(days: number): PillTone {
   return 'success'
 }
 
-const RENEWALS: {
-  id: string; unit: string; state: string; plate: string
-  expires: string; daysLeft: number; autoRenew: boolean
-  status: string; statusTone: PillTone; fee: number
-}[] = [
-  { id: 'r1',  unit: 'T-03', state: 'TX', plate: 'TX-4821-K', expires: 'May 18, 2026', daysLeft:  8, autoRenew: false, status: 'Action needed', statusTone: 'danger', fee: 680 },
-  { id: 'r2',  unit: 'T-07', state: 'TX', plate: 'TX-4827-K', expires: 'May 18, 2026', daysLeft:  8, autoRenew: false, status: 'Action needed', statusTone: 'danger', fee: 680 },
-  { id: 'r3',  unit: 'T-12', state: 'TX', plate: 'TX-4833-K', expires: 'May 18, 2026', daysLeft:  8, autoRenew: false, status: 'Action needed', statusTone: 'danger', fee: 680 },
-  { id: 'r4',  unit: 'T-15', state: 'CA', plate: 'CA-7A21394', expires: 'May 25, 2026', daysLeft: 15, autoRenew: true,  status: 'Renewing',      statusTone: 'info',   fee: 820 },
-  { id: 'r5',  unit: 'T-18', state: 'TX', plate: 'TX-4841-K', expires: 'Jun 02, 2026', daysLeft: 23, autoRenew: false, status: 'Action needed', statusTone: 'warn',   fee: 680 },
-  { id: 'r6',  unit: 'T-21', state: 'AZ', plate: 'AZM-1284',  expires: 'Jun 10, 2026', daysLeft: 31, autoRenew: true,  status: 'Upcoming',      statusTone: 'info',   fee: 420 },
-  { id: 'r7',  unit: 'T-22', state: 'AZ', plate: 'AZM-1285',  expires: 'Jun 10, 2026', daysLeft: 31, autoRenew: true,  status: 'Upcoming',      statusTone: 'info',   fee: 420 },
-  { id: 'r8',  unit: 'T-01', state: 'TX', plate: 'TX-4815-K', expires: 'Aug 14, 2026', daysLeft: 96, autoRenew: true,  status: 'Upcoming',      statusTone: 'success', fee: 680 },
-  { id: 'r9',  unit: 'T-02', state: 'TX', plate: 'TX-4816-K', expires: 'Aug 14, 2026', daysLeft: 96, autoRenew: true,  status: 'Upcoming',      statusTone: 'success', fee: 680 },
-  { id: 'r10', unit: 'T-04', state: 'TX', plate: 'TX-4822-K', expires: 'Jan 18, 2026', daysLeft: -112, autoRenew: false, status: 'Renewed',     statusTone: 'success', fee: 680 },
-  { id: 'r11', unit: 'T-05', state: 'TX', plate: 'TX-4823-K', expires: 'Jan 18, 2026', daysLeft: -112, autoRenew: false, status: 'Renewed',     statusTone: 'success', fee: 680 },
-]
-
-const FILTER_TABS: Filter[] = ['All', 'Action needed', 'Upcoming', 'Renewed', 'Auto-renew']
-
 const TH: React.CSSProperties = {
   padding: '9px 16px', fontSize: 10.5, color: 'var(--v3-muted)',
   fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', textAlign: 'left',
 }
 
-export function DmvAdminPage() {
+export function DmvAdminPage({ stats, renewalRows }: Props) {
   const [filter, setFilter] = useState<Filter>('All')
-  const [autoRenewState, setAutoRenewState] = useState<Record<string, boolean>>(
-    Object.fromEntries(RENEWALS.map(r => [r.id, r.autoRenew]))
-  )
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  const rows = RENEWALS.filter(r => {
+  const rows = renewalRows.filter(r => {
     if (filter === 'All') return true
-    if (filter === 'Auto-renew') return autoRenewState[r.id]
     return r.status === filter || r.status.startsWith(filter)
   })
 
-  const actionNeeded = rows.filter(r => r.statusTone === 'danger' || r.statusTone === 'warn')
+  const actionNeededRows = rows.filter(r => r.statusTone === 'danger' || r.statusTone === 'warn')
 
   const toggleSelect = (id: string) => setSelected(prev => {
     const next = new Set(prev)
@@ -69,12 +62,18 @@ export function DmvAdminPage() {
     return next
   })
 
+  const statCards = [
+    { label: 'Action needed',  value: String(stats.actionNeeded), sub: 'expiring within 30 days' },
+    { label: 'Upcoming',        value: String(stats.upcoming),      sub: 'expiring in 31–90 days' },
+    { label: 'Expired',         value: String(stats.expired),       sub: 'renewal overdue' },
+    { label: 'Total tracked',   value: String(stats.total),         sub: 'registrations on file' },
+  ]
+
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        {STATS.map(s => (
+        {statCards.map(s => (
           <Card key={s.label}>
             <div style={{ fontSize: 10.5, color: 'var(--v3-muted)', fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase' }}>{s.label}</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--v3-ink)', marginTop: 6, letterSpacing: -0.5 }}>{s.value}</div>
@@ -83,10 +82,9 @@ export function DmvAdminPage() {
         ))}
       </div>
 
-      {/* Renewals table */}
       <Card noPadding>
         <div style={{ padding: '18px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <SectionHeader title="Renewal tracker" subtitle={`${actionNeeded.length} require action`} />
+          <SectionHeader title="Renewal tracker" subtitle={`${actionNeededRows.length} require action`} />
           <div style={{ display: 'flex', gap: 8, marginRight: 0 }}>
             {selected.size > 0 && (
               <button style={{ padding: '8px 14px', background: 'var(--v3-primary)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
@@ -99,7 +97,6 @@ export function DmvAdminPage() {
           </div>
         </div>
 
-        {/* Filter tabs */}
         <div style={{ display: 'flex', gap: 2, padding: '12px 20px 0', borderBottom: '1px solid var(--v3-line)', overflowX: 'auto' }}>
           {FILTER_TABS.map(t => (
             <button key={t} onClick={() => setFilter(t)} style={{
@@ -127,14 +124,18 @@ export function DmvAdminPage() {
               <th style={TH}>Plate</th>
               <th style={TH}>Expires</th>
               <th style={TH}>Days left</th>
-              <th style={{ ...TH, textAlign: 'right' }}>Fee</th>
-              <th style={TH}>Auto-renew</th>
               <th style={TH}>Status</th>
               <th style={{ ...TH, width: 80 }}></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+                  No registrations found.
+                </td>
+              </tr>
+            ) : rows.map(r => (
               <tr key={r.id} style={{ borderBottom: '1px solid var(--v3-soft-line)' }}>
                 <td style={{ padding: '11px 16px' }}>
                   <input type="checkbox" style={{ cursor: 'pointer' }}
@@ -147,30 +148,12 @@ export function DmvAdminPage() {
                 <td style={{ padding: '11px 16px', color: 'var(--v3-ink)', fontFamily: 'ui-monospace, monospace', fontSize: 11.5 }}>{r.plate}</td>
                 <td style={{ padding: '11px 16px', color: 'var(--v3-muted)' }}>{r.expires}</td>
                 <td style={{ padding: '11px 16px' }}>
-                  {r.daysLeft < 0
-                    ? <Pill tone="neutral">Renewed</Pill>
-                    : <Pill tone={daysLeftPillTone(r.daysLeft)}>{r.daysLeft}d left</Pill>
+                  {r.expires === '—'
+                    ? <span style={{ color: 'var(--v3-muted)' }}>—</span>
+                    : r.daysLeft < 0
+                      ? <Pill tone="danger">{Math.abs(r.daysLeft)}d overdue</Pill>
+                      : <Pill tone={daysLeftTone(r.daysLeft)}>{r.daysLeft}d left</Pill>
                   }
-                </td>
-                <td style={{ padding: '11px 16px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--v3-ink)' }}>
-                  ${r.fee}
-                </td>
-                <td style={{ padding: '11px 16px' }}>
-                  <button
-                    onClick={() => setAutoRenewState(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
-                    style={{
-                      width: 34, height: 20, borderRadius: 99, border: 'none',
-                      background: autoRenewState[r.id] ? 'var(--v3-success)' : 'var(--v3-soft-line)',
-                      cursor: 'pointer', position: 'relative', transition: 'background 0.15s',
-                    }}
-                  >
-                    <span style={{
-                      position: 'absolute', top: 2,
-                      left: autoRenewState[r.id] ? 16 : 2,
-                      width: 16, height: 16, borderRadius: '50%', background: '#fff',
-                      transition: 'left 0.15s', boxShadow: '0 1px 2px rgba(0,0,0,.2)',
-                    }} />
-                  </button>
                 </td>
                 <td style={{ padding: '11px 16px' }}><Pill tone={r.statusTone}>{r.status}</Pill></td>
                 <td style={{ padding: '11px 16px' }}>

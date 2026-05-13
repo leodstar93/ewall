@@ -9,61 +9,50 @@ import { StatCard } from '@/app/v3/components/ui/StatCard'
 import { V3Icon } from '@/app/v3/components/ui/V3Icon'
 import styles from './overview.module.css'
 
-// ── Static data (replace with real API calls per module) ──────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-const STATS = [
-  {
-    label: 'Open compliance items',
-    value: '11',
-    delta: '−4',
-    deltaTone: 'down' as const,
-    sub: 'vs last week',
-    sparkData: [8, 11, 9, 12, 14, 13, 11],
-  },
-  {
-    label: 'Filings processed · MTD',
-    value: '38',
-    delta: '+22%',
-    deltaTone: 'up' as const,
-    sub: '$48,210 collected',
-    sparkData: [10, 14, 18, 22, 28, 32, 38],
-  },
-  {
-    label: 'Active units on road',
-    value: '18',
-    sub: 'of 24 total · 75% utilization',
-    sparkData: [12, 14, 16, 17, 16, 18, 18],
-  },
-  {
-    label: 'Avg. cost per filing',
-    value: '$268',
-    delta: '−$12',
-    deltaTone: 'down' as const,
-    sub: 'last 30 days',
-    sparkData: [310, 295, 290, 280, 274, 270, 268],
-  },
-]
+interface Stats {
+  openCompliance: number
+  filingsThisMonth: number
+  revenueThisMonth: number
+  activeTrucks: number
+  totalTrucks: number
+  utilizationPct: number
+  avgCostPerFiling: number
+}
 
-const FILINGS_QUEUE: {
-  id: string; kind: string; label: string; due: string
-  status: string; tone: PillTone; units: number; amount: number; progress: number
-}[] = [
-  { id: 'IFTA-26-Q2', kind: 'IFTA',  label: 'IFTA · 2026 Q2',           due: 'Due Jul 31',     status: 'In review',        tone: 'warn',    units: 18, amount: 4280,  progress: 62 },
-  { id: 'UCR-2026',   kind: 'UCR',   label: 'UCR · 2026 Annual',         due: 'Due in 12 days', status: 'Awaiting payment', tone: 'info',    units: 24, amount: 525,   progress: 78 },
-  { id: 'DMV-TX-12',  kind: 'DMV',   label: 'TX registration · 12 trucks',due: 'Renews May 18', status: 'Action needed',    tone: 'danger',  units: 12, amount: 8160,  progress: 40 },
-  { id: '2290-26',    kind: '2290',  label: 'Form 2290 · FY 2026',       due: 'Filed Apr 02',   status: 'Approved',         tone: 'success', units: 24, amount: 13200, progress: 100 },
-]
+interface QueueRow {
+  id: string
+  kind: string
+  label: string
+  due: string
+  status: string
+  tone: PillTone
+  units: number
+  amount: number
+  progress: number
+}
 
-const FLEET: {
-  id: string; model: string; driver: string; loc: string
-  load: string; miles: number; status: string; tone: PillTone
-}[] = [
-  { id: 'TRK-101', model: 'Freightliner Cascadia', driver: 'José Rivera',   loc: 'Dallas, TX',          load: 'Auto parts',      miles: 1240, status: 'Active',      tone: 'success' },
-  { id: 'TRK-214', model: 'Volvo VNL 760',         driver: 'Ana Morales',   loc: 'Phoenix, AZ',         load: 'Produce',          miles: 980,  status: 'In transit',  tone: 'info' },
-  { id: 'TRK-309', model: 'Kenworth T680',          driver: 'Luis Martínez', loc: 'San Bernardino, CA',  load: 'Maintenance hold', miles: 0,    status: 'Maintenance', tone: 'warn' },
-  { id: 'TRK-411', model: 'Peterbilt 579',          driver: 'Marcos Díaz',  loc: 'Laredo, TX',          load: 'Dry goods',        miles: 720,  status: 'Active',      tone: 'success' },
-  { id: 'TRK-550', model: 'International LT',       driver: 'Sofía Pérez',  loc: 'Miami, FL',           load: 'Unassigned',       miles: 0,    status: 'Idle',        tone: 'neutral' },
-]
+interface FleetRow {
+  key: string
+  id: string
+  model: string
+  driver: string
+  loc: string
+  load: string
+  miles: number
+  status: string
+  tone: PillTone
+}
+
+interface Props {
+  userName: string
+  stats: Stats
+  queueRows: QueueRow[]
+  fleet: FleetRow[]
+}
+
+// ── Still-mocked sections (Paso 4) ───────────────────────────────────────────
 
 const ACTIVITY: {
   who: string; what: string; when: string
@@ -82,6 +71,8 @@ const WEEK_PAYMENTS = [
   { date: 'Wed · May 13', label: 'IFTA Q2 deposit',           amount: 4280 },
   { date: 'Fri · May 15', label: 'UCR balance',               amount: 525 },
 ]
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const FLEET_FILTERS = ['All', 'Active', 'In transit', 'Maintenance', 'Idle'] as const
 type FleetFilter = typeof FLEET_FILTERS[number]
@@ -107,7 +98,7 @@ const ICON_COLOR: Record<string, string> = {
 
 // ── Section components ────────────────────────────────────────────────────────
 
-function GreetingStrip({ firstName }: { firstName: string }) {
+function GreetingStrip({ firstName, openCompliance }: { firstName: string; openCompliance: number }) {
   return (
     <div style={{
       background: 'var(--v3-primary)',
@@ -121,7 +112,6 @@ function GreetingStrip({ firstName }: { firstName: string }) {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* decorative accent blur */}
       <div style={{
         position: 'absolute', right: -40, top: -40,
         width: 220, height: 220, borderRadius: '50%',
@@ -136,10 +126,14 @@ function GreetingStrip({ firstName }: { firstName: string }) {
         </div>
         <div style={{ fontSize: 22, fontWeight: 600, marginTop: 6, letterSpacing: -0.4, lineHeight: 1.3 }}>
           Buenos días, {firstName}.{' '}
-          <span style={{ opacity: 0.65 }}>You have 3 filings closing this week.</span>
+          <span style={{ opacity: 0.65 }}>
+            {openCompliance > 0
+              ? `You have ${openCompliance} open compliance item${openCompliance !== 1 ? 's' : ''}.`
+              : 'All compliance items are clear.'}
+          </span>
         </div>
         <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>
-          Texas registration packet for 12 trucks needs your sign-off before Sunday.
+          Review the queue below for items needing attention.
         </div>
       </div>
 
@@ -158,14 +152,25 @@ function GreetingStrip({ firstName }: { firstName: string }) {
           fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
           display: 'inline-flex', alignItems: 'center', gap: 6,
         }}>
-          Review packet <V3Icon name="arrow" size={13} stroke={2} />
+          Review queue <V3Icon name="arrow" size={13} stroke={2} />
         </button>
       </div>
     </div>
   )
 }
 
-function ComplianceQueue() {
+function ComplianceQueue({ rows }: { rows: QueueRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <SectionHeader title="Compliance queue" subtitle="Active filings ranked by deadline" />
+        <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+          No open compliance items
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <Card noPadding>
       <div style={{ padding: '18px 20px 12px' }}>
@@ -184,7 +189,7 @@ function ComplianceQueue() {
           }
         />
       </div>
-      {FILINGS_QUEUE.map((f, i) => (
+      {rows.map((f, i) => (
         <div key={f.id} style={{
           display: 'grid',
           gridTemplateColumns: '110px 1fr 155px 130px 90px 28px',
@@ -205,7 +210,7 @@ function ComplianceQueue() {
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--v3-ink)' }}>{f.label}</div>
             <div style={{ fontSize: 11.5, color: 'var(--v3-muted)', marginTop: 2 }}>
-              {f.due} · {f.units} units
+              {f.due}{f.units > 0 ? ` · ${f.units} units` : ''}
             </div>
           </div>
 
@@ -227,7 +232,7 @@ function ComplianceQueue() {
             fontSize: 13, fontWeight: 500, color: 'var(--v3-ink)',
             textAlign: 'right', fontVariantNumeric: 'tabular-nums',
           }}>
-            ${f.amount.toLocaleString()}
+            {f.amount > 0 ? `$${f.amount.toLocaleString()}` : '—'}
           </div>
 
           <button type="button" style={{
@@ -242,17 +247,16 @@ function ComplianceQueue() {
   )
 }
 
-function FleetSnapshot() {
+function FleetSnapshot({ fleet, totalTrucks, activeTrucks }: { fleet: FleetRow[]; totalTrucks: number; activeTrucks: number }) {
   const [filter, setFilter] = useState<FleetFilter>('All')
-  const rows = FLEET.filter(t => filter === 'All' || t.status === filter)
-  const activeCount = FLEET.filter(t => t.status === 'Active' || t.status === 'In transit').length
+  const rows = fleet.filter(t => filter === 'All' || t.status === filter)
 
   return (
     <Card noPadding>
       <div style={{ padding: '18px 20px 12px' }}>
         <SectionHeader
           title="Fleet snapshot"
-          subtitle={`${FLEET.length} units · ${activeCount} on the road`}
+          subtitle={`${totalTrucks} units · ${activeTrucks} active`}
           action={
             <div style={{
               display: 'flex', gap: 4,
@@ -309,7 +313,7 @@ function FleetSnapshot() {
               </td>
             </tr>
           ) : rows.map(t => (
-            <tr key={t.id} style={{ borderBottom: '1px solid var(--v3-soft-line)' }}>
+            <tr key={t.key} style={{ borderBottom: '1px solid var(--v3-soft-line)' }}>
               <td style={{ padding: '13px 20px' }}>
                 <div style={{ fontWeight: 500, color: 'var(--v3-ink)' }}>{t.id}</div>
                 <div style={{ fontSize: 11, color: 'var(--v3-muted)', marginTop: 1 }}>{t.model}</div>
@@ -317,12 +321,12 @@ function FleetSnapshot() {
               <td style={{ padding: '13px 20px', color: 'var(--v3-ink)' }}>{t.driver}</td>
               <td style={{ padding: '13px 20px', color: 'var(--v3-ink)' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <V3Icon name="pin" size={12} /> {t.loc}
+                  {t.loc !== '—' && <V3Icon name="pin" size={12} />} {t.loc}
                 </span>
               </td>
               <td style={{ padding: '13px 20px', color: 'var(--v3-muted)' }}>{t.load}</td>
               <td style={{ padding: '13px 20px', textAlign: 'right', color: 'var(--v3-ink)', fontVariantNumeric: 'tabular-nums' }}>
-                {t.miles.toLocaleString()}
+                {t.miles > 0 ? t.miles.toLocaleString() : '—'}
               </td>
               <td style={{ padding: '13px 20px', textAlign: 'right' }}>
                 <Pill tone={t.tone}>{t.status}</Pill>
@@ -346,18 +350,18 @@ function MiniFleetMap() {
     { x: 60, y: 50, color: 'var(--v3-success)' },
   ]
   const legend = [
-    { l: 'Active', n: 3, c: 'var(--v3-success)' },
+    { l: 'Active',  n: 3, c: 'var(--v3-success)' },
     { l: 'Transit', n: 2, c: 'var(--v3-info)' },
     { l: 'Service', n: 1, c: 'var(--v3-warn)' },
-    { l: 'Idle',   n: 1, c: 'var(--v3-muted)' },
+    { l: 'Idle',    n: 1, c: 'var(--v3-muted)' },
   ]
   return (
     <Card noPadding style={{ overflow: 'hidden' }}>
       <div style={{ padding: '18px 20px 12px' }}>
         <SectionHeader
           title="Live fleet"
-          subtitle="7 units broadcasting"
-          action={<Pill tone="success">Live</Pill>}
+          subtitle="ELD integration required"
+          action={<Pill tone="neutral">No ELD</Pill>}
         />
       </div>
       <div style={{
@@ -455,7 +459,6 @@ function ActivityFeed() {
 function FooterBand() {
   return (
     <div className={styles.footer}>
-      {/* Smart assistant */}
       <Card>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
           <div style={{
@@ -484,7 +487,6 @@ function FooterBand() {
         </div>
       </Card>
 
-      {/* This week's payments */}
       <Card>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--v3-ink)', marginBottom: 14 }}>
           This week&apos;s payments
@@ -507,7 +509,6 @@ function FooterBand() {
         </div>
       </Card>
 
-      {/* Need a hand */}
       <Card>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--v3-ink)', marginBottom: 4 }}>
           Need a hand?
@@ -539,22 +540,50 @@ function FooterBand() {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export function AdminOverview({ userName }: { userName: string }) {
+export function AdminOverview({ userName, stats, queueRows, fleet }: Props) {
   const firstName = userName.split(' ')[0]
+
+  const statsCards = [
+    {
+      label: 'Open compliance items',
+      value: String(stats.openCompliance),
+      sub: 'IFTA + UCR open filings',
+      sparkData: [8, 11, 9, 12, 14, 13, stats.openCompliance],
+    },
+    {
+      label: 'Filings processed · MTD',
+      value: String(stats.filingsThisMonth),
+      sub: `$${stats.revenueThisMonth.toLocaleString()} collected`,
+      sparkData: [10, 14, 18, 22, 28, 32, stats.filingsThisMonth],
+    },
+    {
+      label: 'Active units on road',
+      value: String(stats.activeTrucks),
+      sub: `of ${stats.totalTrucks} total · ${stats.utilizationPct}% utilization`,
+      sparkData: [12, 14, 16, 17, 16, 18, stats.activeTrucks],
+    },
+    {
+      label: 'Avg. cost per filing',
+      value: stats.avgCostPerFiling > 0 ? `$${stats.avgCostPerFiling.toLocaleString()}` : '—',
+      sub: 'last 30 days',
+      sparkData: [310, 295, 290, 280, 274, 270, stats.avgCostPerFiling],
+    },
+  ]
+
   return (
     <div className={styles.page}>
-      <GreetingStrip firstName={firstName} />
+      <GreetingStrip firstName={firstName} openCompliance={stats.openCompliance} />
 
       <div className={styles.stats}>
-        {STATS.map(s => (
+        {statsCards.map(s => (
           <StatCard key={s.label} {...s} />
         ))}
       </div>
 
-      <ComplianceQueue />
+      <ComplianceQueue rows={queueRows} />
 
       <div className={styles.lower}>
-        <FleetSnapshot />
+        <FleetSnapshot fleet={fleet} totalTrucks={stats.totalTrucks} activeTrucks={stats.activeTrucks} />
         <div className={styles.sideCol}>
           <MiniFleetMap />
           <ActivityFeed />
