@@ -36,7 +36,13 @@
       "PowerShell(cd \"C:\\\\Users\\\\leods\\\\ewall-app\"; $result = npm run build 2>&1; $errors = $result | Where-Object { $_ -match \"error TS|Failed to compile|Type error\" }; if \\($errors\\) { $errors } else { \"BUILD OK - no TypeScript errors\" }; Write-Host \"Exit: $LASTEXITCODE\")",
       "PowerShell(cd \"C:\\\\Users\\\\leods\\\\ewall-app\"; npm run build 2>&1 | Where-Object { $_ -match \"error|Error|\\\\.tsx|\\\\.ts:\" } | Select-Object -First 20)",
       "PowerShell(cd \"C:\\\\Users\\\\leods\\\\ewall-app\"; npm run build 2>&1 | Where-Object { $_ -match \"error|\\\\.tsx|\\\\.ts:\" } | Select-Object -First 5)",
-      "PowerShell(cd \"C:\\\\Users\\\\leods\\\\ewall-app\"; $result = npm run build 2>&1; $errors = $result | Where-Object { $_ -match \"error TS|Failed to compile|Type error\" }; if \\($errors\\) { $errors | Select-Object -First 10 } else { \"BUILD OK\" }; Write-Host \"Exit: $LASTEXITCODE\")"
+      "PowerShell(cd \"C:\\\\Users\\\\leods\\\\ewall-app\"; $result = npm run build 2>&1; $errors = $result | Where-Object { $_ -match \"error TS|Failed to compile|Type error\" }; if \\($errors\\) { $errors | Select-Object -First 10 } else { \"BUILD OK\" }; Write-Host \"Exit: $LASTEXITCODE\")",
+      "Bash(New-Item -ItemType File -Path \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\notifications\\\\route.ts\" -Force)",
+      "Bash(Out-Null)",
+      "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/ifta-v2/[id]\")",
+      "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/ucr/[id]\")",
+      "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/2290/[id]\")",
+      "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/dmv/[id]\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\settings\\2290\\rate-tables\\[id]",

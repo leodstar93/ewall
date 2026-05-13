@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
 import type { PillTone } from '@/app/v3/components/ui/Pill'
@@ -157,9 +158,14 @@ export function DmvAdminPage({ stats, renewalRows }: Props) {
                 </td>
                 <td style={{ padding: '11px 16px' }}><Pill tone={r.statusTone}>{r.status}</Pill></td>
                 <td style={{ padding: '11px 16px' }}>
-                  <button style={{ padding: '5px 10px', background: 'var(--v3-panel)', border: '1px solid var(--v3-line)', borderRadius: 6, fontSize: 11.5, color: 'var(--v3-ink)', cursor: 'pointer', fontFamily: 'var(--v3-font)' }}>
-                    Renew
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button style={{ padding: '5px 10px', background: 'var(--v3-panel)', border: '1px solid var(--v3-line)', borderRadius: 6, fontSize: 11.5, color: 'var(--v3-ink)', cursor: 'pointer', fontFamily: 'var(--v3-font)' }}>
+                      Renew
+                    </button>
+                    <Link href={`/v3/admin/features/dmv/${r.id}`} style={{ fontSize: 11.5, color: 'var(--v3-primary)', fontWeight: 500, textDecoration: 'none' }}>
+                      View
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}

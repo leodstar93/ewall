@@ -2,65 +2,36 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { V3Icon } from '../ui/V3Icon'
+import type { IconName } from '../ui/V3Icon'
+import type { NotificationItem } from '@/lib/notifications'
+import { notificationCategoryLabel, formatNotificationRelativeTime } from '@/lib/notifications'
 import styles from './Topbar.module.css'
 
-interface TopbarProps {
-  title: string
-  breadcrumb?: string[]
+export type { NotificationItem }
+
+type TagTone = 'warn' | 'danger' | 'info' | 'success' | 'neutral'
+
+const CATEGORY_ICON: Record<string, IconName> = {
+  IFTA:      'fuel',
+  UCR:       'shield',
+  FORM2290:  'receipt',
+  DMV:       'pin',
+  DOCUMENTS: 'file',
+  ACCOUNT:   'users',
+  SYSTEM:    'sparkle',
 }
 
-const NOTIFICATIONS = [
-  {
-    id: 1, read: false,
-    tag: 'IFTA', tagTone: 'warn' as const,
-    title: '2 fuel receipts flagged on Q2 IFTA',
-    body: 'Apr receipts for TRK-309 and TRK-411 are missing.',
-    time: '2 hr ago',
-    icon: 'fuel' as const,
-  },
-  {
-    id: 2, read: false,
-    tag: 'DMV', tagTone: 'danger' as const,
-    title: '7 TX registrations expire May 18',
-    body: 'Bulk renewal needed before the deadline.',
-    time: '5 hr ago',
-    icon: 'pin' as const,
-  },
-  {
-    id: 3, read: false,
-    tag: 'UCR', tagTone: 'info' as const,
-    title: 'UCR 2026 fee payment pending',
-    body: '$525 due — awaiting customer payment.',
-    time: 'Yesterday',
-    icon: 'shield' as const,
-  },
-  {
-    id: 4, read: true,
-    tag: '2290', tagTone: 'success' as const,
-    title: 'Schedule 1 stamped for FY 2026',
-    body: 'IRS approved. Ready to download.',
-    time: 'Apr 02',
-    icon: 'receipt' as const,
-  },
-  {
-    id: 5, read: true,
-    tag: 'Docs', tagTone: 'neutral' as const,
-    title: 'New document uploaded by client',
-    body: 'Rivera Trans LLC added insurance certificate.',
-    time: 'Apr 28',
-    icon: 'file' as const,
-  },
-  {
-    id: 6, read: true,
-    tag: 'System', tagTone: 'neutral' as const,
-    title: 'IFTA tax rates updated for Q2 2026',
-    body: 'Auto-synced from IFTA, Inc. on May 04.',
-    time: 'May 04',
-    icon: 'sparkle' as const,
-  },
-]
+const CATEGORY_BASE_TONE: Record<string, TagTone> = {
+  IFTA:      'info',
+  UCR:       'info',
+  FORM2290:  'neutral',
+  DMV:       'warn',
+  DOCUMENTS: 'neutral',
+  ACCOUNT:   'info',
+  SYSTEM:    'neutral',
+}
 
-const TAG_COLORS: Record<string, [string, string]> = {
+const TAG_COLORS: Record<TagTone, [string, string]> = {
   warn:    ['var(--v3-warn-bg)',    'var(--v3-warn)'],
   danger:  ['var(--v3-danger-bg)', 'var(--v3-danger)'],
   info:    ['var(--v3-info-bg)',   'var(--v3-info)'],
@@ -68,19 +39,43 @@ const TAG_COLORS: Record<string, [string, string]> = {
   neutral: ['var(--v3-chip-bg)',   'var(--v3-muted)'],
 }
 
-export function Topbar({ title, breadcrumb }: TopbarProps) {
+function deriveTone(level: string, category: string): TagTone {
+  if (level === 'ERROR') return 'danger'
+  if (level === 'WARNING') return 'warn'
+  if (level === 'SUCCESS') return 'success'
+  return CATEGORY_BASE_TONE[category] ?? 'neutral'
+}
+
+interface TopbarProps {
+  title: string
+  breadcrumb?: string[]
+  initialNotifications?: NotificationItem[]
+}
+
+export function Topbar({ title, breadcrumb, initialNotifications = [] }: TopbarProps) {
   const [open, setOpen] = useState(false)
-  const [notes, setNotes] = useState(NOTIFICATIONS)
+  const [notes, setNotes] = useState(initialNotifications)
   const ref = useRef<HTMLDivElement>(null)
 
-  const unread = notes.filter(n => !n.read).length
+  const unread = notes.filter(n => !n.readAt).length
 
-  function markAllRead() {
-    setNotes(prev => prev.map(n => ({ ...n, read: true })))
+  async function markRead(id: string) {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
+    await fetch('/api/v1/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
   }
 
-  function markRead(id: number) {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+  async function markAllRead() {
+    const now = new Date().toISOString()
+    setNotes(prev => prev.map(n => ({ ...n, readAt: n.readAt ?? now })))
+    await fetch('/api/v1/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    })
   }
 
   useEffect(() => {
@@ -146,13 +141,22 @@ export function Topbar({ title, breadcrumb }: TopbarProps) {
               </div>
 
               <div className={styles.noteList}>
+                {notes.length === 0 && (
+                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+                    No notifications yet.
+                  </div>
+                )}
                 {notes.map(n => {
-                  const [tagBg, tagColor] = TAG_COLORS[n.tagTone]
+                  const tone = deriveTone(n.level, n.category)
+                  const [tagBg, tagColor] = TAG_COLORS[tone]
+                  const icon = CATEGORY_ICON[n.category] ?? 'bell'
+                  const tag = notificationCategoryLabel(n.category)
+                  const time = formatNotificationRelativeTime(n.createdAt)
                   return (
                     <button
                       key={n.id}
                       className={styles.noteItem}
-                      data-unread={!n.read}
+                      data-unread={!n.readAt}
                       onClick={() => markRead(n.id)}
                       type="button"
                     >
@@ -160,18 +164,18 @@ export function Topbar({ title, breadcrumb }: TopbarProps) {
                         className={styles.noteIcon}
                         style={{ background: tagBg, color: tagColor }}
                       >
-                        <V3Icon name={n.icon} size={14} />
+                        <V3Icon name={icon} size={14} />
                       </div>
                       <div className={styles.noteBody}>
                         <div className={styles.noteMeta}>
                           <span className={styles.noteTag} style={{ background: tagBg, color: tagColor }}>
-                            {n.tag}
+                            {tag}
                           </span>
-                          <span className={styles.noteTime}>{n.time}</span>
-                          {!n.read && <span className={styles.unreadDot} aria-hidden />}
+                          <span className={styles.noteTime}>{time}</span>
+                          {!n.readAt && <span className={styles.unreadDot} aria-hidden />}
                         </div>
                         <div className={styles.noteTitle}>{n.title}</div>
-                        <div className={styles.noteText}>{n.body}</div>
+                        <div className={styles.noteText}>{n.message}</div>
                       </div>
                     </button>
                   )

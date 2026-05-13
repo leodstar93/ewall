@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
 import type { PillTone } from '@/app/v3/components/ui/Pill'
@@ -167,6 +168,11 @@ export function IftaAdminPage({ stats, filingRows }: Props) {
                               ))}
                             </div>
                           )}
+                          <div style={{ marginTop: 14 }}>
+                            <Link href={`/v3/admin/features/ifta-v2/${f.id}`} style={{ fontSize: 12, color: 'var(--v3-primary)', fontWeight: 500, textDecoration: 'none' }}>
+                              View full filing →
+                            </Link>
+                          </div>
                         </div>
                       </td>
                     </tr>

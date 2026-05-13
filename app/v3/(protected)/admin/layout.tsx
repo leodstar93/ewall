@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { ShellLayout } from '@/app/v3/components/shell/ShellLayout'
 import { adminNavGroups, staffNavGroups } from '@/app/v3/components/shell/nav-config/admin-nav'
 import { ensureUserOrganization } from '@/lib/services/organization.service'
+import { listNotificationsForUser } from '@/services/notifications'
 
 function displayRole(roles: string[]): string {
   if (roles.includes('ADMIN')) return 'Admin'
@@ -19,7 +20,10 @@ export default async function AdminV3Layout({ children }: { children: React.Reac
   const userRole     = displayRole(session.user.roles)
   const isAdmin      = session.user.roles.includes('ADMIN')
 
-  const org = await ensureUserOrganization(session.user.id)
+  const [org, { notifications }] = await Promise.all([
+    ensureUserOrganization(session.user.id),
+    listNotificationsForUser({ userId: session.user.id, limit: 10 }),
+  ])
 
   return (
     <ShellLayout
@@ -29,6 +33,7 @@ export default async function AdminV3Layout({ children }: { children: React.Reac
       userInitials={userInitials}
       orgName={org.name}
       settingsHref="/v3/admin/settings"
+      notifications={notifications}
     >
       {children}
     </ShellLayout>

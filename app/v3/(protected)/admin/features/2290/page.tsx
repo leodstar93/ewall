@@ -7,6 +7,7 @@ import type { PillTone } from '@/app/v3/components/ui/Pill'
 
 type VehicleRow = {
   id: string
+  filingId: string
   unit: string
   vin: string
   gvwr: string
@@ -97,6 +98,7 @@ export default async function Form2290Page() {
       const isSuspended = taxDue === 0
       return {
         id: v.id,
+        filingId: f.id,
         unit: v.unitNumberSnapshot ?? f.unitNumberSnapshot ?? '—',
         vin: v.vinSnapshot,
         gvwr: fmtWeight(v.grossWeightSnapshot),

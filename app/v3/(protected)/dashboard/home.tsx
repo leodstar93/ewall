@@ -1,6 +1,7 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
 import type { PillTone } from '@/app/v3/components/ui/Pill'
@@ -260,6 +261,108 @@ const UPDATES = [
   { who: 'Carlos (Ewall ops)', what: 'asked about TRK-309 maintenance receipt', when: 'Apr 28',    icon: 'file'   as const, tone: undefined },
 ]
 
+// ── Add Truck Modal ───────────────────────────────────────────────────────────
+
+const INPUT_STYLE: React.CSSProperties = {
+  width: '100%', padding: '8px 10px', border: '1px solid var(--v3-line)',
+  borderRadius: 7, fontSize: 12.5, color: 'var(--v3-ink)', outline: 'none',
+  fontFamily: 'var(--v3-font)', background: 'var(--v3-bg)', boxSizing: 'border-box',
+}
+const LABEL_STYLE: React.CSSProperties = {
+  fontSize: 11, fontWeight: 600, color: 'var(--v3-muted)',
+  textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4, display: 'block',
+}
+
+function AddTruckModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [form, setForm] = useState({ unitNumber: '', vin: '', make: '', model: '', year: '', plateNumber: '', grossWeight: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function set(field: string, val: string) {
+    setForm(f => ({ ...f, [field]: val }))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    const body: Record<string, unknown> = { unitNumber: form.unitNumber.trim() }
+    if (form.vin.trim())         body.vin         = form.vin.trim()
+    if (form.make.trim())        body.make        = form.make.trim()
+    if (form.model.trim())       body.model       = form.model.trim()
+    if (form.year.trim())        body.year        = Number(form.year)
+    if (form.plateNumber.trim()) body.plateNumber = form.plateNumber.trim()
+    if (form.grossWeight.trim()) body.grossWeight = Number(form.grossWeight)
+    const res = await fetch('/api/v1/features/ifta/trucks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setError((data as { error?: string }).error ?? 'Failed to create truck')
+      setLoading(false)
+      return
+    }
+    setLoading(false)
+    onSuccess()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--v3-panel)', borderRadius: 14, padding: '28px 28px 24px', width: 480, maxWidth: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--v3-ink)' }}>Add a truck</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v3-muted)', padding: 4, fontSize: 18, lineHeight: 1 }}>
+            ×
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={LABEL_STYLE}>Unit # <span style={{ color: 'var(--v3-danger)' }}>*</span></label>
+            <input style={INPUT_STYLE} value={form.unitNumber} onChange={e => set('unitNumber', e.target.value)} placeholder="e.g. TRK-101" required />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={LABEL_STYLE}>Make</label>
+              <input style={INPUT_STYLE} value={form.make} onChange={e => set('make', e.target.value)} placeholder="e.g. Freightliner" />
+            </div>
+            <div>
+              <label style={LABEL_STYLE}>Model</label>
+              <input style={INPUT_STYLE} value={form.model} onChange={e => set('model', e.target.value)} placeholder="e.g. Cascadia" />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={LABEL_STYLE}>Year</label>
+              <input style={INPUT_STYLE} type="number" min={1900} max={new Date().getFullYear() + 1} value={form.year} onChange={e => set('year', e.target.value)} placeholder="e.g. 2022" />
+            </div>
+            <div>
+              <label style={LABEL_STYLE}>Plate #</label>
+              <input style={INPUT_STYLE} value={form.plateNumber} onChange={e => set('plateNumber', e.target.value)} placeholder="e.g. TX-7823A" />
+            </div>
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>VIN</label>
+            <input style={{ ...INPUT_STYLE, fontFamily: 'ui-monospace, monospace', fontSize: 12 }} value={form.vin} onChange={e => set('vin', e.target.value)} placeholder="17-character VIN" maxLength={17} />
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Gross Weight (lbs)</label>
+            <input style={INPUT_STYLE} type="number" min={0} value={form.grossWeight} onChange={e => set('grossWeight', e.target.value)} placeholder="e.g. 80000" />
+          </div>
+          {error && <div style={{ fontSize: 12.5, color: 'var(--v3-danger)', background: 'var(--v3-danger-bg)', padding: '8px 12px', borderRadius: 7 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button type="button" onClick={onClose} style={{ padding: '8px 16px', background: 'var(--v3-panel)', border: '1px solid var(--v3-line)', borderRadius: 7, fontSize: 12.5, color: 'var(--v3-ink)', cursor: 'pointer', fontFamily: 'var(--v3-font)' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={loading} style={{ padding: '8px 18px', background: 'var(--v3-primary)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+              {loading ? 'Adding…' : 'Add truck'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function urgencyColor(u: ActionUrgency) {
@@ -283,6 +386,9 @@ export function ClientHomePage({
   latestUcr,
   latestForm2290,
 }: Props) {
+  const router = useRouter()
+  const [addTruckOpen, setAddTruckOpen] = useState(false)
+
   const firstName   = userName?.split(' ')[0] ?? 'there'
   const actions     = buildActions(latestIfta, latestUcr, latestForm2290)
   const filingRows  = buildFilingRows(latestIfta, latestUcr, latestForm2290)
@@ -297,6 +403,12 @@ export function ClientHomePage({
 
   return (
     <div className={styles.page}>
+      {addTruckOpen && (
+        <AddTruckModal
+          onClose={() => setAddTruckOpen(false)}
+          onSuccess={() => { setAddTruckOpen(false); router.refresh() }}
+        />
+      )}
 
       {/* Welcome hero */}
       <Card noPadding style={{ overflow: 'hidden' }}>
@@ -416,7 +528,7 @@ export function ClientHomePage({
               <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--v3-ink)' }}>My fleet</div>
               <div style={{ fontSize: 11.5, color: 'var(--v3-muted)', marginTop: 2 }}>{truckActive} of {truckTotal} on the road right now</div>
             </div>
-            <button style={{ fontSize: 12, color: 'var(--v3-ink)', background: 'transparent', border: '1px solid var(--v3-line)', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}>+ Add truck</button>
+            <button onClick={() => setAddTruckOpen(true)} style={{ fontSize: 12, color: 'var(--v3-ink)', background: 'transparent', border: '1px solid var(--v3-line)', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}>+ Add truck</button>
           </div>
           {FLEET_PREVIEW.map(t => (
             <div key={t.id} style={{ padding: '13px 20px', borderBottom: '1px solid var(--v3-soft-line)', display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px', gap: 12, alignItems: 'center' }}>

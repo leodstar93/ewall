@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
 import type { PillTone } from '@/app/v3/components/ui/Pill'
@@ -9,6 +10,7 @@ import { V3Icon } from '@/app/v3/components/ui/V3Icon'
 
 type VehicleRow = {
   id: string
+  filingId: string
   unit: string
   vin: string
   gvwr: string
@@ -126,12 +128,13 @@ export function Form2290AdminPage({ stats, vehicleRows, historyRows }: Props) {
                 <th style={TH}>Category</th>
                 <th style={{ ...TH, textAlign: 'right' }}>Tax due</th>
                 <th style={TH}>Status</th>
+                <th style={{ ...TH, width: 64 }}></th>
               </tr>
             </thead>
             <tbody>
               {vehicleRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+                  <td colSpan={7} style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
                     No vehicles on the current return.
                   </td>
                 </tr>
@@ -145,6 +148,11 @@ export function Form2290AdminPage({ stats, vehicleRows, historyRows }: Props) {
                     {v.taxDue > 0 ? `$${v.taxDue.toLocaleString()}` : 'Suspended'}
                   </td>
                   <td style={{ padding: '12px 16px' }}><Pill tone={v.tone}>{v.status}</Pill></td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <Link href={`/v3/admin/features/2290/${v.filingId}`} style={{ fontSize: 11.5, color: 'var(--v3-primary)', fontWeight: 500, textDecoration: 'none' }}>
+                      View
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -178,15 +186,20 @@ export function Form2290AdminPage({ stats, vehicleRows, historyRows }: Props) {
                   <td style={{ padding: '12px 16px', color: 'var(--v3-muted)' }}>{f.filed}</td>
                   <td style={{ padding: '12px 16px' }}><Pill tone={f.tone}>{f.status}</Pill></td>
                   <td style={{ padding: '12px 16px' }}>
-                    {f.schedule1Url && (
-                      <a
-                        href={f.schedule1Url}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--v3-muted)', fontSize: 11.5, fontFamily: 'var(--v3-font)', textDecoration: 'none' }}>
-                        <V3Icon name="download" size={13} /> Sched. 1
-                      </a>
-                    )}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                      {f.schedule1Url && (
+                        <a
+                          href={f.schedule1Url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--v3-muted)', fontSize: 11.5, textDecoration: 'none' }}>
+                          <V3Icon name="download" size={13} /> Sched. 1
+                        </a>
+                      )}
+                      <Link href={`/v3/admin/features/2290/${f.id}`} style={{ fontSize: 11.5, color: 'var(--v3-primary)', fontWeight: 500, textDecoration: 'none' }}>
+                        View
+                      </Link>
+                    </span>
                   </td>
                 </tr>
               ))}

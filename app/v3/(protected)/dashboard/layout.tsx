@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { ShellLayout } from '@/app/v3/components/shell/ShellLayout'
 import { dashboardNavGroups } from '@/app/v3/components/shell/nav-config/dashboard-nav'
+import { listNotificationsForUser } from '@/services/notifications'
 
 function displayRole(roles: string[]): string {
   if (roles.includes('ADMIN')) return 'Admin'
@@ -18,6 +19,8 @@ export default async function DashboardV3Layout({ children }: { children: React.
   const userInitials = userName?.split(' ').map(p => p[0]).join('').slice(0, 2)
   const userRole     = displayRole(session.user.roles)
 
+  const { notifications } = await listNotificationsForUser({ userId: session.user.id, limit: 10 })
+
   return (
     <ShellLayout
       navGroups={dashboardNavGroups}
@@ -25,6 +28,7 @@ export default async function DashboardV3Layout({ children }: { children: React.
       userRole={userRole}
       userInitials={userInitials}
       settingsHref="/v3/dashboard/settings"
+      notifications={notifications}
     >
       {children}
     </ShellLayout>

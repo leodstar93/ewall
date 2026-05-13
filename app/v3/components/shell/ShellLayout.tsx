@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import type { NotificationItem } from './Topbar'
 import type { NavGroup } from './nav-config/types'
 import styles from './ShellLayout.module.css'
 
@@ -16,6 +17,7 @@ interface ShellLayoutProps {
   userInitials?: string
   orgName?: string
   settingsHref?: string
+  notifications?: NotificationItem[]
 }
 
 export function ShellLayout({
@@ -28,6 +30,7 @@ export function ShellLayout({
   userInitials,
   orgName,
   settingsHref,
+  notifications = [],
 }: ShellLayoutProps) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -44,7 +47,7 @@ export function ShellLayout({
         settingsHref={settingsHref}
       />
       <div className={styles.main}>
-        <Topbar title={title} breadcrumb={breadcrumb} />
+        <Topbar title={title} breadcrumb={breadcrumb} initialNotifications={notifications} />
         <main className={styles.content}>{children}</main>
       </div>
     </div>

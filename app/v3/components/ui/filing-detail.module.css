@@ -1,0 +1,304 @@
+.wrapper {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--v3-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--v3-font);
+  padding: 6px 0;
+  text-decoration: none;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.titleBlock {
+  flex: 1;
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--v3-ink);
+  letter-spacing: -0.3px;
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--v3-muted);
+  margin-top: 3px;
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+/* ── Step Tracker ── */
+.steps {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 80px;
+  position: relative;
+}
+
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: calc(50% + 13px);
+  right: calc(-50% + 13px);
+  height: 2px;
+  background: var(--v3-soft-line);
+}
+
+.step[data-done="true"]:not(:last-child)::after {
+  background: var(--v3-primary);
+}
+
+.stepDot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--v3-line);
+  background: var(--v3-panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--v3-muted);
+}
+
+.step[data-done="true"] .stepDot {
+  border-color: var(--v3-primary);
+  background: var(--v3-primary);
+  color: #fff;
+}
+
+.step[data-current="true"] .stepDot {
+  border-color: var(--v3-primary);
+  background: var(--v3-panel);
+  color: var(--v3-primary);
+}
+
+.stepLabel {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--v3-muted);
+  text-align: center;
+  margin-top: 5px;
+  line-height: 1.3;
+}
+
+.step[data-current="true"] .stepLabel {
+  color: var(--v3-primary);
+  font-weight: 600;
+}
+
+.step[data-done="true"] .stepLabel {
+  color: var(--v3-ink);
+}
+
+/* ── Body ── */
+.body {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Meta grid ── */
+.metaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 24px;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.metaLabel {
+  font-size: 10.5px;
+  color: var(--v3-muted);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.metaValue {
+  font-size: 13.5px;
+  color: var(--v3-ink);
+  font-weight: 500;
+}
+
+/* ── Table ── */
+.tableWrap {
+  border: 1px solid var(--v3-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.th {
+  padding: 9px 14px;
+  font-size: 10.5px;
+  color: var(--v3-muted);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  text-align: left;
+  background: var(--v3-bg);
+  border-bottom: 1px solid var(--v3-line);
+}
+
+.thRight { text-align: right; }
+
+.td {
+  padding: 11px 14px;
+  color: var(--v3-ink);
+  border-bottom: 1px solid var(--v3-soft-line);
+}
+
+.tdRight { text-align: right; font-variant-numeric: tabular-nums; }
+.tdMuted { color: var(--v3-muted); }
+
+/* ── Log ── */
+.logList {
+  display: flex;
+  flex-direction: column;
+}
+
+.logItem {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v3-soft-line);
+}
+
+.logItem:last-child {
+  border-bottom: none;
+}
+
+.logDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--v3-line);
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.logText {
+  font-size: 12.5px;
+  color: var(--v3-ink);
+  line-height: 1.4;
+}
+
+.logTime {
+  font-size: 11px;
+  color: var(--v3-muted);
+  margin-top: 2px;
+}
+
+/* ── Buttons ── */
+.btnPrimary {
+  padding: 8px 16px;
+  background: var(--v3-primary);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--v3-font);
+}
+
+.btnSecondary {
+  padding: 8px 16px;
+  background: var(--v3-panel);
+  color: var(--v3-ink);
+  border: 1px solid var(--v3-line);
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--v3-font);
+}
+
+.btnDanger {
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--v3-danger);
+  border: 1px solid var(--v3-danger-bg);
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--v3-font);
+}
+
+.emptyState {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--v3-muted);
+  font-size: 13px;
+}

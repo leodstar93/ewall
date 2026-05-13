@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
 import type { PillTone } from '@/app/v3/components/ui/Pill'
@@ -131,12 +132,13 @@ export function UcrAdminPage({ stats, registrationRows, pendingAction }: Props) 
               <th style={TH}>Filed / Completed</th>
               <th style={TH}>Expires</th>
               <th style={TH}>Status</th>
+              <th style={{ ...TH, width: 64 }}></th>
             </tr>
           </thead>
           <tbody>
             {registrationRows.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+                <td colSpan={9} style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
                   No UCR filings found.
                 </td>
               </tr>
@@ -154,6 +156,11 @@ export function UcrAdminPage({ stats, registrationRows, pendingAction }: Props) 
                 <td style={{ padding: '13px 16px', color: 'var(--v3-muted)' }}>{r.filed}</td>
                 <td style={{ padding: '13px 16px', color: 'var(--v3-muted)' }}>{r.expires}</td>
                 <td style={{ padding: '13px 16px' }}><Pill tone={r.tone}>{r.status}</Pill></td>
+                <td style={{ padding: '13px 16px' }}>
+                  <Link href={`/v3/admin/features/ucr/${r.id}`} style={{ fontSize: 11.5, color: 'var(--v3-primary)', fontWeight: 500, textDecoration: 'none' }}>
+                    View
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -7,6 +7,31 @@ import { SectionHeader } from '@/app/v3/components/ui/SectionHeader'
 import { V3Icon } from '@/app/v3/components/ui/V3Icon'
 import s from '@/app/v3/components/ui/settings.module.css'
 
+/* ── Exported row types (imported by page.tsx) ── */
+export type IftaRateRow    = { state: string; diesel: number | null; gasoline: number | null; effectiveFrom: string | null }
+export type UcrBracketRow  = { id: string; label: string; fee: number }
+export type F2290RateRow   = { id: string; category: string; weightMin: number; weightMax: number | null; annualTax: number }
+export type DmvFeeRow      = { id: string; jurisdictionCode: string; amount: number; registrationType: string | null }
+export type JurisdictionRow = { code: string; isActive: boolean }
+export type RoleRow        = { id: string; name: string; description: string | null; userCount: number; permissionCount: number }
+export type NewsRow        = { id: string; title: string; eyebrow: string; audience: string; status: 'Published' | 'Scheduled' | 'Inactive'; activeFrom: string | null; activeTo: string | null }
+export type EmailTemplateRow = { id: string; key: string; name: string; subject: string; isActive: boolean; updatedAt: string }
+
+interface AdminSettingsProps {
+  iftaRates: IftaRateRow[]
+  iftaLastSync: string | null
+  iftaCurrentQuarter: string
+  ucrBrackets: UcrBracketRow[]
+  ucrActiveYear: number
+  f2290Rates: F2290RateRow[]
+  f2290PeriodName: string
+  dmvFees: DmvFeeRow[]
+  jurisdictions: JurisdictionRow[]
+  roles: RoleRow[]
+  newsPosts: NewsRow[]
+  emailTemplates: EmailTemplateRow[]
+}
+
 type Section =
   | 'iftaRates' | 'ucrFees' | 'f2290' | 'dmvFees' | 'jurisdictions'
   | 'serviceFees' | 'workflows' | 'permissions' | 'news' | 'emails' | 'system'
@@ -60,29 +85,10 @@ function Toggle({ on, onChange, label, desc }: { on: boolean; onChange: () => vo
 }
 
 /* ── IFTA Tax Rates ── */
-const IFTA_RATES = [
-  { st: 'AL', diesel: 0.290, gas: 0.290, biodiesel: 0.290 },
-  { st: 'AR', diesel: 0.285, gas: 0.245, biodiesel: 0.285 },
-  { st: 'AZ', diesel: 0.260, gas: 0.180, biodiesel: 0.260 },
-  { st: 'CA', diesel: 0.870, gas: 0.539, biodiesel: 0.870 },
-  { st: 'CO', diesel: 0.205, gas: 0.220, biodiesel: 0.205 },
-  { st: 'FL', diesel: 0.371, gas: 0.371, biodiesel: 0.371 },
-  { st: 'GA', diesel: 0.346, gas: 0.312, biodiesel: 0.346 },
-  { st: 'IL', diesel: 0.674, gas: 0.454, biodiesel: 0.674 },
-  { st: 'KS', diesel: 0.260, gas: 0.240, biodiesel: 0.260 },
-  { st: 'LA', diesel: 0.200, gas: 0.200, biodiesel: 0.200 },
-  { st: 'MO', diesel: 0.220, gas: 0.220, biodiesel: 0.220 },
-  { st: 'MS', diesel: 0.180, gas: 0.180, biodiesel: 0.180 },
-  { st: 'NM', diesel: 0.210, gas: 0.170, biodiesel: 0.210 },
-  { st: 'NV', diesel: 0.270, gas: 0.230, biodiesel: 0.270 },
-  { st: 'OK', diesel: 0.200, gas: 0.200, biodiesel: 0.200 },
-  { st: 'TN', diesel: 0.270, gas: 0.260, biodiesel: 0.270 },
-  { st: 'TX', diesel: 0.200, gas: 0.200, biodiesel: 0.200 },
-  { st: 'UT', diesel: 0.365, gas: 0.365, biodiesel: 0.365 },
-]
+function IFTARatesPanel({ rates, lastSync, currentQuarter }: { rates: IftaRateRow[]; lastSync: string | null; currentQuarter: string }) {
+  const [q, setQ] = useState(currentQuarter)
+  const quarters = [currentQuarter]
 
-function IFTARatesPanel() {
-  const [q, setQ] = useState('2026 Q2')
   return (
     <Card>
       <SectionHeader
@@ -91,7 +97,7 @@ function IFTARatesPanel() {
         action={
           <div style={{ display: 'flex', gap: 8 }}>
             <select value={q} onChange={e => setQ(e.target.value)} className={s.select} style={{ width: 'auto', fontSize: 12 }}>
-              <option>2026 Q2</option><option>2026 Q1</option><option>2025 Q4</option><option>2025 Q3</option>
+              {quarters.map(qq => <option key={qq}>{qq}</option>)}
             </select>
             <button className={s.btnSecondary} style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <V3Icon name="upload" size={12} /> Import CSV
@@ -100,241 +106,255 @@ function IFTARatesPanel() {
           </div>
         }
       />
-      <div style={{ display: 'flex', gap: 12, padding: '10px 14px', background: 'var(--v3-warn-bg)', borderRadius: 8, alignItems: 'center', marginBottom: 16 }}>
-        <V3Icon name="shield" size={16} />
-        <div style={{ fontSize: 12.5, color: 'var(--v3-warn)', fontWeight: 500 }}>
-          Last synced from IFTA, Inc. on May 04 · Next auto-sync May 15 · Rate changes affect new filings only.
+      {lastSync && (
+        <div style={{ display: 'flex', gap: 12, padding: '10px 14px', background: 'var(--v3-info-bg)', borderRadius: 8, alignItems: 'center', marginBottom: 16 }}>
+          <V3Icon name="shield" size={16} />
+          <div style={{ fontSize: 12.5, color: 'var(--v3-info)', fontWeight: 500 }}>
+            Last synced from IFTA, Inc. on {lastSync} · Rate changes affect new filings only.
+          </div>
         </div>
-      </div>
-      <div style={{ maxHeight: 460, overflowY: 'auto', border: '1px solid var(--v3-line)', borderRadius: 8 }}>
-        <table className={s.table}>
-          <thead>
-            <tr>
-              {['Jurisdiction', 'Diesel ($/gal)', 'Gasoline ($/gal)', 'Biodiesel ($/gal)', 'Effective', ''].map((h, i) => (
-                <th key={i} className={`${s.th} ${i >= 1 && i <= 3 ? s.thRight : ''}`}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {IFTA_RATES.map(r => (
-              <tr key={r.st}>
-                <td className={s.td}><span className={s.chip}>{r.st}</span></td>
-                <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 500 }}>${r.diesel.toFixed(3)}</td>
-                <td className={`${s.td} ${s.tdRight}`}>${r.gas.toFixed(3)}</td>
-                <td className={`${s.td} ${s.tdRight}`}>${r.biodiesel.toFixed(3)}</td>
-                <td className={`${s.td} ${s.tdMuted}`}>Apr 01, 2026</td>
-                <td className={s.td} style={{ textAlign: 'right' }}>
-                  <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
-                </td>
+      )}
+      {rates.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+          No rates loaded for {currentQuarter}. Import a CSV to get started.
+        </div>
+      ) : (
+        <div style={{ maxHeight: 460, overflowY: 'auto', border: '1px solid var(--v3-line)', borderRadius: 8 }}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                {['Jurisdiction', 'Diesel ($/gal)', 'Gasoline ($/gal)', 'Effective', ''].map((h, i) => (
+                  <th key={i} className={`${s.th} ${i >= 1 && i <= 2 ? s.thRight : ''}`}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rates.map(r => (
+                <tr key={r.state}>
+                  <td className={s.td}><span className={s.chip}>{r.state}</span></td>
+                  <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 500 }}>
+                    {r.diesel != null ? `$${r.diesel.toFixed(3)}` : '—'}
+                  </td>
+                  <td className={`${s.td} ${s.tdRight}`}>
+                    {r.gasoline != null ? `$${r.gasoline.toFixed(3)}` : '—'}
+                  </td>
+                  <td className={`${s.td} ${s.tdMuted}`}>{r.effectiveFrom ?? '—'}</td>
+                  <td className={s.td} style={{ textAlign: 'right' }}>
+                    <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   )
 }
 
 /* ── UCR Fee Schedule ── */
-const UCR_BRACKETS = [
-  { b: '0 – 2 vehicles',       fee: 46 },
-  { b: '3 – 5 vehicles',       fee: 138 },
-  { b: '6 – 20 vehicles',      fee: 275 },
-  { b: '21 – 100 vehicles',    fee: 959 },
-  { b: '101 – 1,000 vehicles', fee: 4571 },
-  { b: '1,001+ vehicles',      fee: 44623 },
-]
-
-function UCRFeesPanel() {
+function UCRFeesPanel({ brackets, activeYear }: { brackets: UcrBracketRow[]; activeYear: number }) {
   return (
     <Card>
       <SectionHeader
         title="UCR fee schedule"
         subtitle="Annual fees by fleet size bracket. Edits apply to the next registration cycle."
-        action={<button className={s.btnPrimary} style={{ fontSize: 12 }}>Publish 2027 schedule</button>}
+        action={<button className={s.btnPrimary} style={{ fontSize: 12 }}>Publish {activeYear + 1} schedule</button>}
       />
       <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-        {[{ l: 'Active year', v: '2026' }, { l: 'Effective', v: 'Jan 01, 2026' }, { l: 'Source', v: 'UCR Plan §367' }].map(st => (
+        {[
+          { l: 'Active year', v: String(activeYear) },
+          { l: 'Effective',   v: `Jan 01, ${activeYear}` },
+          { l: 'Source',      v: 'UCR Plan §367' },
+        ].map(st => (
           <div key={st.l} style={{ padding: '10px 14px', background: 'var(--v3-bg)', border: '1px solid var(--v3-line)', borderRadius: 8, flex: 1 }}>
             <div style={{ fontSize: 10.5, color: 'var(--v3-muted)', letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>{st.l}</div>
             <div style={{ fontSize: 14, color: 'var(--v3-ink)', fontWeight: 500, marginTop: 4 }}>{st.v}</div>
           </div>
         ))}
       </div>
-      <div className={s.tableScroll}>
-        <table className={s.table}>
-          <thead>
-            <tr>
-              {['Bracket', 'Annual fee', 'Service margin', 'Total billed', ''].map((h, i) => (
-                <th key={i} className={`${s.th} ${i >= 1 && i <= 3 ? s.thRight : ''}`}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {UCR_BRACKETS.map(r => {
-              const margin = Math.round(r.fee * 0.10)
-              return (
-                <tr key={r.b}>
-                  <td className={s.td} style={{ fontWeight: 500 }}>{r.b}</td>
-                  <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 500 }}>${r.fee.toLocaleString()}</td>
-                  <td className={`${s.td} ${s.tdRight} ${s.tdMuted}`}>+${margin.toLocaleString()} (10%)</td>
-                  <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 600 }}>${(r.fee + margin).toLocaleString()}</td>
-                  <td className={s.td} style={{ textAlign: 'right' }}>
-                    <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      {brackets.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+          No brackets configured for {activeYear}.
+        </div>
+      ) : (
+        <div className={s.tableScroll}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                {['Bracket', 'Annual fee', 'Service margin', 'Total billed', ''].map((h, i) => (
+                  <th key={i} className={`${s.th} ${i >= 1 && i <= 3 ? s.thRight : ''}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {brackets.map(r => {
+                const margin = Math.round(r.fee * 0.10)
+                return (
+                  <tr key={r.id}>
+                    <td className={s.td} style={{ fontWeight: 500 }}>{r.label}</td>
+                    <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 500 }}>${r.fee.toLocaleString()}</td>
+                    <td className={`${s.td} ${s.tdRight} ${s.tdMuted}`}>+${margin.toLocaleString()} (10%)</td>
+                    <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 600 }}>${(r.fee + margin).toLocaleString()}</td>
+                    <td className={s.td} style={{ textAlign: 'right' }}>
+                      <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   )
 }
 
 /* ── Form 2290 Brackets ── */
-const F2290_BRACKETS = [
-  { wt: '55,000 lbs',               cat: 'A',     tax: 100 },
-  { wt: '55,001 – 56,000 lbs',      cat: 'B',     tax: 122 },
-  { wt: '56,001 – 60,000 lbs',      cat: 'C – F', tax: 188 },
-  { wt: '60,001 – 65,000 lbs',      cat: 'G – K', tax: 254 },
-  { wt: '65,001 – 70,000 lbs',      cat: 'L – P', tax: 342 },
-  { wt: '70,001 – 75,000 lbs',      cat: 'Q – T', tax: 430 },
-  { wt: '75,001 – 80,000 lbs',      cat: 'U – V', tax: 550 },
-  { wt: 'Suspended (under 5,000 mi)', cat: 'W',   tax: 0 },
-]
+function fmtWeightRange(min: number, max: number | null): string {
+  if (max === null) return `${min.toLocaleString()}+ lbs`
+  if (min === max) return `${min.toLocaleString()} lbs`
+  return `${min.toLocaleString()} – ${max.toLocaleString()} lbs`
+}
 
-function Form2290Panel() {
+function Form2290Panel({ rates, periodName }: { rates: F2290RateRow[]; periodName: string }) {
   return (
     <Card>
       <SectionHeader
         title="Form 2290 weight categories"
-        subtitle="HVUT brackets per IRS Schedule 1. Tax year July 1, 2025 – June 30, 2026."
+        subtitle={`HVUT brackets per IRS Schedule 1. Tax period: ${periodName}.`}
         action={<button className={s.btnSecondary} style={{ fontSize: 12 }}>Sync from IRS</button>}
       />
-      <div className={s.tableScroll}>
-        <table className={s.table}>
-          <thead>
-            <tr>
-              {['Gross weight', 'Category', 'Annual tax', ''].map((h, i) => (
-                <th key={i} className={`${s.th} ${i === 2 ? s.thRight : ''}`}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {F2290_BRACKETS.map(r => (
-              <tr key={r.cat}>
-                <td className={s.td} style={{ fontWeight: 500 }}>{r.wt}</td>
-                <td className={s.td}><span className={s.chip}>{r.cat}</span></td>
-                <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 600, color: r.tax === 0 ? 'var(--v3-muted)' : 'var(--v3-ink)' }}>
-                  {r.tax === 0 ? 'Exempt' : `$${r.tax}`}
-                </td>
-                <td className={s.td} style={{ textAlign: 'right' }}>
-                  <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
-                </td>
+      {rates.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+          No rate brackets configured for this period.
+        </div>
+      ) : (
+        <div className={s.tableScroll}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                {['Gross weight', 'Category', 'Annual tax', ''].map((h, i) => (
+                  <th key={i} className={`${s.th} ${i === 2 ? s.thRight : ''}`}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rates.map(r => (
+                <tr key={r.id}>
+                  <td className={s.td} style={{ fontWeight: 500 }}>{fmtWeightRange(r.weightMin, r.weightMax)}</td>
+                  <td className={s.td}><span className={s.chip}>{r.category}</span></td>
+                  <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 600, color: r.annualTax === 0 ? 'var(--v3-muted)' : 'var(--v3-ink)' }}>
+                    {r.annualTax === 0 ? 'Exempt' : `$${r.annualTax.toLocaleString()}`}
+                  </td>
+                  <td className={s.td} style={{ textAlign: 'right' }}>
+                    <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   )
 }
 
 /* ── DMV Fees ── */
-const DMV_FEES = [
-  { st: 'TX', base: 680,  perAxle: 0, lateFee: 25, autoRenew: true },
-  { st: 'CA', base: 1240, perAxle: 8, lateFee: 60, autoRenew: true },
-  { st: 'AZ', base: 720,  perAxle: 0, lateFee: 25, autoRenew: false },
-  { st: 'NM', base: 595,  perAxle: 0, lateFee: 30, autoRenew: false },
-  { st: 'FL', base: 580,  perAxle: 0, lateFee: 25, autoRenew: true },
-  { st: 'LA', base: 540,  perAxle: 0, lateFee: 20, autoRenew: false },
-]
-
-function DMVFeesPanel() {
+function DMVFeesPanel({ feeRules }: { feeRules: DmvFeeRow[] }) {
   return (
     <Card>
       <SectionHeader
         title="DMV registration fees by state"
-        action={<button className={s.btnPrimary} style={{ fontSize: 12 }}>+ Add state</button>}
+        action={<button className={s.btnPrimary} style={{ fontSize: 12 }}>+ Add rule</button>}
       />
-      <div className={s.tableScroll}>
-        <table className={s.table}>
-          <thead>
-            <tr>
-              {['State', 'Base fee', 'Per-axle', 'Late fee', 'Auto-renew', ''].map((h, i) => (
-                <th key={i} className={`${s.th} ${i >= 1 && i <= 3 ? s.thRight : ''}`}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {DMV_FEES.map(r => (
-              <tr key={r.st}>
-                <td className={s.td}><span className={s.chip}>{r.st}</span></td>
-                <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 500 }}>${r.base}</td>
-                <td className={`${s.td} ${s.tdRight} ${s.tdMuted}`}>{r.perAxle ? `$${r.perAxle}` : '—'}</td>
-                <td className={`${s.td} ${s.tdRight} ${s.tdMuted}`}>${r.lateFee}</td>
-                <td className={s.td}><Pill tone={r.autoRenew ? 'success' : 'neutral'}>{r.autoRenew ? 'Enabled' : 'Manual'}</Pill></td>
-                <td className={s.td} style={{ textAlign: 'right' }}>
-                  <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
-                </td>
+      {feeRules.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+          No DMV fee rules configured.
+        </div>
+      ) : (
+        <div className={s.tableScroll}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                {['State', 'Registration type', 'Amount', ''].map((h, i) => (
+                  <th key={i} className={`${s.th} ${i === 2 ? s.thRight : ''}`}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {feeRules.map(r => (
+                <tr key={r.id}>
+                  <td className={s.td}><span className={s.chip}>{r.jurisdictionCode}</span></td>
+                  <td className={`${s.td} ${s.tdMuted}`}>{r.registrationType ?? 'Standard'}</td>
+                  <td className={`${s.td} ${s.tdRight}`} style={{ fontWeight: 500 }}>${r.amount.toLocaleString()}</td>
+                  <td className={s.td} style={{ textAlign: 'right' }}>
+                    <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   )
 }
 
 /* ── Jurisdictions ── */
-const ALL_STATES = ['AL','AR','AZ','CA','CO','CT','DE','FL','GA','IA','ID','IL','IN','KS','KY','LA','MA','MD','ME','MI','MN','MO','MS','MT','NC','ND','NE','NH','NJ','NM','NV','NY','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VA','VT','WA','WI','WV','WY']
-const DEFAULT_ENABLED = new Set(['TX','CA','AZ','NM','OK','LA','AR','MS','FL','GA','TN','MO','CO','UT','NV','KS','IL','AL'])
+function JurisdictionsPanel({ jurisdictions }: { jurisdictions: JurisdictionRow[] }) {
+  const [enabled, setEnabled] = useState(() => new Set(jurisdictions.filter(j => j.isActive).map(j => j.code)))
+  const allCodes = jurisdictions.map(j => j.code)
 
-function JurisdictionsPanel() {
-  const [enabled, setEnabled] = useState(DEFAULT_ENABLED)
-  const toggle = (st: string) => setEnabled(prev => {
+  const toggle = (code: string) => setEnabled(prev => {
     const next = new Set(prev)
-    next.has(st) ? next.delete(st) : next.add(st)
+    next.has(code) ? next.delete(code) : next.add(code)
     return next
   })
+
   return (
     <Card>
       <SectionHeader
         title="Active jurisdictions"
-        subtitle={`${enabled.size} of ${ALL_STATES.length} US states + 10 CA provinces enabled for filings.`}
+        subtitle={`${enabled.size} of ${allCodes.length} IFTA jurisdictions enabled for filings.`}
         action={
           <button className={s.btnSecondary} style={{ fontSize: 12 }}
-            onClick={() => setEnabled(new Set(ALL_STATES))}>Enable all</button>
+            onClick={() => setEnabled(new Set(allCodes))}>Enable all</button>
         }
       />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
-        {ALL_STATES.map(st => {
-          const on = enabled.has(st)
-          return (
-            <button
-              key={st}
-              type="button"
-              onClick={() => toggle(st)}
-              style={{
-                padding: '10px 6px', borderRadius: 7, fontSize: 11.5, fontWeight: 600, letterSpacing: 0.5,
-                background: on ? 'var(--v3-primary)' : 'var(--v3-panel)',
-                color: on ? '#fff' : 'var(--v3-muted)',
-                border: `1px solid ${on ? 'var(--v3-primary)' : 'var(--v3-line)'}`,
-                cursor: 'pointer', position: 'relative',
-              }}
-            >
-              {st}
-              {on && <span style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: 'var(--v3-accent)' }} />}
-            </button>
-          )
-        })}
-      </div>
+      {allCodes.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+          No jurisdictions configured.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
+          {allCodes.map(code => {
+            const on = enabled.has(code)
+            return (
+              <button
+                key={code}
+                type="button"
+                onClick={() => toggle(code)}
+                style={{
+                  padding: '10px 6px', borderRadius: 7, fontSize: 11.5, fontWeight: 600, letterSpacing: 0.5,
+                  background: on ? 'var(--v3-primary)' : 'var(--v3-panel)',
+                  color: on ? '#fff' : 'var(--v3-muted)',
+                  border: `1px solid ${on ? 'var(--v3-primary)' : 'var(--v3-line)'}`,
+                  cursor: 'pointer', position: 'relative',
+                }}
+              >
+                {code}
+                {on && <span style={{ position: 'absolute', top: 3, right: 3, width: 5, height: 5, borderRadius: '50%', background: 'var(--v3-accent)' }} />}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </Card>
   )
 }
 
-/* ── Service Fees ── */
+/* ── Service Fees (static — no DB model) ── */
 const SERVICE_FEES = [
   { svc: 'IFTA quarterly filing',    base: 75, perUnit: 12, billing: 'Per filing' },
   { svc: 'UCR annual registration',  base: 50, perUnit: 0,  billing: 'Per filing + bracket' },
@@ -378,7 +398,7 @@ function ServiceFeesPanel() {
   )
 }
 
-/* ── Workflows ── */
+/* ── Workflows (static — no DB model) ── */
 function WorkflowsPanel() {
   const [st, setSt] = useState({ autoAssign: true, slaWarn: true, requireReview: true, dualPay: false, autoReceipts: true })
   const toggle = (k: keyof typeof st) => setSt(p => ({ ...p, [k]: !p[k] }))
@@ -396,10 +416,10 @@ function WorkflowsPanel() {
         <SectionHeader title="Service-level agreements" />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
           {[
-            { l: 'IFTA filing',     v: '48 hr', s: 'from submission' },
-            { l: 'UCR registration',v: '24 hr', s: 'business days' },
-            { l: 'Form 2290',       v: '4 hr',  s: 'IRS acceptance' },
-            { l: 'DMV renewal',     v: '72 hr', s: 'sticker mailed' },
+            { l: 'IFTA filing',      v: '48 hr', s: 'from submission' },
+            { l: 'UCR registration', v: '24 hr', s: 'business days' },
+            { l: 'Form 2290',        v: '4 hr',  s: 'IRS acceptance' },
+            { l: 'DMV renewal',      v: '72 hr', s: 'sticker mailed' },
           ].map(b => (
             <div key={b.l} style={{ padding: '14px 16px', background: 'var(--v3-bg)', border: '1px solid var(--v3-line)', borderRadius: 8 }}>
               <div style={{ fontSize: 11, color: 'var(--v3-muted)', letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600 }}>{b.l}</div>
@@ -414,59 +434,56 @@ function WorkflowsPanel() {
 }
 
 /* ── Roles & Permissions ── */
-const ROLES = [
-  { role: 'Super admin',     users: 2, view: 'All',              edit: 'All',               publish: true,  billing: true },
-  { role: 'Compliance lead', users: 3, view: 'All',              edit: 'Filings + rates',   publish: true,  billing: false },
-  { role: 'Filer',           users: 8, view: 'Assigned clients', edit: 'Assigned filings',  publish: false, billing: false },
-  { role: 'Finance',         users: 2, view: 'All',              edit: 'Billing only',      publish: false, billing: true },
-  { role: 'Support agent',   users: 4, view: 'All',              edit: 'Notes only',        publish: false, billing: false },
-  { role: 'Read-only',       users: 1, view: 'All',              edit: 'None',              publish: false, billing: false },
-]
-
-function PermissionsPanel() {
+function PermissionsPanel({ roles }: { roles: RoleRow[] }) {
   return (
     <Card>
       <SectionHeader
         title="Roles & permissions"
         action={<button className={s.btnPrimary} style={{ fontSize: 12 }}>+ New role</button>}
       />
-      <div className={s.tableScroll}>
-        <table className={s.table}>
-          <thead>
-            <tr>
-              {['Role', 'Members', 'Can view', 'Can edit', 'Publish rates', 'Billing access'].map(h => (
-                <th key={h} className={s.th}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {ROLES.map(r => (
-              <tr key={r.role}>
-                <td className={s.td} style={{ fontWeight: 500 }}>{r.role}</td>
-                <td className={`${s.td} ${s.tdMuted}`}>{r.users}</td>
-                <td className={s.td}>{r.view}</td>
-                <td className={s.td}>{r.edit}</td>
-                <td className={s.td}><Pill tone={r.publish ? 'success' : 'neutral'}>{r.publish ? 'Yes' : 'No'}</Pill></td>
-                <td className={s.td}><Pill tone={r.billing ? 'success' : 'neutral'}>{r.billing ? 'Yes' : 'No'}</Pill></td>
+      {roles.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+          No roles configured.
+        </div>
+      ) : (
+        <div className={s.tableScroll}>
+          <table className={s.table}>
+            <thead>
+              <tr>
+                {['Role', 'Members', 'Permissions', 'Description'].map(h => (
+                  <th key={h} className={s.th}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {roles.map(r => (
+                <tr key={r.id}>
+                  <td className={s.td} style={{ fontWeight: 500 }}>{r.name}</td>
+                  <td className={`${s.td} ${s.tdMuted}`}>{r.userCount}</td>
+                  <td className={`${s.td} ${s.tdMuted}`}>{r.permissionCount}</td>
+                  <td className={`${s.td} ${s.tdMuted}`} style={{ fontSize: 12 }}>{r.description ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   )
 }
 
 /* ── News & Updates ── */
-const NEWS_POSTS = [
-  { tag: 'Alert',       tone: 'danger'  as const, title: 'TX registration deadline moved to May 18',    audience: 'All clients · TX', status: 'Published', pinned: true,  sent: 'Today · 9:14 am' },
-  { tag: 'Product',     tone: 'info'    as const, title: 'New: bulk fuel receipt upload',               audience: 'All clients',      status: 'Published', pinned: false, sent: 'May 05' },
-  { tag: 'Rate change', tone: 'warn'    as const, title: 'CA IFTA diesel rate increased to $0.87/gal', audience: 'IFTA filers',      status: 'Published', pinned: false, sent: 'May 01' },
-  { tag: 'Reminder',    tone: 'neutral' as const, title: 'UCR 2026 fee window closes June 30',         audience: 'All clients',      status: 'Scheduled', pinned: false, sent: 'May 12 · 8:00 am' },
-  { tag: 'Maintenance', tone: 'neutral' as const, title: 'Planned downtime May 18 · 11pm–1am CT',     audience: 'All clients',      status: 'Draft',     pinned: false, sent: '—' },
-]
+function statusTone(status: NewsRow['status']): 'success' | 'info' | 'neutral' {
+  if (status === 'Published') return 'success'
+  if (status === 'Scheduled') return 'info'
+  return 'neutral'
+}
 
-function NewsPanel() {
+function NewsPanel({ posts }: { posts: NewsRow[] }) {
+  const published = posts.filter(p => p.status === 'Published').length
+  const scheduled = posts.filter(p => p.status === 'Scheduled').length
+  const inactive  = posts.filter(p => p.status === 'Inactive').length
+
   return (
     <>
       <Card>
@@ -479,47 +496,47 @@ function NewsPanel() {
             </button>
           }
         />
-        <div className={s.statsRow} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {[{ l: 'Published', v: '3' }, { l: 'Scheduled', v: '1' }, { l: 'Drafts', v: '1' }, { l: 'Avg. reach', v: '1,284', sub: 'opens last 30d' }].map(st => (
+        <div className={s.statsRow} style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          {[{ l: 'Published', v: String(published) }, { l: 'Scheduled', v: String(scheduled) }, { l: 'Inactive', v: String(inactive) }].map(st => (
             <div key={st.l} className={s.statMini}>
               <div className={s.statMiniLabel}>{st.l}</div>
               <div className={s.statMiniValue}>{st.v}</div>
-              {st.sub && <div className={s.statMiniSub}>{st.sub}</div>}
             </div>
           ))}
         </div>
-        <div className={s.tableScroll}>
-          <table className={s.table}>
-            <thead>
-              <tr>
-                {['Title', 'Tag', 'Audience', 'Status', 'Sent / scheduled', ''].map(h => (
-                  <th key={h} className={s.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {NEWS_POSTS.map((n, i) => (
-                <tr key={i}>
-                  <td className={s.td} style={{ fontWeight: 500 }}>
-                    {n.pinned && <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--v3-accent)', marginRight: 7, verticalAlign: 'middle' }} />}
-                    {n.title}
-                  </td>
-                  <td className={s.td}>
-                    <Pill tone={n.tone}>{n.tag}</Pill>
-                  </td>
-                  <td className={`${s.td} ${s.tdMuted}`}>{n.audience}</td>
-                  <td className={s.td}>
-                    <Pill tone={n.status === 'Published' ? 'success' : n.status === 'Scheduled' ? 'info' : 'neutral'}>{n.status}</Pill>
-                  </td>
-                  <td className={`${s.td} ${s.tdMuted}`}>{n.sent}</td>
-                  <td className={s.td} style={{ textAlign: 'right' }}>
-                    <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
-                  </td>
+        {posts.length === 0 ? (
+          <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+            No posts yet. Create one above.
+          </div>
+        ) : (
+          <div className={s.tableScroll}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  {['Title', 'Tag', 'Audience', 'Status', 'Active from', ''].map(h => (
+                    <th key={h} className={s.th}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {posts.map(n => (
+                  <tr key={n.id}>
+                    <td className={s.td} style={{ fontWeight: 500 }}>{n.title}</td>
+                    <td className={s.td}><span className={s.chip}>{n.eyebrow}</span></td>
+                    <td className={`${s.td} ${s.tdMuted}`}>{n.audience}</td>
+                    <td className={s.td}>
+                      <Pill tone={statusTone(n.status)}>{n.status}</Pill>
+                    </td>
+                    <td className={`${s.td} ${s.tdMuted}`}>{n.activeFrom ?? '—'}</td>
+                    <td className={s.td} style={{ textAlign: 'right' }}>
+                      <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       <Card>
@@ -533,21 +550,18 @@ function NewsPanel() {
           </Field>
           <Field label="Audience">
             <select className={s.select}>
-              <option>All clients</option><option>IFTA filers</option><option>UCR filers</option><option>Texas-based</option><option>California-based</option>
+              <option>ALL</option><option>IFTA filers</option><option>UCR filers</option>
             </select>
           </Field>
           <Field label="Body" span={2}>
             <textarea className={s.textarea} rows={3} placeholder="Short description shown on the client home card…" />
           </Field>
-          <Field label="Publish"><Input type="datetime-local" defaultValue="2026-05-12T08:00" /></Field>
+          <Field label="Active from"><Input type="datetime-local" /></Field>
           <Field label="Expires (optional)"><Input type="datetime-local" /></Field>
         </div>
-        <Toggle on={false} onChange={() => {}} label="Pin to top of clients' news feed" />
-        <Toggle on={true}  onChange={() => {}} label="Also email all targeted clients" />
-        <Toggle on={false} onChange={() => {}} label="Require acknowledgement before dismissing" desc="Client must click 'Got it' to remove from their feed." />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
           <button className={s.btnSecondary}>Save as draft</button>
-          <button className={s.btnPrimary}>Schedule post</button>
+          <button className={s.btnPrimary}>Publish post</button>
         </div>
       </Card>
     </>
@@ -555,22 +569,12 @@ function NewsPanel() {
 }
 
 /* ── Email Templates ── */
-const EMAIL_TEMPLATES = [
-  { id: 'welcome',       name: 'Welcome to Ewall',          cat: 'Onboarding',  trigger: 'New client signup',          status: 'Active', updated: 'Apr 22' },
-  { id: 'ifta_review',   name: 'IFTA filing in review',     cat: 'Filings',     trigger: 'IFTA · status → In review',  status: 'Active', updated: 'May 02' },
-  { id: 'ifta_approved', name: 'IFTA approved',             cat: 'Filings',     trigger: 'IFTA · status → Approved',   status: 'Active', updated: 'May 02' },
-  { id: 'ucr_payment',   name: 'UCR payment due',           cat: 'Reminders',   trigger: 'UCR fee · 14 days before due', status: 'Active', updated: 'Apr 30' },
-  { id: 'dmv_renewal',   name: 'DMV renewal reminder',      cat: 'Reminders',   trigger: 'DMV registration · 30/14/7 days', status: 'Active', updated: 'Apr 18' },
-  { id: '2290_stamped',  name: 'Schedule 1 stamped',        cat: 'Filings',     trigger: 'Form 2290 · IRS acceptance', status: 'Active', updated: 'Apr 02' },
-  { id: 'receipts',      name: 'Receipts missing',          cat: 'Filings',     trigger: 'Filer flags missing receipts', status: 'Active', updated: 'Mar 28' },
-  { id: 'invoice',       name: 'Monthly invoice',           cat: 'Billing',     trigger: 'Monthly · 1st of month',     status: 'Active', updated: 'Mar 14' },
-  { id: 'pay_failed',    name: 'Payment failed',            cat: 'Billing',     trigger: 'Stripe · charge.failed',     status: 'Active', updated: 'Feb 20' },
-  { id: 'inactive',      name: '30-day inactive nudge',     cat: 'Engagement',  trigger: 'No login · 30 days',         status: 'Draft',  updated: 'Feb 10' },
-]
-
 const VARS = ['{{client.firstName}}', '{{client.companyName}}', '{{filing.period}}', '{{filing.amount}}', '{{truck.unit}}', '{{daysLeft}}', '{{ucr.year}}', '{{filer.name}}', '{{supportPhone}}', '{{paymentLink}}']
 
-function EmailTemplatesPanel() {
+function EmailTemplatesPanel({ templates }: { templates: EmailTemplateRow[] }) {
+  const active = templates.filter(t => t.isActive).length
+  const drafts  = templates.filter(t => !t.isActive).length
+
   return (
     <>
       <Card>
@@ -586,44 +590,50 @@ function EmailTemplatesPanel() {
             </div>
           }
         />
-        <div className={s.statsRow} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {[{ l: 'Active', v: '9' }, { l: 'Drafts', v: '1' }, { l: 'Sent · 30d', v: '4,128' }, { l: 'Open rate', v: '62%' }].map(st => (
+        <div className={s.statsRow} style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+          {[{ l: 'Active', v: String(active) }, { l: 'Drafts', v: String(drafts) }].map(st => (
             <div key={st.l} className={s.statMini}>
               <div className={s.statMiniLabel}>{st.l}</div>
               <div className={s.statMiniValue}>{st.v}</div>
             </div>
           ))}
         </div>
-        <div className={s.tableScroll}>
-          <table className={s.table}>
-            <thead>
-              <tr>
-                {['Template', 'Category', 'Trigger', 'Status', 'Updated', ''].map(h => (
-                  <th key={h} className={s.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {EMAIL_TEMPLATES.map(t => (
-                <tr key={t.id}>
-                  <td className={s.td} style={{ fontWeight: 500 }}>{t.name}</td>
-                  <td className={s.td}><span className={s.chip}>{t.cat}</span></td>
-                  <td className={`${s.td} ${s.tdMuted}`} style={{ fontSize: 11.5 }}>{t.trigger}</td>
-                  <td className={s.td}><Pill tone={t.status === 'Active' ? 'success' : 'neutral'}>{t.status}</Pill></td>
-                  <td className={`${s.td} ${s.tdMuted}`}>{t.updated}</td>
-                  <td className={s.td} style={{ textAlign: 'right' }}>
-                    <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
-                  </td>
+        {templates.length === 0 ? (
+          <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--v3-muted)', fontSize: 13 }}>
+            No email templates configured.
+          </div>
+        ) : (
+          <div className={s.tableScroll}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  {['Template', 'Key', 'Subject', 'Status', 'Updated', ''].map(h => (
+                    <th key={h} className={s.th}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {templates.map(t => (
+                  <tr key={t.id}>
+                    <td className={s.td} style={{ fontWeight: 500 }}>{t.name}</td>
+                    <td className={s.td}><span className={s.chip} style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{t.key}</span></td>
+                    <td className={`${s.td} ${s.tdMuted}`} style={{ fontSize: 11.5 }}>{t.subject}</td>
+                    <td className={s.td}><Pill tone={t.isActive ? 'success' : 'neutral'}>{t.isActive ? 'Active' : 'Draft'}</Pill></td>
+                    <td className={`${s.td} ${s.tdMuted}`}>{t.updatedAt}</td>
+                    <td className={s.td} style={{ textAlign: 'right' }}>
+                      <button className={s.iconBtn}><V3Icon name="more" size={14} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       <Card>
         <SectionHeader
-          title="Edit: IFTA filing in review"
+          title="Template editor"
           action={
             <div style={{ display: 'flex', gap: 8 }}>
               <button className={s.btnSecondary} style={{ fontSize: 12 }}>Preview</button>
@@ -633,27 +643,18 @@ function EmailTemplatesPanel() {
         />
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 18 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Field label="Subject line">
-              <Input defaultValue="We received your {{filing.period}} IFTA filing" />
-            </Field>
-            <Field label="Preview text">
-              <Input defaultValue="Our team is reviewing. We'll let you know within 48 hours." />
-            </Field>
+            <Field label="Subject line"><Input placeholder="Subject line…" /></Field>
+            <Field label="Preview text"><Input placeholder="One-liner shown in inbox…" /></Field>
             <Field label="From">
               <div style={{ display: 'flex', gap: 8 }}>
                 <Input defaultValue="Ewall Filings" style={{ flex: 1 }} />
                 <Input defaultValue="filings@ewall.com" style={{ flex: 1 }} />
               </div>
             </Field>
-            <Field label="Body" hint="Use {{variables}} from the right panel. Markdown supported.">
-              <textarea
-                className={`${s.textarea} ${s.textareaMono}`}
-                rows={9}
-                defaultValue={`Hola {{client.firstName}},\n\nWe just received your {{filing.period}} IFTA filing for {{client.companyName}}.\n\nOur team is reviewing your miles, gallons, and receipts. We'll send the next update within 48 hours.\n\nIf we need anything from you, your filer ({{filer.name}}) will reach out directly.\n\n— The Ewall team`}
-              />
+            <Field label="Body" hint="Use {{variables}} from the right panel.">
+              <textarea className={`${s.textarea} ${s.textareaMono}`} rows={9} placeholder="Email body…" />
             </Field>
             <Toggle on={true}  onChange={() => {}} label="Include Spanish translation below English copy" />
-            <Toggle on={true}  onChange={() => {}} label="Attach filing summary PDF" />
             <Toggle on={false} onChange={() => {}} label="Also send as SMS" />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -665,31 +666,14 @@ function EmailTemplatesPanel() {
                 ))}
               </div>
             </div>
-            <div style={{ padding: 14, background: 'var(--v3-bg)', border: '1px solid var(--v3-line)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--v3-muted)', letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>Preview · client view</div>
-              <div style={{ background: 'var(--v3-panel)', border: '1px solid var(--v3-line)', borderRadius: 8, padding: 14, fontSize: 12.5 }}>
-                <div style={{ fontWeight: 600, color: 'var(--v3-ink)', marginBottom: 4 }}>We received your 2026 Q2 IFTA filing</div>
-                <div style={{ color: 'var(--v3-muted)', fontSize: 11.5, marginBottom: 10 }}>From: Ewall Filings &lt;filings@ewall.com&gt;</div>
-                <div style={{ color: 'var(--v3-ink)', lineHeight: 1.55 }}>
-                  Hola José,<br /><br />
-                  We just received your 2026 Q2 IFTA filing for Rivera Trans LLC.<br /><br />
-                  Our team is reviewing your miles, gallons, and receipts. We&apos;ll send the next update within 48 hours.<br /><br />
-                  — The Ewall team
-                </div>
-              </div>
-            </div>
             <div style={{ padding: 14, background: 'var(--v3-warn-bg)', borderRadius: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--v3-warn)', marginBottom: 4 }}>Heads up</div>
               <div style={{ fontSize: 11.5, color: 'var(--v3-warn)', lineHeight: 1.45 }}>Changes apply to all future emails. Already-sent emails are not edited.</div>
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--v3-soft-line)' }}>
-          <div style={{ fontSize: 11.5, color: 'var(--v3-muted)' }}>Last sent · May 06 to 142 clients · 89 opens · 12 clicks</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button style={{ background: 'transparent', color: 'var(--v3-danger)', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>Delete template</button>
-            <button className={s.btnPrimary} style={{ fontSize: 12.5 }}>Save template</button>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--v3-soft-line)' }}>
+          <button className={s.btnPrimary} style={{ fontSize: 12.5 }}>Save template</button>
         </div>
       </Card>
 
@@ -708,7 +692,7 @@ function EmailTemplatesPanel() {
   )
 }
 
-/* ── System & Branding ── */
+/* ── System & Branding (static) ── */
 function SystemPanel() {
   return (
     <>
@@ -747,26 +731,34 @@ function SystemPanel() {
 }
 
 /* ── Main ── */
-export function AdminSettingsPage() {
+export function AdminSettingsPage({
+  iftaRates, iftaLastSync, iftaCurrentQuarter,
+  ucrBrackets, ucrActiveYear,
+  f2290Rates, f2290PeriodName,
+  dmvFees,
+  jurisdictions,
+  roles,
+  newsPosts,
+  emailTemplates,
+}: AdminSettingsProps) {
   const [section, setSection] = useState<Section>('iftaRates')
 
   const panels: Record<Section, React.ReactNode> = {
-    iftaRates:     <IFTARatesPanel />,
-    ucrFees:       <UCRFeesPanel />,
-    f2290:         <Form2290Panel />,
-    dmvFees:       <DMVFeesPanel />,
-    jurisdictions: <JurisdictionsPanel />,
+    iftaRates:     <IFTARatesPanel     rates={iftaRates} lastSync={iftaLastSync} currentQuarter={iftaCurrentQuarter} />,
+    ucrFees:       <UCRFeesPanel       brackets={ucrBrackets} activeYear={ucrActiveYear} />,
+    f2290:         <Form2290Panel      rates={f2290Rates} periodName={f2290PeriodName} />,
+    dmvFees:       <DMVFeesPanel       feeRules={dmvFees} />,
+    jurisdictions: <JurisdictionsPanel jurisdictions={jurisdictions} />,
     serviceFees:   <ServiceFeesPanel />,
     workflows:     <WorkflowsPanel />,
-    permissions:   <PermissionsPanel />,
-    news:          <NewsPanel />,
-    emails:        <EmailTemplatesPanel />,
+    permissions:   <PermissionsPanel   roles={roles} />,
+    news:          <NewsPanel          posts={newsPosts} />,
+    emails:        <EmailTemplatesPanel templates={emailTemplates} />,
     system:        <SystemPanel />,
   }
 
   return (
     <div className={`${s.page} ${s.adminPage}`}>
-      {/* Side nav */}
       <nav className={s.sidenav}>
         <div className={s.sideLabel}>Admin settings</div>
         {SECTIONS.map(sec => (
@@ -787,7 +779,6 @@ export function AdminSettingsPage() {
         </div>
       </nav>
 
-      {/* Content */}
       <div className={s.content}>
         {panels[section]}
         <div className={s.actions}>
