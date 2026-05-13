@@ -40,13 +40,14 @@ export default async function IftaFilingDetailPage({ params }: { params: Promise
       id: true, year: true, quarter: true, status: true,
       periodStart: true, periodEnd: true,
       totalDistance: true, totalFuelGallons: true, totalNetTax: true,
+      fleetMpg: true,
       notesInternal: true, notesClientVisible: true,
       createdAt: true, updatedAt: true,
       assignedStaffUserId: true,
       tenant: { select: { legalName: true, dbaName: true, companyName: true } },
       jurisdictionSummaries: {
         orderBy: { netTax: 'desc' },
-        select: { jurisdiction: true, totalMiles: true, taxableGallons: true, taxRate: true, taxDue: true, taxCredit: true, netTax: true },
+        select: { id: true, jurisdiction: true, totalMiles: true, taxableGallons: true, taxPaidGallons: true, taxRate: true, taxDue: true, taxCredit: true, netTax: true },
       },
       exceptions: {
         where: { status: { not: 'IGNORED' } },
@@ -62,6 +63,12 @@ export default async function IftaFilingDetailPage({ params }: { params: Promise
   })
 
   if (!filing) notFound()
+
+  const documents = await prisma.document.findMany({
+    where: { category: { startsWith: `ifta-v2-filing:${id}:` } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, name: true, fileName: true, fileUrl: true, fileType: true, fileSize: true, createdAt: true },
+  })
 
   const tenantName =
     filing.tenant?.legalName?.trim() ||
@@ -79,20 +86,24 @@ export default async function IftaFilingDetailPage({ params }: { params: Promise
       tenantName={tenantName}
       periodStart={fmtDate(filing.periodStart)}
       periodEnd={fmtDate(filing.periodEnd)}
-      totalMiles={filing.totalDistance ? Math.round(Number(filing.totalDistance)) : null}
-      totalGallons={filing.totalFuelGallons ? Math.round(Number(filing.totalFuelGallons)) : null}
-      totalNetTax={filing.totalNetTax ? Math.round(Number(filing.totalNetTax)) : null}
+      totalMiles={filing.totalDistance ? Number(filing.totalDistance) : null}
+      totalGallons={filing.totalFuelGallons ? Number(filing.totalFuelGallons) : null}
+      totalNetTax={filing.totalNetTax ? Number(filing.totalNetTax) : null}
+      fleetMpg={filing.fleetMpg ? Number(filing.fleetMpg) : null}
       notesInternal={filing.notesInternal ?? null}
       notesClientVisible={filing.notesClientVisible ?? null}
       createdAt={fmtDate(filing.createdAt)}
       updatedAt={fmtDate(filing.updatedAt)}
       jurisdictions={filing.jurisdictionSummaries.map(j => ({
+        id: j.id,
         state: j.jurisdiction,
-        miles: Math.round(Number(j.totalMiles)),
-        taxableGals: Math.round(Number(j.taxableGallons)),
+        miles: Number(j.totalMiles),
+        taxableGals: Number(j.taxableGallons),
+        taxPaidGals: Number(j.taxPaidGallons),
         taxRate: Number(j.taxRate),
-        taxDue: Math.round(Number(j.taxDue)),
-        netTax: Math.round(Number(j.netTax)),
+        taxDue: Number(j.taxDue),
+        taxCredit: Number(j.taxCredit),
+        netTax: Number(j.netTax),
       }))}
       exceptions={filing.exceptions.map(e => ({
         id: e.id,
@@ -108,6 +119,15 @@ export default async function IftaFilingDetailPage({ params }: { params: Promise
         action: a.action,
         message: a.message ?? null,
         when: fmtDate(a.createdAt),
+      }))}
+      documents={documents.map(d => ({
+        id: d.id,
+        name: d.name,
+        fileName: d.fileName,
+        fileUrl: d.fileUrl,
+        fileType: d.fileType,
+        fileSize: d.fileSize,
+        createdAt: fmtDate(d.createdAt),
       }))}
     />
   )

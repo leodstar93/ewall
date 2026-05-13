@@ -42,7 +42,8 @@
       "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/ifta-v2/[id]\")",
       "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/ucr/[id]\")",
       "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/2290/[id]\")",
-      "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/dmv/[id]\")"
+      "Bash(mkdir -p \"/c/Users/leods/ewall-app/app/v3/\\(protected\\)/admin/features/dmv/[id]\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\leods\\\\ewall-app\\\\app\\\\api\\\\v1\\\\features\" -Directory)"
     ],
     "additionalDirectories": [
       "c:\\Users\\leods\\ewall-app\\app\\api\\v1\\settings\\2290\\rate-tables\\[id]",

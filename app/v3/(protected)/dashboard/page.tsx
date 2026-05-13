@@ -18,7 +18,8 @@ export default async function DashboardPage() {
     }),
     prisma.truck.findMany({
       where: { userId },
-      select: { isActive: true },
+      select: { id: true, unitNumber: true, make: true, model: true, year: true, plateNumber: true, isActive: true },
+      orderBy: { unitNumber: 'asc' },
     }),
     prisma.iftaFiling.findFirst({
       where: { tenantId: org.id },
@@ -41,6 +42,14 @@ export default async function DashboardPage() {
     }),
   ])
 
+  const fleetPreview = trucks.slice(0, 5).map(t => ({
+    id: t.id,
+    unitNumber: t.unitNumber,
+    makeModel: [t.year, t.make, t.model].filter(Boolean).join(' ') || '—',
+    plateNumber: t.plateNumber ?? null,
+    isActive: t.isActive,
+  }))
+
   const companyName =
     companyRow?.legalName?.trim() ||
     companyRow?.dbaName?.trim() ||
@@ -57,7 +66,8 @@ export default async function DashboardPage() {
       dotNumber={companyRow?.dotNumber ?? ''}
       mcNumber={companyRow?.mcNumber ?? ''}
       truckTotal={trucks.length}
-      truckActive={trucks.filter((t: { isActive: boolean }) => t.isActive).length}
+      truckActive={trucks.filter(t => t.isActive).length}
+      fleetPreview={fleetPreview}
       today={today}
       latestIfta={
         latestIfta

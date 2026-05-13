@@ -113,9 +113,35 @@ export async function PATCH(
 
     const body = (await request.json()) as {
       chatMessage?: unknown;
+      notesInternal?: unknown;
+      notesClientVisible?: unknown;
     };
-    const chatMessage = parseOptionalString(body.chatMessage);
 
+    // Notes update — staff only
+    if (body.notesInternal !== undefined || body.notesClientVisible !== undefined) {
+      if (!canReviewAll) {
+        return Response.json({ error: "Only staff can update notes." }, { status: 403 });
+      }
+      const updated = await prisma.iftaFiling.update({
+        where: { id },
+        data: {
+          ...(body.notesInternal !== undefined && { notesInternal: parseOptionalString(body.notesInternal) ?? null }),
+          ...(body.notesClientVisible !== undefined && { notesClientVisible: parseOptionalString(body.notesClientVisible) ?? null }),
+        },
+        select: { id: true, notesInternal: true, notesClientVisible: true },
+      });
+      await FilingWorkflowService.logAudit({
+        filingId: id,
+        actorUserId: userId,
+        action: "filing.notes_updated",
+        message: "Notes updated",
+        db: prisma,
+      });
+      return Response.json({ ok: true, filing: updated });
+    }
+
+    // Chat message
+    const chatMessage = parseOptionalString(body.chatMessage);
     if (!chatMessage) {
       return Response.json({ error: "Message is required." }, { status: 400 });
     }
@@ -131,10 +157,7 @@ export async function PATCH(
       actorUserId: userId,
       action: "filing.chat_message",
       message: chatMessage,
-      payloadJson: {
-        authorRole,
-        authorName,
-      },
+      payloadJson: { authorRole, authorName },
       db: prisma,
     });
 

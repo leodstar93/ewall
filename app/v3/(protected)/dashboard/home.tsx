@@ -33,6 +33,14 @@ interface LatestForm2290Filing {
   periodYear: number
 }
 
+interface FleetTruck {
+  id: string
+  unitNumber: string
+  makeModel: string
+  plateNumber: string | null
+  isActive: boolean
+}
+
 interface Props {
   userName?: string
   companyName: string
@@ -44,6 +52,7 @@ interface Props {
   latestIfta: LatestIftaFiling | null
   latestUcr: LatestUcrFiling | null
   latestForm2290: LatestForm2290Filing | null
+  fleetPreview: FleetTruck[]
 }
 
 // ── Status → stage mapping ────────────────────────────────────────────────────
@@ -244,15 +253,7 @@ function buildFilingRows(
   return rows
 }
 
-// ── Still-mocked sections (Paso 4) ───────────────────────────────────────────
-
-const FLEET_PREVIEW = [
-  { id: 'TRK-101', model: 'Freightliner Cascadia', driver: 'José Rivera',   loc: 'Dallas, TX → Houston',  tone: 'success' as PillTone, status: 'In transit' },
-  { id: 'TRK-214', model: 'Volvo VNL 760',         driver: 'Ana Morales',   loc: 'Phoenix, AZ',            tone: 'success' as PillTone, status: 'In transit' },
-  { id: 'TRK-309', model: 'Kenworth T680',          driver: 'Luis Martínez', loc: 'San Bernardino, CA',    tone: 'warn'    as PillTone, status: 'Maintenance' },
-  { id: 'TRK-411', model: 'Peterbilt 579',          driver: 'Marcos Díaz',  loc: 'Laredo, TX',             tone: 'success' as PillTone, status: 'Active' },
-  { id: 'TRK-550', model: 'International LT',       driver: 'Unassigned',   loc: 'Miami, FL · Yard',       tone: 'neutral' as PillTone, status: 'Idle' },
-]
+// ── Still-mocked sections ─────────────────────────────────────────────────────
 
 const UPDATES = [
   { who: 'Ana (Ewall ops)',    what: 'flagged 2 receipts on Q2 IFTA',           when: '2 hr ago',  icon: 'fuel'   as const, tone: 'warn'    as const },
@@ -385,6 +386,7 @@ export function ClientHomePage({
   latestIfta,
   latestUcr,
   latestForm2290,
+  fleetPreview,
 }: Props) {
   const router = useRouter()
   const [addTruckOpen, setAddTruckOpen] = useState(false)
@@ -530,17 +532,23 @@ export function ClientHomePage({
             </div>
             <button onClick={() => setAddTruckOpen(true)} style={{ fontSize: 12, color: 'var(--v3-ink)', background: 'transparent', border: '1px solid var(--v3-line)', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontWeight: 500 }}>+ Add truck</button>
           </div>
-          {FLEET_PREVIEW.map(t => (
+          {fleetPreview.length === 0 ? (
+            <div style={{ padding: '24px 20px', color: 'var(--v3-muted)', fontSize: 13, textAlign: 'center' }}>
+              No trucks yet. Add your first truck above.
+            </div>
+          ) : fleetPreview.map(t => (
             <div key={t.id} style={{ padding: '13px 20px', borderBottom: '1px solid var(--v3-soft-line)', display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px', gap: 12, alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--v3-ink)' }}>{t.id}</div>
-                <div style={{ fontSize: 11, color: 'var(--v3-muted)', marginTop: 1 }}>{t.model}</div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--v3-ink)' }}>{t.unitNumber}</div>
+                <div style={{ fontSize: 11, color: 'var(--v3-muted)', marginTop: 1 }}>{t.makeModel}</div>
               </div>
-              <div style={{ fontSize: 12.5, color: 'var(--v3-ink)' }}>{t.driver}</div>
-              <div style={{ fontSize: 12, color: 'var(--v3-muted)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <V3Icon name="pin" size={12} />{t.loc}
+              {/* TODO: wire driver assignment */}
+              <div style={{ fontSize: 12.5, color: 'var(--v3-muted)', fontStyle: 'italic' }}>—</div>
+              {/* TODO: wire live location from ELD */}
+              <div style={{ fontSize: 12, color: 'var(--v3-muted)', fontStyle: 'italic' }}>—</div>
+              <div style={{ textAlign: 'right' }}>
+                <Pill tone={t.isActive ? 'success' : 'neutral'}>{t.isActive ? 'Active' : 'Inactive'}</Pill>
               </div>
-              <div style={{ textAlign: 'right' }}><Pill tone={t.tone}>{t.status}</Pill></div>
             </div>
           ))}
         </Card>

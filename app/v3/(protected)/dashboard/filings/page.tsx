@@ -15,6 +15,8 @@ type FilingRow = {
   amount: number | null
   due: string
   sub: string
+  authSigned: boolean
+  canSubmit: boolean
 }
 
 function fmtDate(d: Date | null | undefined): string {
@@ -87,7 +89,7 @@ export default async function FilingsPage() {
   const userId = session.user.id
   const org = await ensureUserOrganization(userId)
 
-  const [iftaFilings, ucrFilings, form2290Filings] = await Promise.all([
+  const [iftaFilings, ucrFilings, form2290Filings, ucrSetting, form2290Setting] = await Promise.all([
     prisma.iftaFiling.findMany({
       where: { tenantId: org.id },
       orderBy: { updatedAt: 'desc' },
@@ -96,7 +98,10 @@ export default async function FilingsPage() {
     prisma.uCRFiling.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
-      select: { id: true, year: true, status: true, vehicleCount: true, totalCharged: true, updatedAt: true },
+      select: {
+        id: true, year: true, status: true, vehicleCount: true, totalCharged: true, updatedAt: true,
+        authorization: { select: { status: true } },
+      },
     }),
     prisma.form2290Filing.findMany({
       where: { userId },
@@ -105,8 +110,11 @@ export default async function FilingsPage() {
       select: {
         id: true, status: true, amountDue: true, unitNumberSnapshot: true, vinSnapshot: true, updatedAt: true,
         taxPeriod: { select: { name: true, startDate: true } },
+        authorization: { select: { status: true } },
       },
     }),
+    prisma.uCRAdminSetting.findFirst({ orderBy: { createdAt: 'desc' }, select: { disclosureText: true } }),
+    prisma.form2290Setting.findFirst({ orderBy: { createdAt: 'desc' }, select: { authorizationText: true } }),
   ])
 
   type WithDate = FilingRow & { sortDate: number }
@@ -121,6 +129,8 @@ export default async function FilingsPage() {
       amount: f.totalNetTax ? Math.abs(Math.round(Number(f.totalNetTax))) : null,
       due: fmtDate(f.periodEnd),
       sub: `Q${f.quarter} · ${f.year}`,
+      authSigned: false,
+      canSubmit: false,
       sortDate: f.updatedAt.getTime(),
     })),
     ...ucrFilings.map(f => ({
@@ -132,6 +142,8 @@ export default async function FilingsPage() {
       amount: Math.round(Number(f.totalCharged)),
       due: `Year ${f.year}`,
       sub: f.vehicleCount ? `${f.vehicleCount} vehicles` : '',
+      authSigned: f.authorization?.status === 'SIGNED',
+      canSubmit: f.status === 'DRAFT',
       sortDate: f.updatedAt.getTime(),
     })),
     ...form2290Filings.map(f => ({
@@ -145,11 +157,19 @@ export default async function FilingsPage() {
         ? `FY ${new Date(f.taxPeriod.startDate).getFullYear()}`
         : '—',
       sub: [f.unitNumberSnapshot, f.taxPeriod?.name].filter(Boolean).join(' · '),
+      authSigned: f.authorization?.status === 'SIGNED',
+      canSubmit: f.status === 'DRAFT',
       sortDate: f.updatedAt.getTime(),
     })),
   ].sort((a, b) => b.sortDate - a.sortDate)
 
   const rows: FilingRow[] = combined.map(({ sortDate: _, ...r }) => r)
 
-  return <ClientFilingsPage filingRows={rows} />
+  return (
+    <ClientFilingsPage
+      filingRows={rows}
+      ucrDisclosureText={ucrSetting?.disclosureText ?? null}
+      form2290DisclosureText={form2290Setting?.authorizationText ?? null}
+    />
+  )
 }
