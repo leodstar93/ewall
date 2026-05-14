@@ -11,14 +11,14 @@ export default async function DashboardPage() {
   const userId = session.user.id
   const org = await ensureUserOrganization(userId)
 
-  const [companyRow, trucks, latestIfta, latestUcr, latestForm2290] = await Promise.all([
+  const [companyRow, trucks, latestIfta, latestUcr, latestForm2290, integrationAccount] = await Promise.all([
     prisma.companyProfile.findUnique({
       where: { id: org.id },
       select: { legalName: true, dbaName: true, companyName: true, dotNumber: true, mcNumber: true },
     }),
     prisma.truck.findMany({
       where: { userId },
-      select: { id: true, unitNumber: true, make: true, model: true, year: true, plateNumber: true, isActive: true },
+      select: { id: true, unitNumber: true, make: true, model: true, year: true, plateNumber: true, isActive: true, vin: true, lastLatitude: true, lastLongitude: true, lastLocationDescription: true },
       orderBy: { unitNumber: 'asc' },
     }),
     prisma.iftaFiling.findFirst({
@@ -40,15 +40,69 @@ export default async function DashboardPage() {
         taxPeriod: { select: { name: true, startDate: true } },
       },
     }),
+    prisma.integrationAccount.findFirst({
+      where: { tenantId: org.id, status: { in: ['CONNECTED', 'ERROR'] } },
+      orderBy: { connectedAt: 'desc' },
+      select: { id: true },
+    }),
   ])
 
-  const fleetPreview = trucks.slice(0, 5).map(t => ({
-    id: t.id,
-    unitNumber: t.unitNumber,
-    makeModel: [t.year, t.make, t.model].filter(Boolean).join(' ') || '—',
-    plateNumber: t.plateNumber ?? null,
-    isActive: t.isActive,
-  }))
+  // Derive last known GPS from most recent IFTA trip payloadJson (end_lat / end_lon)
+  const latByVin  = new Map<string, number>()
+  const lonByVin  = new Map<string, number>()
+  const latByUnit = new Map<string, number>()
+  const lonByUnit = new Map<string, number>()
+
+  if (integrationAccount) {
+    const recentTrips = await prisma.rawIftaTrip.findMany({
+      where: { integrationAccountId: integrationAccount.id, externalVehicleId: { not: null } },
+      orderBy: { tripDate: 'desc' },
+      select: { externalVehicleId: true, payloadJson: true },
+      take: 500,
+    })
+
+    const extVehicleIds = [...new Set(recentTrips.map(t => t.externalVehicleId).filter((id): id is string => id !== null))]
+    const extVehicles = extVehicleIds.length
+      ? await prisma.externalVehicle.findMany({
+          where: { id: { in: extVehicleIds } },
+          select: { id: true, vin: true, number: true },
+        })
+      : []
+    const extMap = new Map(extVehicles.map(v => [v.id, v]))
+
+    const seenVehicleIds = new Set<string>()
+    for (const trip of recentTrips) {
+      if (!trip.externalVehicleId || seenVehicleIds.has(trip.externalVehicleId)) continue
+      seenVehicleIds.add(trip.externalVehicleId)
+
+      const payload = trip.payloadJson as Record<string, unknown>
+      const inner = (payload.ifta_trip ?? payload.trip ?? payload) as Record<string, unknown>
+      const lat = typeof inner.end_lat === 'number' ? inner.end_lat : null
+      const lon = typeof inner.end_lon === 'number' ? inner.end_lon : null
+      if (lat === null || lon === null) continue
+
+      const ext = extMap.get(trip.externalVehicleId)
+      if (!ext) continue
+      if (ext.vin)    { latByVin.set(ext.vin.toUpperCase(), lat); lonByVin.set(ext.vin.toUpperCase(), lon) }
+      if (ext.number) { latByUnit.set(ext.number, lat); lonByUnit.set(ext.number, lon) }
+    }
+  }
+
+  const fleetPreview = trucks.slice(0, 5).map(t => {
+    const vinKey = t.vin?.toUpperCase()
+    const tripLat = (vinKey ? latByVin.get(vinKey) : undefined) ?? latByUnit.get(t.unitNumber) ?? null
+    const tripLon = (vinKey ? lonByVin.get(vinKey) : undefined) ?? lonByUnit.get(t.unitNumber) ?? null
+    return {
+      id: t.id,
+      unitNumber: t.unitNumber,
+      makeModel: [t.year, t.make, t.model].filter(Boolean).join(' ') || '—',
+      plateNumber: t.plateNumber ?? null,
+      isActive: t.isActive,
+      lastLatitude:  t.lastLatitude  ?? tripLat,
+      lastLongitude: t.lastLongitude ?? tripLon,
+      lastLocationDescription: t.lastLocationDescription ?? null,
+    }
+  })
 
   const companyName =
     companyRow?.legalName?.trim() ||

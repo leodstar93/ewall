@@ -50,6 +50,14 @@ export type ProviderVehicleRecord = {
   year?: string | null;
   metricUnits?: boolean | null;
   status?: string | null;
+  licensePlate?: string | null;
+  licensePlateState?: string | null;
+  currentDriverName?: string | null;
+  lastOdometerMiles?: number | null;
+  lastLatitude?: number | null;
+  lastLongitude?: number | null;
+  lastLocationAt?: string | null;
+  lastLocationDescription?: string | null;
   metadataJson?: Prisma.InputJsonValue | null;
   payloadJson: Prisma.InputJsonValue;
 };
@@ -683,6 +691,62 @@ class MotiveAdapter implements ELDProviderAdapter {
     const externalId = readString(record, "id", "vehicle_id", "vehicleId");
     if (!externalId) return null;
 
+    const currentDriverRecord =
+      readNestedRecord(record, "current_driver") ??
+      readNestedRecord(record, "currentDriver") ??
+      readNestedRecord(record, "driver");
+    const driverFirst = currentDriverRecord
+      ? readString(currentDriverRecord, "first_name", "firstName", "name")
+      : null;
+    const driverLast = currentDriverRecord
+      ? readString(currentDriverRecord, "last_name", "lastName")
+      : null;
+    const currentDriverName =
+      driverFirst && driverLast
+        ? `${driverFirst} ${driverLast}`
+        : driverFirst ?? driverLast ?? null;
+
+    const rawOdometer = readNumber(
+      record,
+      "odometer",
+      "last_odometer",
+      "lastOdometer",
+      "current_odometer",
+      "currentOdometer",
+      "odometer_meters",
+    );
+    const metricUnits = readBoolean(record, "metric_units", "metricUnits");
+    let lastOdometerMiles: number | null = null;
+    if (rawOdometer !== null) {
+      const isMeters =
+        readString(record, "odometer_unit", "odometerUnit") === "meters" ||
+        readString(record, "distance_unit", "distanceUnit") === "meters";
+      if (isMeters) {
+        lastOdometerMiles = Math.round(rawOdometer * 0.000621371);
+      } else if (metricUnits) {
+        lastOdometerMiles = Math.round(rawOdometer * MILES_PER_KILOMETER);
+      } else {
+        lastOdometerMiles = Math.round(rawOdometer);
+      }
+    }
+
+    const currentLocationRecord =
+      readNestedRecord(record, "current_location") ??
+      readNestedRecord(record, "currentLocation") ??
+      readNestedRecord(record, "location");
+    const lastLatitude = currentLocationRecord
+      ? readNumber(currentLocationRecord, "lat", "latitude")
+      : null;
+    const lastLongitude = currentLocationRecord
+      ? readNumber(currentLocationRecord, "lon", "lng", "longitude")
+      : null;
+    const lastLocationAt = currentLocationRecord
+      ? readString(currentLocationRecord, "located_at", "locatedAt", "timestamp", "time")
+      : null;
+    const lastLocationDescription = currentLocationRecord
+      ? readString(currentLocationRecord, "description", "name", "address", "city")
+      : null;
+
     return {
       externalId,
       number: readString(record, "number", "unit_number", "unitNumber"),
@@ -690,8 +754,30 @@ class MotiveAdapter implements ELDProviderAdapter {
       make: readString(record, "make"),
       model: readString(record, "model"),
       year: readString(record, "year"),
-      metricUnits: readBoolean(record, "metric_units", "metricUnits"),
+      metricUnits,
       status: readVehicleStatus(record),
+      licensePlate: readString(
+        record,
+        "license_plate_number",
+        "licensePlateNumber",
+        "license_plate",
+        "licensePlate",
+        "plate_number",
+        "plateNumber",
+      ),
+      licensePlateState: readString(
+        record,
+        "license_plate_state",
+        "licensePlateState",
+        "plate_state",
+        "plateState",
+      ),
+      currentDriverName,
+      lastOdometerMiles,
+      lastLatitude,
+      lastLongitude,
+      lastLocationAt,
+      lastLocationDescription,
       metadataJson: payload as Prisma.InputJsonValue,
       payloadJson: payload as Prisma.InputJsonValue,
     };
@@ -1133,12 +1219,46 @@ class MotiveAdapter implements ELDProviderAdapter {
   }
 
   async syncVehicles(input: ProviderSyncContext): Promise<VehicleSyncResult> {
-    const payload = await this.requestJson({
-      accessToken: input.accessToken,
-      path: this.getConfig().vehiclesPath,
-    });
-    const vehicles = extractCollection(payload, ["vehicles", "results"])
-      .map((vehicle) => this.mapVehicle(vehicle))
+    const [vehiclesPayload, locationsPayload] = await Promise.all([
+      this.requestJson({ accessToken: input.accessToken, path: this.getConfig().vehiclesPath }),
+      this.requestJson({ accessToken: input.accessToken, path: "/v1/vehicle_locations" }).catch(() => null),
+    ]);
+
+    // Build vehicleId → location map from the locations endpoint
+    const locationByVehicleId = new Map<string, { lat: number; lon: number; description: string | null; locatedAt: string | null }>();
+    const locationItems = locationsPayload
+      ? extractCollection(locationsPayload, ["vehicle_locations", "locations", "results"])
+      : [];
+    for (const item of locationItems) {
+      if (typeof item !== "object" || item === null) continue;
+      const rec = item as Record<string, unknown>;
+      // Vehicle ID can be at item.id, item.vehicle_id, or nested at item.vehicle.id
+      const vehicleRec = readNestedRecord(rec, "vehicle");
+      const vehicleId = readString(rec, "vehicle_id", "vehicleId") ?? (vehicleRec ? readString(vehicleRec, "id") : null);
+      const lat = readNumber(rec, "lat", "latitude");
+      const lon = readNumber(rec, "lon", "lng", "longitude");
+      if (!vehicleId || lat === null || lon === null) continue;
+      locationByVehicleId.set(String(vehicleId), {
+        lat,
+        lon,
+        description: readString(rec, "description", "address", "city", "name"),
+        locatedAt: readString(rec, "located_at", "locatedAt", "timestamp"),
+      });
+    }
+
+    const vehicles = extractCollection(vehiclesPayload, ["vehicles", "results"])
+      .map((vehicle) => {
+        const rec = this.mapVehicle(vehicle);
+        if (!rec) return null;
+        const loc = locationByVehicleId.get(rec.externalId);
+        if (loc) {
+          rec.lastLatitude = loc.lat;
+          rec.lastLongitude = loc.lon;
+          rec.lastLocationDescription = loc.description;
+          rec.lastLocationAt = loc.locatedAt;
+        }
+        return rec;
+      })
       .filter((vehicle): vehicle is ProviderVehicleRecord => Boolean(vehicle));
 
     return {

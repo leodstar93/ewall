@@ -77,5 +77,13 @@ export default async function BillingPage() {
     status: c.status,
   }))
 
-  return <ClientBillingPage plan={plan} paymentMethod={pm} invoiceRows={invoiceRows} />
+  return (
+    <ClientBillingPage
+      plan={plan}
+      paymentMethod={pm}
+      invoiceRows={invoiceRows}
+      stripePublishableKey={process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
+      paypalConfigured={Boolean(process.env.PAYPAL_CLIENT_ID?.trim() && process.env.PAYPAL_CLIENT_SECRET?.trim())}
+    />
+  )
 }

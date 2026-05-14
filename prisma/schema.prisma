@@ -962,7 +962,13 @@ model Truck {
   isInterstate   Boolean            @default(false)
   isActive       Boolean            @default(true)
   notes          String?
-  is2290Eligible Boolean            @default(false)
+  is2290Eligible      Boolean            @default(false)
+  currentDriverName   String?
+  lastOdometerMiles   Int?
+  lastLatitude            Float?
+  lastLongitude           Float?
+  lastLocationAt          DateTime?
+  lastLocationDescription String?
   userId         String
   user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime           @default(now())

@@ -26,7 +26,7 @@ export function Sidebar({
   userRole,
   userInitials,
   orgName,
-  settingsHref = '/v3/dashboard/settings',
+  settingsHref,
 }: SidebarProps) {
   const pathname = usePathname()
 
@@ -95,14 +95,16 @@ export function Sidebar({
 
       {/* ── Footer ── */}
       <div className={styles.footer}>
-        <Link
-          href={settingsHref}
-          className={styles.settingsBtn}
-          data-collapsed={collapsed}
-        >
-          <V3Icon name="settings" size={17} />
-          {!collapsed && <span>Settings</span>}
-        </Link>
+        {settingsHref && (
+          <Link
+            href={settingsHref}
+            className={styles.settingsBtn}
+            data-collapsed={collapsed}
+          >
+            <V3Icon name="settings" size={17} />
+            {!collapsed && <span>Settings</span>}
+          </Link>
+        )}
 
         <div className={styles.userRow} data-collapsed={collapsed}>
           <div className={styles.avatar}>{initials}</div>

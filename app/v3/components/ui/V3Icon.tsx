@@ -3,7 +3,7 @@ export type IconName =
   | 'users' | 'settings' | 'bell' | 'search' | 'plus'
   | 'chevDown' | 'chevRight' | 'chevLeft' | 'download' | 'filter'
   | 'arrow' | 'arrowUp' | 'arrowDown' | 'check' | 'clock'
-  | 'shield' | 'fuel' | 'upload' | 'sparkle' | 'pin' | 'more'
+  | 'shield' | 'fuel' | 'upload' | 'sparkle' | 'pin' | 'more' | 'list'
 
 interface V3IconProps {
   name: IconName
@@ -40,6 +40,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
   sparkle:   <><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></>,
   pin:       <><path d="M12 22s7-7.5 7-13a7 7 0 1 0-14 0c0 5.5 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></>,
   more:      <><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></>,
+  list:      <><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1.2"/><circle cx="4" cy="12" r="1.2"/><circle cx="4" cy="18" r="1.2"/></>,
 }
 
 export function V3Icon({ name, size = 16, stroke = 1.6, className }: V3IconProps) {

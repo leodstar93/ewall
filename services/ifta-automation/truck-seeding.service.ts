@@ -9,6 +9,14 @@ type ExistingTruckSummary = {
   model: string | null;
   year: number | null;
   isActive: boolean;
+  plateNumber: string | null;
+  statePlate: string | null;
+  currentDriverName: string | null;
+  lastOdometerMiles: number | null;
+  lastLatitude: number | null;
+  lastLongitude: number | null;
+  lastLocationAt: Date | null;
+  lastLocationDescription: string | null;
 };
 
 function normalizeOptionalText(value: string | null | undefined) {
@@ -111,6 +119,14 @@ export class TruckSeedingService {
         model: true,
         year: true,
         isActive: true,
+        plateNumber: true,
+        statePlate: true,
+        currentDriverName: true,
+        lastOdometerMiles: true,
+        lastLatitude: true,
+        lastLongitude: true,
+        lastLocationAt: true,
+        lastLocationDescription: true,
       },
     });
     const existingUserTruckByVin = new Map(
@@ -195,6 +211,14 @@ export class TruckSeedingService {
             model: true,
             year: true,
             isActive: true,
+            plateNumber: true,
+            statePlate: true,
+            currentDriverName: true,
+            lastOdometerMiles: true,
+            lastLatitude: true,
+            lastLongitude: true,
+            lastLocationAt: true,
+            lastLocationDescription: true,
           },
         });
 
@@ -245,12 +269,25 @@ export class TruckSeedingService {
         const nextMake = normalizeOptionalText(vehicle.make);
         const nextModel = normalizeOptionalText(vehicle.model);
         const nextYear = parseOptionalTruckYear(vehicle.year);
+        const nextPlate = normalizeOptionalText(vehicle.licensePlate);
+        const nextPlateState = normalizeOptionalText(vehicle.licensePlateState);
+        const nextDriver = normalizeOptionalText(vehicle.currentDriverName);
+        const nextOdometer = vehicle.lastOdometerMiles ?? null;
+        const nextLat = vehicle.lastLatitude ?? null;
+        const nextLon = vehicle.lastLongitude ?? null;
+        const nextLocAt = vehicle.lastLocationAt ? new Date(vehicle.lastLocationAt) : null;
+        const nextLocDesc = normalizeOptionalText(vehicle.lastLocationDescription);
         const shouldUpdate =
           existingTruck.unitNumber !== unitNumber ||
           (vin && existingTruck.vin !== vin) ||
           (nextMake && existingTruck.make !== nextMake) ||
           (nextModel && existingTruck.model !== nextModel) ||
           (nextYear && existingTruck.year !== nextYear) ||
+          (nextPlate && existingTruck.plateNumber !== nextPlate) ||
+          (nextPlateState && existingTruck.statePlate !== nextPlateState) ||
+          (nextDriver !== null && existingTruck.currentDriverName !== nextDriver) ||
+          (nextOdometer !== null && (existingTruck.lastOdometerMiles === null || nextOdometer > existingTruck.lastOdometerMiles)) ||
+          (nextLat !== null && existingTruck.lastLatitude !== nextLat) ||
           !existingTruck.isActive;
 
         if (shouldUpdate) {
@@ -262,6 +299,12 @@ export class TruckSeedingService {
               ...(nextMake ? { make: nextMake } : {}),
               ...(nextModel ? { model: nextModel } : {}),
               ...(nextYear ? { year: nextYear } : {}),
+              ...(nextPlate ? { plateNumber: nextPlate } : {}),
+              ...(nextPlateState ? { statePlate: nextPlateState } : {}),
+              ...(nextDriver !== null ? { currentDriverName: nextDriver } : {}),
+              ...(nextOdometer !== null && (existingTruck.lastOdometerMiles === null || nextOdometer > existingTruck.lastOdometerMiles)
+                ? { lastOdometerMiles: nextOdometer } : {}),
+              ...(nextLat !== null && nextLon !== null ? { lastLatitude: nextLat, lastLongitude: nextLon, lastLocationAt: nextLocAt, lastLocationDescription: nextLocDesc } : {}),
               isActive: true,
             },
           });
@@ -277,6 +320,14 @@ export class TruckSeedingService {
           make: nextMake ?? existingTruck.make,
           model: nextModel ?? existingTruck.model,
           year: nextYear ?? existingTruck.year,
+          plateNumber: nextPlate ?? existingTruck.plateNumber,
+          statePlate: nextPlateState ?? existingTruck.statePlate,
+          currentDriverName: nextDriver ?? existingTruck.currentDriverName,
+          lastOdometerMiles: nextOdometer ?? existingTruck.lastOdometerMiles,
+          lastLatitude: nextLat ?? existingTruck.lastLatitude,
+          lastLongitude: nextLon ?? existingTruck.lastLongitude,
+          lastLocationAt: nextLocAt ?? existingTruck.lastLocationAt,
+          lastLocationDescription: nextLocDesc ?? existingTruck.lastLocationDescription,
           isActive: true,
         };
 
@@ -308,6 +359,14 @@ export class TruckSeedingService {
           make: normalizeOptionalText(vehicle.make),
           model: normalizeOptionalText(vehicle.model),
           year: parseOptionalTruckYear(vehicle.year),
+          plateNumber: normalizeOptionalText(vehicle.licensePlate),
+          statePlate: normalizeOptionalText(vehicle.licensePlateState),
+          currentDriverName: normalizeOptionalText(vehicle.currentDriverName),
+          lastOdometerMiles: vehicle.lastOdometerMiles ?? null,
+          lastLatitude: vehicle.lastLatitude ?? null,
+          lastLongitude: vehicle.lastLongitude ?? null,
+          lastLocationAt: vehicle.lastLocationAt ? new Date(vehicle.lastLocationAt) : null,
+          lastLocationDescription: normalizeOptionalText(vehicle.lastLocationDescription),
           isActive: true,
           notes: "Imported automatically from ELD vehicle sync.",
         },
@@ -319,6 +378,14 @@ export class TruckSeedingService {
           model: true,
           year: true,
           isActive: true,
+          plateNumber: true,
+          statePlate: true,
+          currentDriverName: true,
+          lastOdometerMiles: true,
+          lastLatitude: true,
+          lastLongitude: true,
+          lastLocationAt: true,
+          lastLocationDescription: true,
         },
       });
 
