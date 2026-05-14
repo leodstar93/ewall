@@ -69,6 +69,33 @@ type ConversationMessage = {
   legacy?: boolean;
 };
 
+const RECEIPT_ACCEPT =
+  ".pdf,.png,.jpg,.jpeg,.webp,.csv,.xls,.xlsx,.xlsm,application/pdf,image/*,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const RECEIPT_ALLOWED_EXTENSIONS = new Set([
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".csv",
+  ".xls",
+  ".xlsx",
+  ".xlsm",
+]);
+const RECEIPT_FILE_HELP = "Allowed receipt formats: PDF, PNG, JPG, WEBP, CSV, XLS, XLSX, or XLSM.";
+
+function getFileExtension(fileName: string) {
+  const match = /(\.[A-Za-z0-9]+)$/.exec(fileName.trim());
+  return match?.[1]?.toLowerCase() || "";
+}
+
+function validateReceiptFile(file: File | null) {
+  if (!file) return null;
+  return RECEIPT_ALLOWED_EXTENSIONS.has(getFileExtension(file.name))
+    ? null
+    : RECEIPT_FILE_HELP;
+}
+
 function StatusChip({ label, className }: { label: string; className: string }) {
   return <span className={`${styles.statusChip} ${className}`}>{label}</span>;
 }
@@ -204,6 +231,7 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
   const [staffReason, setStaffReason] = useState("");
   const [chatDraft, setChatDraft] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptFileError, setReceiptFileError] = useState<string | null>(null);
   const busy = busyAction !== null;
 
   const load = useCallback(async (options?: { background?: boolean }) => {
@@ -290,6 +318,12 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
       setError(null);
 
       if (receiptFile) {
+        const validationError = validateReceiptFile(receiptFile);
+        if (validationError) {
+          setReceiptFileError(validationError);
+          return;
+        }
+
         const formData = new FormData();
         formData.append("file", receiptFile);
         await requestAdminAction("receipt", formData, true);
@@ -298,6 +332,7 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
       await requestAdminAction("complete");
 
       setReceiptFile(null);
+      setReceiptFileError(null);
       setCompleteModalOpen(false);
       await load({ background: true });
     } catch (actionError) {
@@ -924,11 +959,18 @@ export default function UcrAdminDetailClient({ filingId }: Props) {
               <span className={styles.fieldLabel}>Receipt file</span>
               <input
                 type="file"
-                onChange={(event) =>
-                  setReceiptFile(event.target.files?.[0] ?? null)
-                }
+                accept={RECEIPT_ACCEPT}
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setReceiptFile(nextFile);
+                  setReceiptFileError(validateReceiptFile(nextFile));
+                }}
                 className={styles.input}
               />
+              <span className={styles.fieldHelp}>{RECEIPT_FILE_HELP}</span>
+              {receiptFileError ? (
+                <span className={styles.fieldError}>{receiptFileError}</span>
+              ) : null}
             </label>
 
             {filing.officialReceiptUrl ? (

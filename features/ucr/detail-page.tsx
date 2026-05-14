@@ -40,6 +40,33 @@ type UcrDetailPageProps = {
   detailHrefBase?: string;
 };
 
+const RECEIPT_ACCEPT =
+  ".pdf,.png,.jpg,.jpeg,.webp,.csv,.xls,.xlsx,.xlsm,application/pdf,image/*,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const RECEIPT_ALLOWED_EXTENSIONS = new Set([
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".csv",
+  ".xls",
+  ".xlsx",
+  ".xlsm",
+]);
+const RECEIPT_FILE_HELP = "Allowed receipt formats: PDF, PNG, JPG, WEBP, CSV, XLS, XLSX, or XLSM.";
+
+function getFileExtension(fileName: string) {
+  const match = /(\.[A-Za-z0-9]+)$/.exec(fileName.trim());
+  return match?.[1]?.toLowerCase() || "";
+}
+
+function validateReceiptFile(file: File | null) {
+  if (!file) return null;
+  return RECEIPT_ALLOWED_EXTENSIONS.has(getFileExtension(file.name))
+    ? null
+    : RECEIPT_FILE_HELP;
+}
+
 export default function UcrDetailPage(props: UcrDetailPageProps) {
   const [payload, setPayload] = useState<DetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +77,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
   const [officialConfirmation, setOfficialConfirmation] = useState("");
   const [officialPaidAt, setOfficialPaidAt] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptFileError, setReceiptFileError] = useState<string | null>(null);
   const checkoutIdempotencyKeyRef = useRef(
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -189,6 +217,12 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
       setError(null);
 
       if (receiptFile) {
+        const validationError = validateReceiptFile(receiptFile);
+        if (validationError) {
+          setReceiptFileError(validationError);
+          return;
+        }
+
         const formData = new FormData();
         formData.append("file", receiptFile);
         await requestAdminAction("receipt", formData, true);
@@ -201,6 +235,7 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
       });
 
       setReceiptFile(null);
+      setReceiptFileError(null);
       await load();
     } catch (actionError) {
       setError(
@@ -520,9 +555,22 @@ export default function UcrDetailPage(props: UcrDetailPageProps) {
                 <span className="font-medium text-zinc-900">Receipt file</span>
                 <input
                   type="file"
-                  onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+                  accept={RECEIPT_ACCEPT}
+                  onChange={(event) => {
+                    const nextFile = event.target.files?.[0] ?? null;
+                    setReceiptFile(nextFile);
+                    setReceiptFileError(validateReceiptFile(nextFile));
+                  }}
                   className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3"
                 />
+                <span className="block text-xs leading-5 text-zinc-500">
+                  {RECEIPT_FILE_HELP}
+                </span>
+                {receiptFileError ? (
+                  <span className="block text-xs leading-5 text-red-700">
+                    {receiptFileError}
+                  </span>
+                ) : null}
               </label>
               <div className="flex items-end">
                 <p className="text-sm text-zinc-500">

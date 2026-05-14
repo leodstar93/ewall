@@ -29,6 +29,24 @@ export const UCR_ALLOWED_RECEIPT_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
   "image/webp",
+  "text/csv",
+  "application/csv",
+  "application/vnd.csv",
+  "application/vnd.ms-excel",
+  "application/vnd.ms-excel.sheet.macroEnabled.12",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]);
+
+const UCR_ALLOWED_RECEIPT_EXTENSIONS = new Set([
+  ".pdf",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".csv",
+  ".xls",
+  ".xlsx",
+  ".xlsm",
 ]);
 
 export const UCR_EDITABLE_STATUSES: UCRFilingStatus[] = [
@@ -389,9 +407,13 @@ export function validateOfficialReceiptFile(file: File) {
     throw new UcrServiceError("No file provided", 400, "FILE_REQUIRED");
   }
 
-  if (!UCR_ALLOWED_RECEIPT_MIME_TYPES.has(file.type)) {
+  const extension = getSafeFileExtension(file.name);
+  const isAllowedMimeType = Boolean(file.type) && UCR_ALLOWED_RECEIPT_MIME_TYPES.has(file.type);
+  const isAllowedExtension = UCR_ALLOWED_RECEIPT_EXTENSIONS.has(extension);
+
+  if (!isAllowedMimeType && !isAllowedExtension) {
     throw new UcrServiceError(
-      "Receipt must be a PDF, PNG, JPG, JPEG, or WEBP file.",
+      "Receipt must be a PDF, image, Excel, or CSV file.",
       400,
       "INVALID_RECEIPT_TYPE",
     );
