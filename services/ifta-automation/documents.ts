@@ -153,6 +153,37 @@ export async function listIftaAutomationDocuments(
   return documents.map(mapStoredDocument);
 }
 
+export async function findIftaAutomationDocumentByType(input: {
+  filingId: string;
+  type: string;
+  file?: File | null;
+  db?: DbLike;
+}) {
+  const resolvedDb = resolveDb(input.db ?? null);
+  const normalizedType = input.type.trim();
+  if (!normalizedType) return null;
+
+  const document = await resolvedDb.document.findFirst({
+    where: {
+      category: buildIftaAutomationDocumentCategory({
+        filingId: input.filingId,
+        type: normalizedType,
+      }),
+      ...(input.file
+        ? {
+            fileSize: input.file.size,
+            fileType: input.file.type || "application/octet-stream",
+          }
+        : {}),
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return document ? mapStoredDocument(document) : null;
+}
+
 export async function saveIftaAutomationDocument(input: {
   filingId: string;
   actorUserId: string;

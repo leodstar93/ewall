@@ -1,13 +1,18 @@
 import { IftaFilingStatus } from "@prisma/client";
 import { requireApiPermission } from "@/lib/rbac-api";
 import { assertFilingAccess, canReviewAllIfta } from "@/services/ifta-automation/access";
-import { saveIftaAutomationDocument } from "@/services/ifta-automation/documents";
+import {
+  findIftaAutomationDocumentByType,
+  saveIftaAutomationDocument,
+} from "@/services/ifta-automation/documents";
 import { FilingWorkflowService } from "@/services/ifta-automation/filing-workflow.service";
 import { handleIftaAutomationError } from "@/services/ifta-automation/http";
 import {
   getIftaAutomationFilingOrThrow,
   IftaAutomationError,
 } from "@/services/ifta-automation/shared";
+
+const PAYMENT_RECEIPT_TYPE = "ifta-payment-receipt";
 
 function resolveActorRole(roles: string[] | undefined) {
   if (roles?.includes("ADMIN")) return "admin" as const;
@@ -55,6 +60,16 @@ export async function POST(
     }
 
     const currentFiling = await getIftaAutomationFilingOrThrow(id);
+    if (currentFiling.status === IftaFilingStatus.FINALIZED) {
+      const document = await findIftaAutomationDocumentByType({
+        filingId: id,
+        type: PAYMENT_RECEIPT_TYPE,
+        file: paymentReceipt,
+      });
+
+      return Response.json({ filing: currentFiling, document });
+    }
+
     if (currentFiling.status !== IftaFilingStatus.APPROVED) {
       throw new IftaAutomationError(
         "Only client-approved filings can be finalized.",
@@ -63,14 +78,20 @@ export async function POST(
       );
     }
 
-    const document = await saveIftaAutomationDocument({
-      filingId: id,
-      actorUserId: userId,
-      actorRole: resolveActorRole(guard.session.user.roles),
-      file: paymentReceipt,
-      description: "Payment receipt uploaded during IFTA finalization.",
-      overrideType: "ifta-payment-receipt",
-    });
+    const document =
+      (await findIftaAutomationDocumentByType({
+        filingId: id,
+        type: PAYMENT_RECEIPT_TYPE,
+        file: paymentReceipt,
+      })) ??
+      (await saveIftaAutomationDocument({
+        filingId: id,
+        actorUserId: userId,
+        actorRole: resolveActorRole(guard.session.user.roles),
+        file: paymentReceipt,
+        description: "Payment receipt uploaded during IFTA finalization.",
+        overrideType: PAYMENT_RECEIPT_TYPE,
+      }));
 
     const filing = await FilingWorkflowService.finalize({
       filingId: id,
