@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
@@ -36,6 +38,50 @@ function StepTracker({ statusRaw }: { statusRaw: string }) {
   )
 }
 
+// ── Correction note modal ─────────────────────────────────────────────────────
+
+function CorrectionModal({ filingId, onClose, onSuccess }: { filingId: string; onClose: () => void; onSuccess: () => void }) {
+  const [note, setNote] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit() {
+    setLoading(true); setError(null)
+    const res = await fetch(`/api/v1/features/ucr/${filingId}/request-correction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ correctionNote: note.trim() }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setError((data as { error?: string }).error ?? 'Failed'); setLoading(false); return }
+    setLoading(false); onSuccess()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--v3-panel)', borderRadius: 14, padding: 28, width: 440, maxWidth: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--v3-ink)' }}>Request correction</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v3-muted)', fontSize: 18 }}>×</button>
+        </div>
+        <textarea
+          value={note} onChange={e => setNote(e.target.value)}
+          placeholder="Describe the correction needed…" rows={4}
+          style={{ width: '100%', padding: '9px 11px', border: '1px solid var(--v3-line)', borderRadius: 7, fontSize: 12.5, color: 'var(--v3-ink)', fontFamily: 'var(--v3-font)', background: 'var(--v3-bg)', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+        />
+        {error && <div style={{ fontSize: 12.5, color: 'var(--v3-danger)', background: 'var(--v3-danger-bg)', padding: '8px 12px', borderRadius: 7, marginTop: 10 }}>{error}</div>}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+          <button onClick={onClose} className={s.btnSecondary}>Cancel</button>
+          <button onClick={submit} disabled={loading || !note.trim()} className={s.btnDanger} style={{ opacity: loading || !note.trim() ? 0.7 : 1, cursor: loading || !note.trim() ? 'not-allowed' : 'pointer' }}>
+            {loading ? 'Sending…' : 'Request correction'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+
 interface Props {
   id: string
   year: number
@@ -67,20 +113,51 @@ interface Props {
   events: { id: string; type: string; message: string | null; when: string }[]
 }
 
-export function UCRFilingDetail({ year, filingYear, status, statusRaw, tone, companyName, dotNumber, mcNumber, entityType, vehicleCount, bracketLabel, feeAmount, serviceFee, processingFee, totalCharged, customerPaid, balanceDue, receiptNumber, staffNotes, internalNotes, correctionNote, createdAt, updatedAt, customerPaidAt, completedAt, docCount, events }: Props) {
-  const actions: { label: string; type: 'primary' | 'secondary' | 'danger' }[] = (() => {
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function UCRFilingDetail({
+  id, year, filingYear, status, statusRaw, tone, companyName,
+  dotNumber, mcNumber, entityType, vehicleCount, bracketLabel,
+  feeAmount, serviceFee, processingFee, totalCharged, customerPaid, balanceDue,
+  receiptNumber, staffNotes, internalNotes, correctionNote,
+  createdAt, updatedAt, customerPaidAt, completedAt, docCount, events,
+}: Props) {
+  const router = useRouter()
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [correctionOpen, setCorrectionOpen] = useState(false)
+
+  async function doAction(url: string, label: string) {
+    setActionLoading(label); setActionError(null)
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setActionError((data as { error?: string }).error ?? 'Action failed'); setActionLoading(null); return }
+    setActionLoading(null); router.refresh()
+  }
+
+  const base = `/api/v1/features/ucr/${id}`
+  const actions: { label: string; type: 'primary' | 'secondary' | 'danger'; onClick: () => void }[] = (() => {
     switch (statusRaw) {
-      case 'AWAITING_CUSTOMER_PAYMENT': return [{ label: 'Mark customer paid', type: 'primary' }]
-      case 'CUSTOMER_PAID': return [{ label: 'Queue for processing', type: 'primary' }]
-      case 'IN_PROCESS': case 'OFFICIAL_PAYMENT_PENDING': return [{ label: 'Mark official paid', type: 'primary' }]
-      case 'UNDER_REVIEW': return [{ label: 'Approve', type: 'primary' }, { label: 'Request correction', type: 'secondary' }]
-      case 'RESUBMITTED': return [{ label: 'Mark compliant', type: 'primary' }]
-      default: return []
+      case 'SUBMITTED':
+      case 'RESUBMITTED':
+        return [{ label: 'Begin review', type: 'primary', onClick: () => doAction(`${base}/review`, 'Begin review') }]
+      case 'UNDER_REVIEW':
+      case 'PENDING_PROOF':
+        return [
+          { label: 'Approve', type: 'primary', onClick: () => doAction(`${base}/approve`, 'Approve') },
+          { label: 'Request correction', type: 'secondary', onClick: () => setCorrectionOpen(true) },
+        ]
+      default:
+        return []
     }
   })()
 
   return (
     <div className={s.wrapper}>
+      {correctionOpen && (
+        <CorrectionModal filingId={id} onClose={() => setCorrectionOpen(false)} onSuccess={() => { setCorrectionOpen(false); router.refresh() }} />
+      )}
+
       <div className={s.header}>
         <Link href="/v3/admin/features/ucr" className={s.backBtn}>
           <V3Icon name="chevLeft" size={13} /> UCR filings
@@ -93,9 +170,16 @@ export function UCRFilingDetail({ year, filingYear, status, statusRaw, tone, com
           <div className={s.sub}>{companyName} · Year {year}</div>
         </div>
         <div className={s.headerActions}>
+          {actionError && <span style={{ fontSize: 12, color: 'var(--v3-danger)' }}>{actionError}</span>}
           {actions.map(a => (
-            <button key={a.label} className={s[`btn${a.type.charAt(0).toUpperCase() + a.type.slice(1)}` as 'btnPrimary' | 'btnSecondary' | 'btnDanger']} type="button">
-              {a.label}
+            <button
+              key={a.label}
+              onClick={a.onClick}
+              disabled={actionLoading !== null}
+              className={s[`btn${a.type.charAt(0).toUpperCase() + a.type.slice(1)}` as 'btnPrimary' | 'btnSecondary' | 'btnDanger']}
+              style={{ opacity: actionLoading !== null ? 0.7 : 1, cursor: actionLoading !== null ? 'not-allowed' : 'pointer' }}
+            >
+              {actionLoading === a.label ? `${a.label}…` : a.label}
             </button>
           ))}
         </div>
@@ -105,7 +189,6 @@ export function UCRFilingDetail({ year, filingYear, status, statusRaw, tone, com
 
       <div className={s.body}>
         <div className={s.main}>
-          {/* Filing info */}
           <Card>
             <SectionHeader title="Filing details" />
             <div className={s.metaGrid}>
@@ -124,7 +207,6 @@ export function UCRFilingDetail({ year, filingYear, status, statusRaw, tone, com
             </div>
           </Card>
 
-          {/* Payment breakdown */}
           <Card>
             <SectionHeader title="Payment breakdown" />
             <div className={s.tableWrap}>
@@ -137,12 +219,12 @@ export function UCRFilingDetail({ year, filingYear, status, statusRaw, tone, com
                 </thead>
                 <tbody>
                   {[
-                    { label: 'UCR fee',         amount: feeAmount },
-                    { label: 'Service fee',     amount: serviceFee },
-                    { label: 'Processing fee',  amount: processingFee },
-                    { label: 'Total charged',   amount: totalCharged },
-                    { label: 'Customer paid',   amount: customerPaid },
-                    { label: 'Balance due',     amount: balanceDue },
+                    { label: 'UCR fee',        amount: feeAmount },
+                    { label: 'Service fee',    amount: serviceFee },
+                    { label: 'Processing fee', amount: processingFee },
+                    { label: 'Total charged',  amount: totalCharged },
+                    { label: 'Customer paid',  amount: customerPaid },
+                    { label: 'Balance due',    amount: balanceDue },
                   ].map(r => (
                     <tr key={r.label}>
                       <td className={s.td} style={{ fontWeight: r.label === 'Total charged' || r.label === 'Balance due' ? 600 : 400 }}>{r.label}</td>
@@ -158,7 +240,6 @@ export function UCRFilingDetail({ year, filingYear, status, statusRaw, tone, com
         </div>
 
         <div className={s.sidebar}>
-          {/* Notes */}
           <Card>
             <SectionHeader title="Notes" />
             {[
@@ -173,7 +254,6 @@ export function UCRFilingDetail({ year, filingYear, status, statusRaw, tone, com
             ))}
           </Card>
 
-          {/* Event log */}
           <Card>
             <SectionHeader title="Event log" subtitle={`${events.length} events`} />
             {events.length === 0 ? (

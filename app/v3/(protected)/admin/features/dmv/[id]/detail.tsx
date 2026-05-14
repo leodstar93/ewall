@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
@@ -9,10 +11,10 @@ import { V3Icon } from '@/app/v3/components/ui/V3Icon'
 import s from '@/app/v3/components/ui/filing-detail.module.css'
 
 const DMV_STEPS = [
-  { label: 'Draft',      statuses: ['DRAFT'] },
-  { label: 'Pending',    statuses: ['PENDING'] },
-  { label: 'In Review',  statuses: ['IN_REVIEW'] },
-  { label: 'Active',     statuses: ['APPROVED', 'ACTIVE'] },
+  { label: 'Draft',     statuses: ['DRAFT'] },
+  { label: 'Pending',   statuses: ['PENDING'] },
+  { label: 'In Review', statuses: ['IN_REVIEW'] },
+  { label: 'Active',    statuses: ['APPROVED', 'ACTIVE'] },
 ]
 
 function StepTracker({ statusRaw }: { statusRaw: string }) {
@@ -35,6 +37,50 @@ function StepTracker({ statusRaw }: { statusRaw: string }) {
     </Card>
   )
 }
+
+// ── Reject modal ──────────────────────────────────────────────────────────────
+
+function RejectModal({ registrationId, onClose, onSuccess }: { registrationId: string; onClose: () => void; onSuccess: () => void }) {
+  const [reason, setReason] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit() {
+    setLoading(true); setError(null)
+    const res = await fetch(`/api/v1/features/dmv/registrations/${registrationId}/reject`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason.trim() || undefined }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setError((data as { error?: string }).error ?? 'Failed'); setLoading(false); return }
+    setLoading(false); onSuccess()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--v3-panel)', borderRadius: 14, padding: 28, width: 440, maxWidth: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--v3-ink)' }}>Reject registration</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v3-muted)', fontSize: 18 }}>×</button>
+        </div>
+        <textarea
+          value={reason} onChange={e => setReason(e.target.value)}
+          placeholder="Reason for rejection (optional)…" rows={4}
+          style={{ width: '100%', padding: '9px 11px', border: '1px solid var(--v3-line)', borderRadius: 7, fontSize: 12.5, color: 'var(--v3-ink)', fontFamily: 'var(--v3-font)', background: 'var(--v3-bg)', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+        />
+        {error && <div style={{ fontSize: 12.5, color: 'var(--v3-danger)', background: 'var(--v3-danger-bg)', padding: '8px 12px', borderRadius: 7, marginTop: 10 }}>{error}</div>}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+          <button onClick={onClose} className={s.btnSecondary}>Cancel</button>
+          <button onClick={submit} disabled={loading} className={s.btnDanger} style={{ opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+            {loading ? 'Rejecting…' : 'Reject'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface RenewalRow {
   id: string
@@ -76,23 +122,60 @@ interface Props {
   activities: { id: string; action: string; message: string | null; actor: string; when: string }[]
 }
 
-export function DmvRegistrationDetail({ status, statusRaw, tone, registrationType, filingType, truckUnit, truckVin, truckMakeModel, plateNumber, baseJurisdiction, dotNumber, mcNumber, declaredGVW, apportioned, fleetNumber, cabCardNumber, effectiveDate, expirationDate, daysLeft, approvedAt, createdAt, updatedAt, ownerName, ownerEmail, jurisdictions, renewals, activities }: Props) {
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function DmvRegistrationDetail({
+  id, status, statusRaw, tone, registrationType, filingType,
+  truckUnit, truckVin, truckMakeModel, plateNumber, baseJurisdiction,
+  dotNumber, mcNumber, declaredGVW, apportioned, fleetNumber, cabCardNumber,
+  effectiveDate, expirationDate, daysLeft, approvedAt, createdAt, updatedAt,
+  ownerName, ownerEmail, jurisdictions, renewals, activities,
+}: Props) {
+  const router = useRouter()
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [rejectOpen, setRejectOpen] = useState(false)
+
   const expiring = daysLeft != null && daysLeft >= 0 && daysLeft <= 60
   const expired  = daysLeft != null && daysLeft < 0
 
-  const actions: { label: string; type: 'primary' | 'secondary' | 'danger' }[] = (() => {
+  async function doAction(url: string, label: string) {
+    setActionLoading(label); setActionError(null)
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setActionError((data as { error?: string }).error ?? 'Action failed'); setActionLoading(null); return }
+    setActionLoading(null); router.refresh()
+  }
+
+  const base = `/api/v1/features/dmv/registrations/${id}`
+  const actions: { label: string; type: 'primary' | 'secondary' | 'danger'; onClick: () => void }[] = (() => {
     switch (statusRaw) {
-      case 'DRAFT':    return [{ label: 'Submit for review', type: 'primary' }]
-      case 'PENDING':  return [{ label: 'Begin review', type: 'primary' }]
-      case 'IN_REVIEW': return [{ label: 'Approve', type: 'primary' }, { label: 'Reject', type: 'danger' }]
-      case 'ACTIVE': case 'APPROVED':
-        return expiring || expired ? [{ label: 'Start renewal', type: 'primary' }] : []
-      default: return []
+      case 'DRAFT':
+        return [{ label: 'Submit for review', type: 'primary', onClick: () => doAction(`${base}/submit`, 'Submit for review') }]
+      case 'PENDING':
+        return [{ label: 'Begin review', type: 'primary', onClick: () => doAction(`${base}/review`, 'Begin review') }]
+      case 'IN_REVIEW':
+        return [
+          { label: 'Approve', type: 'primary', onClick: () => doAction(`${base}/approve`, 'Approve') },
+          { label: 'Reject', type: 'danger', onClick: () => setRejectOpen(true) },
+        ]
+      case 'ACTIVE':
+      case 'APPROVED':
+        if (expiring || expired) {
+          return [{ label: 'Start renewal', type: 'primary', onClick: () => doAction(`${base}/renewals`, 'Start renewal') }]
+        }
+        return []
+      default:
+        return []
     }
   })()
 
   return (
     <div className={s.wrapper}>
+      {rejectOpen && (
+        <RejectModal registrationId={id} onClose={() => setRejectOpen(false)} onSuccess={() => { setRejectOpen(false); router.refresh() }} />
+      )}
+
       <div className={s.header}>
         <Link href="/v3/admin/features/dmv" className={s.backBtn}>
           <V3Icon name="chevLeft" size={13} /> DMV renewals
@@ -107,9 +190,16 @@ export function DmvRegistrationDetail({ status, statusRaw, tone, registrationTyp
           <div className={s.sub}>{registrationType} · {filingType} · {truckMakeModel}</div>
         </div>
         <div className={s.headerActions}>
+          {actionError && <span style={{ fontSize: 12, color: 'var(--v3-danger)' }}>{actionError}</span>}
           {actions.map(a => (
-            <button key={a.label} className={s[`btn${a.type.charAt(0).toUpperCase() + a.type.slice(1)}` as 'btnPrimary' | 'btnSecondary' | 'btnDanger']} type="button">
-              {a.label}
+            <button
+              key={a.label}
+              onClick={a.onClick}
+              disabled={actionLoading !== null}
+              className={s[`btn${a.type.charAt(0).toUpperCase() + a.type.slice(1)}` as 'btnPrimary' | 'btnSecondary' | 'btnDanger']}
+              style={{ opacity: actionLoading !== null ? 0.7 : 1, cursor: actionLoading !== null ? 'not-allowed' : 'pointer' }}
+            >
+              {actionLoading === a.label ? `${a.label}…` : a.label}
             </button>
           ))}
         </div>
@@ -119,7 +209,6 @@ export function DmvRegistrationDetail({ status, statusRaw, tone, registrationTyp
 
       <div className={s.body}>
         <div className={s.main}>
-          {/* Registration info */}
           <Card>
             <SectionHeader title="Registration details" />
             <div className={s.metaGrid}>
@@ -140,7 +229,6 @@ export function DmvRegistrationDetail({ status, statusRaw, tone, registrationTyp
             </div>
           </Card>
 
-          {/* Jurisdictions */}
           {jurisdictions.length > 0 && (
             <Card noPadding>
               <div style={{ padding: '14px 16px 0' }}>
@@ -171,7 +259,6 @@ export function DmvRegistrationDetail({ status, statusRaw, tone, registrationTyp
             </Card>
           )}
 
-          {/* Renewals */}
           {renewals.length > 0 && (
             <Card>
               <SectionHeader title="Renewal history" subtitle={`${renewals.length} cycles`} />
@@ -202,7 +289,6 @@ export function DmvRegistrationDetail({ status, statusRaw, tone, registrationTyp
         </div>
 
         <div className={s.sidebar}>
-          {/* Owner */}
           <Card>
             <SectionHeader title="Owner" />
             <div className={s.metaGrid} style={{ gridTemplateColumns: '1fr' }}>
@@ -211,7 +297,6 @@ export function DmvRegistrationDetail({ status, statusRaw, tone, registrationTyp
             </div>
           </Card>
 
-          {/* Activity log */}
           <Card>
             <SectionHeader title="Activity log" subtitle={`${activities.length} events`} />
             {activities.length === 0 ? (

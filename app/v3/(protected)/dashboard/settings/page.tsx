@@ -123,6 +123,7 @@ export default async function SettingsPage() {
     <ClientSettingsPage
       userEmail={session.user.email ?? ''}
       userName={session.user.name ?? ''}
+      userId={userId}
       company={companyData}
       plan={plan}
       paymentMethod={pm}
@@ -130,6 +131,8 @@ export default async function SettingsPage() {
       truckCount={truckCount}
       integrationRows={integrationRows}
       auditRows={auditRows}
+      stripePublishableKey={process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
+      paypalConfigured={Boolean(process.env.PAYPAL_CLIENT_ID?.trim() && process.env.PAYPAL_CLIENT_SECRET?.trim())}
     />
   )
 }

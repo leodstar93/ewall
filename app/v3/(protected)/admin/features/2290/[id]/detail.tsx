@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card } from '@/app/v3/components/ui/Card'
 import { Pill } from '@/app/v3/components/ui/Pill'
@@ -9,11 +11,11 @@ import { V3Icon } from '@/app/v3/components/ui/V3Icon'
 import s from '@/app/v3/components/ui/filing-detail.module.css'
 
 const F2290_STEPS = [
-  { label: 'Draft',       statuses: ['DRAFT'] },
-  { label: 'Paid',        statuses: ['PAID'] },
-  { label: 'Submitted',   statuses: ['SUBMITTED'] },
-  { label: 'Processing',  statuses: ['IN_PROCESS', 'NEED_ATTENTION'] },
-  { label: 'Finalized',   statuses: ['FINALIZED'] },
+  { label: 'Draft',      statuses: ['DRAFT'] },
+  { label: 'Paid',       statuses: ['PAID'] },
+  { label: 'Submitted',  statuses: ['SUBMITTED'] },
+  { label: 'Processing', statuses: ['IN_PROCESS', 'NEED_ATTENTION'] },
+  { label: 'Finalized',  statuses: ['FINALIZED'] },
 ]
 
 function StepTracker({ statusRaw }: { statusRaw: string }) {
@@ -35,6 +37,61 @@ function StepTracker({ statusRaw }: { statusRaw: string }) {
     </Card>
   )
 }
+
+// ── Schedule 1 upload modal ───────────────────────────────────────────────────
+
+function Schedule1Modal({ filingId, onClose, onSuccess }: { filingId: string; onClose: () => void; onSuccess: () => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit() {
+    if (!file) return
+    setLoading(true); setError(null)
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch(`/api/v1/features/2290/${filingId}/upload-schedule1`, { method: 'POST', body: fd })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setError((data as { error?: string }).error ?? 'Upload failed'); setLoading(false); return }
+    setLoading(false); onSuccess()
+  }
+
+  function fmtSize(b: number) {
+    if (b < 1024) return `${b} B`
+    if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`
+    return `${(b / 1048576).toFixed(1)} MB`
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--v3-panel)', borderRadius: 14, padding: 28, width: 440, maxWidth: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--v3-ink)' }}>Upload Schedule 1</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--v3-muted)', fontSize: 18 }}>×</button>
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--v3-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+          Upload the IRS-stamped Schedule 1. This will mark the filing as finalized.
+        </div>
+        <label style={{ display: 'block', border: `2px dashed ${file ? 'var(--v3-primary)' : 'var(--v3-line)'}`, borderRadius: 10, padding: '24px 20px', textAlign: 'center', cursor: 'pointer', marginBottom: 16, background: file ? 'var(--v3-primary-soft)' : 'var(--v3-bg)' }}>
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => setFile(e.target.files?.[0] ?? null)} />
+          {file
+            ? <><div style={{ fontSize: 13, fontWeight: 600, color: 'var(--v3-primary)' }}>{file.name}</div><div style={{ fontSize: 11.5, color: 'var(--v3-muted)', marginTop: 4 }}>{fmtSize(file.size)}</div></>
+            : <div style={{ fontSize: 13, color: 'var(--v3-muted)' }}>Click to select Schedule 1 (PDF or image)</div>
+          }
+        </label>
+        {error && <div style={{ fontSize: 12.5, color: 'var(--v3-danger)', background: 'var(--v3-danger-bg)', padding: '8px 12px', borderRadius: 7, marginBottom: 12 }}>{error}</div>}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} className={s.btnSecondary}>Cancel</button>
+          <button onClick={submit} disabled={!file || loading} className={s.btnPrimary} style={{ opacity: !file || loading ? 0.7 : 1, cursor: !file || loading ? 'not-allowed' : 'pointer' }}>
+            {loading ? 'Uploading…' : 'Upload & finalize'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   id: string
@@ -65,15 +122,39 @@ interface Props {
   activityLog: { id: string; action: string; when: string }[]
 }
 
-export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin, unit, gvwr, make, model, truckYear, plate, isSuspended, amountDue, irsTaxEstimate, serviceFee, customerPaid, balanceDue, schedule1Url, schedule1Name, filedAt, createdAt, updatedAt, vehicles, corrections, activityLog }: Props) {
-  const actions: { label: string; type: 'primary' | 'secondary' | 'danger' }[] = (() => {
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function Form2290FilingDetail({
+  id, periodLabel, status, statusRaw, tone, vin, unit, gvwr, make, model, truckYear, plate,
+  isSuspended, amountDue, irsTaxEstimate, serviceFee, customerPaid, balanceDue,
+  schedule1Url, schedule1Name, filedAt, createdAt, updatedAt,
+  vehicles, corrections, activityLog,
+}: Props) {
+  const router = useRouter()
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [schedule1Open, setSchedule1Open] = useState(false)
+
+  async function doAction(url: string, label: string) {
+    setActionLoading(label); setActionError(null)
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setActionError((data as { error?: string }).error ?? 'Action failed'); setActionLoading(null); return }
+    setActionLoading(null); router.refresh()
+  }
+
+  const base = `/api/v1/features/2290/${id}`
+  const actions: { label: string; type: 'primary' | 'secondary' | 'danger'; onClick: () => void }[] = (() => {
     switch (statusRaw) {
-      case 'DRAFT':      return [{ label: 'Mark paid', type: 'primary' }]
-      case 'PAID':       return [{ label: 'Submit to IRS', type: 'primary' }]
-      case 'SUBMITTED':  return [{ label: 'Mark in process', type: 'primary' }]
-      case 'IN_PROCESS': return [{ label: 'Finalize', type: 'primary' }]
-      case 'NEED_ATTENTION': return [{ label: 'Mark resolved', type: 'primary' }]
-      default:           return []
+      case 'DRAFT':
+        return [{ label: 'Mark paid', type: 'primary', onClick: () => doAction(`${base}/mark-paid`, 'Mark paid') }]
+      case 'PAID':
+        return [{ label: 'Submit to IRS', type: 'primary', onClick: () => doAction(`${base}/submit`, 'Submit to IRS') }]
+      case 'SUBMITTED':
+      case 'IN_PROCESS':
+        return [{ label: 'Upload Schedule 1', type: 'primary', onClick: () => setSchedule1Open(true) }]
+      default:
+        return []
     }
   })()
 
@@ -81,6 +162,10 @@ export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin
 
   return (
     <div className={s.wrapper}>
+      {schedule1Open && (
+        <Schedule1Modal filingId={id} onClose={() => setSchedule1Open(false)} onSuccess={() => { setSchedule1Open(false); router.refresh() }} />
+      )}
+
       <div className={s.header}>
         <Link href="/v3/admin/features/2290" className={s.backBtn}>
           <V3Icon name="chevLeft" size={13} /> Form 2290 filings
@@ -94,9 +179,16 @@ export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin
           <div className={s.sub}>Unit {unit} · {vin}</div>
         </div>
         <div className={s.headerActions}>
+          {actionError && <span style={{ fontSize: 12, color: 'var(--v3-danger)' }}>{actionError}</span>}
           {actions.map(a => (
-            <button key={a.label} className={s[`btn${a.type.charAt(0).toUpperCase() + a.type.slice(1)}` as 'btnPrimary' | 'btnSecondary' | 'btnDanger']} type="button">
-              {a.label}
+            <button
+              key={a.label}
+              onClick={a.onClick}
+              disabled={actionLoading !== null}
+              className={s[`btn${a.type.charAt(0).toUpperCase() + a.type.slice(1)}` as 'btnPrimary' | 'btnSecondary' | 'btnDanger']}
+              style={{ opacity: actionLoading !== null ? 0.7 : 1, cursor: actionLoading !== null ? 'not-allowed' : 'pointer' }}
+            >
+              {actionLoading === a.label ? `${a.label}…` : a.label}
             </button>
           ))}
         </div>
@@ -106,7 +198,6 @@ export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin
 
       <div className={s.body}>
         <div className={s.main}>
-          {/* Filing info */}
           <Card>
             <SectionHeader title="Filing details" />
             <div className={s.metaGrid}>
@@ -121,7 +212,6 @@ export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin
             </div>
           </Card>
 
-          {/* Vehicles */}
           {vehicles.length > 0 && (
             <Card noPadding>
               <div style={{ padding: '14px 16px 0' }}>
@@ -156,7 +246,6 @@ export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin
             </Card>
           )}
 
-          {/* Open corrections */}
           {corrections.length > 0 && (
             <Card>
               <SectionHeader title="Open corrections" subtitle={`${corrections.length} pending`} />
@@ -176,14 +265,11 @@ export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin
         </div>
 
         <div className={s.sidebar}>
-          {/* Schedule 1 */}
           {schedule1Url && (
             <Card>
               <SectionHeader title="Schedule 1" />
               <a
-                href={schedule1Url}
-                target="_blank"
-                rel="noreferrer"
+                href={schedule1Url} target="_blank" rel="noreferrer"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--v3-primary)', textDecoration: 'none', fontWeight: 500 }}
               >
                 <V3Icon name="download" size={14} />
@@ -192,15 +278,14 @@ export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin
             </Card>
           )}
 
-          {/* Payment */}
           <Card>
             <SectionHeader title="Payment" />
             {[
-              { label: 'Amount due',      val: amountDue != null ? `$${amountDue.toLocaleString()}` : '—' },
-              { label: 'IRS estimate',    val: irsTaxEstimate != null ? `$${irsTaxEstimate.toLocaleString()}` : '—' },
-              { label: 'Service fee',     val: serviceFee != null ? `$${serviceFee.toLocaleString()}` : '—' },
-              { label: 'Customer paid',   val: `$${customerPaid.toLocaleString()}` },
-              { label: 'Balance due',     val: `$${balanceDue.toLocaleString()}`, danger: balanceDue > 0 },
+              { label: 'Amount due',    val: amountDue != null ? `$${amountDue.toLocaleString()}` : '—' },
+              { label: 'IRS estimate',  val: irsTaxEstimate != null ? `$${irsTaxEstimate.toLocaleString()}` : '—' },
+              { label: 'Service fee',   val: serviceFee != null ? `$${serviceFee.toLocaleString()}` : '—' },
+              { label: 'Customer paid', val: `$${customerPaid.toLocaleString()}` },
+              { label: 'Balance due',   val: `$${balanceDue.toLocaleString()}`, danger: balanceDue > 0 },
             ].map(r => (
               <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--v3-soft-line)' }}>
                 <span style={{ fontSize: 12.5, color: 'var(--v3-muted)' }}>{r.label}</span>
@@ -209,7 +294,6 @@ export function Form2290FilingDetail({ periodLabel, status, statusRaw, tone, vin
             ))}
           </Card>
 
-          {/* Activity log */}
           <Card>
             <SectionHeader title="Activity log" subtitle={`${activityLog.length} events`} />
             {activityLog.length === 0 ? (
